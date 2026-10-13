@@ -44,7 +44,6 @@ references; pin a concrete Go revision before patching them.
 | Entity | Meaning |
 | --- | --- |
 | G | Ordinary Go goroutine, with its own stack and execution state. |
-| GL | Goroutine designated as native RPC work: a native dispatcher/handler, or a G that has entered native RPC. This is a scheduling designation, not transport authorization. |
 | P | Go execution resources, including a local run queue and runtime bookkeeping. In steady state, the number of Ps is GOMAXPROCS. P is not a physical CPU or mailbox. |
 | M | In this note, an OS thread without L. Go itself uses M for all OS threads. |
 | ML | An OS thread holding L. It still needs P to execute Go code. |
@@ -52,8 +51,8 @@ references; pin a concrete Go revision before patching them.
 
 There are as many physical L resources as configured workers, shared across
 domains, not that many independently owned by each process. OS threads may
-outnumber Ps. GLs and in-flight requests may outnumber Ls. Neither a G nor a P
-owns hardware access authority merely by carrying a pointer.
+outnumber Ps. Gs requesting native access and in-flight requests may outnumber
+Ls. Neither a G nor a P owns hardware access authority merely by carrying a pointer.
 
 | Transition | P | L |
 | --- | --- | --- |
@@ -70,39 +69,58 @@ domain ownership through the [address decoder](../../hw/src/lauberhorn/host/eci/
 the [kernel](../../sw/kmod/sched.c) separately installs thread affinity and
 serializes assignment claims. Preserve both layers.
 
-An ordinary G becomes GL on first native RPC use; incoming dispatch/handler work
-is designated at the native boundary. The designation persists across blocking
-and wakeups. Children created with `go` do not automatically become GL; they
-can still run locally when capacity permits. No stack inspection or complete
-call-chain tracking is required. The concrete runtime representation is open.
+There is no sticky GL class. Native RPC entry publishes a **temporary demand
+for 2F2F access** when the operation needs an endpoint. If the current M lacks
+an eligible L, G waits for execution on ML before touching transport. Demand
+persists through dispatch/activation races until serviced or withdrawn; it is
+not forgotten merely because G parks awaiting L. Transport access also requires
+a guard against migration and concurrent mailbox use for the operation's lifetime.
+
+After the operation and its borrows/reservations settle, remove the demand.
+Ordinary computation, channel waits and waiting for a remote reply carry no
+requirement for L. A later send, receive or other native access publishes fresh
+demand. Failure/cancellation must withdraw queued demand or safely settle an
+already acquired operation before clearing its constraint. A native RPC's
+entire application lifetime is not one transport-critical section.
+
+Incoming handlers and children are ordinary Gs. Neither first use, ancestry nor
+a channel/timer wake permanently changes scheduling eligibility. No stack
+inspection or complete call-chain tracking is required. Locality preferences
+may keep a continuation on ML after its operation, but cannot make it ineligible
+for migration to M or give it priority over actual endpoint demand.
 
 ## Mechanism and scheduling policy
 
 Mechanisms provide assignment acquisition/release, exclusive transport access,
 safe goroutine migration/handoff, preemption requests and notification of host
-work. Policy prefers ordinary G execution on M and native work on ML. Ordinary
-G may borrow otherwise available ML execution; it must give way when native
-demand appears. Do not permanently bind each handler with `LockOSThread`: that
-would prevent other goroutines from executing on that thread while it waits.
+work. Policy prefers computation without current endpoint demand on M and
+2F2F operations on ML. G may continue computing on otherwise available ML
+execution for locality; it must give way when native demand appears. Completing
+an operation does not force immediate migration or relinquishment of L: policy
+can retain locality until capacity is needed. Do not permanently bind each
+handler with `LockOSThread`: that would prevent other goroutines from executing
+on that thread while it waits.
 
 Distinguish three populations:
 
 - **In-flight requests:** admitted requests not yet completed, including blocked
   handlers; bounded by storage and RPC context/credit capacity.
-- **Active runnable GLs:** work that can advance now, such as computation or TX.
+- **Active native demand:** an operation ready to use an endpoint now, such as
+  response TX. Computation alone is not active native demand, even in a handler
+  that previously used RPC.
 - **Receive demand:** pending calls asking for a packet. These wait in software
   until receive service can be provided; they are not endlessly runnable loops.
 
-Use Go's existing waiting states plus runtime-owned demand queues. A GL parked
+Use Go's existing waiting states plus runtime-owned demand queues. A G parked
 on a child is not occupying ML execution. In contrast, an ML performing a
 blocking 2F2F RX read is occupied until hardware completes that read.
 
 ### Dispatch and preemption matrix
 
-| Incoming demand | Available ML | ML executing ordinary G | ML stalled in hardware RX | ML executing active GL |
+| Incoming demand | Available ML | ML executing G without current endpoint demand | ML stalled in hardware RX | ML servicing an active native operation |
 | --- | --- | --- | --- | --- |
-| **GL with active work**, e.g. response TX | Dispatch | Request prompt Go preemption, then dispatch | Signal HOST_WORK; dispatch after RX safely returns | Queue |
-| **GL requesting RX** | Begin receive service | Request prompt Go preemption, then begin receive service | Queue; do not interrupt RX merely to replace its waiter | Queue |
+| **G with active native demand**, e.g. response TX | Dispatch | Request prompt Go preemption, then dispatch | Signal HOST_WORK; dispatch after RX safely returns | Queue |
+| **G requesting RX** | Begin receive service | Request prompt Go preemption, then begin receive service | Queue; do not interrupt RX merely to replace its waiter | Queue |
 
 An available ML also needs access to P. If active work and receive demand are
 both queued, active work takes precedence over entering another blocking RX.
@@ -110,22 +128,24 @@ At most one receive-service owner operates each L; oversubscribed receive caller
 queue rather than issue concurrent hardware reads. Preserve sequential worker
 RX/TX operation, including live reservations and borrows.
 
-Publishing active GL demand must trigger dispatch or preemption promptly when an
-ML is running G. Do not wait for the normal G quantum to expire. Record the
-invariant: **GL waiting plus ML executing G implies a dispatch/preemption action
-is outstanding**, unless another claimed activation already covers that demand.
+Publishing active native demand must trigger dispatch or preemption promptly when
+an ML is running G without an endpoint constraint. Do not wait for the normal G
+quantum to expire. Record the invariant: **active native demand waiting plus ML
+executing unconstrained G implies a dispatch/preemption action is outstanding**,
+unless another claimed activation already covers that demand.
 Notification and dispatch claims must prevent lost work and redundant claims.
 
 Use Go's [safe-point preemption](https://go.dev/src/runtime/preempt.go) to regain
 the scheduler; do not touch transport in a signal handler. The response objective
-is readiness-to-ML-dispatch delay substantially below the ordinary G quantum.
+is native-demand-publication-to-ML-dispatch delay substantially below the ordinary
+G quantum.
 No numerical or hard bound is established: safe points, P availability, all MLs
-already running GLs, and syscall-retained L qualify it. If every ML blocks in a
-syscall, eventual return remains the same progress assumption as in C; syscall
+already servicing native operations, and syscall-retained L qualify it. If every
+ML blocks in a syscall, eventual return remains the same progress assumption as in C; syscall
 migration/offload and arbitrary reclamation are not added here.
 
-GL priority alone cannot discover incoming packets. Receive service must also
-make progress under sustained active work, including observing DESCHED. A
+Native-demand priority alone cannot discover incoming packets. Receive service
+must also make progress under sustained active work, including observing DESCHED. A
 bounded service opportunity is required; the precise budget/polling or arrival
 notification mechanism remains to be designed. Prioritizing active work over a
 **blocking** RX wait must not become permission to starve all RX indefinitely.
@@ -138,10 +158,15 @@ existing ioctl, register, descriptor or trace event is renamed or introduced by
 this document.
 
 HOST_WORK means: **software work is pending; complete an assigned endpoint's RX
-wait so the runtime can service it**. Examples include a response-ready GL, a
+wait so the runtime can service it**. Examples include a pending response TX, a
 timer continuation and memcached worker-maintenance notifications. Hardware
 does not select a Go continuation or execute a callback. The assignment remains
 valid; this is not DESCHED or a direct wake of a thread inside `lh_yield()`.
+
+In the Go binding, child/timer readiness alone does not imply endpoint demand.
+A normal continuation can run on M, then publish demand and signal HOST_WORK at
+native entry. Runtime policy may also request host work to service a local
+continuation, but such a locality hint is not persistent 2F2F priority.
 
 The current transport can return an ordinary payload-free NACK. Whether HOST_WORK
 uses that completion or a distinct reason is an open ABI decision, not permission
@@ -166,40 +191,51 @@ allocation and retirement interfaces remain open.
 
 ### Unloaded parent and child
 
-An ML receives and runs GL. GL spawns G locally and waits; the same P/ML/L can
-run G. G completes and wakes GL locally; GL sends its response through L. This
-uses locality preferences, not inherited GL status or a guarantee of physical
-placement. No mandatory handoff to an ordinary CPU is introduced.
+An ML receives and runs a handler G. After decoding and releasing the borrow,
+the handler has no endpoint constraint. It spawns a child locally and waits;
+the same P/ML/L can run the child. The child completes and wakes the handler
+locally; response TX publishes fresh demand, already satisfiable on that ML.
+This uses locality preferences, not inherited status or a guarantee of physical
+placement. No mandatory handoff to an ordinary CPU is introduced, and either
+parent or child may move to M between transport operations.
 
 ### Ordinary computation saturates workers
 
-GL readiness publishes demand and requests preemption of an ML executing G.
-At a safe point, requeue G for ordinary execution and dispatch GL on the same
-ML, retaining P and L. Excess GLs queue if every ML already runs active GL work.
+G entering native TX publishes demand and requests preemption of an ML executing
+computation without an endpoint constraint. At a safe point, requeue the displaced
+G and dispatch the operation on the same ML, retaining P and L. This also applies
+if the displaced G previously used RPC. Excess demand queues if every ML already
+services an active native operation.
 Unlike hardware DESCHED, this changes the executing goroutine, not the domain's
 endpoint assignment.
 
 ### A child completes while every ML waits in RX
 
-The child publishes its parent's ready work and signals HOST_WORK. An eligible
-ML's RX completes without needing another packet. Its runtime dispatches the
-parent GL, which transmits using the retained L. Both receive and send require
-ML execution; software completion alone never authorizes TX from ordinary M.
+The child makes its parent runnable through normal Go synchronization. The parent
+can resume on M and prepare its response; native send entry publishes endpoint
+demand and signals HOST_WORK. An eligible ML's RX completes without needing
+another packet. Its runtime dispatches the parent's send using the retained L.
+A binding that already has a ready owned TX operation can publish that operation
+directly. Merely waking a parent still needing computation does not confer
+priority for L. Both receive and send require ML execution; software completion
+alone never authorizes TX from ordinary M.
 
 ### More in-flight requests than Ls
 
-Separate bounded receive service from independently schedulable request GLs,
+Separate bounded receive service from independently schedulable request Gs,
 like a listener dispatching accepted work:
 
 1. Receive and decode into owned Go data; retain the opaque reply context.
-2. Release the RX borrow before independently scheduling the request GL.
-3. GL computes, spawns children or submits a nested call, then may park.
+2. Release the RX borrow before independently scheduling the request G.
+3. G computes, spawns children or submits a nested call, then may park. Nested
+   submission requires L only for transport; waiting for its reply does not.
 4. Receive service continues, routing new calls and nested replies to the
    appropriate handlers/completion waiters. A nested-call waiter does not start
    its own hardware RX loop.
-5. Response-ready GL queues for ML execution, then encodes and sends using L.
+5. Response TX publishes native demand and queues for ML execution, then encodes
+   and sends using L. Once transport ownership settles, G is unconstrained again.
 
-The request GL may send its own eventual response; no extra TX goroutine is
+The request G may send its own eventual response; no extra TX goroutine is
 mandatory because it is not the sole receiver. If receive service has entered
 hardware RX meanwhile, HOST_WORK returns control. The mapping of receive service
 to scheduler hooks or internal goroutines remains an implementation choice;
@@ -215,14 +251,14 @@ explicit rejection, not unlimited goroutine creation.
 ### More receive callers than Ls
 
 If a public receive API is exposed, excess callers wait in a software queue.
-They may displace ordinary G as the matrix specifies, but cannot displace active
-GL or repeatedly interrupt a pending RX. The null-RPC server need not expose
-that API merely to obtain bounded internal receive service.
+They may displace unconstrained G as the matrix specifies, but cannot displace an
+active native operation or repeatedly interrupt a pending RX. The null-RPC server
+need not expose that API merely to obtain bounded internal receive service.
 
 ### C-like admission versus multiplexing
 
 Limiting **outstanding request lifecycles** to worker capacity reproduces the
-inline C concurrency policy. Merely limiting runnable GLs does not: a blocked
+inline C concurrency policy. Merely limiting native demand does not: a blocked
 handler still owns an in-flight request. Multiplexed admission allows more
 lifecycles while bounding transport execution by L and P and admission by credits.
 
@@ -235,8 +271,8 @@ and activation rejects yielding with a borrow or TX reservation outstanding.
 
 An eventual cross-goroutine zero-copy API would require affinity to the specific
 live assignment, serialized access and explicit borrow lifetime accounting.
-Becoming GL is insufficient: another L has another mailbox. Multiple borrowers
-could multiplex on one ML, but cannot allow buffer reuse or assignment release;
+Demand for any available L is insufficient: another L has another mailbox.
+Multiple borrowers could multiplex on one ML, but cannot allow buffer reuse or assignment release;
 waiting for traffic that requires recycling the borrowed slot can prevent
 progress. That extension is not part of the initial binding.
 
@@ -254,21 +290,29 @@ Future implementation proceeds through these gates:
 4. Later: port Go Raft, then etcd and its client interface. Durability, snapshots,
    bulk transport, compatibility and failure semantics need their own designs.
 
-Future tests must cover every matrix cell, more GLs than Ls, excess receive
-demand, all handlers awaiting children/nested replies, and continued RX/TX under
+Future tests must cover every matrix cell, more native callers than Ls, excess
+receive demand, all handlers awaiting children/nested replies, and continued RX/TX under
 credit pressure. Include channel/timer readiness, GC while workers park, P
 reacquisition, both parities after activation, stale borrows, and races between
 work publication, RX entry, packet arrival, HOST_WORK and DESCHED. Keep current
 C/native UDP regressions and memcached resize validation in the acceptance set.
 
-Trace GL readiness, preemption request, ML dispatch, RX return and TX alongside
-OS thread/CPU, P, endpoint and domain identities. Measure readiness-to-dispatch
+Verify that first RPC use does not permanently elevate a G; a handler can move
+to M after releasing its borrow, then request ML again for TX. A nested caller
+must not reserve L while waiting for its response. Under pressure, preempt a G
+that previously used RPC but now computes, not just a never-native G. Check
+demand withdrawal on queued cancellation, safe settlement of active operations,
+and absence of inherited demand in children.
+
+Trace G readiness separately from native demand publication/settlement,
+preemption request, ML dispatch, RX return and TX alongside OS thread/CPU, P,
+endpoint and domain identities. Measure native-demand-to-dispatch
 latency under compute saturation separately from assignment and admission delay.
 Show unloaded parent/child locality without promoting a preference to a guarantee.
 Use tracing-off controls; no historical run establishes these new properties.
 
-Before implementation, settle the Go revision/hooks and GL representation,
-HOST_WORK ABI and persistence/acknowledgement rules, targeting and allocation
+Before implementation, settle the Go revision/hooks and temporary demand
+representation, HOST_WORK ABI and persistence/acknowledgement rules, targeting and allocation
 integration, P acquisition/wake races, response routing, bounded receive-service
 policy and measured latency target. Exact public APIs are not selected here.
 Use the existing [validation](../development/validation.md),
