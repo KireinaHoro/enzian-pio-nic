@@ -6,7 +6,7 @@ stdenv.mkDerivation {
     src = lib.cleanSource ./.;
     # Only direct build inputs: exclude binaries, captures and nested trees.
     filter = path: type: type == "regular" && builtins.elem (baseNameOf path) [
-      "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "wire_test.c" "Makefile"
+      "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "wire_test.c" "Makefile"
     ];
   };
   nativeBuildInputs = [ pkg-config ];

@@ -188,3 +188,35 @@ For synchronized capture, set both `LH_BENCH_READY_FILE` and
 calibration the client creates READY exclusively, then waits up to 300 seconds
 for START. Arm tracing after READY and create START to release the workload.
 Existing markers are rejected; no filesystem checks occur inside timed RPCs.
+
+## Bounded concurrent load for paper curves
+
+Set `LH_BENCH_WINDOW=1..256` to enable a closed-loop concurrent window. Warmup
+requests drain before the measured observation window begins. Every sent request
+retains its own timestamps and ID; out-of-order replies are accepted, duplicate,
+unsent-ID and incorrect replies fail the run. All pending requests are retained
+as failures on timeout. TX admission failure stops rather than silently dropping
+work. No output occurs in the timed loop. This is achieved closed-loop load,
+not an open-loop offered-rate experiment or a coordinated-omission correction.
+
+Optional `LH_BENCH_GAP_NS` spaces request starts (0..1e9 ns); it is a minimum gap,
+not a promise that the generator attains a requested rate. `flush:N` requires
+window 1. The measured observation interval in `OUTPUT.csv.load.json` excludes
+warmup, includes the final drain, and includes flush preparation in cold mode.
+RTT still excludes preparation and inter-request pacing. Compute throughput
+from successful measured completions divided by this recorded interval, never
+from reciprocal median RTT. Reject runs with `failed != 0` or missing rows.
+
+Validate both modes before a physical run:
+
+```sh
+nix build .#trafficGeneratorNative --out-link out/load-client
+nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py \
+  out/load-client/bin/bench_dpdk out/NEW-latency-replay
+nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py \
+  out/load-client/bin/bench_dpdk out/NEW-load-replay
+```
+
+A physical pilot is still required: pcap timing is never paper performance data.
+Configure the DUT's static neighbor for the peer before taking its VF from the
+kernel, because this client deliberately does not answer ARP.

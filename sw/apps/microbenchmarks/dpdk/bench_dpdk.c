@@ -28,6 +28,7 @@ static unsigned number(const char *s, unsigned limit) {
 static void check(int rc, const char *what) {
     if(rc<0) rte_exit(1,"%s: %s\n",what,strerror(-rc));
 }
+#include "load.h"
 /* Preparation traffic is outside the measured RPC. Preserve every reply and
  * fail the run if eviction preparation times out; state is verified by traces. */
 struct flush_sample { uint64_t enter, exit; unsigned received, unrelated; int ok; };
@@ -102,6 +103,10 @@ int main(int argc, char **argv) {
     if(rte_ether_unformat_addr(argv[3],&dmac)) rte_exit(1,"invalid destination MAC\n");
     memcpy(dst.mac,dmac.addr_bytes,6); dst.port=number(argv[4],65535);
     unsigned count=number(argv[5],10000000), warmup=0;
+    const char *window_env=getenv("LH_BENCH_WINDOW");
+    const char *gap_env=getenv("LH_BENCH_GAP_NS");
+    unsigned window=window_env?number(window_env,256):1;
+    uint64_t gap=gap_env && strcmp(gap_env,"0")?number(gap_env,1000000000):0;
     if(strcmp(argv[6],"0")) warmup=number(argv[6],1000000);
     uint64_t timeout_ns=(uint64_t)number(argv[7],10000000)*1000;
     const struct benchmark *bench=benchmark_find(argv[8]);
@@ -127,6 +132,7 @@ int main(int argc, char **argv) {
         if(strcmp(bench->name,"add")) rte_exit(1,"flush mode requires add\n");
     }
     struct flush_sample *flushes=flush_every?calloc((size_t)(count+warmup)*flush_rounds,sizeof(*flushes)):NULL;
+    if(flush_every && window!=1) rte_exit(1,"per-request cold preparation requires window 1\n");
     if(flush_every && !flushes) rte_exit(1,"flush result allocation failed\n");
     if(argc==11 && !flush_every) {
         if(strcmp(argv[10],"loopback") || strcmp(bench->name,"echo") ||
@@ -183,7 +189,20 @@ int main(int argc, char **argv) {
         }
     }
     unsigned prepared=0;
+    uint64_t observation_start=0, observation_end=0, next_send=0;
+    if(window_env && !flush_every) {
+        int load_failed=0;
+        completed=load_phase(port,pool,src,dst,bench,samples,0,warmup,window,gap,timeout_ns,&unrelated,&load_failed);
+        if(!load_failed) {
+            observation_start=now();
+            completed+=load_phase(port,pool,src,dst,bench,samples,warmup,count,window,gap,timeout_ns,&unrelated,&load_failed);
+            observation_end=now();
+        }
+        failed=load_failed;
+    } else {
     for(unsigned i=0;i<count+warmup;i++) {
+        if(i==warmup) observation_start=now();
+        while(now()<next_send) { /* Explicit closed-loop pacing, outside RTT. */ }
         if(flush_every && i%flush_every==0) {
             for(unsigned round=0;round<flush_rounds;round++) {
                 flushes[prepared]=flush_domain(port,pool,src,dst,0x80000000u+prepared*16,timeout_ns);
@@ -198,6 +217,7 @@ int main(int argc, char **argv) {
         struct sample *s=&samples[i];
         uint32_t id=i+1; /* unique across warmup and measurement */
         s->enter=now();
+        next_send=s->enter+gap;
         size_t payload_len=bench->encode(payload,sizeof(payload),id);
         if(!payload_len || payload_len>sizeof(payload)) rte_exit(1,"codec payload too large\n");
         if(!rte_pktmbuf_append(tx,42+payload_len)) rte_exit(1,"TX append failed\n");
@@ -227,6 +247,8 @@ int main(int argc, char **argv) {
         s->exit=now(); completed=i+1;
         if(s->status!=1) { failed++; break; } /* never silently discard timeouts */
     }
+    observation_end=now();
+    }
     fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport\n");
     for(unsigned i=0;i<completed;i++) {
         struct sample *s=&samples[i]; int ok=s->status==1;
@@ -235,6 +257,19 @@ int main(int argc, char **argv) {
             s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup);
     }
     int io_error=ferror(csv); if(fclose(csv)) io_error=1;
+    {
+        size_t size=strlen(argv[9])+32;
+        char *path=malloc(size);
+        if(!path) rte_exit(1,"summary path allocation failed\n");
+        snprintf(path,size,"%s.load.json",argv[9]);
+        FILE *f=fopen(path,"wx");
+        if(!f) rte_exit(1,"cannot create load summary\n");
+        fprintf(f,"{\"window\":%u,\"gap_ns\":%"PRIu64",\"observation_start_ns\":%"PRIu64",\"observation_end_ns\":%"PRIu64",\"expected_measured\":%u,\"attempted_including_warmup\":%u,\"warmup\":%u,\"failed\":%"PRIu64",\"flush_every\":%u,\"flush_rounds\":%u}\n",
+                window,gap,observation_start,observation_end,count,completed,warmup,failed,flush_every,flush_rounds);
+        if(ferror(f)) io_error=1;
+        if(fclose(f)) io_error=1;
+        free(path);
+    }
     if(flush_every) {
         size_t size=strlen(argv[9])+32;
         char *path=malloc(size);
