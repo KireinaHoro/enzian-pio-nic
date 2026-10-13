@@ -1,5 +1,22 @@
 # Pending features and design decisions
 
+## Go toward etcd and HOST_WORK — October 13
+
+The [Go runtime design](etcd.md) records the new direction: adapt Go, implement
+HOST_WORK, validate memcached hash expansion, and run native Go null-RPC with
+nested calls before porting Go Raft and full etcd/client functionality. The
+current instruction is **documentation only; stop before implementation**.
+No runtime, kernel, RTL, CI or board change accompanies this design record.
+
+HOST_WORK is the new name for the proposed notification that completes an
+assigned worker's RX wait to service host-side work. It is not DESCHED or a
+direct wake inside `lh_yield()`. Allocation for an unassigned domain is a separate
+requirement. The design retains fixed worker-core–endpoint affinity and records
+the GL/G dispatch matrix, receive oversubscription and packet ownership limits.
+It supersedes the earlier HOST_WAKE hold as future direction, not as permission
+to implement now or as evidence any new interface exists. Dated records below
+retain their original terminology and finite acceptance scope.
+
 ## Current status — October 8 consolidation
 
 This summary reconciles the platform campaign through October 5 and Dandelion

@@ -149,9 +149,12 @@ reset; complete reclamation is deferred.
 Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX
 NACK timing lets an assigned worker regain control. Parked-domain deadline
 activation and execution-watchdog integration are deferred; the former deadline
-housekeeping thread is removed. HOST_WAKE and its interface are outside this
-stage. The [failure policy](process-recovery.md) retains unresolved resources.
-Runtime-managed Raft services remain a [follow-on design](service-execution-design.md).
+housekeeping thread is removed. HOST_WORK (formerly proposed as HOST_WAKE) and
+its interface are not implemented. The [failure policy](process-recovery.md)
+retains unresolved resources. The [Go toward etcd design](../research/etcd.md)
+records the next runtime/HOST_WORK direction, currently documentation only.
+The earlier [raft-rs service proposal](service-execution-design.md) remains
+historical design context, not a Go integration API.
 Native UDP memcached adaptation and its bounded maintenance scope are tracked in
 the [canonical design](../research/memcached.md); board acceptance is separate.
 

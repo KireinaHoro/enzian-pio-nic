@@ -23,6 +23,7 @@ and one autonomous-cleanup `DeschedInfo` transaction with no scheduling IRQ.
 
 Per-call cancellation/timeout retirement remains a separate existing operation.
 Parked-domain deadline activation and execution-watchdog integration are outside
-this stage; their control ioctls return `EOPNOTSUPP`. No HOST_WAKE interface is
-specified here. See the [control contract](scheduling-control-interface.md) and
+this stage; their control ioctls return `EOPNOTSUPP`. No HOST_WORK interface is
+implemented; the [new design](../research/etcd.md#host_work) uses that name instead
+of HOST_WAKE and does not change recovery. See the [control contract](scheduling-control-interface.md) and
 [evidence ledger](../hardware/eci-implementation.md).

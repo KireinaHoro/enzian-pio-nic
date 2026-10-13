@@ -149,11 +149,14 @@ fatal activation failure fences affected claims and marks the session
 reset-required. Full kill/exit recovery is deferred; ordinary scheduling does
 not use legacy recovery machinery. Hardware/software ABI mismatch is rejected.
 
-HOST_WAKE implementation and interface design are outside this stage. Add no
-host-work fields, cookies, RX discriminators, subscription APIs, or dead stubs.
-The existing deadline-kick mechanism is not HOST_WAKE; its integration with the
-replacement scheduler is deferred. Acceptance does not imply parked-domain
-timeout activation. PCIe scheduling and timing optimization are also excluded.
+HOST_WORK (formerly proposed as HOST_WAKE) is outside this implemented contract.
+The [October 13 Go design](../research/etcd.md#host_work) specifies its intended
+role: complete an assigned RX wait for software work, retaining the assignment.
+It separately requires allocation for unassigned domains. No interface is
+implemented: add no host-work fields, cookies, RX discriminators, subscription
+APIs or dead stubs during the documentation stage. The existing deadline-kick
+mechanism is not HOST_WORK. Acceptance does not imply parked-domain timeout
+activation. PCIe scheduling and timing optimization remain excluded.
 
 ## Verification status
 

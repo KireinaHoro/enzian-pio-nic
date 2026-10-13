@@ -52,7 +52,10 @@ configurations for today's model.
 
 The graph below records the earlier modeling round. Its host-wake, kill and
 combined scheduling harnesses are retained evidence, not interfaces implemented
-by the cooperative scheduler. HOST_WAKE design and implementation remain deferred.
+by the cooperative scheduler. The [October 13 HOST_WORK design](../docs/research/etcd.md#host_work)
+uses a new name and distinguishes assigned RX notification from allocation for
+unassigned domains; it is not implemented. Historical `HostWake` model names and
+their recorded results are unchanged and do not validate the new contract.
 Use `IdleDispatch`, `HandoffClaims` and `PoolBootstrap` for the current scheduling
 contract; use the transport components below for their stated resource properties.
 

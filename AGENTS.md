@@ -16,10 +16,20 @@ relevant source and subsequent changes before relying on implementation details.
 - Trace capture: use the [CMAC-first agent procedure](docs/development/tracing.md#default-agent-capture-pipeline) on F_MAC1; JTAG is the fallback for unavailable Ethernet and independent spot checks.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
+- Go runtime / HOST_WORK / future etcd: [design and dispatch matrix](docs/research/etcd.md); documentation only, no implementation authorized by this handoff.
 - External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
 - Pending features and unresolved intent: [roadmap](docs/research/roadmap.md).
 
 ## Current handoff
+
+October 13 Go/etcd direction is recorded in the [new design](docs/research/etcd.md).
+HOST_WORK replaces the proposed name HOST_WAKE: it returns assigned RX waiters
+to host-side work; allocation for unassigned domains is a separate requirement.
+The current task ends with documentation and renaming, before implementation.
+Future stages are Go adaptation, HOST_WORK with memcached hash-expansion
+validation, Go native null-RPC including nested calls, then Go Raft and etcd.
+Keep worker-core–endpoint affinity. Historical HOST_WAKE holds and evidence
+below retain their dated scope; no runtime/RTL change or new board result is implied.
 
 Timing optimization is paused at the maintainer's request. Platform master
 adopts TX placement/refinement plus high-VC RX staging; selected CI revision

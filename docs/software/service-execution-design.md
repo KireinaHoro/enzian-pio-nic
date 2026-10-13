@@ -1,5 +1,10 @@
 # Service execution and resident applications
 
+**October 13 direction:** the [Go toward etcd design](../research/etcd.md) is the
+selected next design, through Go null-RPC and HOST_WORK (formerly HOST_WAKE).
+It is documentation only. The raft-rs proposal below is preserved as historical
+context, not the selected implementation or an implemented application API.
+
 Status: **design only**, 2026-09-17. These are follow-on designs to the
 [managed request contract](programming-model.md), not implemented APIs or
 claims of working Raft/memcached ports. The B3 run intentionally does not add
@@ -105,6 +110,8 @@ The former resident-worker proposal is superseded by the
 uses cooperative request workers shared among domains, with main and independent
 maintenance on ordinary CPUs. Native UDP retains real memcached parsing, storage
 and segmented responses. Bounded pre-sized hashing excludes expansion and
-worker-notification-dependent administration until HOST_WAKE is designed.
+worker-notification-dependent administration until HOST_WORK is implemented and
+validated. Its [new design](../research/etcd.md#host_work) separates assigned RX
+notification from allocation for unassigned domains.
 Implementation and acceptance status belong to that canonical note; the Raft
 proposal above remains design-only.
