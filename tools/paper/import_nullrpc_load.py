@@ -33,7 +33,8 @@ def main():
         meta=json.loads((root/'client.csv.load.json').read_text())
         if summary['status']!='pass' or not summary['restored'] or meta['failed']:
             raise ValueError('Failed/unrestored client run '+run['label'])
-        all_client=list(csv.DictReader(client.open()));rows,values=measured(client)
+        latency_end=plan.get('latency_end','client_rx_burst_ns')
+        all_client=list(csv.DictReader(client.open()));rows,values=measured(client,latency_end)
         if len(rows)!=meta['expected_measured'] or len(all_client)!=meta['attempted_including_warmup']:
             raise ValueError('Client count mismatch')
         block=server[cursor:cursor+len(all_client)];cursor+=len(all_client)
@@ -65,6 +66,7 @@ def main():
         if end<=start or any(not start<=int(r['client_call_enter_ns'])<int(r['client_call_exit_ns'])<=end for r in rows):
             raise ValueError('Invalid measurement interval')
         entries.append(dict(run,file=destination.name,
+            latency_end=latency_end,
             measured_count=len(rows),warmup_count=len(all_client)-len(rows),
             observation_start_ns=meta['observation_start_ns'],observation_end_ns=meta['observation_end_ns'],
             window=meta['window'],gap_ns=meta['gap_ns'],observed_workers=len(tids),linux_cpus=cpus,

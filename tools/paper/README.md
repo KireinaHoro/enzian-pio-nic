@@ -35,7 +35,9 @@ the PDF, because that would change its intended physical size.
 The null-RPC script validates input hashes, success markers, request identity,
 warmup and observation windows before computing distributions or throughput.
 It prints the CDF sample counts and percentiles. All measured latency samples
-are included, including tails; RTT is the raw client exit-minus-entry interval.
+are included, including tails; the manifest selects the exact recorded latency endpoint. Current charts use
+client RX-observation minus entry for a consistent boundary in both client modes;
+the historical manifest retains full client completion minus entry.
 Missing load measurements raise an error rather than producing invented points.
 See [measurement provenance](../../data/paper/nullrpc/README.md).
 
@@ -99,3 +101,21 @@ Keep the generated trace map and its hash with every raw capture.
 checks complete unwrapped captures for stored loss markers and exact admitted/
 normal-reply counts. Count setup, warmup and flush traffic as well as measured
 requests. This is acquisition validation, not cross-clock latency analysis.
+
+For a fresh peer image, create the campaign RAM base
+`/dev/shm/paper-nullrpc-20261013` and copy its matched
+`/nix/store/lauberhorn-client/bin/bench_dpdk` there. The recorded acquisition
+scripts use that base; keep it or change the base consistently. Fresh run labels
+prevent overwriting prior results. To serve only staged scripts/plans and receive
+small result archives on the gateway, use:
+
+```sh
+python3 transfer_results.py --root /tmp/NEW_CAMPAIGN \
+  --bind 192.168.255.254 --port 18843
+```
+
+Stage the tool and intended files in that dedicated directory first. Uploads are
+bounded and refuse overwrites; stop the temporary server when finished. Download
+named result archives with `fetch_nullrpc_runs.py PLAN --destination NEW_LOCAL`.
+Keep raw captures and failures in ignored storage, and import only validated
+cohorts into paper data.

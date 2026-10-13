@@ -1475,12 +1475,14 @@ The latest-hardware one-worker sweep on matched pipeline 518922 passed 95,000
 measured requests and 1,152 warmups, plus a 100-request setup check. Runtime
 export retained all 96,252 rows without loss; health checks passed. All 5,000
 cold requests have distinct activations. Current hot/cold CDF medians are
-12.850/43.760 µs. Hot achieved throughput reaches about 156 kRPC/s at the measured
+12.650/43.515 µs at the common client RX-observation boundary. The full client
+completion stamps are retained separately; the two client modes place those on
+opposite sides of buffer cleanup. Hot achieved throughput reaches about 156 kRPC/s at the measured
 closed-loop windows; cold throughput includes the explicit eviction preparation
 and pacing (maximum about 1.066 kRPC/s in that workload). Neither is an open-loop
 SLO or independently established server-saturation result. Kernel tracing was
 off, runtime buffering and FPGA tracing on. Historical October 10 inputs remain
-tracked separately. Pools 2–4 are pending for the worker-scaling chart.
+tracked separately. Pools 1–3 have validated scaling data; pool 4 remains pending.
 
 A preliminary missing-neighbor attempt and a 64-outstanding overload warmup are
 preserved and excluded. The latter exceeded the 16-context design; its bounded
