@@ -1,0 +1,35 @@
+{
+  "latency": {
+    "hot": {
+      "file": "hot-latency.csv",
+      "sha256": "9f7867a6c84592f215f06d85f6ab2b4a1978ea280fb0c1d2edd9152098e7bf89",
+      "source": "out/nullrpc-inline/hot-off2.csv",
+      "measured_count": 1000,
+      "warmup_count": 16,
+      "hardware_pipeline": 518689,
+      "hardware_revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+      "software_revision": "8a1521ee",
+      "evidence": "data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json",
+      "kernel_tracing": false,
+      "runtime_tracing": true,
+      "fpga_tracing": true,
+      "workers": 1
+    },
+    "cold": {
+      "file": "cold-latency.csv",
+      "sha256": "525e27e638cc272088a12b03e7ae68fa584a628811d955bbbf5ff9ebbe15a598",
+      "source": "out/nullrpc-inline/cold-off.csv",
+      "measured_count": 1000,
+      "warmup_count": 0,
+      "hardware_pipeline": 518689,
+      "hardware_revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
+      "software_revision": "8a1521ee",
+      "evidence": "data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json",
+      "kernel_tracing": false,
+      "runtime_tracing": true,
+      "fpga_tracing": true,
+      "workers": 1
+    }
+  },
+  "load_runs": []
+}
