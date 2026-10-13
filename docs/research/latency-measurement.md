@@ -1482,7 +1482,14 @@ closed-loop windows; cold throughput includes the explicit eviction preparation
 and pacing (maximum about 1.066 kRPC/s in that workload). Neither is an open-loop
 SLO or independently established server-saturation result. Kernel tracing was
 off, runtime buffering and FPGA tracing on. Historical October 10 inputs remain
-tracked separately. Pools 1–3 have validated scaling data; pool 4 remains pending.
+tracked separately. The completed 1–4-worker sweep has median trial throughputs
+156.135/311.762/466.850/624.687 kRPC/s, with three 10,000-request cohorts per pool
+size. Runtime joins verify each requested worker served measured requests in a
+single resident activation on a distinct CPU. Across four matched cold boots,
+the complete campaign has 185,000 measured requests, 2,304 warmups, 400 setup
+calls and 160,000 validated eviction-preparation RPCs. All five PDFs regenerate
+from tracked data. The final four-worker service remains alive with tracing
+frozen; recheck reservation and live state before reuse.
 
 A preliminary missing-neighbor attempt and a 64-outstanding overload warmup are
 preserved and excluded. The latter exceeded the 16-context design; its bounded

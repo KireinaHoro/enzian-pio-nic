@@ -16,7 +16,6 @@ From the platform root:
 
 ```sh
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf
-# Once all four worker-pool measurements are populated in the manifest:
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts all
 ```
 
@@ -35,7 +34,8 @@ the PDF, because that would change its intended physical size.
 The null-RPC script validates input hashes, success markers, request identity,
 warmup and observation windows before computing distributions or throughput.
 It prints the CDF sample counts and percentiles. All measured latency samples
-are included, including tails; the manifest selects the exact recorded latency endpoint. Current charts use
+are included, including tails; the manifest selects the exact recorded latency
+endpoint. Current charts use
 client RX-observation minus entry for a consistent boundary in both client modes;
 the historical manifest retains full client completion minus entry.
 Missing load measurements raise an error rather than producing invented points.
