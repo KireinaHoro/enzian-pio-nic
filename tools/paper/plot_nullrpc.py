@@ -102,15 +102,18 @@ def worker_scaling(points, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=OUTPUT)
-    parser.add_argument("--charts", choices=("cdf", "load", "all"), default="all")
+    parser.add_argument("--manifest", type=Path, default=DATA / "manifest.json")
+    parser.add_argument("--charts", choices=("cdf", "throughput", "workers", "load", "all"), default="all")
     args = parser.parse_args()
-    manifest = json.loads((DATA / "manifest.json").read_text())
+    manifest = json.loads(args.manifest.read_text())
     if args.charts in ("cdf", "all"):
         print(json.dumps({c: cdf(c, manifest, args.output) for c in ("hot", "cold")}, indent=2))
-    if args.charts in ("load", "all"):
+    if args.charts in ("throughput", "workers", "load", "all"):
         points = load_points(manifest)
+    if args.charts in ("throughput", "load", "all"):
         for condition in ("hot", "cold"):
             throughput_latency(condition, points, args.output)
+    if args.charts in ("workers", "load", "all"):
         worker_scaling(points, args.output)
 
 

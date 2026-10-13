@@ -20,6 +20,9 @@ cp "$csv" "$csv.status.json" "$out/"
 cat /sys/module/lauberhorn/parameters/l2c_tad_snapshot > "$out/tad.txt"
 dmesg > "$out/kernel.txt"
 cat /nix/store/lauberhorn/manifest.json > "$out/manifest.json"
+for name in tad-before.txt kernel-before.txt; do
+    [[ ! -f $(dirname "$csv")/$name ]] || cp "$(dirname "$csv")/$name" "$out/"
+done
 python3 - "$out" "$transfer" "$label" <<'PY'
 import io,sys,tarfile,urllib.request
 from pathlib import Path
