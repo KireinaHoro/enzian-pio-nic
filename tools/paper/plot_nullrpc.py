@@ -106,15 +106,20 @@ def main():
     parser.add_argument("--charts", choices=("cdf", "throughput", "workers", "load", "all"), default="all")
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text())
+    statistics = {}
     if args.charts in ("cdf", "all"):
-        print(json.dumps({c: cdf(c, manifest, args.output) for c in ("hot", "cold")}, indent=2))
+        statistics.update({c: cdf(c, manifest, args.output) for c in ("hot", "cold")})
     if args.charts in ("throughput", "workers", "load", "all"):
         points = load_points(manifest)
+        statistics["load_runs"] = [dict(label=p["label"], workers=p["workers"],
+            throughput_krpc_s=p["throughput"]/1000, p50_us=p["p50"], p99_us=p["p99"])
+            for p in points]
     if args.charts in ("throughput", "load", "all"):
         for condition in ("hot", "cold"):
             throughput_latency(condition, points, args.output)
     if args.charts in ("workers", "load", "all"):
         worker_scaling(points, args.output)
+    print(json.dumps(statistics, indent=2))
 
 
 if __name__ == "__main__":

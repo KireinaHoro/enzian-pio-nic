@@ -426,6 +426,90 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "e5613ecdf0f6579836d579dafe87a845dd6d42d410b4fb25f75e7202a0d4d2e6"
+    },
+    {
+      "label": "w2-scale1",
+      "directory": "out/paper-microbenchmarks/runs/w2-scale1",
+      "condition": "hot",
+      "workers": 2,
+      "scaling": true,
+      "file": "w2-scale1.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 777939865303990,
+      "observation_end_ns": 777939897500340,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 2,
+      "linux_cpus": [
+        44,
+        45
+      ],
+      "server_tids": [
+        1678,
+        1679
+      ],
+      "measured_activations": 2,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w2-server.csv.gz",
+      "sha256": "c41c7fecbdeec8e8fbd56d7c9cada48db479e29abde010935c789416c1f06d8f"
+    },
+    {
+      "label": "w2-scale2",
+      "directory": "out/paper-microbenchmarks/runs/w2-scale2",
+      "condition": "hot",
+      "workers": 2,
+      "scaling": true,
+      "file": "w2-scale2.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 777945897067580,
+      "observation_end_ns": 777945929115650,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 2,
+      "linux_cpus": [
+        44,
+        45
+      ],
+      "server_tids": [
+        1678,
+        1679
+      ],
+      "measured_activations": 2,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w2-server.csv.gz",
+      "sha256": "f0f99b07212b8421097dbb2ae9d7d3f4aa2c325a428ce6cd96460486c9d043ff"
+    },
+    {
+      "label": "w2-scale3",
+      "directory": "out/paper-microbenchmarks/runs/w2-scale3",
+      "condition": "hot",
+      "workers": 2,
+      "scaling": true,
+      "file": "w2-scale3.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 777951906026640,
+      "observation_end_ns": 777951938102420,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 2,
+      "linux_cpus": [
+        44,
+        45
+      ],
+      "server_tids": [
+        1678,
+        1679
+      ],
+      "measured_activations": 2,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w2-server.csv.gz",
+      "sha256": "5d7bf015639c07511d626ebd383e28db7c0ca48b4300ea4df873d6ce5b4cd64a"
     }
   ]
 }

@@ -73,10 +73,13 @@ def main():
             pipeline=plan['pipeline'],hardware_revision=plan['hardware_revision'],
             runtime_evidence=plan['label']+'-server.csv.gz'))
     if cursor!=len(server):raise ValueError('Unattributed runtime rows')
+    extra_targets=[target for _,target in preparations]+[
+        DATA/(plan['label']+'-server.csv.gz'),DATA/(plan['label']+'-provenance.json')]
+    if any(target.exists() for target in extra_targets):
+        raise ValueError('Refusing to replace existing acquisition evidence')
     for entry,(source,destination) in zip(entries,sources):
         entry['sha256']=archive(source,destination)
     for source,destination in preparations:
-        if destination.exists():raise ValueError('Preparation archive already exists')
         archive(source,destination)
     archive(Path(plan['server_csv']),DATA/(plan['label']+'-server.csv.gz'))
     (DATA/(plan['label']+'-provenance.json')).write_text(json.dumps(plan,indent=2)+'\n')

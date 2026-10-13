@@ -13,7 +13,9 @@ Timing closure is not implied.
 The one-worker campaign passed **95,000 measured requests + 1,152 warmups**,
 following a 100-RPC setup check. The runtime exported all **96,252** rows with
 zero drops. Hardware health checks found no TAD interrupt/timeout or new kernel
-fault. Kernel instrumentation was off; runtime buffering and FPGA tracing were
+fault. The complete frozen trace contains exactly 256,252 admitted RPCs and
+normal replies (including 160,000 eviction-preparation RPCs), with zero stored
+loss markers. Kernel instrumentation was off; runtime buffering and FPGA tracing were
 on. The DUT used Linux 6.8.0-64-generic and the DPDK peer 6.8.0-146-generic.
 The static peer neighbor is required because the DPDK client does not answer ARP.
 

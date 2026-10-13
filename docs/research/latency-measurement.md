@@ -1461,3 +1461,30 @@ fixed-size reply (avoiding the extra XDR sizing traversal), compact hot-path
 trace state without unused PMU arrays, and disabled-instrumentation fast paths.
 Exact nanosecond attribution to each candidate still needs an isolated control;
 this analysis neither implements those changes nor claims a new board result.
+
+## Paper microbenchmark figures — October 13
+
+The [tracked paper datasets](../../data/paper/nullrpc/README.md) and
+[plotting workflow](../../tools/paper/README.md) provide ACM sigconf single-column
+PDFs without embedded captions or footnotes. Client and runtime rows, workload
+plans, hashes and analysis scripts are versioned in platform; emitted PDFs are
+versioned under `../paper/plots/`. The reusable `paper-chart` skill uses the shared
+geometry/font library before emitting dataset-specific processing/plot scripts.
+
+The latest-hardware one-worker sweep on matched pipeline 518922 passed 95,000
+measured requests and 1,152 warmups, plus a 100-request setup check. Runtime
+export retained all 96,252 rows without loss; health checks passed. All 5,000
+cold requests have distinct activations. Current hot/cold CDF medians are
+12.850/43.760 µs. Hot achieved throughput reaches about 156 kRPC/s at the measured
+closed-loop windows; cold throughput includes the explicit eviction preparation
+and pacing (maximum about 1.066 kRPC/s in that workload). Neither is an open-loop
+SLO or independently established server-saturation result. Kernel tracing was
+off, runtime buffering and FPGA tracing on. Historical October 10 inputs remain
+tracked separately. Pools 2–4 are pending for the worker-scaling chart.
+
+A preliminary missing-neighbor attempt and a 64-outstanding overload warmup are
+preserved and excluded. The latter exceeded the 16-context design; its bounded
+trace contains 64 MAC RX, 22 normal RPC admissions/replies and 64 MAC TX events,
+consistent with capacity-error replies. The full capture includes a historical
+loss/discontinuity boundary outside the burst; no whole-capture sequence claim
+is made. No server, kernel or FPGA behavior was changed for this campaign.
