@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-13",
+  "hardware_pipeline": 518922,
+  "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+  "client_v1_sha256": "30053644d46cdb29bdfd7684f7e3734a54e075a2bffbee4a2c3eb7fe15fcd2c5",
+  "pilot_missing_neighbor": {
+    "attempted_warmup": 4,
+    "measured": 0,
+    "server_rows_added": 4,
+    "restored": true,
+    "resolution": "Configured required permanent peer neighbor; subsequent 4-outstanding pilot passed 16 warmup + 100 measured RPCs."
+  },
+  "overload_probe": {
+    "window": 64,
+    "attempted_warmup": 64,
+    "measured": 0,
+    "client_validation": "One accepted reply before first invalid reply (request 18); original reply payload was not retained.",
+    "trace_counts": {
+      "admitted": 22,
+      "first_sample": 123108102,
+      "last_sample": 123109123,
+      "counts": {
+        "RxCmacEntry": 64,
+        "OncRpcCallDecoder": 22,
+        "EciTxCommitRead": 22,
+        "EciTxSubmit": 22,
+        "OncRpcReplyEncode": 22,
+        "TxCmacExit": 64
+      },
+      "lost_markers_in_burst_neighborhood": 0
+    },
+    "interpretation": "Counts and 16-context source path support capacity rejection, not normal handler replies for all 64. Do not use this failed warmup as throughput data.",
+    "capture": {
+      "bytes": 3779464000,
+      "sha256": "5b752c37a9c0de04feb39a00a2fe7e2eff8a95720796cbbea1e5f005783c9869",
+      "offset": 0,
+      "start": {
+        "trace_write_slot_1": 59045741,
+        "trace_wrapped_1": 0,
+        "trace_sample_lost_1": 1,
+        "trace_dma_error_1": 0
+      },
+      "end": {
+        "trace_write_slot_1": 59054125,
+        "trace_wrapped_1": 0,
+        "trace_sample_lost_1": 1,
+        "trace_dma_error_1": 0
+      },
+      "bounded_window": true,
+      "pipeline": 518922
+    }
+  },
+  "runtime_export_limitation": "The first export captured 104 rows. Runtime export is one-shot, so it contains neither the later successful pilot nor the overload run. Later unchanged CSV was not new evidence.",
+  "whole_trace_limitation": "One stored loss marker and a timestamp discontinuity occur in the complete multi-window capture; none in the recorded neighborhoods of the three RPC bursts. No whole-capture sequence proof claimed."
+}

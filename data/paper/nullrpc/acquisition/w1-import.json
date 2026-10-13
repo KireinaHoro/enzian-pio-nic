@@ -1,0 +1,115 @@
+{
+  "label": "w1",
+  "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+  "pipeline": 518922,
+  "server_csv": "out/paper-microbenchmarks/paper-nullrpc-export-w1/server.csv",
+  "server_status": "out/paper-microbenchmarks/paper-nullrpc-export-w1/server.csv.status.json",
+  "setup_count": 100,
+  "runs": [
+    {
+      "label": "w1-hot-w1",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w1",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-hot-w2",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w2",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-hot-w4",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w4",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-hot-w8",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w8",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-hot-w12",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w12",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-hot-w16",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w16",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-scale1",
+      "directory": "out/paper-microbenchmarks/runs/w1-scale1",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": true
+    },
+    {
+      "label": "w1-scale2",
+      "directory": "out/paper-microbenchmarks/runs/w1-scale2",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": true
+    },
+    {
+      "label": "w1-scale3",
+      "directory": "out/paper-microbenchmarks/runs/w1-scale3",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": true
+    },
+    {
+      "label": "w1-cold-g0",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g0",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-cold-g500000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g500000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-cold-g1000000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g1000000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-cold-g2000000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g2000000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false
+    },
+    {
+      "label": "w1-cold-g5000000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g5000000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false
+    }
+  ],
+  "client_revision": "4e1372c0",
+  "client_binary_sha256": "9da72e4c465e992326898e7339d3da306eb7a80992796acdf560efc83daf98fa",
+  "kernel_tracing": false,
+  "runtime_tracing": true,
+  "fpga_tracing": true,
+  "health": "out/paper-microbenchmarks/w1-health.json",
+  "observation_scope": "Finite closed-loop cohorts, one cold boot; cold wall time includes eviction preparation and pacing. Scaling repeats use 16 outstanding requests."
+}

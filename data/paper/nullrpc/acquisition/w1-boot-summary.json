@@ -1,0 +1,43 @@
+[
+  {
+    "case": "paper-nullrpc-w1-20261013",
+    "round": 1,
+    "revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+    "status": "pass",
+    "boot_exit": 0,
+    "boot_attempts": [
+      {
+        "attempt": 1,
+        "logs": "out/paper-microbenchmarks/w1-board/01-paper-nullrpc-w1-20261013/boot",
+        "status": "pass",
+        "eci": {
+          "qlm_cdr_lock": "CDR lock QLM8:1 QLM9:1 QLM10:1 QLM11:1 QLM12:1 QLM13:1",
+          "ccpi_lanes": "[0][1][2][3][4][5][6][7][8][9][10][11][12][13][14][15][16][17][18][19][20][21][22][23]",
+          "firmware_clock_report": [
+            "RCLK:  2000 Mhz",
+            "SCLK:  800 Mhz",
+            "Node 0: DRAM: 131072 MB, 940 MHz, DDR4 RDIMM"
+          ]
+        }
+      }
+    ],
+    "reset_evidence": [
+      "POWER_OFF_VERIFIED {'VDD_CORE': [0.0, 0.00390625], 'VCCINT_FPGA': [0.0]}"
+    ],
+    "cpu_exit": 0,
+    "cpu_stages": [
+      "mount",
+      "load",
+      "verify",
+      "ready"
+    ],
+    "rt_bandwidth": {
+      "previous_runtime_us": 950000,
+      "runtime_us": -1,
+      "period_us": 1000000
+    },
+    "faults": [],
+    "client_exit": 0,
+    "seconds": 315.1
+  }
+]

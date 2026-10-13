@@ -65,7 +65,7 @@ as a build input: exclude generated `result`/`out` trees, captures, build
 products and unrelated submodules. Audit the actual store source contents;
 filtering a derivation cannot undo an earlier full-checkout flake snapshot.
 
-The DPDK generator admits six direct build files; its client image admits four
+The DPDK generator admits seven direct build files; its client image admits four
 Python tools. Build `.#trafficGeneratorDeployFs` on the build host and deploy
 the cross-built runtime closure. DPDK headers/static archives and Python setup
 tools have separate `dev`/`tools` outputs, which are not shipped to the client.

@@ -1,0 +1,26 @@
+[
+  {
+    "label": "w4-scale1",
+    "count": 10000,
+    "warmup": 128,
+    "window": 16,
+    "gap_ns": 0,
+    "mode": "hot"
+  },
+  {
+    "label": "w4-scale2",
+    "count": 10000,
+    "warmup": 128,
+    "window": 16,
+    "gap_ns": 0,
+    "mode": "hot"
+  },
+  {
+    "label": "w4-scale3",
+    "count": 10000,
+    "warmup": 128,
+    "window": 16,
+    "gap_ns": 0,
+    "mode": "hot"
+  }
+]

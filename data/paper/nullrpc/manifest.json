@@ -1,35 +1,431 @@
 {
   "latency": {
     "hot": {
-      "file": "hot-latency.csv",
-      "sha256": "9f7867a6c84592f215f06d85f6ab2b4a1978ea280fb0c1d2edd9152098e7bf89",
-      "source": "out/nullrpc-inline/hot-off2.csv",
-      "measured_count": 1000,
-      "warmup_count": 16,
-      "hardware_pipeline": 518689,
-      "hardware_revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
-      "software_revision": "8a1521ee",
-      "evidence": "data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json",
+      "label": "w1-hot-w1",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w1",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w1.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776854672546240,
+      "observation_end_ns": 776854804532540,
+      "window": 1,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "9cdc8bfc485201f1350bb1f41988d34494b4aedb053c338457ab0e68eeaa8dc2",
+      "selection": "one outstanding RPC; warmup excluded",
       "kernel_tracing": false,
       "runtime_tracing": true,
-      "fpga_tracing": true,
-      "workers": 1
+      "fpga_tracing": true
     },
     "cold": {
-      "file": "cold-latency.csv",
-      "sha256": "525e27e638cc272088a12b03e7ae68fa584a628811d955bbbf5ff9ebbe15a598",
-      "source": "out/nullrpc-inline/cold-off.csv",
+      "label": "w1-cold-g0",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g0",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-cold-g0.csv.gz",
       "measured_count": 1000,
       "warmup_count": 0,
-      "hardware_pipeline": 518689,
-      "hardware_revision": "45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4",
-      "software_revision": "8a1521ee",
-      "evidence": "data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json",
+      "observation_start_ns": 776909875370660,
+      "observation_end_ns": 776910813621010,
+      "window": 1,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1000,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "c1773d454207148c9102f1302f11d4506c4f431a907f76526317feb713f1fb9b",
+      "selection": "one outstanding RPC; warmup excluded",
       "kernel_tracing": false,
       "runtime_tracing": true,
-      "fpga_tracing": true,
-      "workers": 1
+      "fpga_tracing": true
     }
   },
-  "load_runs": []
+  "load_runs": [
+    {
+      "label": "w1-hot-w1",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w1",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w1.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776854672546240,
+      "observation_end_ns": 776854804532540,
+      "window": 1,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "9cdc8bfc485201f1350bb1f41988d34494b4aedb053c338457ab0e68eeaa8dc2"
+    },
+    {
+      "label": "w1-hot-w2",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w2",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w2.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776860922527460,
+      "observation_end_ns": 776860988948750,
+      "window": 2,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "ba94bc76625977a7419e8dd85b64f62d133f1c18319300a920f75043257b6ca8"
+    },
+    {
+      "label": "w1-hot-w4",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w4",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w4.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776867020551260,
+      "observation_end_ns": 776867084726950,
+      "window": 4,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "0462d4bea6b4756fe2c2618c87355c1480ec83a8f3bf53f24db4ae7891c93a46"
+    },
+    {
+      "label": "w1-hot-w8",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w8",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w8.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776873146369180,
+      "observation_end_ns": 776873210467490,
+      "window": 8,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "73afc221cd133810468384413377dc88ddc50ca2bd8bd570d6828e3a3e9d98d9"
+    },
+    {
+      "label": "w1-hot-w12",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w12",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w12.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776879276548020,
+      "observation_end_ns": 776879340595330,
+      "window": 12,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "3e9d69a52e5bae18a2cc047cc0ff11b74cbe4971acf717c53f38b376b69958e7"
+    },
+    {
+      "label": "w1-hot-w16",
+      "directory": "out/paper-microbenchmarks/runs/w1-hot-w16",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-hot-w16.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776885401322410,
+      "observation_end_ns": 776885465369040,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "6de6051df6b6c99ff1d4fc37c9b090cb7443f531fa6062d313a950915c8fd761"
+    },
+    {
+      "label": "w1-scale1",
+      "directory": "out/paper-microbenchmarks/runs/w1-scale1",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": true,
+      "file": "w1-scale1.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776891529147480,
+      "observation_end_ns": 776891593255140,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "15d76936d2fd5796b15bc1e5b905f1f5b8e2eeaf73cde14687246c32819ac11e"
+    },
+    {
+      "label": "w1-scale2",
+      "directory": "out/paper-microbenchmarks/runs/w1-scale2",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": true,
+      "file": "w1-scale2.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776897639458360,
+      "observation_end_ns": 776897703505420,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "2ecbb554b12a0a7f93e7a6982670b292480bb25e02feda1a8889f0ebeb2f04ce"
+    },
+    {
+      "label": "w1-scale3",
+      "directory": "out/paper-microbenchmarks/runs/w1-scale3",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": true,
+      "file": "w1-scale3.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 776903747104870,
+      "observation_end_ns": 776903811150620,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "3deebb20cd67d3d3a36476a651b8e5be840891ec08a041c8d78b292c8d861cbb"
+    },
+    {
+      "label": "w1-cold-g0",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g0",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-cold-g0.csv.gz",
+      "measured_count": 1000,
+      "warmup_count": 0,
+      "observation_start_ns": 776909875370660,
+      "observation_end_ns": 776910813621010,
+      "window": 1,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1000,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "c1773d454207148c9102f1302f11d4506c4f431a907f76526317feb713f1fb9b"
+    },
+    {
+      "label": "w1-cold-g500000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g500000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-cold-g500000.csv.gz",
+      "measured_count": 1000,
+      "warmup_count": 0,
+      "observation_start_ns": 776915986253100,
+      "observation_end_ns": 776917380000650,
+      "window": 1,
+      "gap_ns": 500000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1000,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "e0a08c116390e49236f1f0f0eaf58272280f57ca13d16f3d7aa8a72f6a7b9719"
+    },
+    {
+      "label": "w1-cold-g1000000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g1000000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-cold-g1000000.csv.gz",
+      "measured_count": 1000,
+      "warmup_count": 0,
+      "observation_start_ns": 776922602182970,
+      "observation_end_ns": 776924495851830,
+      "window": 1,
+      "gap_ns": 1000000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1000,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "9bed6e82ddec563d0e7904818442ad237eb05433aea3e80dcbc48cf9971cf8dc"
+    },
+    {
+      "label": "w1-cold-g2000000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g2000000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-cold-g2000000.csv.gz",
+      "measured_count": 1000,
+      "warmup_count": 0,
+      "observation_start_ns": 776929729227850,
+      "observation_end_ns": 776932622513630,
+      "window": 1,
+      "gap_ns": 2000000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1000,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "fc9abc3022fade5c32545414007183af6288741a1814be47944cac54dbe140a5"
+    },
+    {
+      "label": "w1-cold-g5000000",
+      "directory": "out/paper-microbenchmarks/runs/w1-cold-g5000000",
+      "condition": "cold",
+      "workers": 1,
+      "scaling": false,
+      "file": "w1-cold-g5000000.csv.gz",
+      "measured_count": 1000,
+      "warmup_count": 0,
+      "observation_start_ns": 776937895176760,
+      "observation_end_ns": 776943786712780,
+      "window": 1,
+      "gap_ns": 5000000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44,
+        45
+      ],
+      "server_tids": [
+        1676
+      ],
+      "measured_activations": 1000,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w1-server.csv.gz",
+      "sha256": "e5613ecdf0f6579836d579dafe87a845dd6d42d410b4fb25f75e7202a0d4d2e6"
+    }
+  ]
 }

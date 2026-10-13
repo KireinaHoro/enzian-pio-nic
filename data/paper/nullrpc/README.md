@@ -1,6 +1,79 @@
 # Null-RPC paper measurements
 
-## Latency CDFs
+## Current figures: October 13, pipeline 518922
+
+The current CDFs and throughput–latency curves use matched hardware/runtime
+`cc19c4285148db65c5b5517f6a02abd04b7f9142` (pipeline 518922). This was the latest
+successful hardware build at acquisition; the read-only CI query is retained.
+The client source is `4e1372c0`; its deployed SHA-256 is
+`9da72e4c465e992326898e7339d3da306eb7a80992796acdf560efc83daf98fa`.
+No FPGA, kernel or server runtime implementation was changed for these runs.
+Timing closure is not implied.
+
+The one-worker campaign passed **95,000 measured requests + 1,152 warmups**,
+following a 100-RPC setup check. The runtime exported all **96,252** rows with
+zero drops. Hardware health checks found no TAD interrupt/timeout or new kernel
+fault. Kernel instrumentation was off; runtime buffering and FPGA tracing were
+on. The DUT used Linux 6.8.0-64-generic and the DPDK peer 6.8.0-146-generic.
+The static peer neighbor is required because the DPDK client does not answer ARP.
+
+- Hot CDF: all 10,000 measured requests with one outstanding request. Raw client
+  RTT p50/p99 is **12.850/16.8201 µs**; the maximum **61.700 µs** remains included.
+- Cold CDF: 1,000 measured requests with eviction preparation before each RPC.
+  RTT p50/p99 is **43.760/48.9227 µs**, maximum **111.270 µs**.
+- Hot throughput–latency: six closed-loop windows, 1/2/4/8/12/16 outstanding
+  requests, each with 128 warmups and 10,000 measured replies. Achieved throughput
+  rises from **75.765** to approximately **156.136 kRPC/s**. The plot shows the
+  median and 99th percentile RTT at each achieved rate.
+- Cold throughput–latency: five 1,000-request cohorts with minimum pacing gaps
+  0/0.5/1/2/5 ms and one outstanding measured RPC. Two 16-request mul bursts with
+  100 µs flush-handler work precede every add request. Throughput uses the whole
+  recorded measurement interval, **including eviction preparation and pacing**;
+  RTT excludes both. Maximum achieved cold throughput is **1.066 kRPC/s** for
+  this workload, not a claim about maximum activation-only service capacity.
+  Every cold measured RPC has a distinct runtime activation. The same logical
+  thread may visit different Linux CPUs across activations; CPU count is not
+  worker-pool size.
+- Worker scaling: three 10,000-request cohorts per pool size at window 16, with
+  128 warmups per cohort. One-worker data is complete; pools 2–4 are pending.
+  The plot requires every requested worker to serve measured requests, each in
+  one resident activation on a distinct CPU. Its center is the median trial
+  throughput and error bars show the full observed trial range, not confidence
+  intervals.
+
+These are finite, single-client closed-loop measurements. They do not establish
+open-loop queueing/SLO behavior, avoid coordinated omission, or independently
+establish that a throughput plateau is server-limited. Each worker-pool size
+uses one cold boot; repeated cohorts on that boot are not independent boots.
+CDFs and load points share the latest hardware. The older baseline remains below.
+
+`manifest.json` pins input hashes and observation windows. Each `.csv.gz` stores
+verbatim client or runtime rows with deterministic gzip metadata. Per-run
+`acquisition/` records retain runner status/restoration, preparation state,
+observation-window accounting, acquisition plans and hardware/client provenance.
+Import uses all successful measured rows, rejects failed runs/duplicate IDs and
+joins each drained cohort to its runtime requests; no percentile reconstruction
+or tail clipping is used. The hardware capture stays in ignored output storage,
+with its hash/status tracked; RTT and throughput regenerate from Git alone.
+
+```sh
+nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf
+nix develop -c python3 tools/paper/plot_nullrpc.py --charts throughput
+# After pools 2–4 have been validated/imported:
+nix develop -c python3 tools/paper/plot_nullrpc.py --charts all
+```
+
+PDFs go to `../paper/plots/` and are committed there. Acquisition/build/import
+instructions are in [the plotting workflow](../../../tools/paper/README.md).
+The exact hardware setup and ordered load plans are under `acquisition/`.
+Recheck reservations, use new output labels and preserve existing traces before
+replaying any plan. The original missing-neighbor pilot and a 64-outstanding
+capacity-overload warmup remain documented in `acquisition/failure-provenance.json`;
+neither contributes a plotted sample. The latter full frozen capture is preserved
+with checksum, and its bounded burst has 64 RX, 22 normal RPC admissions/replies,
+and 64 TX events, consistent with context-capacity rejection.
+
+## Preserved October 10 latency inputs
 
 `hot-latency.csv` and `cold-latency.csv` are verbatim client files from
 `out/nullrpc-inline/hot-off2.csv` and `out/nullrpc-inline/cold-off.csv`.
@@ -27,27 +100,13 @@ and timing limitations. The pinned build recipe is
 on live services; use fresh labels and the reservation/preservation procedure in
 `docs/development/hardware-test.md`.
 
-Reproduce both CDFs entirely from tracked data:
+Reproduce the historical CDFs entirely from tracked data:
 
 ```sh
-nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf
+nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf \
+  --manifest data/paper/nullrpc/historical-manifest.json --output out/historical-cdf
 ```
 
-Outputs are `../paper/plots/nullrpc-{hot,cold}-latency-cdf.pdf`. Expected p50/p99
+Outputs are `out/historical-cdf/nullrpc-{hot,cold}-latency-cdf.pdf`. Expected p50/p99
 RTTs: hot **12.760/13.640 µs**, cold **44.440/53.8614 µs**. The script verifies
 hashes and counts, removes only warmup, and renders the full empirical CDF.
-
-## Load measurements
-
-Load acquisition is in progress on branch `paper/nullrpc-microbenchmarks`.
-`manifest.json:load_runs` is empty until validated measurements are imported.
-The plotter refuses to manufacture the three missing figures.
-
-The new client records an explicit monotonic observation window in each
-`CLIENT.csv.load.json`. Achieved throughput is successful measured completions
-per elapsed second, including drain time. The window excludes warmup. In
-per-request eviction mode it includes preparation; its RTT does not. A windowed
-hot run is closed-loop and must not be described as an open-loop offered-rate
-experiment. Worker scaling requires observed worker allocation as well as the
-configured pool size. Plotting provenance must retain generator window/pacing,
-actual worker evidence and instrumentation settings for each run.

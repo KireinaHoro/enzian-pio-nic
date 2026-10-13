@@ -1,0 +1,26 @@
+[
+  {
+    "name": "paper-nullrpc-w1-20261013",
+    "revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+    "image": "/var/tmp/trace-recorder-518922.img",
+    "program": [
+      "ssh",
+      "enzian-ba2",
+      "/opt/Xilinx/Vivado/2023.2/bin/vivado",
+      "-mode",
+      "batch",
+      "-nojournal",
+      "-log",
+      "/tmp/lauberhorn-518922/program-paper-nullrpc-w1-20261013.log",
+      "-source",
+      "/tmp/lauberhorn-518922/program-arm.tcl",
+      "-tclargs",
+      "enzian-gateway.ethz.ch:3121",
+      "Digilent/210357B4B301A",
+      "/tmp/lauberhorn-518922/shell_lauberhorn-eci.bit",
+      "/tmp/lauberhorn-518922/shell_lauberhorn-eci.ltx"
+    ],
+    "cpu": "ip link set cpu40g1 down\ncpu configure 0c:53:31:03:01:c8 192.168.129.200/18\ndmesg -n 4\nip neigh replace 192.168.128.225 lladdr 0c:53:31:03:00:e1 nud permanent dev lauberhorn0\nmountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing\nprintf '0\\n' > /sys/kernel/tracing/tracing_on\nexport LAUBERHORN_TRACE_CAPACITY=250000\ncpu serve add 1 /dev/shm/paper-nullrpc-w1-20261013\ncat /sys/module/lauberhorn/parameters/l2c_tad_snapshot > /dev/shm/paper-nullrpc-w1-20261013/tad-before.txt\ndmesg > /dev/shm/paper-nullrpc-w1-20261013/kernel-before.txt\nexport LH_BENCH_FLUSH_SPIN_US=100\nmkdir /dev/shm/paper-nullrpc-flush\nnohup /nix/store/lauberhorn/apps/microbenchmarks/bin/microbenchmarks mul 4 > /dev/shm/paper-nullrpc-flush/server.log 2>&1 < /dev/null &\necho $! > /dev/shm/paper-nullrpc-flush/server.pid\nsleep 2\nkill -0 \"$(cat /dev/shm/paper-nullrpc-flush/server.pid)\"\n",
+    "client": "timeout 90 /tmp/trace-recorder-518922/rpc-client/bench_client 192.168.129.200 add 100 /tmp/paper-nullrpc-20261013/paper-nullrpc-w1-20261013-setup.csv"
+  }
+]

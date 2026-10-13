@@ -26,7 +26,7 @@ def main():
     server=list(csv.DictReader(Path(plan['server_csv']).open()))
     if len(server)!=status['rows'] or any(r['ok']!='1' for r in server):raise ValueError('Invalid runtime rows')
     server.sort(key=lambda r:int(r['server_rx_unblock_ns']))
-    cursor=plan['setup_count']; entries=[]; sources=[]
+    cursor=plan['setup_count']; entries=[]; sources=[]; preparations=[]
     for run in plan['runs']:
         root=Path(run['directory']); client=root/'client.csv'
         summary=json.loads((root/'runner/summary.json').read_text())
@@ -42,10 +42,22 @@ def main():
         measured_ids={r['request_id'] for r in rows}
         measured_block=[r for r in block if r['request_id'] in measured_ids]
         cpus=sorted(set(int(r['rx_cpu_id']) for r in measured_block))
-        if len(cpus)>run['workers']:raise ValueError('More physical workers than pool')
+        tids=sorted(set(int(r['server_tid']) for r in measured_block))
+        if len(tids)>run['workers']:raise ValueError('More runtime threads than pool')
         activations={(r['server_tid'],r['activation_index']) for r in measured_block}
         if run['condition']=='cold' and len(activations)!=len(rows):
             raise ValueError('Cold requests do not each have a distinct activation')
+        if run['condition']=='cold':
+            flush=Path(str(client)+'.flush.csv')
+            preparation=list(csv.DictReader(flush.open()))
+            if meta['flush_every']!=1 or len(preparation)!=len(all_client)*meta['flush_rounds'] or any(
+                    r['ok']!='1' or r['received']!=r['expected'] for r in preparation):
+                raise ValueError('Incomplete cold preparation')
+            preparations.append((flush,DATA/(run['label']+'-flush.csv.gz')))
+        if run['condition']=='hot' and len(activations)!=len(tids):
+            raise ValueError('Hot cohort changed activation during measurement')
+        if run.get('scaling') and (len(tids)!=run['workers'] or len(cpus)!=len(tids)):
+            raise ValueError('Scaling did not exercise the requested resident workers')
         destination=DATA/(run['label']+'.csv.gz')
         if destination.exists():raise ValueError('Refusing to overwrite '+str(destination))
         sources.append((client,destination))
@@ -55,13 +67,17 @@ def main():
         entries.append(dict(run,file=destination.name,
             measured_count=len(rows),warmup_count=len(all_client)-len(rows),
             observation_start_ns=meta['observation_start_ns'],observation_end_ns=meta['observation_end_ns'],
-            window=meta['window'],gap_ns=meta['gap_ns'],observed_workers=len(cpus),linux_cpus=cpus,
+            window=meta['window'],gap_ns=meta['gap_ns'],observed_workers=len(tids),linux_cpus=cpus,
+            server_tids=tids,
             measured_activations=len(activations),
             pipeline=plan['pipeline'],hardware_revision=plan['hardware_revision'],
             runtime_evidence=plan['label']+'-server.csv.gz'))
     if cursor!=len(server):raise ValueError('Unattributed runtime rows')
     for entry,(source,destination) in zip(entries,sources):
         entry['sha256']=archive(source,destination)
+    for source,destination in preparations:
+        if destination.exists():raise ValueError('Preparation archive already exists')
+        archive(source,destination)
     archive(Path(plan['server_csv']),DATA/(plan['label']+'-server.csv.gz'))
     (DATA/(plan['label']+'-provenance.json')).write_text(json.dumps(plan,indent=2)+'\n')
     manifest=json.loads((DATA/'manifest.json').read_text())
