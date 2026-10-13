@@ -25,6 +25,8 @@ aggregate inputs between analysis and plotting. Keep raw observations and
 provenance under `data/paper/`, and scripts under `tools/paper/`, tracked in
 platform Git. Track acquisition commands/scripts, software/hardware revisions,
 hashes, units, instrumentation, failure accounting and regeneration instructions.
+Check timestamp placement across acquisition modes before comparing latency;
+record the selected endpoints in the data manifest.
 Small source datasets should be preserved verbatim; never manufacture samples
 from percentiles. CDFs use every valid measured sample, without tail clipping.
 

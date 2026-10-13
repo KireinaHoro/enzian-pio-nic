@@ -1,0 +1,30 @@
+[
+  {
+    "workers": 1,
+    "trials": 3,
+    "median_krpc_s": 156.13519184174888,
+    "minimum_krpc_s": 155.98759960978143,
+    "maximum_krpc_s": 156.13838545102524
+  },
+  {
+    "workers": 2,
+    "trials": 3,
+    "median_krpc_s": 311.7617093021588,
+    "minimum_krpc_s": 310.59421331921163,
+    "maximum_krpc_s": 312.03127052580703
+  },
+  {
+    "workers": 3,
+    "trials": 3,
+    "median_krpc_s": 466.8503567203576,
+    "minimum_krpc_s": 465.7345145602581,
+    "maximum_krpc_s": 467.61617690107016
+  },
+  {
+    "workers": 4,
+    "trials": 3,
+    "median_krpc_s": 624.6868757035536,
+    "minimum_krpc_s": 621.1014239992348,
+    "maximum_krpc_s": 624.8894726745207
+  }
+]

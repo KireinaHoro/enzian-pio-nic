@@ -118,6 +118,48 @@
       "throughput_krpc_s": 311.76170930215886,
       "p50_us": 50.73,
       "p99_us": 54.52
+    },
+    {
+      "label": "w3-scale1",
+      "workers": 3,
+      "throughput_krpc_s": 465.7345145602581,
+      "p50_us": 33.53,
+      "p99_us": 43.20520000000012
+    },
+    {
+      "label": "w3-scale2",
+      "workers": 3,
+      "throughput_krpc_s": 466.8503567203575,
+      "p50_us": 33.14,
+      "p99_us": 38.720400000000005
+    },
+    {
+      "label": "w3-scale3",
+      "workers": 3,
+      "throughput_krpc_s": 467.61617690107016,
+      "p50_us": 33.31,
+      "p99_us": 37.0801
+    },
+    {
+      "label": "w4-scale1",
+      "workers": 4,
+      "throughput_krpc_s": 621.1014239992348,
+      "p50_us": 24.85,
+      "p99_us": 36.030100000000004
+    },
+    {
+      "label": "w4-scale2",
+      "workers": 4,
+      "throughput_krpc_s": 624.8894726745207,
+      "p50_us": 24.84,
+      "p99_us": 29.750200000000003
+    },
+    {
+      "label": "w4-scale3",
+      "workers": 4,
+      "throughput_krpc_s": 624.6868757035536,
+      "p50_us": 24.87,
+      "p99_us": 29.410200000000003
     }
   ]
 }

@@ -622,6 +622,105 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w3-server.csv.gz",
       "sha256": "9dc82c65c3d0c9d705749df796165d96c61dd9d29f30ab2aea26ac7f8d2680ad"
+    },
+    {
+      "label": "w4-scale1",
+      "directory": "out/paper-microbenchmarks/runs/w4-scale1",
+      "condition": "hot",
+      "workers": 4,
+      "scaling": true,
+      "file": "w4-scale1.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 779183697232390,
+      "observation_end_ns": 779183713332820,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 4,
+      "linux_cpus": [
+        44,
+        45,
+        46,
+        47
+      ],
+      "server_tids": [
+        1662,
+        1663,
+        1664,
+        1665
+      ],
+      "measured_activations": 4,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w4-server.csv.gz",
+      "sha256": "8881042345418475f53558ff9f25e75cbdb9948fdf225b51434a3647205ba4c1"
+    },
+    {
+      "label": "w4-scale2",
+      "directory": "out/paper-microbenchmarks/runs/w4-scale2",
+      "condition": "hot",
+      "workers": 4,
+      "scaling": true,
+      "file": "w4-scale2.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 779189693874040,
+      "observation_end_ns": 779189709876870,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 4,
+      "linux_cpus": [
+        44,
+        45,
+        46,
+        47
+      ],
+      "server_tids": [
+        1662,
+        1663,
+        1664,
+        1665
+      ],
+      "measured_activations": 4,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w4-server.csv.gz",
+      "sha256": "569a9da6c0842be4fcfd615e458cdf5141ad19342f521fb33e5809643be1cc57"
+    },
+    {
+      "label": "w4-scale3",
+      "directory": "out/paper-microbenchmarks/runs/w4-scale3",
+      "condition": "hot",
+      "workers": 4,
+      "scaling": true,
+      "file": "w4-scale3.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 779195634699070,
+      "observation_end_ns": 779195650707090,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 4,
+      "linux_cpus": [
+        44,
+        45,
+        46,
+        47
+      ],
+      "server_tids": [
+        1662,
+        1663,
+        1664,
+        1665
+      ],
+      "measured_activations": 4,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w4-server.csv.gz",
+      "sha256": "1ca558cca6d9b3550b9105469f0bf92a639dbffb31df125c83915d76ffd23db9"
     }
   ]
 }

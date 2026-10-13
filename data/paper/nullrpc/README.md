@@ -2,13 +2,21 @@
 
 ## Current figures: October 13, pipeline 518922
 
-The current CDFs and throughput–latency curves use matched hardware/runtime
+All five current charts use matched hardware/runtime
 `cc19c4285148db65c5b5517f6a02abd04b7f9142` (pipeline 518922). This was the latest
 successful hardware build at acquisition; the read-only CI query is retained.
 The client source is `4e1372c0`; its deployed SHA-256 is
 `9da72e4c465e992326898e7339d3da306eb7a80992796acdf560efc83daf98fa`.
 No FPGA, kernel or server runtime implementation was changed for these runs.
 Timing closure is not implied.
+
+Across four matched cold boots, the campaign passed **185,000 measured requests,
+2,304 warmups and 400 setup calls**, plus 160,000 validated eviction-preparation
+RPCs. Every requested worker served measured requests in every scaling trial.
+All four complete captures have matching request/reply counts and zero stored
+loss markers (347,704 RPCs including preparation). The final runtime has four
+resident workers on CPUs 44–47; traces are frozen and the one-shot runtime export
+is consumed. Recheck reservations before reuse.
 
 The one-worker campaign passed **95,000 measured requests + 1,152 warmups**,
 following a 100-RPC setup check. The runtime exported all **96,252** rows with
@@ -37,7 +45,8 @@ The static peer neighbor is required because the DPDK client does not answer ARP
   thread may visit different Linux CPUs across activations; CPU count is not
   worker-pool size.
 - Worker scaling: three 10,000-request cohorts per pool size at window 16, with
-  128 warmups per cohort. Pools 1–3 are complete; pool 4 is pending.
+  128 warmups per cohort. All four pool sizes passed. Median trial throughputs are
+  **156.135, 311.762, 466.850, and 624.687 kRPC/s** for 1–4 workers.
   The plot requires every requested worker to serve measured requests, each in
   one resident activation on a distinct CPU. Its center is the median trial
   throughput and error bars show the full observed trial range, not confidence
@@ -69,7 +78,6 @@ with its hash/status tracked; RTT and throughput regenerate from Git alone.
 ```sh
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts throughput
-# After pools 2–4 have been validated/imported:
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts all
 ```
 

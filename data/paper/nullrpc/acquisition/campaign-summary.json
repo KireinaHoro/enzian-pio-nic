@@ -1,0 +1,34 @@
+{
+  "hardware_pipeline": 518922,
+  "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+  "measured_rpcs": 185000,
+  "warmup_rpcs": 2304,
+  "setup_rpcs": 400,
+  "eviction_preparation_rpcs": 160000,
+  "load_cohorts": 23,
+  "matched_cold_boots": 4,
+  "trace_rpcs": 347704,
+  "stored_loss_markers": 0,
+  "runtime_rows": 187704,
+  "runtime_dropped": 0,
+  "final_dut": "zuestoll14, four-worker add service, FPGA trace frozen, one-shot runtime export consumed",
+  "peer": "zuestoll07, VF restored after every run",
+  "trace_overrides": "Restored to pre-capture values; trace_stop remains 1",
+  "validation": [
+    "native and AArch64 client builds",
+    "10 baseline packet replay cases",
+    "5 concurrent-load packet replay cases",
+    "four matched hardware boot/setup tests",
+    "all per-request replies and activation/worker joins",
+    "four full-capture counts and loss scans",
+    "all five PDF dimensions, embedded fonts and visual inspection",
+    "skill validation and script syntax checks"
+  ],
+  "limitations": [
+    "Finite single-client closed-loop runs; not an open-loop SLO or independent server-capacity calibration.",
+    "Three scaling trials per worker count share one boot.",
+    "Cold throughput includes eviction preparation and pacing; measured latency excludes preparation.",
+    "Latency uses client RX observation, not physical wire timing or historical full-call completion.",
+    "No timing closure, new server implementation, kernel change or RTL change is claimed."
+  ]
+}
