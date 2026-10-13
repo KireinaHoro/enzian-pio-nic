@@ -19,10 +19,10 @@ loss markers. Kernel instrumentation was off; runtime buffering and FPGA tracing
 on. The DUT used Linux 6.8.0-64-generic and the DPDK peer 6.8.0-146-generic.
 The static peer neighbor is required because the DPDK client does not answer ARP.
 
-- Hot CDF: all 10,000 measured requests with one outstanding request. Raw client
-  RTT p50/p99 is **12.850/16.8201 µs**; the maximum **61.700 µs** remains included.
+- Hot CDF: all 10,000 measured requests with one outstanding request. Client-observed
+  RTT p50/p99 is **12.650/16.590 µs**; the maximum **48.520 µs** remains included.
 - Cold CDF: 1,000 measured requests with eviction preparation before each RPC.
-  RTT p50/p99 is **43.760/48.9227 µs**, maximum **111.270 µs**.
+  RTT p50/p99 is **43.515/48.490 µs**, maximum **110.790 µs**.
 - Hot throughput–latency: six closed-loop windows, 1/2/4/8/12/16 outstanding
   requests, each with 128 warmups and 10,000 measured replies. Achieved throughput
   rises from **75.765** to approximately **156.136 kRPC/s**. The plot shows the
@@ -37,7 +37,7 @@ The static peer neighbor is required because the DPDK client does not answer ARP
   thread may visit different Linux CPUs across activations; CPU count is not
   worker-pool size.
 - Worker scaling: three 10,000-request cohorts per pool size at window 16, with
-  128 warmups per cohort. One-worker data is complete; pools 2–4 are pending.
+  128 warmups per cohort. Pools 1–3 are complete; pool 4 is pending.
   The plot requires every requested worker to serve measured requests, each in
   one resident activation on a distinct CPU. Its center is the median trial
   throughput and error bars show the full observed trial range, not confidence
@@ -47,7 +47,15 @@ These are finite, single-client closed-loop measurements. They do not establish
 open-loop queueing/SLO behavior, avoid coordinated omission, or independently
 establish that a throughput plateau is server-limited. Each worker-pool size
 uses one cold boot; repeated cohorts on that boot are not independent boots.
-CDFs and load points share the latest hardware. The older baseline remains below.
+CDFs and load points share the latest hardware. Current latency is
+`client_rx_burst_ns - client_call_enter_ns`: from just before request encoding to
+observation of the RX burst containing the validated response. It includes
+encoding/enqueueing and polling, but excludes later response validation and
+buffer cleanup. Both client modes record this same boundary; their final
+`client_call_exit_ns` markers occur on opposite sides of buffer cleanup, so those
+markers are retained but not mixed in the current figures. This is neither a
+hardware wire timestamp nor a calibrated one-way network measurement. No clock
+probe cost is subtracted. The older baseline remains below.
 
 `manifest.json` pins input hashes and observation windows. Each `.csv.gz` stores
 verbatim client or runtime rows with deterministic gzip metadata. Per-run
@@ -82,7 +90,9 @@ and 64 TX events, consistent with context-capacity rejection.
 Both contain 1,000 successful measured requests; hot additionally contains 16
 marked warmups, while cold has none.
 The manifest pins their SHA-256 hashes. No raw samples were reconstructed from
-percentiles. RTT is `client_call_exit_ns - client_call_enter_ns`, converted from
+percentiles. These historical figures use the original full-call endpoint, so
+their numbers are not a like-for-like improvement comparison with the current
+RX-observation CDFs. RTT is `client_call_exit_ns - client_call_enter_ns`, converted from
 nanoseconds to microseconds; no clock-overhead subtraction is applied.
 
 The acquisition ran on October 10, 2026, using pipeline **518689**, hardware

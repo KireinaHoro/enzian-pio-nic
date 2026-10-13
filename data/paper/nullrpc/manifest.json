@@ -28,7 +28,8 @@
       "selection": "one outstanding RPC; warmup excluded",
       "kernel_tracing": false,
       "runtime_tracing": true,
-      "fpga_tracing": true
+      "fpga_tracing": true,
+      "latency_end": "client_rx_burst_ns"
     },
     "cold": {
       "label": "w1-cold-g0",
@@ -58,7 +59,8 @@
       "selection": "one outstanding RPC; warmup excluded",
       "kernel_tracing": false,
       "runtime_tracing": true,
-      "fpga_tracing": true
+      "fpga_tracing": true,
+      "latency_end": "client_rx_burst_ns"
     }
   },
   "load_runs": [
@@ -86,7 +88,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "9cdc8bfc485201f1350bb1f41988d34494b4aedb053c338457ab0e68eeaa8dc2"
+      "sha256": "9cdc8bfc485201f1350bb1f41988d34494b4aedb053c338457ab0e68eeaa8dc2",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-hot-w2",
@@ -112,7 +115,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "ba94bc76625977a7419e8dd85b64f62d133f1c18319300a920f75043257b6ca8"
+      "sha256": "ba94bc76625977a7419e8dd85b64f62d133f1c18319300a920f75043257b6ca8",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-hot-w4",
@@ -138,7 +142,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "0462d4bea6b4756fe2c2618c87355c1480ec83a8f3bf53f24db4ae7891c93a46"
+      "sha256": "0462d4bea6b4756fe2c2618c87355c1480ec83a8f3bf53f24db4ae7891c93a46",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-hot-w8",
@@ -164,7 +169,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "73afc221cd133810468384413377dc88ddc50ca2bd8bd570d6828e3a3e9d98d9"
+      "sha256": "73afc221cd133810468384413377dc88ddc50ca2bd8bd570d6828e3a3e9d98d9",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-hot-w12",
@@ -190,7 +196,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "3e9d69a52e5bae18a2cc047cc0ff11b74cbe4971acf717c53f38b376b69958e7"
+      "sha256": "3e9d69a52e5bae18a2cc047cc0ff11b74cbe4971acf717c53f38b376b69958e7",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-hot-w16",
@@ -216,7 +223,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "6de6051df6b6c99ff1d4fc37c9b090cb7443f531fa6062d313a950915c8fd761"
+      "sha256": "6de6051df6b6c99ff1d4fc37c9b090cb7443f531fa6062d313a950915c8fd761",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-scale1",
@@ -242,7 +250,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "15d76936d2fd5796b15bc1e5b905f1f5b8e2eeaf73cde14687246c32819ac11e"
+      "sha256": "15d76936d2fd5796b15bc1e5b905f1f5b8e2eeaf73cde14687246c32819ac11e",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-scale2",
@@ -268,7 +277,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "2ecbb554b12a0a7f93e7a6982670b292480bb25e02feda1a8889f0ebeb2f04ce"
+      "sha256": "2ecbb554b12a0a7f93e7a6982670b292480bb25e02feda1a8889f0ebeb2f04ce",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-scale3",
@@ -294,7 +304,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "3deebb20cd67d3d3a36476a651b8e5be840891ec08a041c8d78b292c8d861cbb"
+      "sha256": "3deebb20cd67d3d3a36476a651b8e5be840891ec08a041c8d78b292c8d861cbb",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-cold-g0",
@@ -320,7 +331,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "c1773d454207148c9102f1302f11d4506c4f431a907f76526317feb713f1fb9b"
+      "sha256": "c1773d454207148c9102f1302f11d4506c4f431a907f76526317feb713f1fb9b",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-cold-g500000",
@@ -346,7 +358,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "e0a08c116390e49236f1f0f0eaf58272280f57ca13d16f3d7aa8a72f6a7b9719"
+      "sha256": "e0a08c116390e49236f1f0f0eaf58272280f57ca13d16f3d7aa8a72f6a7b9719",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-cold-g1000000",
@@ -372,7 +385,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "9bed6e82ddec563d0e7904818442ad237eb05433aea3e80dcbc48cf9971cf8dc"
+      "sha256": "9bed6e82ddec563d0e7904818442ad237eb05433aea3e80dcbc48cf9971cf8dc",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-cold-g2000000",
@@ -398,7 +412,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "fc9abc3022fade5c32545414007183af6288741a1814be47944cac54dbe140a5"
+      "sha256": "fc9abc3022fade5c32545414007183af6288741a1814be47944cac54dbe140a5",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w1-cold-g5000000",
@@ -425,7 +440,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
-      "sha256": "e5613ecdf0f6579836d579dafe87a845dd6d42d410b4fb25f75e7202a0d4d2e6"
+      "sha256": "e5613ecdf0f6579836d579dafe87a845dd6d42d410b4fb25f75e7202a0d4d2e6",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w2-scale1",
@@ -453,7 +469,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w2-server.csv.gz",
-      "sha256": "c41c7fecbdeec8e8fbd56d7c9cada48db479e29abde010935c789416c1f06d8f"
+      "sha256": "c41c7fecbdeec8e8fbd56d7c9cada48db479e29abde010935c789416c1f06d8f",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w2-scale2",
@@ -481,7 +498,8 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w2-server.csv.gz",
-      "sha256": "f0f99b07212b8421097dbb2ae9d7d3f4aa2c325a428ce6cd96460486c9d043ff"
+      "sha256": "f0f99b07212b8421097dbb2ae9d7d3f4aa2c325a428ce6cd96460486c9d043ff",
+      "latency_end": "client_rx_burst_ns"
     },
     {
       "label": "w2-scale3",
@@ -509,7 +527,101 @@
       "pipeline": 518922,
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w2-server.csv.gz",
-      "sha256": "5d7bf015639c07511d626ebd383e28db7c0ca48b4300ea4df873d6ce5b4cd64a"
+      "sha256": "5d7bf015639c07511d626ebd383e28db7c0ca48b4300ea4df873d6ce5b4cd64a",
+      "latency_end": "client_rx_burst_ns"
+    },
+    {
+      "label": "w3-scale1",
+      "directory": "out/paper-microbenchmarks/runs/w3-scale1",
+      "condition": "hot",
+      "workers": 3,
+      "scaling": true,
+      "file": "w3-scale1.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 778506444338680,
+      "observation_end_ns": 778506465810140,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 3,
+      "linux_cpus": [
+        44,
+        45,
+        46
+      ],
+      "server_tids": [
+        1669,
+        1670,
+        1671
+      ],
+      "measured_activations": 3,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w3-server.csv.gz",
+      "sha256": "40048a20633a5fc4bdae28f94a9444b782114927a2a7bf85211f0c19a5185cf6"
+    },
+    {
+      "label": "w3-scale2",
+      "directory": "out/paper-microbenchmarks/runs/w3-scale2",
+      "condition": "hot",
+      "workers": 3,
+      "scaling": true,
+      "file": "w3-scale2.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 778512444329740,
+      "observation_end_ns": 778512465749880,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 3,
+      "linux_cpus": [
+        44,
+        45,
+        46
+      ],
+      "server_tids": [
+        1669,
+        1670,
+        1671
+      ],
+      "measured_activations": 3,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w3-server.csv.gz",
+      "sha256": "a60915ff343299179494300beb57bee878bf546a090ba3ad27a9d491c78e644c"
+    },
+    {
+      "label": "w3-scale3",
+      "directory": "out/paper-microbenchmarks/runs/w3-scale3",
+      "condition": "hot",
+      "workers": 3,
+      "scaling": true,
+      "file": "w3-scale3.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 778518410235470,
+      "observation_end_ns": 778518431620530,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 3,
+      "linux_cpus": [
+        44,
+        45,
+        46
+      ],
+      "server_tids": [
+        1669,
+        1670,
+        1671
+      ],
+      "measured_activations": 3,
+      "pipeline": 518922,
+      "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+      "runtime_evidence": "w3-server.csv.gz",
+      "sha256": "9dc82c65c3d0c9d705749df796165d96c61dd9d29f30ab2aea26ac7f8d2680ad"
     }
   ]
 }

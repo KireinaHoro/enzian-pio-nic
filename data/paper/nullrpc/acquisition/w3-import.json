@@ -1,0 +1,38 @@
+{
+  "label": "w3",
+  "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
+  "pipeline": 518922,
+  "server_csv": "out/paper-microbenchmarks/paper-nullrpc-export-w3/server.csv",
+  "server_status": "out/paper-microbenchmarks/paper-nullrpc-export-w3/server.csv.status.json",
+  "setup_count": 100,
+  "runs": [
+    {
+      "label": "w3-scale1",
+      "directory": "out/paper-microbenchmarks/runs/w3-scale1",
+      "condition": "hot",
+      "workers": 3,
+      "scaling": true
+    },
+    {
+      "label": "w3-scale2",
+      "directory": "out/paper-microbenchmarks/runs/w3-scale2",
+      "condition": "hot",
+      "workers": 3,
+      "scaling": true
+    },
+    {
+      "label": "w3-scale3",
+      "directory": "out/paper-microbenchmarks/runs/w3-scale3",
+      "condition": "hot",
+      "workers": 3,
+      "scaling": true
+    }
+  ],
+  "client_revision": "4e1372c0",
+  "client_binary_sha256": "9da72e4c465e992326898e7339d3da306eb7a80992796acdf560efc83daf98fa",
+  "kernel_tracing": false,
+  "runtime_tracing": true,
+  "fpga_tracing": true,
+  "health": "out/paper-microbenchmarks/w3-health.json",
+  "observation_scope": "Three finite closed-loop cohorts with 16 outstanding requests on one cold boot; client limit not independently calibrated."
+}

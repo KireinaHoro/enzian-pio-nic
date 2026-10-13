@@ -1,0 +1,112 @@
+{
+  "passed": true,
+  "errors": [],
+  "before": {
+    "0": {
+      "bar": 149397484601344,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "1": {
+      "bar": 149397501378560,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "2": {
+      "bar": 149397518155776,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "3": {
+      "bar": 149397534932992,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "4": {
+      "bar": 149397551710208,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "5": {
+      "bar": 149397568487424,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "6": {
+      "bar": 149397585264640,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "7": {
+      "bar": 149397602041856,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    }
+  },
+  "after": {
+    "0": {
+      "bar": 149397484601344,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "1": {
+      "bar": 149397501378560,
+      "interrupt": 0,
+      "status": 256,
+      "timeout": 0
+    },
+    "2": {
+      "bar": 149397518155776,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "3": {
+      "bar": 149397534932992,
+      "interrupt": 0,
+      "status": 256,
+      "timeout": 0
+    },
+    "4": {
+      "bar": 149397551710208,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "5": {
+      "bar": 149397568487424,
+      "interrupt": 0,
+      "status": 256,
+      "timeout": 0
+    },
+    "6": {
+      "bar": 149397585264640,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    },
+    "7": {
+      "bar": 149397602041856,
+      "interrupt": 0,
+      "status": 0,
+      "timeout": 0
+    }
+  },
+  "kernel_faults": [],
+  "scope": "Recorded finite state only. Combine with matched provenance, exposure, trace holds and independent client completions; this is not an infinite-stall guarantee.",
+  "input_sha256": {
+    "before": "29178cdf4855b222bcd3c38dd0ecfb721786a9e9e448e0fbf29b3c17842a4ae5",
+    "after": "e90fade74e4668f0afea702d657e9c6b817ed5f4d77bd15cba0e7de060c83fcb",
+    "kernel_before": "90bc449903ad2e84e19ba07e0df95a2b8f3dcae841413523930e1a81c570c80f",
+    "kernel_after": "76dc70c9ec4242ed1c8465e7499125e82b82e81166a64a3a2dce4cb5bf17091a"
+  }
+}

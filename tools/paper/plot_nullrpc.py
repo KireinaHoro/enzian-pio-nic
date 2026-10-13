@@ -15,7 +15,7 @@ DATA = ROOT / "data/paper/nullrpc"
 OUTPUT = ROOT.parent / "paper/plots"
 
 
-def measured(path):
+def measured(path, end_field="client_call_exit_ns"):
     opener = gzip.open if path.suffix == ".gz" else open
     with opener(path, "rt") as stream:
         rows = list(csv.DictReader(stream))
@@ -27,7 +27,7 @@ def measured(path):
     if any(row["warmup"] not in ("0", "1") for row in rows):
         raise ValueError(f"Invalid warmup marker: {path}")
     rows = [row for row in rows if row["warmup"] == "0"]
-    ns = np.array([int(row["client_call_exit_ns"]) - int(row["client_call_enter_ns"])
+    ns = np.array([int(row[end_field]) - int(row["client_call_enter_ns"])
                    for row in rows], dtype=np.int64)
     if not len(ns) or np.any(ns <= 0):
         raise ValueError(f"Missing or nonpositive measured RTT: {path}")
@@ -39,7 +39,7 @@ def cdf(condition, manifest, output):
     path = DATA / entry["file"]
     if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
         raise ValueError(f"Input hash mismatch: {path}")
-    rows, values = measured(path)
+    rows, values = measured(path, entry.get("latency_end", "client_call_exit_ns"))
     if len(rows) != entry["measured_count"]:
         raise ValueError("Sample count differs from provenance")
     fig, ax = paper_chart.figure()
@@ -58,7 +58,7 @@ def load_points(manifest):
         path = DATA / entry["file"]
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
             raise ValueError(f"Input hash mismatch: {path}")
-        rows, values = measured(path)
+        rows, values = measured(path, entry.get("latency_end", "client_call_exit_ns"))
         start, end = entry["observation_start_ns"], entry["observation_end_ns"]
         if end <= start or any(not start <= int(row["client_call_enter_ns"]) < int(row["client_call_exit_ns"]) <= end for row in rows):
             raise ValueError("Invalid observation window")

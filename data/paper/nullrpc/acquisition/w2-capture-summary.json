@@ -1,0 +1,19 @@
+{
+  "bytes": 1096952128,
+  "sha256": "df6ca2734919eee5b164d4fb6e47cef441e9deba0ea596af1c6a3c548e6822d3",
+  "offset": 0,
+  "start": {
+    "trace_write_slot_1": 17134627,
+    "trace_wrapped_1": 0,
+    "trace_sample_lost_1": 0,
+    "trace_dma_error_1": 0
+  },
+  "end": {
+    "trace_write_slot_1": 17139877,
+    "trace_wrapped_1": 0,
+    "trace_sample_lost_1": 1,
+    "trace_dma_error_1": 0
+  },
+  "bounded_window": true,
+  "pipeline": 518922
+}

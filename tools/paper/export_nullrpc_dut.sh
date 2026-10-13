@@ -20,6 +20,10 @@ cp "$csv" "$csv.status.json" "$out/"
 cat /sys/module/lauberhorn/parameters/l2c_tad_snapshot > "$out/tad.txt"
 dmesg > "$out/kernel.txt"
 cat /nix/store/lauberhorn/manifest.json > "$out/manifest.json"
+cat /proc/cmdline > "$out/kernel-command-line.txt"
+cat /sys/devices/system/cpu/isolated > "$out/isolated-cpus.txt"
+cat /sys/devices/system/cpu/nohz_full > "$out/nohz-full-cpus.txt"
+cat /proc/sys/kernel/sched_rt_runtime_us > "$out/rt-runtime-us.txt"
 for name in tad-before.txt kernel-before.txt; do
     [[ ! -f $(dirname "$csv")/$name ]] || cp "$(dirname "$csv")/$name" "$out/"
 done
