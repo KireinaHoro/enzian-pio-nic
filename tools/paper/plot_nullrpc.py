@@ -3,6 +3,7 @@
 import argparse
 import csv
 import hashlib
+import gzip
 import json
 from pathlib import Path
 
@@ -15,7 +16,8 @@ OUTPUT = ROOT.parent / "paper/plots"
 
 
 def measured(path):
-    with path.open() as stream:
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt") as stream:
         rows = list(csv.DictReader(stream))
     if not rows or any(row["ok"] != "1" or row["rpc_status"] != "0" for row in rows):
         raise ValueError(f"Empty or failed run: {path}")
@@ -68,7 +70,7 @@ def load_points(manifest):
 
 
 def throughput_latency(condition, points, output):
-    selected = sorted((p for p in points if p["condition"] == condition and p["workers"] == 1),
+    selected = sorted((p for p in points if p["condition"] == condition and p["workers"] == 1 and not p.get("scaling")),
                       key=lambda p: p["throughput"])
     if len(selected) < 3:
         raise ValueError(f"Need at least three measured one-worker {condition} load points")
