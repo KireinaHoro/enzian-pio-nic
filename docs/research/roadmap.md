@@ -12,7 +12,9 @@ HOST_WORK is the new name for the proposed notification that completes an
 assigned worker's RX wait to service host-side work. It is not DESCHED or a
 direct wake inside `lh_yield()`. Allocation for an unassigned domain is a separate
 requirement. The design retains fixed worker-core–endpoint affinity and records
-the GL/G dispatch matrix, receive oversubscription and packet ownership limits.
+the temporary native-demand dispatch matrix, receive oversubscription and packet
+ownership limits. Native use does not create a sticky goroutine class: locality
+may retain a G on ML, but it can move to M between transport operations.
 It supersedes the earlier HOST_WAKE hold as future direction, not as permission
 to implement now or as evidence any new interface exists. Dated records below
 retain their original terminology and finite acceptance scope.
