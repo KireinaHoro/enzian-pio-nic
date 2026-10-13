@@ -189,6 +189,56 @@ allocation and retirement interfaces remain open.
 
 ## Execution cases
 
+### DESCHED, relinquishment and reactivation
+
+DESCHED removes this thread's usable L assignment; it does not destroy a
+physical endpoint. The system's physical L capacity stays constant while a
+domain's assigned share can shrink and later grow. A successful return from
+`lh_yield()` supplies the **calling thread's new assignment**, not necessarily
+its former L. It does not merely report that the replacement thread was activated.
+
+| Boundary | P in the proposed Go runtime | L and permitted transport access |
+| --- | --- | --- |
+| Before DESCHED | ML holds P while executing Go | Current L is usable |
+| RX returns DESCHED | Enter runtime relinquishment path | Mark old L unusable immediately; no further RX/TX |
+| Kernel accepts the authorized `DeschedInfo` read | P has been released through a runtime-safe path | Relinquishment acknowledged; hardware cleanup and destination commitment follow |
+| Outgoing thread waits for its activation | No P | No L; old mailbox must not be used |
+| Yield returns successfully | Acquire P before resuming Go work | New worker index, parities and CPU affinity establish the new assignment |
+
+Receiving DESCHED is not itself completed ownership transfer. Follow the
+[existing handoff protocol](../software/scheduling-control-interface.md#activation-and-handoff):
+fence transport use, enter kernel yield, acknowledge through the authorized
+read, and let hardware finish cleanup before reusing the endpoint. No RX borrow
+or TX reservation may cross this boundary. Ordinary handoff does not require a
+scheduling IRQ.
+
+The Go integration must preserve runnable Gs and pending native demand when
+releasing P; they cannot be stranded with the parked M. The registered thread
+remains inside the kernel until its own fresh activation and cannot run ordinary
+Gs during that interval merely because it no longer holds L. Other execution
+resources may service its domain's queued work where eligible.
+
+On successful return, install the returned worker index and both parities and
+derive the matching mailbox VA, as the C activation helper does today. The new
+L can correspond to another worker CPU, and the reacquired P can differ from
+the old P. Even reactivation on the same endpoint requires the fresh activation
+state; do not restore cached pre-yield parity. A failed yield does not authorize
+old-assignment access and retains the existing fail-closed recovery boundary.
+Exact Go P-release/reacquisition hooks remain to be implemented and validated.
+
+```text
+M1 + P2 + L0
+    -> RX returns DESCHED: stop using L0
+    -> release P2; kernel relinquishes L0; M1 waits without P or L
+    -> L0 can serve the committed destination
+    -> M1 later receives L3 and its matching CPU affinity
+    -> install L3 mailbox state; acquire P1; resume eligible work
+```
+
+HOST_WORK is different: it ends an RX wait while retaining L so ML can service
+software work. If HOST_WORK races with DESCHED, preserve the work through the
+relinquishment/reactivation path rather than transmitting on the old assignment.
+
 ### Unloaded parent and child
 
 An ML receives and runs a handler G. After decoding and releasing the borrow,
@@ -296,6 +346,11 @@ credit pressure. Include channel/timer readiness, GC while workers park, P
 reacquisition, both parities after activation, stale borrows, and races between
 work publication, RX entry, packet arrival, HOST_WORK and DESCHED. Keep current
 C/native UDP regressions and memcached resize validation in the acceptance set.
+
+For DESCHED, assert that old-L transport access stops at RX return, P and queued
+work are not stranded, and the outgoing thread returns only with its own fresh
+activation. Exercise same-endpoint and different-endpoint reactivation with fresh
+parities, reacquisition of a different P, HOST_WORK overlap and failed yield.
 
 Verify that first RPC use does not permanently elevate a G; a handler can move
 to M after releasing its borrow, then request ML again for TX. A nested caller
