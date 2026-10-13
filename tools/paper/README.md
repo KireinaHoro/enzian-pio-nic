@@ -16,7 +16,7 @@ From the platform root:
 
 ```sh
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf
-# Once the load measurements are populated in the manifest:
+# Once all four worker-pool measurements are populated in the manifest:
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts all
 ```
 
@@ -83,3 +83,19 @@ that capacity and is preserved as a failed warmup, not a throughput measurement.
 The intended successful sweep is bounded to at most 16 outstanding requests.
 Client-side throughput limits and finite run duration must remain explicit in
 provenance; a plateau alone does not establish server saturation.
+
+For the recorded 518922 server environment, fetch hardware job **2886156** with
+`tools/enzian/ci_artifacts.py --token-file ../.gitlab_token --download NEW_HW_DIR
+2886156`, and rebuild the matched deployment using
+`tools/enzian/build_deploy.py cc19c4285148db65c5b5517f6a02abd04b7f9142
+--out-link NEW_IMAGE`. The accepted image SHA-256 is
+`9140a9caf6448938247fbc74758fd31cf809b373e303d2f7d53788a726cd52f4`.
+Use the source revision and matched collateral rather than assuming a rebuilt
+image must reproduce that historical filesystem hash. Client source `4e1372c0`
+contains the bounded load generator and failure-only diagnostic used here.
+Keep the generated trace map and its hash with every raw capture.
+
+`check_nullrpc_capture.py TRACE --map MAP --expected-rpcs COUNT --output JSON`
+checks complete unwrapped captures for stored loss markers and exact admitted/
+normal-reply counts. Count setup, warmup and flush traffic as well as measured
+requests. This is acquisition validation, not cross-clock latency analysis.
