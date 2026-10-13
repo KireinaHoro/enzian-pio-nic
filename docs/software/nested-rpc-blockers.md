@@ -1,5 +1,9 @@
 # Nested RPC integration blockers
 
+**October 13:** [Go toward etcd and HOST_WORK](../research/etcd.md) records the
+new future direction. The current task is documentation only. HOST_WAKE in the
+dated ledger below is the former proposal name, not an implemented interface.
+
 See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
 
 ## October 8 application resumption

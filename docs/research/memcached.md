@@ -1,5 +1,12 @@
 # Native UDP memcached
 
+**October 13 design follow-up:** [HOST_WORK](etcd.md#host_work), formerly proposed
+as HOST_WAKE, will return assigned RX waiters to host-side work. The Go/etcd
+stage also requires allocation for unassigned domains, targeted maintenance
+notification and host-only pause/resume parking, with real hash expansion as
+an acceptance goal. This update is documentation only: existing expansion
+guards stay in force and historical HOST_WAKE references below remain unchanged.
+
 The transport and upstream adapter integration merged into platform `master`
 in `6b489de8`. Current transport and adapter follow-up is on platform branch
 `feat/memcached-rx-wait`; the upstream-based application worktree is on
@@ -117,11 +124,13 @@ Uncorrelated timestamps must not be subtracted across hosts or FPGA clocks.
 
 ## Deferred wake and pause designs
 
-Hash expansion is the concrete HOST_WAKE motivation: the assoc thread queues a
+Hash expansion is the concrete HOST_WORK motivation: the assoc thread queues a
 pause notification to every worker and waits. A worker parked in kernel yield
 cannot consume its libevent notification. Finite RX polling does not solve this.
-HOST_WAKE, epoll subscriptions and voluntary host-only yield remain follow-on
-work, with no new API, hardware field or stub in this implementation.
+HOST_WORK, allocation for unassigned domains, epoll subscriptions and voluntary
+host-only yield remain follow-on work, with no new API, hardware field or stub
+in this implementation. See the [October 13 design](etcd.md#host_work); HOST_WORK
+itself completes assigned RX waits, not threads parked inside kernel yield.
 
 Tentative sketches retain one epoll instance per worker for host notifications
 and a scheduler-aware pause protocol which releases an assignment while awaiting
