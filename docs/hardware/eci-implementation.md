@@ -170,7 +170,7 @@ subsequent cold reset; three focused tests and the pinned workflow gate passed.
 The worker-count matrix initially exposed a test generator's one-per-JVM
 Mackerel guard, then the kernel's scalar-versus-indexed base mismatch for one
 worker. Both are corrected. `GenWorkerConfigurations` emits each configuration's
-headers/devices, and `tools/address-map/worker-builds.nix` cross-builds them.
+headers/devices, and `nix/hardware/worker-configurations.nix` cross-builds them.
 These are configuration/interface checks; the Enzian candidate remains the
 four-worker `8cc9ad58` artifact. No board result for seven workers is claimed.
 

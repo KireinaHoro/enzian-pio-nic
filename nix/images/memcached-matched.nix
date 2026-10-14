@@ -1,7 +1,11 @@
 # Rebuild the application (and optionally userspace runtime) on immutable HW.
 # Kernel, transport core, ioctl contract and generated collateral stay pinned.
-{ platformRef, applicationRevision, applicationBranch ? "feat/lauberhorn-rx-wait",
-  runtimeRef ? null }:
+{
+  platformRef,
+  applicationRevision,
+  applicationBranch ? "feat/lauberhorn-rx-wait",
+  runtimeRef ? null,
+}:
 let
   platform = builtins.getFlake platformRef;
   software = if runtimeRef == null then platform else builtins.getFlake runtimeRef;
@@ -20,16 +24,25 @@ let
     cp ${platform.outPath}/sw/usr-common.mk $out/sw/
     cp ${platform.outPath}/sw/kmod/ioctl.h $out/sw/kmod/
   '';
-  runtime = if runtimeRef == null then hardware.runtime else
-    hardware.runtime.overrideAttrs (_: { src = runtimeSource; });
+  runtime =
+    if runtimeRef == null then
+      hardware.runtime
+    else
+      hardware.runtime.overrideAttrs (_: {
+        src = runtimeSource;
+      });
   identity = {
     revision = platform.rev;
     local = false;
     narHash = platform.narHash;
-  } // pkgs.lib.optionalAttrs (runtimeRef != null) {
+  }
+  // pkgs.lib.optionalAttrs (runtimeRef != null) {
     runtimeOverride = {
       revision = software.rev;
-      paths = [ "sw/rt" "sw/include" ];
+      paths = [
+        "sw/rt"
+        "sw/include"
+      ];
       transportCoreRevision = platform.rev;
     };
   };
@@ -42,17 +55,39 @@ let
     inherit identity;
     inherit (deploymentTarget) python3 bash;
   };
-  deployment = pkgs.callPackage (platform.outPath + "/nix/images/default.nix") {
+  # Historical evidence selects the constructor from its pinned platform.
+  # Current platforms keep image selection separate from the constructor.
+  recipePath =
+    if builtins.pathExists (platform.outPath + "/nix/images/application.nix") then
+      platform.outPath + "/nix/images/application.nix"
+    else
+      platform.outPath + "/nix/images/default.nix";
+  recipe = import recipePath;
+  arguments = {
+    inherit pkgs runtime identity;
     target = deploymentTarget;
-    inherit (hardware) kmod genVerilog devHdrs kernelRelease;
-    inherit runtime identity;
+    inherit (hardware)
+      kmod
+      genVerilog
+      devHdrs
+      kernelRelease
+      ;
+  }
+  // pkgs.lib.optionalAttrs (hardware ? thunderx) {
+    inherit (hardware.thunderx) dpdk modules;
   };
+  deployment = recipe (builtins.intersectAttrs (builtins.functionArgs recipe) arguments);
+  mkImage = deployment.mkApplicationImage or deployment.mkTestImage;
+
 in
 assert platform ? rev && software ? rev;
 assert builtins.match "[0-9a-f]{40}" applicationRevision != null;
 assert toString runtime.genVerilog == toString hardware.genVerilog;
 assert toString runtime.devHdrs == toString hardware.devHdrs;
-deployment.mkTestImage {
+mkImage {
   name = "memcached";
-  applications = { inherit memcached; memcached-tools = memcachedTools; };
+  applications = {
+    inherit memcached;
+    memcached-tools = memcachedTools;
+  };
 }

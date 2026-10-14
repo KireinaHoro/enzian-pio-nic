@@ -72,7 +72,7 @@ application = (platform.callPackage (inputs.application + "/package.nix") {}).ov
 });
 # Expose these in packages.${system}:
 service = application;
-image = platform.mkTestImage {
+image = platform.mkApplicationImage {
   name = "my-service";
   applications = { my-service = application; };
   extraContents = [];
@@ -99,13 +99,13 @@ nix build .#image --override-input application path:/absolute/application --no-w
 Do not change platform or hardware inputs to iterate on an application. Select
 `application.interactiveTests.smoke` under a separate image application name when
 wanted. `platform.mkDeploymentEnvironment { applications; extraContents = []; }`
-constructs just the stable environment; `mkTestImage` includes it and its closure.
+constructs just the stable environment; `mkApplicationImage` includes it and its closure.
 Extra packages contribute bin/sbin tools with collision checking; applications
 retain all their executables below their own named link.
 
 ## One image, helper and manual commands
 
-`nix build .#deployFs -L` builds the microbenchmark image. Existing CI artifact
+`nix build .#microbenchmarksImage -L` builds the microbenchmark image. Existing CI artifact
 locations remain `out/deploy.img` and `out/eci/vivado-inputs`.
 After checking reservation and matching FPGA/ABI provenance, copy the image:
 
@@ -145,7 +145,7 @@ Dandelion needs Rust/C linkage, installed assets/function registries, configurat
 and external writable state. This package contract supports those packaging needs;
 its recipe can accept `rustPlatform`, native bindgen tools and target libraries as
 named dependencies. On this branch, the pinned Dandelion adapter and
-nested-call/fiber runtime are integrated for validation. `dandelionDeployFs` uses this image contract and
+nested-call/fiber runtime are integrated for validation. `dandelionImage` uses this image contract and
 explicitly selects `dandelion.interactiveTests.smoke`; see the
 [package instructions](../../sw/apps/dandelion/README.md). Builds do not establish
 FPGA functionality or resolve the remaining runtime blockers: see the

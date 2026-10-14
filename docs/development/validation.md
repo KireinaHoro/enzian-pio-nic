@@ -266,7 +266,7 @@ checkout (the outputs are interface-check artifacts, not deployment images):
 
 ```sh
 nix develop -c mill gen.test.runMain lauberhorn.host.eci.GenWorkerConfigurations "$PWD/out/worker-configs"
-nix build -L --impure --file tools/address-map/worker-builds.nix \
+nix build -L --impure --file nix/hardware/worker-configurations.nix \
   --argstr revision "$(git rev-parse HEAD)" --arg generatedRoot "$PWD/out/worker-configs" \
   kmod1 runtime1 kmod2 runtime2 kmod3 runtime3 kmod4 runtime4 \
   kmod5 runtime5 kmod6 runtime6 kmod7 runtime7 --no-link --json

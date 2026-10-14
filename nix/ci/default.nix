@@ -2,6 +2,7 @@
 let
   ciBuild = pkgs.writeShellApplication {
     name = "ci-build";
+    meta.mainProgram = "ci-build";
     runtimeInputs = with pkgs; [
       nix
       bash
@@ -17,6 +18,7 @@ in
   inherit ciBuild;
   prepareEci = pkgs.writeShellApplication {
     name = "prepare-eci";
+    meta.mainProgram = "prepare-eci";
     runtimeInputs = [
       ciBuild
       pkgs.coreutils
@@ -25,6 +27,7 @@ in
   };
   summarizePhysical = pkgs.writeShellApplication {
     name = "summarize-physical";
+    meta.mainProgram = "summarize-physical";
     runtimeInputs = [ pkgs.python3 ];
     text = ''exec python3 ${../../tools/physical/summarize.py} "$@"'';
   };

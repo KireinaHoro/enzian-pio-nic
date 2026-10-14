@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build deployFs at a CI revision, optionally applying a recorded packaging fix."""
+"""Build the microbenchmark image at a CI revision, optionally applying a recorded packaging fix."""
 import argparse
 import hashlib
 import json
@@ -42,7 +42,7 @@ def main():
             source = pathlib.Path(subprocess.check_output([
                 'nix', 'eval', '--impure', '--raw', '--expr',
                 f'(builtins.getFlake {json.dumps(ref)}).outPath'], text=True).strip())
-            # Copy only the code inputs used by deployFs, excluding trace captures.
+            # Copy only the code inputs used by the microbenchmark image, excluding trace captures.
             for name in ('hw', 'deps', 'sw', 'nix', 'tools', 'vivado'):
                 if not (source / name).exists():
                     continue
@@ -59,12 +59,18 @@ def main():
                 f'let ci = builtins.getFlake {json.dumps(ref)};\n'
                 'fixed = import ./flake.nix;\n'
                 'outputs = fixed.outputs (ci.inputs // { self = ci; });\n'
-                'in outputs.packages.x86_64-linux.deployFs\n')
+                'p = outputs.packages.x86_64-linux;\n'
+                'in p.microbenchmarksImage or p.deployFs\n')
             subprocess.run(['nix', 'build', '--impure', '--file', str(work / 'build.nix'),
                             '--out-link', str(out), '-L'], check=True)
         shutil.copyfile(patch, str(out) + '.patch')
     else:
-        subprocess.run(['nix', 'build', ref + '#deployFs', '--out-link', str(out), '-L'], check=True)
+        attribute = subprocess.check_output([
+            'nix', 'eval', '--raw', ref + '#packages.x86_64-linux', '--apply',
+            'p: if p ? microbenchmarksImage then "microbenchmarksImage" else "deployFs"'
+        ], text=True).strip()
+        subprocess.run(['nix', 'build', ref + '#' + attribute,
+                        '--out-link', str(out), '-L'], check=True)
     provenance['image'] = str(out.resolve())
     provenance['image_sha256'] = hashlib.sha256(out.read_bytes()).hexdigest()
     pathlib.Path(str(out) + '.json').write_text(json.dumps(provenance, indent=2) + '\n')

@@ -1,32 +1,92 @@
-# Nix composition
+# Nix build and deployment interface
 
-`flake.nix` exports `lib.mkPlatform { pkgs; }` and per-system packages/shells.
-`platform.nix` selects source files and supplies the matching hardware/software
-packages. Leaf recipes use `callPackage`; composition returning package sets uses
-`import`, so override functions do not leak into flake outputs.
+`flake.nix` is the public output inventory. `platform.nix` composes matching
+hardware, kernel modules, runtime and applications. Leaf recipes use
+`callPackage`; constructors returning sets use `import`.
 
-- `toolchain/`: development shell and the pinned Spinal-compatible Verilator overlay.
-- `hardware/`: native Mill RTL/config generation and native Mackerel header generation,
-  and portable Vivado input bundles.
-- `software/`: Ubuntu kernel preparation, target module and installed runtime.
-- `applications/`: simple in-tree application recipes; external recipes live upstream.
-- `images/`: environment/manifest and SquashFS constructors.
-- `interactive/`: shared helper and collision-checked target tools.
-- `checks/`: check-set composition, a shared Mill simulation recipe, trace-FIFO
-  regression and portable helper checks.
-- `ci/`: stable CI commands and the CI development environment.
+## Outputs
 
-Authoritative tools: Nixpkgs supplies rpcsvc-proto/rpcgen, pkg-config, compilers and
-standard target tools. The unused private rpcsvc-proto derivation was removed.
-Mackerel comes from the pinned mackerel input; Mill dependencies come from the
-unchanged generated `project-lock.nix`. `build.mill` owns generator targets; `hardware/vivado-inputs.nix` owns the
-static-shell version and content hash. `vivado/eci/container.yml` owns the Docker
-image pin shared by CI and interactive hardware builds. No
-hardware dependency or input pin was changed by this refactor. Native AArch64
-Nixpkgs binaries supply image utilities; applications/runtime use the platform's
-cross stdenv, and generators use build-machine tools.
+| Set | Purpose | Example |
+| --- | --- | --- |
+| `packages.SYSTEM` | Complete deployment products | `nix build .#microbenchmarksImage` |
+| `dev.SYSTEM.hardware` | RTL, device headers and DCS ROM | `nix build .#dev.x86_64-linux.hardware.rtl` |
+| `dev.SYSTEM.kernel` | Prepared build tree and individual modules | `nix build .#dev.x86_64-linux.kernel.lauberhornModule` |
+| `dev.SYSTEM.software` | Individual applications, runtime and DPDK | `nix build .#dev.x86_64-linux.software.runtime` |
+| `checks.SYSTEM` | Regression and interface tests | `nix build .#checks.x86_64-linux.runtime-tests` |
+| `apps.SYSTEM` | CI/build/report commands | `nix run .#prepareEci` |
+| `ci.SYSTEM` | CI cache-warming closures | `nix build .#ci.x86_64-linux.dependencies` |
+| `devShells.SYSTEM.default` | Development environment | `nix develop` |
+| `formatter.SYSTEM` | Nix formatter | `nix fmt -- flake.nix` |
+| `lib.mkPlatform` | Composition API for external applications | See [interactive testing](../docs/development/interactive-testing.md) |
 
-See [interactive testing](../docs/development/interactive-testing.md) for package
-contracts, local overrides and the common human/agent workflow. Run
-`nix fmt flake.nix nix/*.nix nix/*/*.nix sw/apps/nix-build-demo/package.nix` for the
-handwritten definitions; do not reformat or regenerate the Maven lock casually.
+Standard `packages`, `checks` and `apps` stay flat within each system. Custom
+`dev` and `ci` sets require explicit system paths. `checks.SYSTEM.output-interface`
+forces evaluation of their leaf derivations during `nix flake check --no-build`;
+its build records those derivation paths without realizing the packages. Linux exposes deployment/software outputs; Darwin exposes the shell,
+hardware development outputs and applicable checks. Exporting an attribute does
+not build it or imply Darwin deployment support.
+
+The old flat `deployFs`/`*DeployFs` names are now `microbenchmarksImage`,
+`dandelionImage`, `memcachedImage`, and `trafficGeneratorImage`. `bootFiles` and
+`eciVivadoInputs` retain their names. Individual packages moved to `dev`:
+`genVerilog` → `hardware.rtl`, `devHdrs` → `hardware.deviceHeaders`,
+`kmod` → `kernel.lauberhornModule`, and `memcachedReference` →
+`software.memcachedReferenceNative`. Other software retains its descriptive name.
+`runtimeTests` and `dummy-app-build-with-nix` are available only as
+`checks.SYSTEM.runtime-tests` and `checks.SYSTEM.runtime-interface`.
+Dated measurement records retain the commands supported by their pinned revision.
+
+## Kernel and image ownership
+
+`software/ubuntu-noble.nix` owns the single Ubuntu ABI pin and downloads.
+`software/kernel.nix` prepares `kernelBuildTree` from full source, using only
+`.config` and `Module.symvers` from the headers package, then running
+`olddefconfig` and `modules_prepare`. It does not compile a kernel.
+`software/module.nix` builds Lauberhorn against that tree; the pinned ThunderX
+input copies and patches Cavium driver sources and builds PTP/BGX/NICVF against
+that same tree. No standalone headers-only build is used.
+
+`images/default.nix` selects all six deployment products:
+
+- `bootFiles`: `images/boot.nix` combines the signed Ubuntu kernel and packaged
+  modules with patched ThunderX modules and stock cloud-image initramfs userspace.
+  It emits kernel/initrd files and hashes for EMG, not a root filesystem/container.
+- `microbenchmarksImage`, `dandelionImage`, `memcachedImage`: the common
+  `images/application.nix` constructor packages applications, runtime, Lauberhorn
+  module, helpers and generated collateral as a SquashFS Nix-store closure.
+  These currently also include patched ThunderX modules and DPDK.
+- `trafficGeneratorImage`: `images/traffic-generator.nix` packages the cross-built
+  DPDK generator, Python tools, utilities and patched modules as a SquashFS closure.
+- `eciVivadoInputs`: `hardware/vivado-inputs.nix` packages sources, generated
+  collateral and the pinned static-shell checkpoint. Vivado builds the FPGA image
+  separately using the image pinned in `vivado/eci/container.yml`.
+
+The persistent root volume is provisioned separately through EMG. The CI Docker
+image is built from `tools/ci/image/Dockerfile` by the external `ci-images`
+repository; its Nix inputs are `ci.SYSTEM.environment` and `ci.SYSTEM.dependencies`.
+See [CI](../docs/development/ci.md) for publication and cache auditing.
+
+## Maintained special-purpose recipes
+
+- `images/memcached-matched.nix`: application/runtime overrides on immutable
+  hardware; supports both historical and current platform constructors.
+- `hardware/worker-configurations.nix`: modules/runtime for generated worker
+  layouts, using the selected platform's composition API.
+- `benchmarks/dandelion-baseline/`: upstream baseline package, source locks and
+  runner/validation helpers. This is independent of the Lauberhorn runtime.
+
+Nix recipes belong with these build owners, not in `tools/`. The sole retained
+exception is `tools/enzian/nullrpc_inline_build.nix`, an immutable historical
+recipe referenced by active paper provenance. Keep it until that provenance can
+be migrated together. The retired student-runtime recipe and two adapter patches
+are recoverable from commit `93ee25a6709fb8508d30e8298368cc11ecbc6f93` under
+`tools/enzian/`; current application integration supersedes them.
+`tools/enzian/build_deploy.py` remains a supported orchestration command for
+rebuilding matching CI images, including historical output names.
+
+`toolchain/` owns native development tools, `interactive/` target helper tools,
+`checks/` validation, and `ci/` CI closures and commands. Application recipes live
+beside `sw/apps` sources or in their upstream repositories. Use the installed
+runtime contract and `lib.mkPlatform` for external applications; do not import
+private image internals. Nixpkgs supplies compilers and standard tools, Mackerel
+comes from its pinned input, and `build.mill` owns RTL/ABI generation.
