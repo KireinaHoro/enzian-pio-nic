@@ -1,0 +1,134 @@
+{
+  "id": 2891004,
+  "status": "success",
+  "stage": "build-hw",
+  "name": "build-hw-eci",
+  "ref": "master",
+  "tag": false,
+  "coverage": null,
+  "allow_failure": false,
+  "created_at": "2026-10-13T15:20:28.576+02:00",
+  "started_at": "2026-10-13T15:42:10.793+02:00",
+  "finished_at": "2026-10-13T21:42:28.563+02:00",
+  "erased_at": null,
+  "duration": 21617.770304,
+  "queued_duration": 0.385366,
+  "user": {
+    "id": 12262,
+    "username": "pengxu",
+    "public_email": "",
+    "name": "Pengcheng Xu",
+    "state": "active",
+    "locked": false,
+    "avatar_url": "https://gitlab.inf.ethz.ch/uploads/-/system/user/avatar/12262/avatar.png",
+    "web_url": "https://gitlab.inf.ethz.ch/pengxu",
+    "created_at": "2021-09-22T02:16:12.174+02:00",
+    "bio": "",
+    "location": "",
+    "linkedin": "",
+    "twitter": "",
+    "discord": "",
+    "website_url": "",
+    "github": "",
+    "job_title": "",
+    "pronouns": "",
+    "organization": "",
+    "bot": false,
+    "work_information": null,
+    "followers": 0,
+    "following": 0,
+    "local_time": "10:18 AM"
+  },
+  "commit": {
+    "id": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+    "short_id": "0e58f058",
+    "created_at": "2026-10-13T15:20:11.000+02:00",
+    "parent_ids": [
+      "1496b09745d6aad7ca3016a0022c0aa0c9b7b517"
+    ],
+    "title": "docs: pin Go baseline and plan etcd runtime integration patches",
+    "message": "docs: pin Go baseline and plan etcd runtime integration patches\n",
+    "author_name": "Pengcheng Xu",
+    "author_email": "pengxu@ethz.ch",
+    "authored_date": "2026-10-13T15:20:11.000+02:00",
+    "committer_name": "Pengcheng Xu",
+    "committer_email": "pengxu@ethz.ch",
+    "committed_date": "2026-10-13T15:20:11.000+02:00",
+    "trailers": {},
+    "extended_trailers": {},
+    "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/commit/0e58f0582b6f0039ceeff2c4714ceb4451cca490"
+  },
+  "pipeline": {
+    "id": 519555,
+    "iid": 1028,
+    "project_id": 30605,
+    "sha": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+    "ref": "master",
+    "status": "success",
+    "source": "push",
+    "created_at": "2026-10-13T15:20:28.472+02:00",
+    "updated_at": "2026-10-13T21:43:36.527+02:00",
+    "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/519555"
+  },
+  "web_url": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2891004",
+  "project": {
+    "ci_job_token_scope_enabled": false
+  },
+  "artifacts_file": {
+    "filename": "artifacts.zip",
+    "size": 396223484
+  },
+  "artifacts": [
+    {
+      "file_type": "archive",
+      "size": 396223484,
+      "filename": "artifacts.zip",
+      "file_format": "zip"
+    },
+    {
+      "file_type": "metadata",
+      "size": 2140,
+      "filename": "metadata.gz",
+      "file_format": "gzip"
+    },
+    {
+      "file_type": "trace",
+      "size": 1539766,
+      "filename": "job.log",
+      "file_format": null
+    }
+  ],
+  "runner": {
+    "id": 643,
+    "description": "General Runner with Xilinx FPGA tools (docker)",
+    "ip_address": null,
+    "active": true,
+    "paused": false,
+    "is_shared": false,
+    "runner_type": "group_type",
+    "name": null,
+    "online": true,
+    "created_at": "2024-03-28T08:24:45.276+01:00",
+    "status": "online",
+    "job_execution_status": "idle"
+  },
+  "runner_manager": {
+    "id": 2086,
+    "system_id": "s_f79d2376a862",
+    "version": "19.4.1",
+    "revision": "3c39fceb",
+    "platform": "linux",
+    "architecture": "amd64",
+    "created_at": "2026-10-07T13:26:23.757+02:00",
+    "contacted_at": "2026-10-14T09:42:34.182+02:00",
+    "ip_address": "10.111.1.116",
+    "status": "online",
+    "job_execution_status": "idle"
+  },
+  "artifacts_expire_at": "2026-11-12T20:42:27.212+01:00",
+  "archived": false,
+  "tag_list": [
+    "enzian-docker",
+    "vivado"
+  ]
+}

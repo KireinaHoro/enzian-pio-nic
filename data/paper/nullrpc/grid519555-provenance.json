@@ -1,0 +1,182 @@
+{
+  "label": "grid519555",
+  "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+  "pipeline": 519555,
+  "server_csv": "out/paper-hot-grid/paper-nullrpc-export-grid519555/server.csv",
+  "server_status": "out/paper-hot-grid/paper-nullrpc-export-grid519555/server.csv.status.json",
+  "setup_count": 100,
+  "trace_source": "out/paper-hot-grid/grid519555-dump/trace/trace-dram.bin",
+  "client_revision": "4e1372c0",
+  "client_binary_sha256": "9da72e4c465e992326898e7339d3da306eb7a80992796acdf560efc83daf98fa",
+  "kernel_tracing": false,
+  "runtime_tracing": true,
+  "fpga_tracing": true,
+  "latency_end": "client_rx_burst_ns",
+  "observation_scope": "Finite paced hot cohorts, one worker, one cold boot; 16-request in-flight cap; minimum request-start gap, achieved completion rate.",
+  "runs": [
+    {
+      "label": "grid519555-r20000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r20000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 20000
+    },
+    {
+      "label": "grid519555-r40000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r40000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 40000
+    },
+    {
+      "label": "grid519555-r60000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r60000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 60000
+    },
+    {
+      "label": "grid519555-r80000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r80000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 80000
+    },
+    {
+      "label": "grid519555-r90000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r90000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 90000
+    },
+    {
+      "label": "grid519555-r100000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r100000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 100000
+    },
+    {
+      "label": "grid519555-r110000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r110000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 110000
+    },
+    {
+      "label": "grid519555-r120000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r120000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 120000
+    },
+    {
+      "label": "grid519555-r130000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r130000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 130000
+    },
+    {
+      "label": "grid519555-r140000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r140000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 140000
+    },
+    {
+      "label": "grid519555-r145000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r145000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 145000
+    },
+    {
+      "label": "grid519555-r150000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r150000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 150000
+    },
+    {
+      "label": "grid519555-r152000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r152000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 152000
+    },
+    {
+      "label": "grid519555-r154000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r154000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 154000
+    },
+    {
+      "label": "grid519555-r156000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r156000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 156000
+    },
+    {
+      "label": "grid519555-r160000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r160000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 160000
+    },
+    {
+      "label": "grid519555-r180000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r180000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 180000
+    },
+    {
+      "label": "grid519555-unpaced",
+      "directory": "out/paper-hot-grid/runs/grid519555-unpaced",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": null
+    }
+  ],
+  "health": "out/paper-hot-grid/health.json",
+  "setup_transport": "DPDK direct MAC, same validated peer binary; 100 successful requests"
+}

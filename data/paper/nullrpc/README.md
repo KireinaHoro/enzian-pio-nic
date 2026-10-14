@@ -1,8 +1,18 @@
 # Null-RPC paper measurements
 
-## Current figures: October 13, pipeline 518922
+## Active figures
 
-All four current charts use matched hardware/runtime
+The [inventory](../../../tools/paper/charts.json) contains three figures, all
+currently included in `evaluation.tex`: the hot/cold MAC CDF, hot MAC
+throughput–latency, and hot worker scaling. Cold throughput–latency is retired.
+The CDF and scaling retain pipeline 518922 measurements; the hot throughput
+curve now uses the October 14 paced sweep on pipeline 519555. These are separate
+hardware revisions, not a single-revision campaign. Chart iterations remain
+uncommitted until the user requests a commit/push.
+
+## October 13 CDF/scaling and retained acquisition: pipeline 518922
+
+The October 13 acquisition used matched hardware/runtime
 `cc19c4285148db65c5b5517f6a02abd04b7f9142` (pipeline 518922). This was the latest
 successful hardware build at acquisition; the read-only CI query is retained.
 The client source is `4e1372c0`; its deployed SHA-256 is
@@ -27,23 +37,17 @@ loss markers. Kernel instrumentation was off; runtime buffering and FPGA tracing
 on. The DUT used Linux 6.8.0-64-generic and the DPDK peer 6.8.0-146-generic.
 The static peer neighbor is required because the DPDK client does not answer ARP.
 
-- Hot CDF: all 10,000 measured requests with one outstanding request. Client-observed
-  RTT p50/p99 is **12.650/16.590 µs**; the maximum **48.520 µs** remains included.
+- Hot CDF: all 10,000 measured requests with one outstanding request. MAC-to-MAC
+  p50/p99 is **4.145/4.190 µs**; the maximum **11.225 µs** remains included.
 - Cold CDF: 1,000 measured requests with eviction preparation before each RPC.
-  RTT p50/p99 is **43.515/48.490 µs**, maximum **110.790 µs**.
-- Hot throughput–latency: six closed-loop windows, 1/2/4/8/12/16 outstanding
+  MAC-to-MAC p50/p99 is **35.085/35.76505 µs**, maximum **98.495 µs**.
+- Retired window-only hot throughput sweep: six closed-loop windows, 1/2/4/8/12/16 outstanding
   requests, each with 128 warmups and 10,000 measured replies. Achieved throughput
-  rises from **75.765** to approximately **156.136 kRPC/s**. The plot shows the
-  median and 99th percentile RTT at each achieved rate.
-- Cold throughput–latency: five 1,000-request cohorts with minimum pacing gaps
-  0/0.5/1/2/5 ms and one outstanding measured RPC. Two 16-request mul bursts with
-  100 µs flush-handler work precede every add request. Throughput uses the whole
-  recorded measurement interval, **including eviction preparation and pacing**;
-  RTT excludes both. Maximum achieved cold throughput is **1.066 kRPC/s** for
-  this workload, not a claim about maximum activation-only service capacity.
-  Every cold measured RPC has a distinct runtime activation. The same logical
-  thread may visit different Linux CPUs across activations; CPU count is not
-  worker-pool size.
+  rises from **75.765** to approximately **156.136 kRPC/s**. These inputs remain
+  evidence, but `paper_throughput: false` excludes them from the active plot.
+- The cold throughput–latency figure is retired. Its five cold load cohorts and
+  eviction-preparation records remain acquisition evidence; only the cold CDF is
+  an active latency figure.
 - Worker scaling: three 10,000-request cohorts per pool size at window 16, with
   128 warmups per cohort. All four pool sizes passed. Median trial throughputs are
   **156.135, 311.762, 466.850, and 624.687 kRPC/s** for 1–4 workers.
@@ -56,15 +60,22 @@ These are finite, single-client closed-loop measurements. They do not establish
 open-loop queueing/SLO behavior, avoid coordinated omission, or independently
 establish that a throughput plateau is server-limited. Each worker-pool size
 uses one cold boot; repeated cohorts on that boot are not independent boots.
-CDFs and load points share the latest hardware. Current latency is
-`client_rx_burst_ns - client_call_enter_ns`: from just before request encoding to
-observation of the RX burst containing the validated response. It includes
-encoding/enqueueing and polling, but excludes later response validation and
-buffer cleanup. Both client modes record this same boundary; their final
-`client_call_exit_ns` markers occur on opposite sides of buffer cleanup, so those
-markers are retained but not mixed in the current figures. This is neither a
-hardware wire timestamp nor a calibrated one-way network measurement. No clock
-probe cost is subtracted. The older baseline remains below.
+CDFs and load points share the latest hardware. Current charts use MAC-to-MAC
+latency, `TxCmacExit - RxCmacEntry`, in the FPGA's 5 ns clock domain with matched
+source pipeline compensation. The corrected 518922 recorder timestamps before
+its batch FIFO. The raw selected MAC/protocol samples, map, derived per-request
+CSV and `mac-provenance.json` allow regeneration without board access. All 95,000
+measured one-worker requests have paired intervals. One setup request and one
+excluded warmup lack normal-path TX packet markers; no measured samples are
+omitted. The whole-capture join accounts for all 256,252 RPCs, including eviction
+preparation. MAC/Ethernet streams are paired in order with equal counts, followed
+by live RPC/packet identifier matching. A single affine clock fit places every
+matched interval within its client call bounds; that fit does not alter latency.
+
+Client RX-observation RTT remains available in the original CSVs as
+`client_rx_burst_ns - client_call_enter_ns`. It is retained as acquisition evidence
+and a causal bound, not used as MAC-to-MAC latency. Throughput retains its original
+client elapsed-window definition, including cold preparation and pacing.
 
 `manifest.json` pins input hashes and observation windows. Each `.csv.gz` stores
 verbatim client or runtime rows with deterministic gzip metadata. Per-run
@@ -73,7 +84,8 @@ observation-window accounting, acquisition plans and hardware/client provenance.
 Import uses all successful measured rows, rejects failed runs/duplicate IDs and
 joins each drained cohort to its runtime requests; no percentile reconstruction
 or tail clipping is used. The hardware capture stays in ignored output storage,
-with its hash/status tracked; RTT and throughput regenerate from Git alone.
+with its hash/status tracked; the compact MAC event subset is retained with the
+paper data so current charts regenerate without the full capture.
 
 ```sh
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf
@@ -81,7 +93,8 @@ nix develop -c python3 tools/paper/plot_nullrpc.py --charts throughput
 nix develop -c python3 tools/paper/plot_nullrpc.py --charts all
 ```
 
-PDFs go to `../paper/plots/` and are committed there. Acquisition/build/import
+PDFs go to `../paper/plots/`. Chart iterations remain uncommitted until explicitly
+requested; the [active inventory](../../../tools/paper/charts.json) records use. Acquisition/build/import
 instructions are in [the plotting workflow](../../../tools/paper/README.md).
 The exact hardware setup and ordered load plans are under `acquisition/`.
 Recheck reservations, use new output labels and preserve existing traces before
@@ -120,13 +133,69 @@ and timing limitations. The pinned build recipe is
 on live services; use fresh labels and the reservation/preservation procedure in
 `docs/development/hardware-test.md`.
 
-Reproduce the historical CDFs entirely from tracked data:
+The historical RTT-only CDF outputs and reproduction mode are retired; their
+raw inputs and manifest remain measurement evidence. Current plotting requires
+MAC evidence and does not relabel these historical RTTs.
+
+## October 14 paced hot grid: pipeline 519555
+
+The replacement hot throughput–latency chart uses matched hardware/runtime
+`0e58f0582b6f0039ceeff2c4714ceb4451cca490` (pipeline **519555**), the newest
+successful hardware build at the acquisition query. The validated client binary
+and its source revision/hash are unchanged from the October 13 campaign.
+`acquisition/grid519555-load-plan.json` contains 17 minimum request-start gap
+settings plus an unpaced endpoint, all with a 16-request in-flight limit.
+Each cohort has 10,000 measured requests and 128 excluded warmups.
+
+All **180,000 measured requests** passed, with one observed worker in one resident
+activation per cohort. Achieved rates cover **19.913–156.260 kRPC/s**, including
+88.038/97.434/107.191/116.605/125.059/133.852/138.478/143.460/146.613/147.846/
+148.609/151.881 kRPC/s. Requested pacing rates are not substituted for achieved
+rates. Median MAC latency stays around 4.14 µs through 151.881 kRPC/s (P99
+10.375 µs at that point), then reaches about 93.4 µs for the two saturated
+window-16 cohorts. This is a bounded paced workload on one boot; it is not an
+open-loop SLO experiment or an independently proven server-only limit.
+
+The runtime snapshot contains **182,404 rows** (180,000 measured + 2,304 warmups
++ 100 direct-DPDK setup requests), zero drops. Every measured request has a MAC
+interval; all intervals pass a single affine client-clock containment check.
+The fit validates joins and is not subtracted from MAC latency. The complete
+2,272,273,472-byte frozen capture has exactly 182,404 RPC admissions and replies,
+zero stored loss markers, and SHA-256
+`2e368c94399761284eb355fe24ae9fe56ce8f9fe632fa8cdbd46b4191bbc59ee`.
+Independent JTAG reads of the first/final 4 KiB match. TAD/kernel health passes.
+The compact verbatim event subset, matched trace map, raw client/runtime CSVs,
+per-request MAC CSV and hashes are included alongside this document for Git.
+
+The first new-hardware cold boot passed 100 gateway RPCs. A second boot required
+a full-cold retry after missing CCPI initialization, then its gateway client
+failed ARP resolution before any RPC admission. Its full frozen capture and
+clean TAD/kernel health are preserved under `out/paper-hot-grid/`, with compact
+provenance in `acquisition/grid519555-preflight-failures.json`. The measurement
+boot then passed all ECI gates and 100 direct-DPDK RPCs, using the same explicit
+MAC path as the sweep. No failed-attempt samples enter the chart. Timing closure
+is not implied by this finite board result.
+
+Regenerate from the archived compact data without hardware access:
 
 ```sh
-nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf \
-  --manifest data/paper/nullrpc/historical-manifest.json --output out/historical-cdf
+nix develop -c python3 tools/paper/import_nullrpc_mac.py --campaign grid519555
+nix develop -c python3 tools/paper/plot_nullrpc.py --charts throughput
+python3 tools/paper/check_charts.py
 ```
 
-Outputs are `out/historical-cdf/nullrpc-hot-cold-latency-cdf.pdf`. Expected p50/p99
-RTTs: hot **12.760/13.640 µs**, cold **44.440/53.8614 µs**. The script verifies
-hashes and counts, removes only warmup, and renders the full empirical CDF.
+The full acquisition/reproduction plan is `grid519555-provenance.json`; the
+matched boot manifest, bitstream/map hashes, source pacing plan, acceptance
+results, capture and health checks are under `acquisition/grid519555-*`.
+Re-extraction from the preserved full capture uses:
+
+```sh
+nix develop -c python3 tools/paper/import_nullrpc_mac.py --campaign grid519555 \
+  --trace out/paper-hot-grid/grid519555-dump/trace/trace-dram.bin \
+  --map out/paper-hot-grid/hw/lauberhorn_trace_dma_map.json
+```
+
+The DUT remains on the one-worker 519555 service with tracing frozen and the
+one-shot runtime export consumed. Temporary capture overrides are restored;
+the peer's interface is restored. Recheck reservations and live state before
+reuse. No commit or push was made during chart iteration.

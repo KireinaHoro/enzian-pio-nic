@@ -1,0 +1,1640 @@
+{
+  "sample": {
+    "payload_width": 75,
+    "source_width": 7,
+    "timestamp_width": 46,
+    "timestamp_point": "trace_dma_input_before_batch_queue",
+    "sys_cdc_timestamp_limit": "system sources cross an untimestamped asynchronous FIFO before trace DMA input",
+    "sample_width": 128,
+    "lost_source": 127,
+    "lost_count_width": 32,
+    "axi_data_width": 512,
+    "byte_order": "little"
+  },
+  "payload_formats": {
+    "dcs_event": {
+      "fields": {
+        "error": {
+          "offset": 0,
+          "width": 1
+        },
+        "cli": {
+          "offset": 1,
+          "width": 40,
+          "format": "hex"
+        },
+        "state": {
+          "offset": 41,
+          "width": 7,
+          "enum": {
+            "0": "s1__1",
+            "1": "s1__1_A11",
+            "2": "s1__1_V21",
+            "3": "s1__1_WDDA",
+            "4": "s1__1pRRA",
+            "5": "s1__1pRWA",
+            "6": "s1__2",
+            "7": "s1__3",
+            "8": "s1__3pRA3",
+            "9": "s1pCI__1_A21",
+            "10": "s1pCI__1_A31d",
+            "11": "s1pCI__1_V31",
+            "12": "s1pCI__1_WDDA",
+            "13": "s1pCI__1_WDDA_A11"
+          }
+        },
+        "action": {
+          "offset": 48,
+          "width": 4,
+          "enum": {
+            "0": "NO_ACTION",
+            "1": "NOT_ALLOWED",
+            "2": "RDD",
+            "3": "SEND_F21",
+            "4": "SEND_F31",
+            "5": "SEND_LCIA",
+            "6": "SEND_RA3",
+            "7": "SEND_RRA",
+            "8": "SEND_RWA",
+            "9": "STALL",
+            "10": "WDD"
+          }
+        },
+        "request": {
+          "offset": 52,
+          "width": 5,
+          "enum": {
+            "0": "UNKNOWN_REQ",
+            "1": "A11",
+            "2": "A21",
+            "3": "A22",
+            "4": "A31",
+            "5": "A31d",
+            "6": "A32",
+            "7": "A32d",
+            "8": "F21",
+            "9": "F31",
+            "10": "LCI",
+            "11": "R12",
+            "12": "R13",
+            "13": "R23",
+            "14": "RDDA",
+            "15": "RR",
+            "16": "RW",
+            "17": "V21",
+            "18": "V31",
+            "19": "V31d",
+            "20": "WDDA"
+          }
+        },
+        "error_code": {
+          "offset": 57,
+          "width": 4
+        }
+      }
+    },
+    "eci": {
+      "fields": {
+        "eci_header": {
+          "offset": 0,
+          "width": 64,
+          "format": "hex"
+        },
+        "vc": {
+          "offset": 64,
+          "width": 4
+        },
+        "accepted": {
+          "offset": 68,
+          "width": 1
+        },
+        "size": {
+          "offset": 69,
+          "width": 3
+        },
+        "reserved": {
+          "offset": 72,
+          "width": 3
+        }
+      }
+    },
+    "credit_return": {
+      "fields": {
+        "credit_return": {
+          "offset": 0,
+          "width": 11,
+          "format": "hex"
+        }
+      }
+    },
+    "lauberhorn_event": {
+      "fields": {
+        "event_id": {
+          "offset": 0,
+          "width": 6
+        }
+      },
+      "events": {
+        "0": "OncRpcCallDecoder",
+        "1": "IpEncoder",
+        "2": "UdpEncoder",
+        "3": "RxCmacEntry",
+        "4": "RxAfterCdcQueue",
+        "5": "TxBeforeCdcQueue",
+        "6": "TxCmacExit",
+        "7": "EthernetDecoder",
+        "8": "IpDecoder",
+        "9": "UdpDecoder",
+        "10": "NativeUdpDecoder",
+        "11": "OncRpcReplyDecoder",
+        "12": "EthernetEncoder",
+        "13": "UdpHostPacket",
+        "14": "LocalDelivery",
+        "15": "EciRxReadFirst",
+        "16": "EciRxDescSent",
+        "17": "EciRxNackSent",
+        "18": "EciRxReadNew",
+        "19": "EciRxDataLciStart",
+        "20": "EciRxFreeSlot",
+        "21": "EciLclLciFire",
+        "22": "EciRxDataLciDone",
+        "23": "EciLclLciaFire",
+        "24": "EciRxDataLciaDone",
+        "25": "EciRxCtrlInvalidate",
+        "26": "EciRxCtrlInvalidated",
+        "27": "EciTxAcquire",
+        "28": "EciTxCommitRead",
+        "29": "EciTxCtrlInvalidate",
+        "30": "EciTxDataLciStart",
+        "31": "EciTxCtrlInvalidated",
+        "32": "EciTxDataLciDone",
+        "33": "EciTxDataLciaDone",
+        "34": "EciTxSubmit",
+        "35": "BypassIrqPending",
+        "36": "BypassIrqIssued",
+        "37": "SchedulerRequestDropped",
+        "38": "SchedulerRequestQueued",
+        "39": "SchedulerWatchdogExpired",
+        "40": "SchedulerPreemptCore",
+        "41": "SchedulerProcessRun",
+        "42": "SchedulerRequestDispatched",
+        "43": "RxBypassEnqueueToHost",
+        "44": "RxRpcEnqueueToHost",
+        "45": "TxHostReqAccepted",
+        "46": "TxNoDmaRead",
+        "47": "TxAfterDmaRead",
+        "48": "YieldAccepted",
+        "49": "ActivationCommitted",
+        "50": "ActivationDelivered",
+        "51": "OncRpcReplyEncode",
+        "52": "OncRpcReplyLookupMiss"
+      },
+      "trace_data_keys": {
+        "PacketID": {
+          "width": 6
+        },
+        "RpcID": {
+          "width": 6
+        },
+        "PacketDropped": {
+          "width": 1
+        },
+        "HostMsgID": {
+          "width": 6
+        },
+        "CoreID": {
+          "width": 6
+        },
+        "CacheLineIndex": {
+          "width": 1
+        },
+        "OverflowCount": {
+          "width": 4
+        },
+        "LclAddress": {
+          "width": 40
+        },
+        "ExecutionCommand": {
+          "width": 2
+        },
+        "RelatedRxTrace": {
+          "width": 16
+        },
+        "InterruptEnabled": {
+          "width": 1
+        },
+        "BypassStalled": {
+          "width": 1
+        },
+        "ProcessID": {
+          "width": 16
+        },
+        "PreviousProcessID": {
+          "width": 16
+        },
+        "PreemptCommand": {
+          "width": 2
+        },
+        "PreemptOutOfIdle": {
+          "width": 1
+        },
+        "QueueIndex": {
+          "width": 5
+        },
+        "QueueFill": {
+          "width": 5
+        },
+        "HostReqTy": {
+          "width": 4
+        },
+        "PacketDescTy": {
+          "width": 3
+        },
+        "LogicalLength": {
+          "width": 16
+        },
+        "DmaLength": {
+          "width": 16
+        },
+        "DomainCode": {
+          "width": 19
+        },
+        "RxNext": {
+          "width": 1
+        },
+        "TxNext": {
+          "width": 1
+        }
+      },
+      "event_data": {
+        "0": [
+          "PacketID",
+          "RpcID"
+        ],
+        "1": [
+          "PacketID"
+        ],
+        "2": [
+          "PacketID",
+          "RpcID"
+        ],
+        "7": [
+          "PacketDropped",
+          "PacketID"
+        ],
+        "8": [
+          "PacketDropped",
+          "PacketID"
+        ],
+        "9": [
+          "PacketDropped",
+          "PacketID"
+        ],
+        "10": [
+          "PacketID"
+        ],
+        "11": [
+          "PacketID",
+          "RpcID"
+        ],
+        "12": [
+          "PacketID"
+        ],
+        "13": [
+          "PacketID",
+          "HostMsgID",
+          "CoreID"
+        ],
+        "14": [
+          "RpcID"
+        ],
+        "15": [
+          "CoreID",
+          "CacheLineIndex"
+        ],
+        "16": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "17": [
+          "CoreID"
+        ],
+        "18": [
+          "CoreID",
+          "CacheLineIndex"
+        ],
+        "19": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "20": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "21": [
+          "CoreID",
+          "HostMsgID",
+          "LclAddress"
+        ],
+        "22": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "23": [
+          "CoreID",
+          "HostMsgID",
+          "LclAddress"
+        ],
+        "24": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "25": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex"
+        ],
+        "26": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex"
+        ],
+        "27": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex"
+        ],
+        "28": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex"
+        ],
+        "29": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex"
+        ],
+        "30": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "31": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex"
+        ],
+        "32": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "33": [
+          "CoreID",
+          "HostMsgID",
+          "OverflowCount"
+        ],
+        "34": [
+          "CoreID",
+          "HostMsgID",
+          "CacheLineIndex",
+          "ExecutionCommand",
+          "RelatedRxTrace"
+        ],
+        "35": [
+          "CoreID",
+          "InterruptEnabled",
+          "BypassStalled"
+        ],
+        "36": [
+          "CoreID",
+          "InterruptEnabled",
+          "BypassStalled"
+        ],
+        "37": [
+          "HostMsgID",
+          "ProcessID"
+        ],
+        "38": [
+          "HostMsgID",
+          "ProcessID"
+        ],
+        "39": [
+          "CoreID",
+          "ProcessID"
+        ],
+        "40": [
+          "HostMsgID",
+          "ProcessID",
+          "PreviousProcessID",
+          "CoreID",
+          "PreemptCommand",
+          "PreemptOutOfIdle",
+          "QueueIndex",
+          "QueueFill"
+        ],
+        "41": [
+          "HostMsgID",
+          "ProcessID",
+          "CoreID"
+        ],
+        "42": [
+          "HostMsgID",
+          "ProcessID",
+          "CoreID"
+        ],
+        "43": [
+          "PacketID",
+          "HostMsgID",
+          "PacketDropped"
+        ],
+        "44": [
+          "RpcID",
+          "PacketID",
+          "HostMsgID",
+          "PacketDropped"
+        ],
+        "45": [
+          "CoreID",
+          "HostMsgID",
+          "HostReqTy",
+          "PacketDescTy",
+          "LogicalLength",
+          "DmaLength"
+        ],
+        "46": [
+          "CoreID",
+          "HostMsgID"
+        ],
+        "47": [
+          "CoreID",
+          "HostMsgID"
+        ],
+        "48": [
+          "CoreID",
+          "DomainCode",
+          "QueueIndex",
+          "PreemptOutOfIdle"
+        ],
+        "49": [
+          "CoreID",
+          "DomainCode",
+          "QueueIndex",
+          "RxNext",
+          "TxNext"
+        ],
+        "50": [
+          "CoreID",
+          "DomainCode",
+          "QueueIndex"
+        ],
+        "51": [
+          "RpcID"
+        ],
+        "52": [
+          "RpcID"
+        ]
+      }
+    }
+  },
+  "trace_correlation": {
+    "id_kinds": {
+      "PacketID": {
+        "flow_kind": "packet",
+        "invalid": "all_ones",
+        "wrap": true
+      },
+      "RpcID": {
+        "flow_kind": "rpc",
+        "invalid": "all_ones",
+        "wrap": true
+      },
+      "HostMsgID": {
+        "flow_kind": "host_msg",
+        "invalid": "all_ones",
+        "wrap": true
+      }
+    },
+    "flow_kinds": {
+      "packet": {
+        "id_kind": "PacketID",
+        "title": "packetFlow",
+        "label": "packet"
+      },
+      "rpc": {
+        "id_kind": "RpcID",
+        "title": "rpcFlow",
+        "label": "rpc"
+      },
+      "host_msg": {
+        "id_kind": "HostMsgID",
+        "title": "hostMsgFlow",
+        "label": "hostMsg"
+      }
+    },
+    "relationships": [
+      {
+        "type": "same_event_union",
+        "id_kinds": [
+          "PacketID",
+          "RpcID",
+          "HostMsgID"
+        ]
+      }
+    ],
+    "directions": [
+      {
+        "direction": "rx",
+        "contains": [
+          "scheduler",
+          "decoder",
+          "_rx",
+          "rx"
+        ]
+      },
+      {
+        "direction": "tx",
+        "contains": [
+          "encoder",
+          "_tx",
+          "tx"
+        ]
+      }
+    ]
+  },
+  "sources": [
+    {
+      "source": 0,
+      "port": "appDcsTraceIn_0",
+      "pipeline_stages": 0,
+      "type": "dcs_event",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 0
+    },
+    {
+      "source": 1,
+      "port": "appDcsTraceIn_1",
+      "pipeline_stages": 0,
+      "type": "dcs_event",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 1
+    },
+    {
+      "source": 2,
+      "port": "appDcsTraceIn_2",
+      "pipeline_stages": 10,
+      "type": "dcs_event",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 0
+    },
+    {
+      "source": 3,
+      "port": "appDcsTraceIn_3",
+      "pipeline_stages": 10,
+      "type": "dcs_event",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 1
+    },
+    {
+      "source": 4,
+      "port": "appEciTraceIn_0",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 0,
+      "channel": "req_wod_i"
+    },
+    {
+      "source": 5,
+      "port": "appEciTraceIn_1",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 1,
+      "channel": "rsp_wod_i"
+    },
+    {
+      "source": 6,
+      "port": "appEciTraceIn_2",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 2,
+      "channel": "rsp_wd_i"
+    },
+    {
+      "source": 7,
+      "port": "appEciTraceIn_3",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 3,
+      "channel": "rsp_wod_o"
+    },
+    {
+      "source": 8,
+      "port": "appEciTraceIn_4",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 4,
+      "channel": "rsp_wd_o"
+    },
+    {
+      "source": 9,
+      "port": "appEciTraceIn_5",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 5,
+      "channel": "fwd_wod_o"
+    },
+    {
+      "source": 10,
+      "port": "appEciTraceIn_6",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 6,
+      "channel": "lcl_fwd_wod_i"
+    },
+    {
+      "source": 11,
+      "port": "appEciTraceIn_7",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 7,
+      "channel": "lcl_rsp_wod_i"
+    },
+    {
+      "source": 12,
+      "port": "appEciTraceIn_8",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 8,
+      "channel": "lcl_fwd_wod_pipe_o"
+    },
+    {
+      "source": 13,
+      "port": "appEciTraceIn_9",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 9,
+      "channel": "lcl_rsp_wod_pipe_o"
+    },
+    {
+      "source": 14,
+      "port": "appEciTraceIn_10",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 10,
+      "channel": "dcu_lcl_fwd_wod_i"
+    },
+    {
+      "source": 15,
+      "port": "appEciTraceIn_11",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 11,
+      "channel": "dcu_lcl_rsp_wod_i"
+    },
+    {
+      "source": 16,
+      "port": "appEciTraceIn_12",
+      "pipeline_stages": 0,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "even",
+      "local_source": 12,
+      "channel": "lcl_rsp_wod_o"
+    },
+    {
+      "source": 17,
+      "port": "appEciTraceIn_13",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 0,
+      "channel": "req_wod_i"
+    },
+    {
+      "source": 18,
+      "port": "appEciTraceIn_14",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 1,
+      "channel": "rsp_wod_i"
+    },
+    {
+      "source": 19,
+      "port": "appEciTraceIn_15",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 2,
+      "channel": "rsp_wd_i"
+    },
+    {
+      "source": 20,
+      "port": "appEciTraceIn_16",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 3,
+      "channel": "rsp_wod_o"
+    },
+    {
+      "source": 21,
+      "port": "appEciTraceIn_17",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 4,
+      "channel": "rsp_wd_o"
+    },
+    {
+      "source": 22,
+      "port": "appEciTraceIn_18",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 5,
+      "channel": "fwd_wod_o"
+    },
+    {
+      "source": 23,
+      "port": "appEciTraceIn_19",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 6,
+      "channel": "lcl_fwd_wod_i"
+    },
+    {
+      "source": 24,
+      "port": "appEciTraceIn_20",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 7,
+      "channel": "lcl_rsp_wod_i"
+    },
+    {
+      "source": 25,
+      "port": "appEciTraceIn_21",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 8,
+      "channel": "lcl_fwd_wod_pipe_o"
+    },
+    {
+      "source": 26,
+      "port": "appEciTraceIn_22",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 9,
+      "channel": "lcl_rsp_wod_pipe_o"
+    },
+    {
+      "source": 27,
+      "port": "appEciTraceIn_23",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 10,
+      "channel": "dcu_lcl_fwd_wod_i"
+    },
+    {
+      "source": 28,
+      "port": "appEciTraceIn_24",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 11,
+      "channel": "dcu_lcl_rsp_wod_i"
+    },
+    {
+      "source": 29,
+      "port": "appEciTraceIn_25",
+      "pipeline_stages": 10,
+      "type": "eci",
+      "clock_domain": "app",
+      "dcs": "odd",
+      "local_source": 12,
+      "channel": "lcl_rsp_wod_o"
+    },
+    {
+      "source": 30,
+      "port": "sysEciTraceIn_0",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "even",
+      "local_source": 0,
+      "channel": "req_wod_i"
+    },
+    {
+      "source": 31,
+      "port": "sysEciTraceIn_1",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "even",
+      "local_source": 1,
+      "channel": "rsp_wod_i"
+    },
+    {
+      "source": 32,
+      "port": "sysEciTraceIn_2",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "even",
+      "local_source": 2,
+      "channel": "rsp_wd_i"
+    },
+    {
+      "source": 33,
+      "port": "sysEciTraceIn_3",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "even",
+      "local_source": 3,
+      "channel": "rsp_wod_o"
+    },
+    {
+      "source": 34,
+      "port": "sysEciTraceIn_4",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "even",
+      "local_source": 4,
+      "channel": "rsp_wd_o"
+    },
+    {
+      "source": 35,
+      "port": "sysEciTraceIn_5",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "even",
+      "local_source": 5,
+      "channel": "fwd_wod_o"
+    },
+    {
+      "source": 36,
+      "port": "sysEciTraceIn_6",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "odd",
+      "local_source": 0,
+      "channel": "req_wod_i"
+    },
+    {
+      "source": 37,
+      "port": "sysEciTraceIn_7",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "odd",
+      "local_source": 1,
+      "channel": "rsp_wod_i"
+    },
+    {
+      "source": 38,
+      "port": "sysEciTraceIn_8",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "odd",
+      "local_source": 2,
+      "channel": "rsp_wd_i"
+    },
+    {
+      "source": 39,
+      "port": "sysEciTraceIn_9",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "odd",
+      "local_source": 3,
+      "channel": "rsp_wod_o"
+    },
+    {
+      "source": 40,
+      "port": "sysEciTraceIn_10",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "odd",
+      "local_source": 4,
+      "channel": "rsp_wd_o"
+    },
+    {
+      "source": 41,
+      "port": "sysEciTraceIn_11",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "dcs": "odd",
+      "local_source": 5,
+      "channel": "fwd_wod_o"
+    },
+    {
+      "source": 42,
+      "port": "sysEciTraceIn_12",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 12,
+      "channel": "gsync_req_odd"
+    },
+    {
+      "source": 43,
+      "port": "sysEciTraceIn_13",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 13,
+      "channel": "gsync_req_even"
+    },
+    {
+      "source": 44,
+      "port": "sysEciTraceIn_14",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 14,
+      "channel": "gsync_rsp_odd"
+    },
+    {
+      "source": 45,
+      "port": "sysEciTraceIn_15",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 15,
+      "channel": "gsync_rsp_even"
+    },
+    {
+      "source": 46,
+      "port": "sysEciTraceIn_16",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 16,
+      "channel": "intc_req_vc12"
+    },
+    {
+      "source": 47,
+      "port": "sysEciTraceIn_17",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 17,
+      "channel": "intc_rsp_vc12"
+    },
+    {
+      "source": 48,
+      "port": "sysEciTraceIn_18",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 18,
+      "channel": "link1_out_lo",
+      "boundary": "dynamic_static",
+      "link": "link1",
+      "path": "lo"
+    },
+    {
+      "source": 49,
+      "port": "sysEciTraceIn_19",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 19,
+      "channel": "link1_out_hi",
+      "boundary": "dynamic_static",
+      "link": "link1",
+      "path": "hi"
+    },
+    {
+      "source": 50,
+      "port": "sysEciTraceIn_20",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 20,
+      "channel": "link2_out_lo",
+      "boundary": "dynamic_static",
+      "link": "link2",
+      "path": "lo"
+    },
+    {
+      "source": 51,
+      "port": "sysEciTraceIn_21",
+      "pipeline_stages": 5,
+      "type": "eci",
+      "clock_domain": "sys",
+      "local_source": 21,
+      "channel": "link2_out_hi",
+      "boundary": "dynamic_static",
+      "link": "link2",
+      "path": "hi"
+    },
+    {
+      "source": 52,
+      "port": "sysCreditTraceIn_0",
+      "pipeline_stages": 5,
+      "type": "credit_return",
+      "clock_domain": "sys",
+      "local_source": 0,
+      "channel": "link1_out_credit_return",
+      "boundary": "dynamic_static",
+      "link": "link1"
+    },
+    {
+      "source": 53,
+      "port": "sysCreditTraceIn_1",
+      "pipeline_stages": 5,
+      "type": "credit_return",
+      "clock_domain": "sys",
+      "local_source": 1,
+      "channel": "link2_out_credit_return",
+      "boundary": "dynamic_static",
+      "link": "link2"
+    },
+    {
+      "source": 54,
+      "port": "lauberhornTraceIn_0",
+      "name": "cmac_rx_macclk",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 0,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 55,
+      "port": "lauberhornTraceIn_1",
+      "name": "cmac_tx_macclk",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 1,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 56,
+      "port": "lauberhornTraceIn_2",
+      "name": "cmac_rx_appclk",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 2,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 57,
+      "port": "lauberhornTraceIn_3",
+      "name": "cmac_tx_appclk",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 3,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 58,
+      "port": "lauberhornTraceIn_4",
+      "name": "decoder_EthernetDecoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 4,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 59,
+      "port": "lauberhornTraceIn_5",
+      "name": "decoder_IpDecoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 5,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 60,
+      "port": "lauberhornTraceIn_6",
+      "name": "decoder_UdpDecoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 6,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 61,
+      "port": "lauberhornTraceIn_7",
+      "name": "decoder_NativeUdpDecoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 7,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 62,
+      "port": "lauberhornTraceIn_8",
+      "name": "decoder_OncRpcCallDecoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 8,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 63,
+      "port": "lauberhornTraceIn_9",
+      "name": "decoder_OncRpcReplyDecoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 9,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 64,
+      "port": "lauberhornTraceIn_10",
+      "name": "EthernetEncoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 10,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 65,
+      "port": "lauberhornTraceIn_11",
+      "name": "IpEncoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 11,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 66,
+      "port": "lauberhornTraceIn_12",
+      "name": "UdpEncoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 12,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 67,
+      "port": "lauberhornTraceIn_13",
+      "name": "udp_host_packet",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 13,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 68,
+      "port": "lauberhornTraceIn_14",
+      "name": "OncRpcReplyEncoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 14,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 69,
+      "port": "lauberhornTraceIn_15",
+      "name": "OncRpcCallEncoder",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 15,
+      "pipeline_stages": 10
+    },
+    {
+      "source": 70,
+      "port": "lauberhornTraceIn_16",
+      "name": "scheduler_queue",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 16,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 71,
+      "port": "lauberhornTraceIn_17",
+      "name": "scheduler_core1",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 17,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 72,
+      "port": "lauberhornTraceIn_18",
+      "name": "scheduler_core2",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 18,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 73,
+      "port": "lauberhornTraceIn_19",
+      "name": "scheduler_core3",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 19,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 74,
+      "port": "lauberhornTraceIn_20",
+      "name": "scheduler_core4",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 20,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 75,
+      "port": "lauberhornTraceIn_21",
+      "name": "dma_ctrl_rx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 21,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 76,
+      "port": "lauberhornTraceIn_22",
+      "name": "dma_ctrl_tx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 22,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 77,
+      "port": "lauberhornTraceIn_23",
+      "name": "datapath_core0_rx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 23,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 78,
+      "port": "lauberhornTraceIn_24",
+      "name": "datapath_core0_tx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 24,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 79,
+      "port": "lauberhornTraceIn_25",
+      "name": "datapath_core0_rx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 25,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 80,
+      "port": "lauberhornTraceIn_26",
+      "name": "datapath_core0_rx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 26,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 81,
+      "port": "lauberhornTraceIn_27",
+      "name": "datapath_core0_tx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 27,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 82,
+      "port": "lauberhornTraceIn_28",
+      "name": "datapath_core0_tx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 28,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 83,
+      "port": "lauberhornTraceIn_29",
+      "name": "datapath_bypass_irq",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 29,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 84,
+      "port": "lauberhornTraceIn_30",
+      "name": "datapath_core1_rx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 30,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 85,
+      "port": "lauberhornTraceIn_31",
+      "name": "datapath_core1_tx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 31,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 86,
+      "port": "lauberhornTraceIn_32",
+      "name": "datapath_core1_rx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 32,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 87,
+      "port": "lauberhornTraceIn_33",
+      "name": "datapath_core1_rx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 33,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 88,
+      "port": "lauberhornTraceIn_34",
+      "name": "datapath_core1_tx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 34,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 89,
+      "port": "lauberhornTraceIn_35",
+      "name": "datapath_core1_tx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 35,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 90,
+      "port": "lauberhornTraceIn_36",
+      "name": "datapath_core2_rx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 36,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 91,
+      "port": "lauberhornTraceIn_37",
+      "name": "datapath_core2_tx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 37,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 92,
+      "port": "lauberhornTraceIn_38",
+      "name": "datapath_core2_rx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 38,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 93,
+      "port": "lauberhornTraceIn_39",
+      "name": "datapath_core2_rx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 39,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 94,
+      "port": "lauberhornTraceIn_40",
+      "name": "datapath_core2_tx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 40,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 95,
+      "port": "lauberhornTraceIn_41",
+      "name": "datapath_core2_tx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 41,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 96,
+      "port": "lauberhornTraceIn_42",
+      "name": "datapath_core3_rx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 42,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 97,
+      "port": "lauberhornTraceIn_43",
+      "name": "datapath_core3_tx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 43,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 98,
+      "port": "lauberhornTraceIn_44",
+      "name": "datapath_core3_rx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 44,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 99,
+      "port": "lauberhornTraceIn_45",
+      "name": "datapath_core3_rx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 45,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 100,
+      "port": "lauberhornTraceIn_46",
+      "name": "datapath_core3_tx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 46,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 101,
+      "port": "lauberhornTraceIn_47",
+      "name": "datapath_core3_tx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 47,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 102,
+      "port": "lauberhornTraceIn_48",
+      "name": "datapath_core4_rx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 48,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 103,
+      "port": "lauberhornTraceIn_49",
+      "name": "datapath_core4_tx",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 49,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 104,
+      "port": "lauberhornTraceIn_50",
+      "name": "datapath_core4_rx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 50,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 105,
+      "port": "lauberhornTraceIn_51",
+      "name": "datapath_core4_rx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 51,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 106,
+      "port": "lauberhornTraceIn_52",
+      "name": "datapath_core4_tx_lcl_lci",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 52,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 107,
+      "port": "lauberhornTraceIn_53",
+      "name": "datapath_core4_tx_lcl_lcia",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 53,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 108,
+      "port": "lauberhornTraceIn_54",
+      "name": "preempt_core1",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 54,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 109,
+      "port": "lauberhornTraceIn_55",
+      "name": "preempt_core2",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 55,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 110,
+      "port": "lauberhornTraceIn_56",
+      "name": "preempt_core3",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 56,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 111,
+      "port": "lauberhornTraceIn_57",
+      "name": "preempt_core4",
+      "type": "lauberhorn_event",
+      "clock_domain": "app",
+      "local_source": 57,
+      "pipeline_stages": 5
+    },
+    {
+      "source": 127,
+      "port": "lost",
+      "type": "lost"
+    }
+  ],
+  "dcs_protocol": "lauberhorn_lci_only_nonlocking_ra3"
+}

@@ -1,0 +1,7 @@
+{
+  "previous_capture": "out/paper-microbenchmarks/w4-dump/trace/trace-dram.bin",
+  "sha256": "891e73c7e0af189aa81ed6af08b21b76f07b6779e3da0d05a5a5f06410d45036",
+  "live_slot": 21138769,
+  "trace_stopped": true,
+  "matches_preserved_end": true
+}

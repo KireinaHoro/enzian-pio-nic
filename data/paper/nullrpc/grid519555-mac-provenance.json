@@ -1,0 +1,19 @@
+{
+  "pipeline": 519555,
+  "cycle_ns": 5,
+  "interval": "RxCmacEntry -> TxCmacExit",
+  "timestamp_point": "trace_dma_input_before_batch_queue",
+  "source_capture": "out/paper-hot-grid/grid519555-dump/trace/trace-dram.bin",
+  "source_sha256": "2e368c94399761284eb355fe24ae9fe56ce8f9fe632fa8cdbd46b4191bbc59ee",
+  "whole_capture_rpcs": 182404,
+  "archived_client_rows": 182304,
+  "unmatched_warmups": [],
+  "measured_rows": 180000,
+  "causal_clock_offset_us": 10.785895882721857,
+  "causal_clock_rate_ppm": -2.033393605900481,
+  "files": {
+    "grid519555-mac-events.bin.gz": "f1cb89212357789147202fd3ed45979a5feff7bcb6ea28ae79188fdcb0ce9216",
+    "grid519555-trace-map.json": "025adff254eba0bc8c2dfdb899675f2f9121038a2aab0df3a7ade748c260854f",
+    "grid519555-mac-latency.csv.gz": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103"
+  }
+}

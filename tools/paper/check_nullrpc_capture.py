@@ -31,7 +31,7 @@ names={name:int(counts[int(i)]) for i,name in event_format['events'].items() if 
 errors=[]
 if lost:errors.append('Stored loss markers present')
 for name in ('OncRpcCallDecoder','OncRpcReplyEncode'):
- if names.get(name)!=a.expected_rpcs:errors.append(f'{name}: expected {a.expected_rpcs}, got {names.get(name)}')
+ if names.get(name,0)!=a.expected_rpcs:errors.append(f'{name}: expected {a.expected_rpcs}, got {names.get(name)}')
 h=hashlib.sha256()
 with a.trace.open('rb') as f:
  for block in iter(lambda:f.read(1<<20),b''):h.update(block)

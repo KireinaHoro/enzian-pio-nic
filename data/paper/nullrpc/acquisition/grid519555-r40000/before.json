@@ -1,0 +1,59 @@
+{
+  "pci": "0002:01:00.2",
+  "driver": "nicvf",
+  "addresses": {
+    "ifindex": 67,
+    "ifname": "cpu40g1",
+    "flags": [
+      "BROADCAST",
+      "MULTICAST",
+      "UP",
+      "LOWER_UP"
+    ],
+    "mtu": 1500,
+    "qdisc": "mq",
+    "operstate": "UP",
+    "group": "default",
+    "txqlen": 1000,
+    "link_type": "ether",
+    "address": "0c:53:31:03:00:e1",
+    "broadcast": "ff:ff:ff:ff:ff:ff",
+    "addr_info": [
+      {
+        "family": "inet",
+        "local": "192.168.128.225",
+        "prefixlen": 18,
+        "broadcast": "192.168.191.255",
+        "scope": "global",
+        "label": "cpu40g1",
+        "valid_life_time": 4294967295,
+        "preferred_life_time": 4294967295
+      },
+      {
+        "family": "inet6",
+        "local": "fe80::e53:31ff:fe03:e1",
+        "prefixlen": 64,
+        "scope": "link",
+        "protocol": "kernel_ll",
+        "valid_life_time": 4294967295,
+        "preferred_life_time": 4294967295
+      }
+    ]
+  },
+  "routes": [
+    {
+      "dst": "192.168.128.0/18",
+      "protocol": "kernel",
+      "scope": "link",
+      "prefsrc": "192.168.128.225",
+      "flags": []
+    }
+  ],
+  "kernel": "6.8.0-146-generic",
+  "no_iommu": true,
+  "lcore": 6,
+  "binary_sha256": "9da72e4c465e992326898e7339d3da306eb7a80992796acdf560efc83daf98fa",
+  "kernel_cmdline": "BOOT_IMAGE=/userkernels/pengxu/dpdk-zs07-6.8.0-146/vmlinuz-6.8.0-146-generic ip=:::::enP2p1s0v0:dhcp iscsi_initiator=iqn.2022-05.systems.enzian:zuestoll07 iscsi_target_name=iqn.2022-05.systems.enzian.zuestoll:pengxu-generated-3591625081 iscsi_target_ip=192.168.255.254 iscsi_target_port=3260 root=UUID=461f0ce7-5a56-439d-8850-a92447d8028f rw isolcpus=nohz,domain,managed_irq,6 nohz_full=6 rcu_nocbs=6 irqaffinity=0-5,7-47 kthread_cpus=0-5,7-47 rcu_nocb_poll",
+  "isolated_cpus": "6",
+  "nohz_full_cpus": "6"
+}

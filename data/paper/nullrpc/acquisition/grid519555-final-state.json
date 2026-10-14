@@ -1,0 +1,14 @@
+{
+  "trace_write_slot_1": 35504273,
+  "trace_wrapped_1": 0,
+  "trace_sample_lost_1": 1,
+  "trace_dma_error_1": 0,
+  "trace_stopped": true,
+  "temporary_capture_controls_restored": true,
+  "temporary_transfer_server_stopped": true,
+  "service_workers": 1,
+  "pipeline": 519555,
+  "runtime_export_consumed": true,
+  "peer_restored": true,
+  "stored_capture_loss_markers": 0
+}

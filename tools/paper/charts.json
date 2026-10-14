@@ -1,0 +1,31 @@
+{
+  "charts": [
+    {
+      "id": "nullrpc-hot-cold-latency-cdf",
+      "output": "../paper/plots/nullrpc-hot-cold-latency-cdf.pdf",
+      "script": "tools/paper/plot_nullrpc.py",
+      "manifest": "data/paper/nullrpc/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf",
+      "status": "included",
+      "tex": "evaluation.tex"
+    },
+    {
+      "id": "nullrpc-hot-throughput-latency",
+      "output": "../paper/plots/nullrpc-hot-throughput-latency.pdf",
+      "script": "tools/paper/plot_nullrpc.py",
+      "manifest": "data/paper/nullrpc/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts throughput",
+      "status": "included",
+      "tex": "evaluation.tex"
+    },
+    {
+      "id": "nullrpc-hot-workers-throughput",
+      "output": "../paper/plots/nullrpc-hot-workers-throughput.pdf",
+      "script": "tools/paper/plot_nullrpc.py",
+      "manifest": "data/paper/nullrpc/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts workers",
+      "status": "included",
+      "tex": "evaluation.tex"
+    }
+  ]
+}

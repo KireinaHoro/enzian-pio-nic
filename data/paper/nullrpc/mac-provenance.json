@@ -1,0 +1,25 @@
+{
+  "pipeline": 518922,
+  "cycle_ns": 5,
+  "interval": "RxCmacEntry -> TxCmacExit",
+  "timestamp_point": "trace_dma_input_before_batch_queue",
+  "source_capture": "out/paper-microbenchmarks/w1-dump/trace/trace-dram.bin",
+  "source_sha256": "808d94a85f72058d1d4b8c86ffd72d0d170252762b43776292c52a7c33ae43ca",
+  "whole_capture_rpcs": 256252,
+  "archived_client_rows": 96151,
+  "unmatched_warmups": [
+    {
+      "label": "w1-hot-w1",
+      "request_id": "1",
+      "ordinal": 100
+    }
+  ],
+  "measured_rows": 95000,
+  "causal_clock_offset_us": 0.24292699085619684,
+  "causal_clock_rate_ppm": -2.16142604469203,
+  "files": {
+    "w1-mac-events.bin.gz": "ba0726315ed1152c270bbce579bf055cdcbca96218c2d181b6a1de58a712bfe1",
+    "w1-trace-map.json": "f02311517bc18670ee6c055ad746ebb97356fa848324ee5d29b221b9e05cc002",
+    "w1-mac-latency.csv.gz": "07386126731021cb7f09deeb3328401b083a34c7ccdf0386fab0a4586661c95c"
+  }
+}

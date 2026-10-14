@@ -1,0 +1,205 @@
+
+****** Vivado v2023.2 (64-bit)
+  **** SW Build 4029153 on Fri Oct 13 20:13:54 MDT 2023
+  **** IP Build 4028589 on Sat Oct 14 00:45:43 MDT 2023
+  **** SharedData Build 4025554 on Tue Oct 10 17:18:54 MDT 2023
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source /tmp/lauberhorn-519555/capture-vio.tcl
+# proc main {mode} {
+# set label [lindex $::argv 1]
+# if {![regexp {^[A-Za-z0-9_-]+$} $label]} {error "Expected evidence label"}
+# open_hw_manager
+# connect_hw_server -url enzian-gateway:3121
+# set targets [get_hw_targets */xilinx_tcf/Digilent/210357B4B301A]
+# if {[llength $targets] != 1} {error "target mismatch"}
+# current_hw_target [lindex $targets 0]
+# open_hw_target
+# set d [get_hw_devices xcvu9p_*]
+# set_property PROBES.FILE /tmp/lauberhorn-519555/shell_lauberhorn-eci.ltx $d
+# refresh_hw_device $d
+# set v [get_hw_vios -filter {CELL_NAME =~ */vio_trace_status}]
+# set link [get_hw_vios -filter {CELL_NAME =~ */hier_trace_cmac_ctrl_stat/vio_0}]
+# if {[llength $v] != 1 || [llength $link] != 1} {error "VIO mismatch"}
+# if {$mode eq "configure"} {
+#  set original {}
+#  refresh_hw_vio $v
+#  foreach n {trace_write_slot_1 trace_wrapped_1 trace_sample_lost_1 trace_dma_error_1} {
+#   puts "BEFORE_FREEZE $n [get_property INPUT_VALUE [get_hw_probes -of_objects $v -filter "NAME =~ */$n"]]"
+#  }
+#  foreach p [get_hw_probes -of_objects $v] {
+#   if {[get_property TYPE $p] eq "vio_output"} {lappend original [list [get_property NAME $p] [get_property OUTPUT_VALUE $p]]}
+#  }
+#  if {[llength $original] != 9} {error "Expected nine saved trace VIO outputs, got [llength $original]"}
+#  set f [open /tmp/lauberhorn-519555/original-vio-$label.tcl {WRONLY CREAT EXCL}];puts $f [list set saved $original];close $f
+#  foreach {n value} {trace_dump_gateway_mac 0c53310300e1 trace_dump_server_ip c0a880e1 trace_dump_override_valid 18 trace_dump_over_network 0 trace_stop 1} {
+#   set p [get_hw_probes -of_objects $v -filter "NAME =~ */$n"]
+#   if {[llength $p] != 1} {error "probe mismatch $n"}
+#   set_property OUTPUT_VALUE $value $p
+#  }
+#  commit_hw_vio $v
+#  after 1000
+# }
+# if {$mode eq "loopback-on"} {
+#  refresh_hw_vio $link
+#  set original {}
+#  foreach p [get_hw_probes -of_objects $link] {
+#   if {[get_property TYPE $p] eq "vio_output"} {lappend original [list [get_property NAME $p] [get_property OUTPUT_VALUE $p]]}
+#  }
+#  set f [open /tmp/lauberhorn-519555/original-link-vio-$label.tcl {WRONLY CREAT EXCL}];puts $f [list set savedLink $original];close $f
+#  set p [get_hw_probes -of_objects $link -filter {NAME =~ */loopback}]
+#  if {[llength $p] != 1} {error "loopback probe mismatch"}
+#  set_property OUTPUT_VALUE 1 $p;commit_hw_vio $link;after 2000
+# }
+# if {$mode eq "loopback-off"} {
+#  source /tmp/lauberhorn-519555/original-link-vio-$label.tcl
+#  foreach item $savedLink {lassign $item name value;set_property OUTPUT_VALUE $value [get_hw_probes $name]}
+#  commit_hw_vio $link;after 2000
+# }
+# if {$mode eq "reset-tx"} {
+#  refresh_hw_vio $link
+#  set p [get_hw_probes -of_objects $link -filter {NAME =~ */gtwiz_reset_tx_datapath}]
+#  if {[llength $p] != 1} {error "TX reset probe mismatch"}
+#  set original [get_property OUTPUT_VALUE $p]
+#  if {$original ne "0"} {error "TX reset already asserted"}
+#  set_property OUTPUT_VALUE 1 $p;commit_hw_vio $link;after 200
+#  set_property OUTPUT_VALUE $original $p;commit_hw_vio $link;after 3000
+#  puts "TRACE_TX_DATAPATH_RESET_PULSED"
+# }
+# if {$mode eq "reset-core"} {
+#  refresh_hw_vio $link
+#  set selected {}
+#  foreach n {core_tx_reset core_rx_reset} {
+#   set p [get_hw_probes -of_objects $link -filter "NAME =~ */$n"]
+#   if {[llength $p] != 1 || [get_property OUTPUT_VALUE $p] ne "0"} {error "Core reset state mismatch"}
+#   lappend selected $p
+#  }
+#  foreach p $selected {set_property OUTPUT_VALUE 1 $p}
+#  commit_hw_vio $link;after 200
+#  foreach p $selected {set_property OUTPUT_VALUE 0 $p}
+#  commit_hw_vio $link;after 3000
+#  puts "TRACE_CORE_RESETS_PULSED"
+# }
+# if {$mode eq "trigger-retry"} {
+#  set p [get_hw_probes -of_objects $v -filter {NAME =~ */trace_dump_over_network}]
+#  for {set i 0} {$i < 10} {incr i} {
+#   set_property OUTPUT_VALUE 0 $p;commit_hw_vio $v;after 200
+#   set_property OUTPUT_VALUE 1 $p;commit_hw_vio $v;after 1800
+#  }
+#  puts "TEN_BOUNDED_METADATA_TRIGGERS"
+# }
+# if {$mode eq "trigger"} {
+#  set p [get_hw_probes -of_objects $v -filter {NAME =~ */trace_dump_over_network}]
+#  set_property OUTPUT_VALUE 0 $p;commit_hw_vio $v;after 200
+#  set_property OUTPUT_VALUE 1 $p;commit_hw_vio $v
+#  puts "UDP_DUMP_TRIGGERED"
+# }
+# if {$mode eq "restore" || $mode eq "preserve"} {
+#  source /tmp/lauberhorn-519555/original-vio-$label.tcl
+#  foreach item $saved {lassign $item name value;set_property OUTPUT_VALUE $value [get_hw_probes $name]}
+#  if {$mode eq "preserve"} {set_property OUTPUT_VALUE 1 [get_hw_probes -of_objects $v -filter {NAME =~ */trace_stop}]}
+#  commit_hw_vio $v
+# }
+# for {set i 0} {$i < 10} {incr i} {
+#  refresh_hw_vio $link
+#  set vals {}
+#  foreach n {cmac_usplus_0_stat_rx_aligned cmac_usplus_0_stat_rx_status cmac_usplus_0_stat_rx_local_fault cmac_usplus_0_stat_rx_remote_fault} {
+#   lappend vals [get_property INPUT_VALUE [get_hw_probes -of_objects $link -filter "NAME =~ */$n"]]
+#  }
+#  puts "LINK_SAMPLE $i $vals"
+#  after 200
+# }
+# refresh_hw_vio $v
+# foreach n {trace_write_slot_1 trace_wrapped_1 trace_sample_lost_1 trace_dma_error_1} {
+#  puts "TRACE_STATUS $n [get_property INPUT_VALUE [get_hw_probes -of_objects $v -filter "NAME =~ */$n"]]"
+# }
+# foreach target [list $v $link] {
+#  refresh_hw_vio $target
+#  foreach p [get_hw_probes -of_objects $target] {
+#   set type [get_property TYPE $p]
+#   if {$type eq "vio_input"} {set value [get_property INPUT_VALUE $p]} else {set value [get_property OUTPUT_VALUE $p]}
+#   puts "DIAG $type [get_property NAME $p] $value"
+#  }
+# }
+# close_hw_target
+# }
+# if {[catch {main [lindex $argv 0]} message]} {puts stderr $message;exit 1}
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:enzian-gateway:3121
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2023.2.0
+  ****** Build date   : Oct 10 2023-06:01:56
+    **** Build number : 2023.2.1696910516
+      ** Copyright 2017-2022 Xilinx, Inc. All Rights Reserved.
+      ** Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+
+
+INFO: [Labtoolstcl 44-466] Opening hw_target enzian-gateway:3121/xilinx_tcf/Digilent/210357B4B301A
+INFO: [Labtools 27-2302] Device xcvu9p (JTAG device index = 0) is programmed with a design that has 8 ILA core(s).
+INFO: [Labtools 27-2302] Device xcvu9p (JTAG device index = 0) is programmed with a design that has 1 JTAG AXI core(s).
+INFO: [Labtools 27-2302] Device xcvu9p (JTAG device index = 0) is programmed with a design that has 1 MIG core(s).
+INFO: [Labtools 27-2302] Device xcvu9p (JTAG device index = 0) is programmed with a design that has 3 VIO core(s).
+INFO: [Labtools 27-1889] Uploading output probe values for VIO core [hw_vio_1]
+INFO: [Labtools 27-1889] Uploading output probe values for VIO core [hw_vio_2]
+INFO: [Labtools 27-1889] Uploading output probe values for VIO core [hw_vio_3]
+BEFORE_FREEZE trace_write_slot_1 021db88d
+BEFORE_FREEZE trace_wrapped_1 0
+BEFORE_FREEZE trace_sample_lost_1 0
+BEFORE_FREEZE trace_dma_error_1 0
+LINK_SAMPLE 0 1 1 0 0
+LINK_SAMPLE 1 1 1 0 0
+LINK_SAMPLE 2 1 1 0 0
+LINK_SAMPLE 3 1 1 0 0
+LINK_SAMPLE 4 1 1 0 0
+LINK_SAMPLE 5 1 1 0 0
+LINK_SAMPLE 6 1 1 0 0
+LINK_SAMPLE 7 1 1 0 0
+LINK_SAMPLE 8 1 1 0 0
+LINK_SAMPLE 9 1 1 0 0
+TRACE_STATUS trace_write_slot_1 021dc091
+TRACE_STATUS trace_wrapped_1 0
+TRACE_STATUS trace_sample_lost_1 1
+TRACE_STATUS trace_dma_error_1 0
+DIAG vio_input i_app/design_1_i/trace_dma_error_1 0
+DIAG vio_input i_app/design_1_i/trace_dump_arp_requests_1 00000000
+DIAG vio_input i_app/design_1_i/trace_dump_commands_1 00000000
+DIAG vio_input i_app/design_1_i/trace_dump_headers_1 0000012c
+DIAG vio_input i_app/design_1_i/trace_dump_last_header_1 462d3431535a070b04a1e473fb9000040702cc88d3e473fb90000e0000c28001
+DIAG vio_input i_app/design_1_i/trace_dump_responses_1 00000000
+DIAG vio_input i_app/design_1_i/trace_dump_rx_after_cdc_1 0000012c
+DIAG vio_input i_app/design_1_i/trace_dump_rx_frames_1 0000012c
+DIAG vio_input i_app/design_1_i/trace_dump_rx_overflow_1 00000000
+DIAG vio_input i_app/design_1_i/trace_dump_state_1 a001
+DIAG vio_input i_app/design_1_i/trace_dump_tagged_headers_1 00000000
+DIAG vio_input i_app/design_1_i/trace_dump_tx_frames_1 00000000
+DIAG vio_input i_app/design_1_i/trace_dump_tx_queued_1 00000000
+DIAG vio_input i_app/design_1_i/trace_sample_lost_1 1
+DIAG vio_input i_app/design_1_i/trace_wrapped_1 0
+DIAG vio_input i_app/design_1_i/trace_write_slot_1 021dc091
+DIAG vio_output i_app/design_1_i/trace_dump_gateway_mac 0c53310300e1
+DIAG vio_output i_app/design_1_i/trace_dump_listen_udp_port 0000
+DIAG vio_output i_app/design_1_i/trace_dump_local_ip 00000000
+DIAG vio_output i_app/design_1_i/trace_dump_local_mac 000000000000
+DIAG vio_output i_app/design_1_i/trace_dump_over_network 0
+DIAG vio_output i_app/design_1_i/trace_dump_override_valid 18
+DIAG vio_output i_app/design_1_i/trace_dump_server_ip c0a880e1
+DIAG vio_output i_app/design_1_i/trace_dump_server_udp_port 0000
+DIAG vio_output i_app/design_1_i/trace_stop 1
+DIAG vio_input i_app/design_1_i/hier_trace_cmac_ctrl_stat/cmac_usplus_0_stat_rx_aligned 1
+DIAG vio_input i_app/design_1_i/hier_trace_cmac_ctrl_stat/cmac_usplus_0_stat_rx_local_fault 0
+DIAG vio_input i_app/design_1_i/hier_trace_cmac_ctrl_stat/cmac_usplus_0_stat_rx_remote_fault 0
+DIAG vio_input i_app/design_1_i/hier_trace_cmac_ctrl_stat/cmac_usplus_0_stat_rx_status 1
+DIAG vio_output i_app/design_1_i/hier_trace_cmac_ctrl_stat/core_rx_reset 0
+DIAG vio_output i_app/design_1_i/hier_trace_cmac_ctrl_stat/core_tx_reset 0
+DIAG vio_output i_app/design_1_i/hier_trace_cmac_ctrl_stat/gtwiz_reset_rx_datapath 0
+DIAG vio_output i_app/design_1_i/hier_trace_cmac_ctrl_stat/gtwiz_reset_tx_datapath 0
+DIAG vio_output i_app/design_1_i/hier_trace_cmac_ctrl_stat/loopback 0
+DIAG vio_output i_app/design_1_i/hier_trace_cmac_ctrl_stat/vio_0_n_5 0
+INFO: [Labtoolstcl 44-464] Closing hw_target enzian-gateway:3121/xilinx_tcf/Digilent/210357B4B301A
+# exit
+INFO: [Common 17-206] Exiting Vivado at Wed Oct 14 10:48:53 2026...

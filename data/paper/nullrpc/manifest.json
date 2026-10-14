@@ -89,7 +89,8 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "9cdc8bfc485201f1350bb1f41988d34494b4aedb053c338457ab0e68eeaa8dc2",
-      "latency_end": "client_rx_burst_ns"
+      "latency_end": "client_rx_burst_ns",
+      "paper_throughput": false
     },
     {
       "label": "w1-hot-w2",
@@ -116,7 +117,8 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "ba94bc76625977a7419e8dd85b64f62d133f1c18319300a920f75043257b6ca8",
-      "latency_end": "client_rx_burst_ns"
+      "latency_end": "client_rx_burst_ns",
+      "paper_throughput": false
     },
     {
       "label": "w1-hot-w4",
@@ -143,7 +145,8 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "0462d4bea6b4756fe2c2618c87355c1480ec83a8f3bf53f24db4ae7891c93a46",
-      "latency_end": "client_rx_burst_ns"
+      "latency_end": "client_rx_burst_ns",
+      "paper_throughput": false
     },
     {
       "label": "w1-hot-w8",
@@ -170,7 +173,8 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "73afc221cd133810468384413377dc88ddc50ca2bd8bd570d6828e3a3e9d98d9",
-      "latency_end": "client_rx_burst_ns"
+      "latency_end": "client_rx_burst_ns",
+      "paper_throughput": false
     },
     {
       "label": "w1-hot-w12",
@@ -197,7 +201,8 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "3e9d69a52e5bae18a2cc047cc0ff11b74cbe4971acf717c53f38b376b69958e7",
-      "latency_end": "client_rx_burst_ns"
+      "latency_end": "client_rx_burst_ns",
+      "paper_throughput": false
     },
     {
       "label": "w1-hot-w16",
@@ -224,7 +229,8 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w1-server.csv.gz",
       "sha256": "6de6051df6b6c99ff1d4fc37c9b090cb7443f531fa6062d313a950915c8fd761",
-      "latency_end": "client_rx_burst_ns"
+      "latency_end": "client_rx_burst_ns",
+      "paper_throughput": false
     },
     {
       "label": "w1-scale1",
@@ -721,6 +727,661 @@
       "hardware_revision": "cc19c4285148db65c5b5517f6a02abd04b7f9142",
       "runtime_evidence": "w4-server.csv.gz",
       "sha256": "1ca558cca6d9b3550b9105469f0bf92a639dbffb31df125c83915d76ffd23db9"
+    },
+    {
+      "label": "grid519555-r20000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r20000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 20000,
+      "file": "grid519555-r20000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840844118142520,
+      "observation_end_ns": 840844620320870,
+      "window": 16,
+      "gap_ns": 50000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "b10bb3b3b918e2ab6e59f5be501ef060c8ae9bcf1d674dacfb6e4e61146685c0",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r40000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r40000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 40000,
+      "file": "grid519555-r40000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840850720719000,
+      "observation_end_ns": 840850972758650,
+      "window": 16,
+      "gap_ns": 25000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "60fccd23a38b1d66c170caa1db638c638e08d3fd951edc522cabb0f7aa29e4b3",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r60000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r60000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 60000,
+      "file": "grid519555-r60000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840857121801300,
+      "observation_end_ns": 840857290886730,
+      "window": 16,
+      "gap_ns": 16667,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "c95359bd88d083f6363726b50510055abb03d8ee99907e296cee7173dd6bdbb3",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r80000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r80000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 80000,
+      "file": "grid519555-r80000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840863421057100,
+      "observation_end_ns": 840863551869300,
+      "window": 16,
+      "gap_ns": 12500,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "944c3e967aadba97aba616e53bbc4e6d39bc6272a343a2d6502448f9726aad91",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r90000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r90000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 90000,
+      "file": "grid519555-r90000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840869673787500,
+      "observation_end_ns": 840869787374910,
+      "window": 16,
+      "gap_ns": 11111,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "f738ed81ab1a89a10448f77d5b560f29fea9971b53a5e2687168fd0bc3d200dc",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r100000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r100000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 100000,
+      "file": "grid519555-r100000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840875882681100,
+      "observation_end_ns": 840875985314990,
+      "window": 16,
+      "gap_ns": 10000,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "0a7687db7ae72d46b7afeb88d8174565877b8064c4603939584232aa8cc3cc71",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r110000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r110000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 110000,
+      "file": "grid519555-r110000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840882041821310,
+      "observation_end_ns": 840882135113110,
+      "window": 16,
+      "gap_ns": 9091,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "8b5993663aae9ce44ca27ab55e165749946d4dd3fe7cbc34fc50f0748011c477",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r120000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r120000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 120000,
+      "file": "grid519555-r120000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840888207396290,
+      "observation_end_ns": 840888293155890,
+      "window": 16,
+      "gap_ns": 8333,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "7cad0e84ee2f7afb051344638b12f8644d9a747d3256b6949d07cb85d6e88389",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r130000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r130000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 130000,
+      "file": "grid519555-r130000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840894341430580,
+      "observation_end_ns": 840894421392830,
+      "window": 16,
+      "gap_ns": 7692,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "f9eb7de829c5b4ff243d391c2ecfe21c785ff8acb9492cd3bf68f8321c0113c2",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r140000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r140000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 140000,
+      "file": "grid519555-r140000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840900476276240,
+      "observation_end_ns": 840900550985450,
+      "window": 16,
+      "gap_ns": 7143,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "05e77f2a9ae67accbaf8f69be18adad31cb0a9a5af448204e072721d2fc2d08f",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r145000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r145000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 145000,
+      "file": "grid519555-r145000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840906613024510,
+      "observation_end_ns": 840906685238180,
+      "window": 16,
+      "gap_ns": 6897,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "e2654ab8fa176587b76c5942bc46df088721972995594dd515029b8e9d2cfe58",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r150000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r150000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 150000,
+      "file": "grid519555-r150000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840912783043510,
+      "observation_end_ns": 840912852749300,
+      "window": 16,
+      "gap_ns": 6667,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "01780ca6e2271605907dc0da42a08a1ac0a4d131c81c3103e515b4bca191bbff",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r152000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r152000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 152000,
+      "file": "grid519555-r152000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840918917943060,
+      "observation_end_ns": 840918986149670,
+      "window": 16,
+      "gap_ns": 6579,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "886d583804501e5579e7ee7c805c80dc03bfd0e9995d1d8ec70bdf628c04a79e",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r154000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r154000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 154000,
+      "file": "grid519555-r154000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840925068997570,
+      "observation_end_ns": 840925136635590,
+      "window": 16,
+      "gap_ns": 6494,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "56234bb6806d860db49bd70c5cb22ff121e75f63a9019708c56b9e3dff750824",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r156000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r156000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 156000,
+      "file": "grid519555-r156000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840931189852920,
+      "observation_end_ns": 840931257143520,
+      "window": 16,
+      "gap_ns": 6410,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "307f685b52233594681d726d74576c54bbf1ee3c094157a77b580cc6990d93c4",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r160000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r160000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 160000,
+      "file": "grid519555-r160000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840937335641490,
+      "observation_end_ns": 840937401482410,
+      "window": 16,
+      "gap_ns": 6250,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "402a86deb0b3e20a5c58060f57d9e02f07e8165971e5349aa1f67d2ab8f8791c",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-r180000",
+      "directory": "out/paper-hot-grid/runs/grid519555-r180000",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": 180000,
+      "file": "grid519555-r180000.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840943512910050,
+      "observation_end_ns": 840943576905840,
+      "window": 16,
+      "gap_ns": 5556,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "b812bfa22bd35c3137cce815d005a838aa3e7d1dbe45dc4c9e161ee0fd022853",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
+    },
+    {
+      "label": "grid519555-unpaced",
+      "directory": "out/paper-hot-grid/runs/grid519555-unpaced",
+      "condition": "hot",
+      "workers": 1,
+      "scaling": false,
+      "paper_throughput": true,
+      "target_rpc_s": null,
+      "file": "grid519555-unpaced.csv.gz",
+      "latency_end": "client_rx_burst_ns",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "observation_start_ns": 840949610843950,
+      "observation_end_ns": 840949674905720,
+      "window": 16,
+      "gap_ns": 0,
+      "observed_workers": 1,
+      "linux_cpus": [
+        44
+      ],
+      "server_tids": [
+        1659
+      ],
+      "measured_activations": 1,
+      "pipeline": 519555,
+      "hardware_revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+      "runtime_evidence": "grid519555-server.csv.gz",
+      "sha256": "9f8b607b722ae4e1e7bfa3559e874dd3b91ba99aa6df17a88d978b3399a9eabc",
+      "mac_latency": {
+        "file": "grid519555-mac-latency.csv.gz",
+        "sha256": "42cb3832ba226c5bb247b33bb9f3401f59c524526fbb5af51ae4dbbb07ef1103",
+        "unit": "ns",
+        "interval": "RxCmacEntry -> TxCmacExit",
+        "provenance": "grid519555-mac-provenance.json"
+      }
     }
-  ]
+  ],
+  "mac_latency": {
+    "file": "w1-mac-latency.csv.gz",
+    "sha256": "07386126731021cb7f09deeb3328401b083a34c7ccdf0386fab0a4586661c95c",
+    "unit": "ns",
+    "interval": "RxCmacEntry -> TxCmacExit",
+    "provenance": "mac-provenance.json"
+  }
 }

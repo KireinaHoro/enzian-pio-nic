@@ -1,0 +1,28 @@
+{
+  "status": "pass",
+  "returncode": 0,
+  "restored": true,
+  "argv": [
+    "/dev/shm/paper-hot-grid-20261014/bench_dpdk",
+    "-l",
+    "6",
+    "-a",
+    "0002:01:00.2",
+    "--file-prefix=lh-bench-46275",
+    "--iova-mode=pa",
+    "--no-telemetry",
+    "--legacy-mem",
+    "-m",
+    "512",
+    "--",
+    "192.168.128.225",
+    "192.168.129.200",
+    "0c:53:31:03:01:c8",
+    "12345",
+    "10000",
+    "128",
+    "100000",
+    "add",
+    "/dev/shm/paper-hot-grid-20261014/grid519555-r120000/client.csv"
+  ]
+}

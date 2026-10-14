@@ -1,0 +1,6 @@
+{
+  "revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+  "source": "git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=0e58f0582b6f0039ceeff2c4714ceb4451cca490&submodules=1",
+  "image": "/nix/store/8xjzavaz4da9ikgg6swr6sa9rwk1jqb8-lauberhorn-microbenchmarks.img",
+  "image_sha256": "45500bfe21def5cc2c258ce9b59c5abf9e7e3ca6177ca4cdc1f70229e50dbb5b"
+}

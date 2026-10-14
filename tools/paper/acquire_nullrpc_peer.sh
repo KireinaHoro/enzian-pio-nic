@@ -5,7 +5,7 @@
 set -euo pipefail
 label=$1 count=$2 warmup=$3 window=$4 gap=$5 mode=$6 transfer=$7
 [[ $label =~ ^[A-Za-z0-9_-]+$ ]]
-base=/dev/shm/paper-nullrpc-20261013
+base=${LH_PAPER_PEER_BASE:-/dev/shm/paper-nullrpc-20261013}
 out=$base/$label
 mkdir "$out"
 export PATH=/nix/store/lauberhorn-client/bin:/nix/store/lauberhorn-client/sbin

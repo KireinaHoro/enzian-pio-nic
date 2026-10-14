@@ -31,6 +31,18 @@ validation, Go native null-RPC including nested calls, then Go Raft and etcd.
 Keep worker-core–endpoint affinity. Historical HOST_WAKE holds and evidence
 below retain their dated scope; no runtime/RTL change or new board result is implied.
 
+October 14 paper iteration replaces the hot throughput curve with an 18-point
+paced grid on matched 519555 (`0e58f058`): 180,000 measured RPCs, complete runtime
+and MAC joins, zero stored trace loss, independent JTAG head/tail matches and
+clean hardware health. Cold throughput–latency is retired; see the
+[current chart inventory](tools/paper/charts.json) and
+[measurement provenance](data/paper/nullrpc/README.md#october-14-paced-hot-grid-pipeline-519555).
+The preceding firmware retry/gateway ARP failure (zero RPC admissions) is
+preserved and excluded. DUT state now supersedes October 13: one-worker 519555
+service alive, tracing frozen, full capture saved, runtime export consumed;
+peer/capture controls restored. Recheck live reservations/state before reuse.
+Chart iterations must remain uncommitted and unpushed until explicitly requested.
+
 The separate October 13 [paper microbenchmark campaign](data/paper/nullrpc/README.md)
 completed all five null-RPC charts on matched 518922 hardware/runtime. Four cold
 boots passed 185,000 measured RPCs, 2,304 warmups and 400 setup calls, plus 160,000
@@ -38,12 +50,11 @@ eviction-preparation RPCs. All four complete captures have exact request/reply
 counts and zero stored loss markers. Worker scaling exercised 1–4 resident
 workers, with median trial throughput 156.135/311.762/466.850/624.687 kRPC/s.
 These are bounded closed-loop results; cold throughput includes preparation.
-Current latency uses a common client RX-observation boundary, not the historical
-full-call endpoint. The reusable library, `paper-chart` skill, tracked inputs
+That campaign initially used a common client RX-observation boundary; current
+latency figures use paired MAC events. The reusable library, `paper-chart` skill, tracked inputs
 and reproduction commands are in [tools/paper](tools/paper/README.md); PDFs are
-tracked in `../paper/plots/`. The DUT remains on the four-worker add service with
-tracing frozen, full capture saved and one-shot runtime export consumed. Recheck
-reservations/live state before reuse. No server runtime, kernel, RTL or timing
+tracked in `../paper/plots/`. That campaign left a preserved four-worker capture; the October 14 state above
+supersedes its live-state handoff. No server runtime, kernel, RTL or timing
 optimization was changed; the DPDK client gained bounded concurrent load.
 
 Timing optimization is paused at the maintainer's request. Platform master

@@ -1,0 +1,12 @@
+{
+  "gateway_acceptance": {
+    "first_cold_boot": "pass: 100 RPCs",
+    "second_cold_boot": "firmware CCPI report missing; harness full-cold retry passed ECI; gateway client then failed ARP resolution before any RPC admission",
+    "gateway_neighbor_state": "FAILED",
+    "rpc_admissions_in_failure_capture": 0,
+    "hardware_health": "pass: no TAD interrupt/timeout change or kernel faults",
+    "full_capture": "out/paper-hot-grid/grid519555-failure-dump/trace/trace-dram.bin",
+    "sha256": "370a7cbac1c481a9bc4cedf5b7a3bb678133e617b927db55b6c544fd00f4d0dd"
+  },
+  "next_acceptance": "Fresh cold boot; direct DPDK client to the explicit DUT MAC, identical transport to the paper sweep"
+}

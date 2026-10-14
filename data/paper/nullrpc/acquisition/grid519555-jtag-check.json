@@ -1,0 +1,16 @@
+[
+  {
+    "part": "head",
+    "offset": 0,
+    "bytes": 4096,
+    "sha256": "3b95eaf372b574f112b58d558eb93ad980b5b88f7057c597f5d34d9a2a75b0b1",
+    "matched": true
+  },
+  {
+    "part": "tail",
+    "offset": 2272269376,
+    "bytes": 4096,
+    "sha256": "d61db57d097cc444d14ddc5d49dfea7906a5dca38dc1297c91ccc22d61b104c8",
+    "matched": true
+  }
+]

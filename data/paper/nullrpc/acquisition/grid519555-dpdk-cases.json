@@ -1,0 +1,27 @@
+[
+  {
+    "name": "paper-hot-grid-dpdk-20261014",
+    "revision": "0e58f0582b6f0039ceeff2c4714ceb4451cca490",
+    "image": "/var/tmp/paper-hot-grid-519555.img",
+    "program": [
+      "ssh",
+      "enzian-ba2",
+      "/opt/Xilinx/Vivado/2023.2/bin/vivado",
+      "-mode",
+      "batch",
+      "-nojournal",
+      "-log",
+      "/tmp/lauberhorn-519555/program-paper-hot-grid-20261014.log",
+      "-source",
+      "/tmp/lauberhorn-519555/program-arm.tcl",
+      "-tclargs",
+      "enzian-gateway.ethz.ch:3121",
+      "Digilent/210357B4B301A",
+      "/tmp/lauberhorn-519555/shell_lauberhorn-eci.bit",
+      "/tmp/lauberhorn-519555/shell_lauberhorn-eci.ltx"
+    ],
+    "cpu": "ip link set cpu40g1 down\ncpu configure 0c:53:31:03:01:c8 192.168.129.200/18\ndmesg -n 4\nip neigh replace 192.168.128.225 lladdr 0c:53:31:03:00:e1 nud permanent dev lauberhorn0\nmountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing\nprintf '0\\n' > /sys/kernel/tracing/tracing_on\nexport LAUBERHORN_TRACE_CAPACITY=250000\ncpu serve add 1 /dev/shm/paper-hot-grid-20261014\ncat /sys/module/lauberhorn/parameters/l2c_tad_snapshot > /dev/shm/paper-hot-grid-20261014/tad-before.txt\ndmesg > /dev/shm/paper-hot-grid-20261014/kernel-before.txt\n",
+    "client": "/nix/store/lauberhorn-client/bin/python3 -c 'import pathlib,urllib.request,subprocess,os; p=pathlib.Path('\"'\"'/dev/shm/paper-hot-grid-20261014/acquire-plan.sh'\"'\"'); p.write_bytes(urllib.request.urlopen('\"'\"'http://192.168.255.254:18843/acquire_nullrpc_peer.sh'\"'\"').read()); os.environ['\"'\"'LH_PAPER_PEER_BASE'\"'\"']='\"'\"'/dev/shm/paper-hot-grid-20261014'\"'\"'; subprocess.run(['\"'\"'bash'\"'\"',str(p),'\"'\"'grid519555-setup'\"'\"', '\"'\"'100'\"'\"','\"'\"'0'\"'\"','\"'\"'1'\"'\"','\"'\"'0'\"'\"','\"'\"'hot'\"'\"','\"'\"'http://192.168.255.254:18843'\"'\"'],check=True)'",
+    "client_machine": "zuestoll07"
+  }
+]
