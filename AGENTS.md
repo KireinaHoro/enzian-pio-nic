@@ -171,6 +171,20 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
 
 ## Working rules
 
+
+- Be disciplined about what enters the repository. `tools/` is for maintained,
+  reusable tooling with a clear owner and supported workflow, not a catch-all.
+  Keep one-off probes, experiments, temporary build recipes, debug scripts and
+  raw diagnostic output in ignored `out/` or temporary directories; do not commit
+  them. Promote a tool only when it has an ongoing purpose and fits the shared
+  package/build/deployment path. Retire superseded tools, scripts, outputs and
+  obsolete narrative from the current tree instead of retaining parallel historical
+  implementations or appending an experiment diary. Git history preserves earlier
+  work; recover it there when needed. Keep current documentation concise and
+  explicit about what is implemented, deployed and validated. This does not remove
+  the requirement to track data and reproduction scripts actually used by active
+  paper charts, or maintained regression tests for supported functionality.
+
 - Keep work organized in coherent, goal-focused commits. Simple single-commit
   changes may be committed directly on this worktree's `master`. Use separate
   branches for larger goals and independent experiments; when complete, merge
