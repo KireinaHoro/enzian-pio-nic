@@ -1,8 +1,7 @@
 # Runtime-only Enzian client image: all executables are cross-built on the host.
-{ pkgs, thunderxPtp, identity ? { revision = null; } }:
+{ pkgs, dpdk, modules, identity ? { revision = null; } }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
-  dpdk = thunderxPtp.dpdk;
   generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
@@ -41,14 +40,14 @@ let
     dpdkVersion = dpdk.version;
     packages = {
       generator = "${generator}"; dpdk = "${dpdk}";
-      thunderxPtpModules = "${thunderxPtp.modules}";
+      thunderxPtpModules = "${modules}";
     };
-    kernelRelease = thunderxPtp.modules.kernelRelease;
+    kernelRelease = modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
       value = builtins.hashFile "sha256" (generator.src + "/${name}");
-    }) [ "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "Makefile" ]);
+    }) [ "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });
   environment = pkgs.buildEnv {
@@ -57,7 +56,7 @@ let
     pathsToLink = [ "/bin" "/sbin" ];
     postBuild = ''
       ln -s ${manifest} $out/manifest.json
-      ln -s ${thunderxPtp.modules}/lib/modules/${thunderxPtp.modules.kernelRelease}/extra $out/modules
+      ln -s ${modules}/lib/modules/${modules.kernelRelease}/extra $out/modules
     '';
   };
   image = pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {

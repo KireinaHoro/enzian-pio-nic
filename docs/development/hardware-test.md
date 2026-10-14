@@ -17,12 +17,15 @@ programming, boot validation and tests.
 
 Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
 `enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
-assume the previous reservation persists. For an unreserved zuestoll14, run on
+assume the previous reservation persists. For an unreserved zuestoll14, build and rsync `bootFiles` using the
+[boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then run on
 the gateway:
 
 ```sh
 emg acquire zuestoll14 -n lauberhorn-linux-6.8 \
-  -a 'isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll' \
+  -a 'isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force' \
+  -k "$USER/lauberhorn-6.8.0-146-ptp/vmlinuz" \
+  -i "$USER/lauberhorn-6.8.0-146-ptp/initrd.img" \
   -g 2025-07-28
 ```
 
@@ -34,7 +37,10 @@ checking for another reservation using it. Distinct PXE initiator names do not
 create distinct targets. Prefer generated volumes for fresh clients; an accidental
 shared reservation needs admin cleanup that preserves the active export.
 
-Tested setup: kernel `6.8.0-64-generic`; CPU credentials `enzian/enzian`
+Current platform target: kernel `6.8.0-146-generic`. Historical examples below
+used `6.8.0-64-generic` and require that ABI or an explicit matching module
+rebuild; never combine an old deployment module with the current boot bundle.
+CPU credentials `enzian/enzian`
 (`ENZIAN_PASSWORD` overrides the console password); BMC root password `0penBmc` (`ENZIAN_BMC_PASSWORD` supplies it noninteractively).
 The BMC helper prompts if login is needed and that environment variable is absent.
 Supply it for unattended boot: the remote login prompt expires after 60 seconds. CPU console is `zuestoll14-console`,

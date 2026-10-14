@@ -1,7 +1,7 @@
 # Package applications and test interactively
 
 Human and agent sessions use the same SquashFS and target commands. Linux builds
-produce Enzian AArch64 software for Ubuntu `6.8.0-64-generic`; Darwin supports
+produce Enzian AArch64 software for Ubuntu `6.8.0-146-generic`; Darwin supports
 hardware development/generation, without exporting Linux deployment packages.
 Reservation, FPGA programming, file transfer, mounting and remote log collection
 remain host operations. Start with the [hardware quickstart](hardware-test.md).

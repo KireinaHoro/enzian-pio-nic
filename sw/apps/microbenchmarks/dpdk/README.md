@@ -223,3 +223,36 @@ nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py \
 A physical pilot is still required: pcap timing is never paper performance data.
 Configure the DUT's static neighbor for the peer before taking its VF from the
 kernel, because this client deliberately does not answer ARP.
+
+## CPU-NIC null-RPC responder
+
+The same package builds `nullrpc_dpdk`, a single-worker polling responder for
+exactly the generator's `add` wire format. It buffers paired hardware RX/TX
+samples and writes the CSV after the run. `mac_to_mac_ns` is TX minus RX from
+the NIC's common PTP counter, not client RTT. Only one timestamped TX operation
+may be outstanding. Warmups remain in the CSV with `warmup=1`; failed samples
+are explicit and make the process fail.
+
+Boot the DUT with the platform's `bootFiles` and `copymods=force` as described
+in the [deployment workflow](../../../../docs/development/workflow.md#thunderx-cpu-nic-timestamps).
+Mount the matching `trafficGeneratorDeployFs` read-only at `/nix/store` (use a
+private mount namespace if another deployment already occupies that path).
+On a reserved DUT with its data NIC configured, start:
+
+```sh
+LH_NULLRPC_READY_FILE=/dev/shm/NEW-ready \
+/nix/store/lauberhorn-client/bin/lh-dpdk-run \
+  --logs /dev/shm/NEW-server --lcore 45 --no-iommu --ptp-bgx 4 \
+  --manifest /nix/store/lauberhorn-client/manifest.json \
+  /nix/store/lauberhorn-client/bin/nullrpc_dpdk -- \
+  DUT_IP CLIENT_IP CLIENT_MAC 49152 2000 32 2000000 add /dev/shm/NEW-server.csv
+```
+
+Wait for the ready file before running `bench_dpdk` on the reserved peer with
+the same count/warmup, DUT destination port 12345, and the reversed endpoints.
+Both runner summaries must pass and report restoration. The timestamp runner
+refuses an unmatched kernel, benchmark package or loaded/installed module set.
+Save the image manifest and both CSVs with any dataset used in the paper.
+`LH_NULLRPC_DELAY_NS=20000` inserts a deliberate 20 µs service delay for a
+clock/interval control. `LH_NULLRPC_SOFTWARE_CONTROL=1` disables timestamps for
+a packet-path control; its zero timestamp columns are not MAC measurements.

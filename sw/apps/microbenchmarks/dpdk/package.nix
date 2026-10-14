@@ -6,7 +6,7 @@ stdenv.mkDerivation {
     src = lib.cleanSource ./.;
     # Only direct build inputs: exclude binaries, captures and nested trees.
     filter = path: type: type == "regular" && builtins.elem (baseNameOf path) [
-      "bench_dpdk.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "wire_test.c" "Makefile"
+      "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "wire_test.c" "Makefile"
     ];
   };
   nativeBuildInputs = [ pkg-config ];
@@ -16,6 +16,7 @@ stdenv.mkDerivation {
   checkPhase = "make check";
   installPhase = ''
     install -Dm755 bench_dpdk $out/bin/bench_dpdk
+    install -Dm755 nullrpc_dpdk $out/bin/nullrpc_dpdk
   '';
   meta.platforms = lib.platforms.linux;
 }

@@ -18,7 +18,8 @@ let
   deploymentTarget = import inputs.nixpkgs { system = "aarch64-linux"; };
   staticShell = pkgs.callPackage ./hardware/static-shell.nix { };
   mackerel = inputs.mackerel.packages.${pkgs.stdenv.buildPlatform.system}.mackerel2;
-  kernelRelease = "6.8.0-64-generic";
+  ubuntu = import ./software/ubuntu-noble.nix { inherit pkgs; };
+  kernelRelease = ubuntu.release;
   linuxTools = with pkgs; [
     flex
     bison
@@ -47,12 +48,14 @@ let
     src = pkgs.lib.cleanSource (source + "/sw/devices");
   };
   kernel = pkgs.callPackage ./software/kernel.nix { inherit linuxTools kernelRelease; };
-  thunderxPtp = import (inputs.thunderx-ptp + "/package.nix") {
+  thunderx = import (inputs.thunderx-ptp + "/package.nix") {
     inherit pkgs target kernelRelease;
     linux-noble = kernel;
   };
-  thunderxPtpModules = thunderxPtp.modules;
-  thunderxDpdk = thunderxPtp.dpdk;
+  bootFiles = pkgs.callPackage ./images/boot.nix {
+    inherit ubuntu;
+    modules = thunderx.modules;
+  };
   kmod = target.callPackage ./software/module.nix {
     nukeReferences = pkgs.nukeReferences;
     inherit
@@ -129,7 +132,7 @@ let
   };
   deployment = pkgs.callPackage ./images/default.nix {
     target = deploymentTarget;
-    inherit thunderxPtp;
+    inherit (thunderx) dpdk modules;
     inherit
       kmod
       runtime
@@ -142,9 +145,8 @@ let
 in
 {
   inherit
-    thunderxPtp
-    thunderxPtpModules
-    thunderxDpdk
+    bootFiles
+    thunderx
     tlc
     dcsRom
     runtimeTests

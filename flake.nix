@@ -74,7 +74,7 @@
       {
         formatter = pkgs.nixfmt;
         checks = platform.checks // pkgs.lib.optionalAttrs linux {
-          thunderx-ptp = platform.thunderxPtp.checks;
+          thunderx-ptp = platform.thunderx.checks;
         };
         packages = {
           inherit (platform) genVerilog devHdrs tlc dcsRom;
@@ -90,25 +90,26 @@
               memcachedDeployFs
               memcachedReference
               kmod
-              thunderxPtpModules
-              thunderxDpdk
+              bootFiles
               deployFs
               eciVivadoInputs
               ciEnvironment
               ciDependencies
               ;
+            dpdk = platform.thunderx.dpdk;
+            thunderxPtpModules = platform.thunderx.modules;
             trafficGeneratorDeployFs = (import ./nix/images/traffic-generator.nix {
               inherit pkgs;
-              thunderxPtp = platform.thunderxPtp;
+              inherit (platform.thunderx) dpdk modules;
               identity = { revision = self.rev or "dirty"; };
             }).image;
             trafficGenerator = pkgs.pkgsCross.aarch64-multiplatform.callPackage
               ./sw/apps/microbenchmarks/dpdk/package.nix {
-                dpdk = platform.thunderxDpdk;
+                inherit (platform.thunderx) dpdk;
               };
             trafficGeneratorNative = pkgs.callPackage
               ./sw/apps/microbenchmarks/dpdk/package.nix {
-                dpdk = platform.thunderxPtp.dpdkNative;
+                dpdk = platform.thunderx.dpdkNative;
               };
             recovery-test = platform.applications.recovery-test;
             nested-validation = platform.applications.nested-validation;
