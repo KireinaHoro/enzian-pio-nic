@@ -31,6 +31,9 @@ def main():
     p.add_argument('--hugepages-mb', type=int, default=512)
     p.add_argument('--timeout', type=int, default=120)
     p.add_argument('--no-iommu', action='store_true')
+    p.add_argument('--ptp-bgx', type=int, choices=range(8))
+    p.add_argument('--manifest', type=Path,
+                   help='deployment manifest; required for hardware timestamp runs')
     p.add_argument('binary', type=Path)
     p.add_argument('arguments', nargs=argparse.REMAINDER)
     args = p.parse_args()
@@ -59,6 +62,10 @@ def main():
     bdf, original_driver = dev.name, (dev / 'driver').resolve().name
     if original_driver != 'nicvf':
         p.error(f'unexpected ThunderX kernel driver {original_driver}')
+    original_override = (dev/'driver_override').read_text().strip()
+    if original_override == '(null)':
+        original_override = ''
+    neighbors = json.loads(command('ip', '-j', 'neigh', 'show', 'dev', interface))
     routes = json.loads(command('ip', '-j', 'route', 'show', 'dev', interface))
     if any(r.get('dst') == 'default' for r in routes):
         p.error('refusing a data interface carrying a default route')
@@ -67,8 +74,38 @@ def main():
     addresses = json.loads(command('ip', '-j', 'addr', 'show', 'dev', interface))[0]
     if not any(a['local'] == app_args[0] for a in addresses['addr_info']):
         p.error('source address must belong to cpu40g1 before binding')
+    provenance = None
+    if args.ptp_bgx is not None:
+        if args.manifest is None:
+            p.error('--ptp-bgx requires the matching deployment --manifest')
+        manifest = json.loads(args.manifest.read_text())
+        release = manifest['kernelRelease']
+        if command('uname', '-r') != release:
+            p.error('running kernel differs from the deployment manifest')
+        generator = Path(manifest['packages']['generator']) / 'bin'
+        if args.binary.resolve().parent != generator:
+            p.error('binary is not from the manifest generator package')
+        modules = Path(manifest['packages']['thunderxPtpModules']) / 'lib/modules' / release / 'extra'
+        provenance = dict(manifest=manifest, modules={})
+        for name in ('cavium_ptp', 'nicvf', 'thunder_bgx'):
+            expected = modules / (name + '.ko')
+            installed = Path(command('modinfo', '-n', name))
+            source = command('modinfo', '-F', 'srcversion', str(expected))
+            loaded = Path('/sys/module') / name / 'srcversion'
+            if not source or not loaded.exists() or loaded.read_text().strip() != source:
+                p.error(f'{name}: loaded module differs from the packaged source')
+            digest = hashlib.sha256(expected.read_bytes()).hexdigest()
+            if hashlib.sha256(installed.read_bytes()).hexdigest() != digest:
+                p.error(f'{name}: installed module differs from the package')
+            if not command('modinfo', '-F', 'vermagic', str(expected)).startswith(release + ' '):
+                p.error(f'{name}: module ABI differs from the manifest')
+            provenance['modules'][name] = dict(sha256=digest, srcversion=source)
+        clocks = list(Path('/sys/class/ptp').glob('ptp*/clock_name'))
+        if not clocks:
+            p.error('hardware timestamp run requires an active PTP clock')
+        provenance['clocks'] = {str(path): path.read_text().strip() for path in clocks}
     args.logs.mkdir(parents=True, exist_ok=False)
-    snapshot = dict(pci=bdf, driver=original_driver, addresses=addresses, routes=routes,
+    snapshot = dict(timestamp_provenance=provenance, driver_override=original_override, neighbors=neighbors, pci=bdf, driver=original_driver, addresses=addresses, routes=routes,
                     kernel=command('uname','-r'), no_iommu=args.no_iommu, lcore=args.lcore,
                     binary_sha256=hashlib.sha256(args.binary.read_bytes()).hexdigest(),
                     kernel_cmdline=Path('/proc/cmdline').read_text().strip(),
@@ -108,7 +145,8 @@ def main():
         write('/sys/bus/pci/drivers_probe',bdf)
         if (dev/'driver').resolve().name != 'vfio-pci':
             raise RuntimeError('VFIO binding did not succeed')
-        argv = [str(args.binary.resolve()), '-l', str(args.lcore), '-a', bdf,
+        device_arg = bdf + (f',ptp_bgx={args.ptp_bgx}' if args.ptp_bgx is not None else '')
+        argv = [str(args.binary.resolve()), '-l', str(args.lcore), '-a', device_arg,
                 '--file-prefix=lh-bench-'+str(os.getpid()), '--iova-mode=pa',
                 '--no-telemetry', '--legacy-mem', '-m', str(args.hugepages_mb), '--', *app_args]
         summary['argv'] = argv
@@ -138,7 +176,7 @@ def main():
             if changed_driver:
                 write(dev/'driver_override',original_driver)
                 write('/sys/bus/pci/drivers_probe',bdf)
-                write(dev/'driver_override','')
+                write(dev/'driver_override',original_override)
                 # Wait for this VF's netdev rather than depending on the host's
                 # udev userspace. Binding is synchronous; naming can follow it.
                 deadline = time.monotonic() + 10
@@ -158,8 +196,8 @@ def main():
                 for address in addresses['addr_info']:
                     if address['scope'] != 'link':
                         cmd = ['ip','addr','replace', f"{address['local']}/{address['prefixlen']}", 'dev',interface]
-                        if address.get('broadcast'):
-                            cmd += ['broadcast',address['broadcast']]
+                        if address['family'] == 'inet':
+                            cmd += ['broadcast', address.get('broadcast', '0.0.0.0')]
                         command(*cmd)
                 for route in routes:
                     if route.get('protocol') != 'kernel':
@@ -167,6 +205,10 @@ def main():
                         if 'gateway' in route: cmd += ['via',route['gateway']]
                         if 'metric' in route: cmd += ['metric',str(route['metric'])]
                         command(*cmd)
+            for neighbor in neighbors:
+                if 'PERMANENT' in neighbor.get('state', []) and 'lladdr' in neighbor:
+                    command('ip','neigh','replace',neighbor['dst'],'lladdr',neighbor['lladdr'],
+                            'nud','permanent','dev',interface)
             after_addresses = json.loads(command('ip','-j','addr','show','dev',interface))[0]
             def address_set(info):
                 return {(a['local'], a['prefixlen'], a.get('broadcast'))

@@ -201,11 +201,11 @@
     "thunderx-ptp": {
       "flake": false,
       "locked": {
-        "lastModified": 1791979063,
-        "narHash": "sha256-+UUGWqSbHbZu9kXbJiHzRlC8GClQf0hO8dVx/gx8XnI=",
+        "lastModified": 1791983691,
+        "narHash": "sha256-COkhaYkI5CdZUhlk0Qx38XiXumt+TL4LL5bLuk6BEh4=",
         "ref": "refs/heads/master",
-        "rev": "07ad554b8e7b78efb1851475aae23d73d9546c0a",
-        "revCount": 1,
+        "rev": "395471583305995801f96989e2f8e108b0721369",
+        "revCount": 3,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/enzian-software/thunderx-dpdk-ptp.git"
       },

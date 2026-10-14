@@ -20,7 +20,7 @@ Run commands from the repository root. Build checks and real-board validation ar
 | Package all Vivado inputs | `nix build .#eciVivadoInputs -L` | Portable source/RTL/XDC/static-shell bundle; see [CI](ci.md). |
 | Generate Mackerel C headers | `nix build .#devHdrs -L` | Compiles static `sw/devices/*.dev` and RTL-generated device descriptions. |
 | Create Vivado project / build ECI FPGA image | [Docker hardware build](hardware-build.md) | Same bundled runner and image as CI; installed/licensed Vivado required on Docker host. |
-| Cross-build kernel module | `nix build .#kmod -L` | `result/lauberhorn.ko`; pinned Ubuntu arm64 kernel 6.8.0-64.67. Match the target kernel ABI. |
+| Cross-build kernel module | `nix build .#kmod -L` | `result/lauberhorn.ko`; pinned Ubuntu arm64 kernel 6.8.0-146.146. Match the target kernel ABI. |
 | Cross-build runtime | `nix build .#runtime -L` | `result/lib/liblauberhorn.so`; public headers/pkg-config in `runtime.dev`; aarch64, ThunderX tuning, libtirpc. |
 | Build deployment filesystem | `nix build .#deployFs -L` | SquashFS containing microbenchmarks, kernel module, provenance manifest and closure dependencies. |
 
@@ -40,7 +40,7 @@ See [interactive testing](interactive-testing.md) for helper and manual equivale
 
 - For reservation, automated BDK hold, JTAG programming and RPC smoke testing, see [automated hardware test quickstart](hardware-test.md).
 - Keep FPGA image, generated headers, module and runtime from a matching revision/configuration. Generation embeds a shortened Git revision; dirty Nix builds use an unknown-version marker. Preserve provenance separately for experiments.
-- The module build must pass Ubuntu's `KERNELRELEASE=6.8.0-64-generic` during kernel preparation and module compilation; the source Makefile's upstream `6.8.12` version is not the boot kernel release. The flake checks the built module's vermagic. Verify it against `uname -r` before loading.
+- The module build must pass Ubuntu's `KERNELRELEASE=6.8.0-146-generic` during kernel preparation and module compilation; the source Makefile's upstream version is not the boot kernel release. The flake checks the built module's vermagic. Verify it against `uname -r` before loading.
 - On the target, `insmod lauberhorn.ko` initializes `/dev/lauberhorn` and bypass netdev `lauberhorn0`. Follow [kernel module usage](../../sw/kmod/README.md) for interface setup; MAC addresses in examples are machine-specific. Hardware access and module loading require target access/privilege.
 - For trace acquisition/export, use [trace tool instructions](../../data/eci/sys_trace/README.md) and [trace architecture](tracing.md). Pair dumps with the trace-map JSON from the matching FPGA build. The Nix `genVerilog` default output retains this map.
 
@@ -76,7 +76,7 @@ Do not ship a toolchain or compile/install Ubuntu build dependencies on Enzian.
 The `thunderx-ptp` flake input supplies reusable patches from
 [`../thunderx-dpdk-ptp`](../../../thunderx-dpdk-ptp/README.md). Its `package.nix`
 accepts the prepared `linux-noble` tree already pinned by this platform.
-`nix build .#thunderxPtpModules .#thunderxDpdk` builds the arm64 modules and
+`nix build .#thunderxPtpModules .#dpdk` builds the arm64 modules and
 DPDK runtime; `nix build .#checks.x86_64-linux.thunderx-ptp` exercises the
 actual PMD's RX/TX descriptor handling with synthetic rings.
 
@@ -87,6 +87,35 @@ same modules under `/lauberhorn-client/modules` and links its generator against
 that DPDK. Both manifests record package paths and the required kernel release.
 These files are shipped for an explicit matched driver transition, not
 implicitly loaded over a running management NIC. No nicpf patch is required.
+
+`nix build .#bootFiles -o result-boot` produces a directory ready for
+`rsync -rL result-boot/ enzian-gateway:/srv/tftp/userkernels/$USER/lauberhorn-6.8.0-146-ptp/`.
+It contains `vmlinuz`, `initrd.img`, `manifest.json`, `modules.sha256`, and
+`SHA256SUMS`. [Ubuntu pins](../../nix/software/ubuntu-noble.nix) are shared by
+kernel preparation and [boot assembly](../../nix/images/boot.nix). The assembly
+downloads the stock Ubuntu arm64 cloud image, extracts its initramfs userspace,
+and replaces its entire module tree with the pinned 6.8.0-146 packages plus the
+patched modules. The signed stock kernel is unchanged. Module selection, ABI,
+byte identity and iSCSI boot support are checked during the build. No target-side
+compilation or manually generated initramfs is an input.
+
+Select these files only through `emg acquire` with
+`-k "$USER/lauberhorn-6.8.0-146-ptp/vmlinuz"` and
+`-i "$USER/lauberhorn-6.8.0-146-ptp/initrd.img"`, retaining the intended root
+volume and isolation arguments, and adding `copymods=force` to the kernel
+arguments. Migrating an existing reservation requires
+preserving measurements, shutting down, and releasing/reacquiring through EMG;
+never edit boot configuration directly. Use the normal cold-boot test harness.
+The stock `copymods` hook mounts the initramfs module tree in RAM over
+`/lib/modules` in the running system. Thus boot-time and later module loads
+use the same packaged files without modifying the persistent root module tree.
+
+For DPDK hardware timestamp runs, `lh-dpdk-run --ptp-bgx 4` requires
+`--manifest /nix/store/lauberhorn-client/manifest.json`. Before rebinding the data
+VF it checks the running kernel, benchmark package, installed module hashes,
+loaded module source versions, and active PHC. Its `before.json` records this
+provenance. The old standalone test driver and exploratory probe recipes have
+been retired; all supported builds use the shared package input.
 
 The sibling README documents PHC fallback activation, BGX/LMAC selection,
 packet-kind mapping, API scope, and the outstanding board acceptance. For local iteration before
