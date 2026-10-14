@@ -34,22 +34,34 @@ def measured(path, end_field="client_call_exit_ns"):
     return rows, ns / 1000
 
 
-def cdf(condition, manifest, output):
-    entry = manifest["latency"][condition]
-    path = DATA / entry["file"]
-    if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
-        raise ValueError(f"Input hash mismatch: {path}")
-    rows, values = measured(path, entry.get("latency_end", "client_call_exit_ns"))
-    if len(rows) != entry["measured_count"]:
-        raise ValueError("Sample count differs from provenance")
+def cdf(manifest, output):
     fig, ax = paper_chart.figure()
-    ordered = np.sort(values)
-    ax.step(np.r_[ordered[0], ordered], np.r_[0, np.arange(1, len(values)+1)/len(values)], where="post")
-    ax.set(xlabel=r"Round-trip latency ($\mu$s)", ylabel="CDF", ylim=(0, 1))
+    statistics = {}
+    for condition in ("hot", "cold"):
+        entry = manifest["latency"][condition]
+        path = DATA / entry["file"]
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
+            raise ValueError(f"Input hash mismatch: {path}")
+        rows, values = measured(path, entry.get("latency_end", "client_call_exit_ns"))
+        if len(rows) != entry["measured_count"]:
+            raise ValueError("Sample count differs from provenance")
+        ordered = np.sort(values)
+        line, = ax.step(np.r_[ordered[0], ordered],
+                        np.r_[0, np.arange(1, len(values)+1)/len(values)],
+                        where="post", linewidth=2.2, label=condition.capitalize())
+        ax.plot(ordered[-1], 1, marker="o", markersize=5, color=line.get_color())
+        ax.annotate("P100", (ordered[-1], 1),
+                    xytext=(8 if condition == "hot" else 0, -12),
+                    textcoords="offset points", ha="left" if condition == "hot" else "center",
+                    va="top", fontsize=8,
+                    color=line.get_color())
+        statistics[condition] = {"count": len(rows), "rtt_us": dict(zip(
+            ("p50", "p99", "max"), np.percentile(values, [50, 99, 100]).tolist()))}
+    ax.set(xlabel=r"Round-trip latency ($\mu$s)", ylabel="CDF", ylim=(0, 1.05))
     ax.set_xlim(left=0)
-    paper_chart.save(fig, output / f"nullrpc-{condition}-latency-cdf.pdf")
-    return {"count": len(rows), "rtt_us": dict(zip(("p50", "p99", "max"),
-                                                    np.percentile(values, [50, 99, 100]).tolist()))}
+    ax.legend(loc="lower right")
+    paper_chart.save(fig, output / "nullrpc-hot-cold-latency-cdf.pdf")
+    return statistics
 
 
 def load_points(manifest):
@@ -108,7 +120,7 @@ def main():
     manifest = json.loads(args.manifest.read_text())
     statistics = {}
     if args.charts in ("cdf", "all"):
-        statistics.update({c: cdf(c, manifest, args.output) for c in ("hot", "cold")})
+        statistics.update(cdf(manifest, args.output))
     if args.charts in ("throughput", "workers", "load", "all"):
         points = load_points(manifest)
         statistics["load_runs"] = [dict(label=p["label"], workers=p["workers"],
