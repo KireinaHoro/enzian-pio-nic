@@ -34,6 +34,28 @@ def measured(path, end_field="client_call_exit_ns"):
     return rows, ns / 1000
 
 
+def mac_values(entry, manifest):
+    evidence = entry.get("mac_latency", manifest.get("mac_latency"))
+    if evidence is None:
+        raise ValueError("Current paper charts require MAC evidence; RTT-only plots are retired")
+    if evidence["unit"] != "ns" or evidence["interval"] != "RxCmacEntry -> TxCmacExit":
+        raise ValueError("Unexpected MAC latency boundary or units")
+    path = DATA / evidence["file"]
+    if hashlib.sha256(path.read_bytes()).hexdigest() != evidence["sha256"]:
+        raise ValueError(f"MAC input hash mismatch: {path}")
+    with gzip.open(path, "rt") as stream:
+        rows = [r for r in csv.DictReader(stream)
+                if r["label"] == entry["label"] and r["warmup"] == "0"]
+    client_rows, _ = measured(DATA / entry["file"], entry["latency_end"])
+    if len(rows) != entry["measured_count"] or {r["request_id"] for r in rows} != {
+            r["request_id"] for r in client_rows}:
+        raise ValueError("MAC/client request coverage mismatch")
+    values = np.array([int(r["tx_mac_ns"]) - int(r["rx_mac_ns"]) for r in rows])
+    if np.any(values <= 0) or any(int(r["mac_latency_ns"]) != v for r, v in zip(rows, values)):
+        raise ValueError("Invalid MAC interval")
+    return rows, values / 1000
+
+
 def cdf(manifest, output):
     fig, ax = paper_chart.figure()
     statistics = {}
@@ -42,22 +64,26 @@ def cdf(manifest, output):
         path = DATA / entry["file"]
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
             raise ValueError(f"Input hash mismatch: {path}")
-        rows, values = measured(path, entry.get("latency_end", "client_call_exit_ns"))
+        rows, values = mac_values(entry, manifest)
         if len(rows) != entry["measured_count"]:
             raise ValueError("Sample count differs from provenance")
         ordered = np.sort(values)
         line, = ax.step(np.r_[ordered[0], ordered],
                         np.r_[0, np.arange(1, len(values)+1)/len(values)],
-                        where="post", linewidth=2.2, label=condition.capitalize())
-        ax.plot(ordered[-1], 1, marker="o", markersize=5, color=line.get_color())
-        ax.annotate("P100", (ordered[-1], 1),
-                    xytext=(8 if condition == "hot" else 0, -12),
-                    textcoords="offset points", ha="left" if condition == "hot" else "center",
-                    va="top", fontsize=8,
-                    color=line.get_color())
-        statistics[condition] = {"count": len(rows), "rtt_us": dict(zip(
-            ("p50", "p99", "max"), np.percentile(values, [50, 99, 100]).tolist()))}
-    ax.set(xlabel=r"Round-trip latency ($\mu$s)", ylabel="CDF", ylim=(0, 1.05))
+                        where="post", label=condition.capitalize())
+        quantiles = np.percentile(values, [50, 99, 100])
+        for name, value, fraction, offset in zip(
+                ("median", "P99", "max"), quantiles, (.5, .99, 1),
+                ((4, 0), (4, -24), (4 if condition == "hot" else 0, -12))):
+            ax.plot(value, fraction, marker="o", markersize=3, color=line.get_color())
+            ax.annotate(rf"{name}={value:.2f} $\mu$s", (value, fraction),
+                        xytext=offset, textcoords="offset points",
+                        ha="right" if name == "max" and condition == "cold" else "left",
+                        va="center" if name == "median" else "top", fontsize=7,
+                        color=line.get_color())
+        statistics[condition] = {"count": len(rows), "mac_us": dict(zip(
+            ("p50", "p99", "max"), quantiles.tolist()))}
+    ax.set(xlabel=r"MAC-to-MAC latency ($\mu$s)", ylabel="CDF", ylim=(0, 1.05))
     ax.set_xlim(left=0)
     ax.legend(loc="lower right")
     paper_chart.save(fig, output / "nullrpc-hot-cold-latency-cdf.pdf")
@@ -67,21 +93,26 @@ def cdf(manifest, output):
 def load_points(manifest):
     points = []
     for entry in manifest["load_runs"]:
+        if entry["condition"] != "hot" or (not entry.get("scaling") and not entry.get("paper_throughput", True)):
+            continue
         path = DATA / entry["file"]
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
             raise ValueError(f"Input hash mismatch: {path}")
         rows, values = measured(path, entry.get("latency_end", "client_call_exit_ns"))
+        mac = None if entry.get("scaling") else mac_values(entry, manifest)[1]
         start, end = entry["observation_start_ns"], entry["observation_end_ns"]
         if end <= start or any(not start <= int(row["client_call_enter_ns"]) < int(row["client_call_exit_ns"]) <= end for row in rows):
             raise ValueError("Invalid observation window")
         if len(rows) != entry["measured_count"]:
             raise ValueError("Incomplete measurement")
         points.append(dict(entry, throughput=len(rows)*1e9/(end-start),
-                           p50=float(np.median(values)), p99=float(np.percentile(values, 99))))
+                           p50=None if mac is None else float(np.median(mac)),
+                           p99=None if mac is None else float(np.percentile(mac, 99))))
     return points
 
 
-def throughput_latency(condition, points, output):
+def throughput_latency(points, output):
+    condition = "hot"
     selected = sorted((p for p in points if p["condition"] == condition and p["workers"] == 1 and not p.get("scaling")),
                       key=lambda p: p["throughput"])
     if len(selected) < 3:
@@ -89,7 +120,7 @@ def throughput_latency(condition, points, output):
     fig, ax = paper_chart.figure()
     for statistic, label, marker in (("p50", "Median", "o"), ("p99", "99th percentile", "s")):
         ax.plot([p["throughput"]/1000 for p in selected], [p[statistic] for p in selected], marker=marker, label=label)
-    ax.set(xlabel="Throughput (kRPC/s)", ylabel=r"Round-trip latency ($\mu$s)")
+    ax.set(xlabel="Throughput (kRPC/s)", ylabel=r"MAC-to-MAC latency ($\mu$s)")
     ax.set_ylim(bottom=0)
     ax.legend()
     paper_chart.save(fig, output / f"nullrpc-{condition}-throughput-latency.pdf")
@@ -127,8 +158,7 @@ def main():
             throughput_krpc_s=p["throughput"]/1000, p50_us=p["p50"], p99_us=p["p99"])
             for p in points]
     if args.charts in ("throughput", "load", "all"):
-        for condition in ("hot", "cold"):
-            throughput_latency(condition, points, args.output)
+        throughput_latency(points, args.output)
     if args.charts in ("workers", "load", "all"):
         worker_scaling(points, args.output)
     print(json.dumps(statistics, indent=2))

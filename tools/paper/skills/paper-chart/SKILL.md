@@ -30,7 +30,20 @@ record the selected endpoints in the data manifest.
 Small source datasets should be preserved verbatim; never manufacture samples
 from percentiles. CDFs use every valid measured sample, without tail clipping.
 
-Write emitted plots to `../paper/plots/` and track them in that repository.
+Write emitted plots to `../paper/plots/` for tracking in that repository.
+During chart iteration, do not commit or push unless the user explicitly asks;
+leave source, data, PDF and deletion changes reviewable in the worktrees.
+Maintain `tools/paper/charts.json` as the active chart inventory: output PDF,
+plotting script, data manifest, regeneration command, and actual TeX inclusion
+(or pending inclusion). Check the paper source; do not claim a pending chart is
+already included. When replacing or retiring charts, delete superseded scripts
+and PDFs, including obsolete previews. Keep shared scripts still used by active
+charts and preserve measurement/provenance inputs. Do not keep alternate stale
+plot implementations. Update the inventory in the same iteration.
+Use the requested latency boundary: MAC-to-MAC values must come from paired
+hardware MAC events, never from relabeled client RTT or subtraction of a median.
+When requested, annotate median, P99 and max with their numeric values and units;
+retain the default line weight unless thicker lines are explicitly requested.
 Inspect its instructions and existing modifications first. Do not commit others'
 edits or add figure inclusion/caption text unless requested. The default output
 location must be relative to the script's repository, not the caller's directory.

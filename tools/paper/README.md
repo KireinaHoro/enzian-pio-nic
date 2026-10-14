@@ -33,12 +33,12 @@ the PDF, because that would change its intended physical size.
 
 The null-RPC script validates input hashes, success markers, request identity,
 warmup and observation windows before computing distributions or throughput.
-The combined `nullrpc-hot-cold-latency-cdf.pdf` uses thicker 2.2 pt lines and
-marks each P100 endpoint. It prints the CDF sample counts and percentiles. All measured latency samples
+The combined `nullrpc-hot-cold-latency-cdf.pdf` uses the default 1.2 pt lines and
+annotates median, P99 and max MAC-to-MAC latency. It prints the CDF sample counts and percentiles. All measured latency samples
 are included, including tails; the manifest selects the exact recorded latency
-endpoint. Current charts use
-client RX-observation minus entry for a consistent boundary in both client modes;
-the historical manifest retains full client completion minus entry.
+endpoint. Current latency charts use paired hardware `RxCmacEntry` and
+`TxCmacExit` events. Throughput still uses the client observation window.
+Client RTT is retained as acquisition evidence, not plotted as MAC latency.
 Missing load measurements raise an error rather than producing invented points.
 See [measurement provenance](../../data/paper/nullrpc/README.md).
 
@@ -77,9 +77,11 @@ See [measurement provenance](../../data/paper/nullrpc/README.md).
    `nix develop -c python3 tools/paper/import_nullrpc_load.py PLAN.json`.
    The importer joins each drained cohort to runtime requests, verifies success
    and distinct cold activations, and archives original CSVs as deterministic
-   gzip files in Git. Commit its source plan and the manifests too.
-7. Render all four PDFs with `plot_nullrpc.py --charts all`, check the numeric
-   summaries and visuals, and commit the PDFs in the paper repository.
+   gzip files for Git. Keep its source plan and manifests with the data;
+   commit only when explicitly requested.
+7. Render all three PDFs with `plot_nullrpc.py --charts all`, check the numeric
+   summaries and visuals, and leave the PDFs in the paper worktree for review.
+   Commit and push only when the user explicitly requests it.
 
 The hardware has 16 reply contexts. A 64-outstanding exploratory burst exceeded
 that capacity and is preserved as a failed warmup, not a throughput measurement.
@@ -120,3 +122,66 @@ bounded and refuse overwrites; stop the temporary server when finished. Download
 named result archives with `fetch_nullrpc_runs.py PLAN --destination NEW_LOCAL`.
 Keep raw captures and failures in ignored storage, and import only validated
 cohorts into paper data.
+
+## Iteration and active chart inventory
+
+Do not commit or push chart tweaks without an explicit request. The authoritative
+[chart inventory](charts.json) records every active PDF, its script, data and
+regeneration command, and whether it is actually included in the paper. Keep it
+in sync with TeX inclusions; pending figures are not described as already used.
+Delete superseded PDFs and scripts, including stale previews; retain shared
+scripts used by other active figures and original measurement evidence.
+
+```sh
+python3 tools/paper/check_charts.py
+```
+
+MAC evidence is reproducible from the compact, verbatim trace samples and matched
+map prepared for Git alongside the per-request latency CSV:
+
+```sh
+nix develop -c python3 tools/paper/import_nullrpc_mac.py
+nix develop -c python3 tools/paper/plot_nullrpc.py --charts all
+```
+
+To re-extract those samples from the original preserved capture:
+
+```sh
+nix develop -c python3 tools/paper/import_nullrpc_mac.py \
+  --trace out/paper-microbenchmarks/w1-dump/trace/trace-dram.bin \
+  --map out/trace-recorder-518922/hw/lauberhorn_trace_dma_map.json
+```
+
+The importer validates the capture/map hashes and loss markers, pairs the full
+MAC/Ethernet streams in packet order, follows live RPC and packet IDs, accounts
+for setup/warmup/eviction traffic, and checks all MAC intervals against client
+call bounds under a single affine clock mapping. The affine fit validates the
+join only; MAC latency is the direct same-clock interval at 5 ns per tick.
+
+## Hot throughput grid
+
+Throughput–latency is a hot-only chart. Varying only the outstanding-request
+window jumps from approximately one-client-RTT throughput to saturation; use
+request-start pacing with enough in-flight capacity to sample the intervening
+rates. `make_hot_load_plan.py` emits 18 bounded cohorts (17 target rates plus an
+unpaced endpoint), 10,000 measured requests and 128 warmups each, window 16.
+The grid targets 20–140 kRPC/s, then 145/150/152/154/156/160/180 kRPC/s.
+The configured gap is a minimum interval, not a guaranteed offered rate; plot
+successful completions divided by the recorded elapsed window. This remains a
+bounded paced workload, not an open-loop SLO experiment.
+
+```sh
+python3 tools/paper/make_hot_load_plan.py --prefix CAMPAIGN --output PLAN.json
+```
+
+For a fresh peer RAM directory, pass `--peer-base /dev/shm/CAMPAIGN` to
+`run_nullrpc_plan.py`. After draining/exporting the runtime and freezing the
+trace with the matched capture VIO script, preserve the entire buffer with
+`capture_nullrpc_trace.py --root OUTPUT --label CAMPAIGN --pipeline PIPELINE
+--transfer-root /tmp/CAMPAIGN`. The transfer endpoint and reserved peer must
+remain available until the capture has been validated. Import the validated
+client/runtime plan, retain the complete capture check under
+`data/paper/nullrpc/acquisition/CAMPAIGN-trace-check.json`, then run
+`import_nullrpc_mac.py --campaign CAMPAIGN --trace RAW --map MATCHED_MAP`.
+Subsequent MAC regeneration needs only `--campaign CAMPAIGN`; per-cohort MAC
+provenance allows different campaign revisions without relabeling old CDF data.

@@ -1464,6 +1464,9 @@ this analysis neither implements those changes nor claims a new board result.
 
 ## Paper microbenchmark figures — October 13
 
+This is the historical five-output/RTT layout. The October 14 section below
+records its replacement by three active figures using MAC latency.
+
 The [tracked paper datasets](../../data/paper/nullrpc/README.md) and
 [plotting workflow](../../tools/paper/README.md) provide ACM sigconf single-column
 PDFs without embedded captions or footnotes. Client and runtime rows, workload
@@ -1497,3 +1500,27 @@ trace contains 64 MAC RX, 22 normal RPC admissions/replies and 64 MAC TX events,
 consistent with capacity-error replies. The full capture includes a historical
 loss/discontinuity boundary outside the burst; no whole-capture sequence claim
 is made. No server, kernel or FPGA behavior was changed for this campaign.
+
+
+## Paced hot paper grid — October 14
+
+The active paper figures are now the combined hot/cold MAC-to-MAC CDF, hot
+throughput–MAC-latency curve, and hot worker scaling; cold throughput–latency is
+retired. See the [active inventory](../../tools/paper/charts.json) and
+[reproduction/provenance](../../data/paper/nullrpc/README.md#october-14-paced-hot-grid-pipeline-519555).
+The CDF/scaling remain on 518922; the replacement hot load curve uses matched
+519555 (`0e58f058`) hardware/runtime and the same validated DPDK binary.
+
+The 18 paced/unpaced cohorts passed 180,000 measured RPCs, plus 2,304 warmups and
+100 direct-DPDK setup calls, on one worker and one measurement boot. Achieved
+rates span 19.913–156.260 kRPC/s, filling the gap left by the earlier window-only
+sweep. All measured requests have matched MAC intervals. The complete frozen
+capture has 182,404 admissions/replies and no stored loss markers; independent
+4 KiB head/tail JTAG samples match. Runtime export is complete and TAD/kernel
+health checks pass. The preceding firmware retry/gateway ARP failure is preserved
+and excluded; it contained zero RPC admissions. This is finite paced coverage,
+not open-loop SLO acceptance or timing closure.
+
+The DUT now runs the one-worker 519555 service, tracing frozen, runtime export
+consumed; peer state and temporary capture controls are restored. Chart source,
+data and PDFs are left uncommitted at the maintainer's request.
