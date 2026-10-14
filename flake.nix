@@ -2,6 +2,10 @@
   description = "devShell for Lauberhorn";
   inputs = {
     self.submodules = true;
+    thunderx-ptp = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/enzian-software/thunderx-dpdk-ptp.git";
+      flake = false;
+    };
     dandelion = {
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/explicit-inline-codec&rev=d74fb48a06c719296126d59ac5bb7cf4b423be63";
       flake = false;
@@ -69,7 +73,9 @@
       in
       {
         formatter = pkgs.nixfmt;
-        checks = platform.checks;
+        checks = platform.checks // pkgs.lib.optionalAttrs linux {
+          thunderx-ptp = platform.thunderxPtp.checks;
+        };
         packages = {
           inherit (platform) genVerilog devHdrs tlc dcsRom;
         }
@@ -84,6 +90,8 @@
               memcachedDeployFs
               memcachedReference
               kmod
+              thunderxPtpModules
+              thunderxDpdk
               deployFs
               eciVivadoInputs
               ciEnvironment
@@ -91,16 +99,16 @@
               ;
             trafficGeneratorDeployFs = (import ./nix/images/traffic-generator.nix {
               inherit pkgs;
+              thunderxPtp = platform.thunderxPtp;
               identity = { revision = self.rev or "dirty"; };
             }).image;
             trafficGenerator = pkgs.pkgsCross.aarch64-multiplatform.callPackage
               ./sw/apps/microbenchmarks/dpdk/package.nix {
-                dpdk = pkgs.pkgsCross.aarch64-multiplatform.callPackage
-                  ./nix/software/dpdk-thunderx.nix { };
+                dpdk = platform.thunderxDpdk;
               };
             trafficGeneratorNative = pkgs.callPackage
               ./sw/apps/microbenchmarks/dpdk/package.nix {
-                dpdk = pkgs.callPackage ./nix/software/dpdk-thunderx.nix { };
+                dpdk = platform.thunderxPtp.dpdkNative;
               };
             recovery-test = platform.applications.recovery-test;
             nested-validation = platform.applications.nested-validation;

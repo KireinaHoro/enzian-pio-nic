@@ -1,8 +1,8 @@
 # Runtime-only Enzian client image: all executables are cross-built on the host.
-{ pkgs, identity ? { revision = null; } }:
+{ pkgs, thunderxPtp, identity ? { revision = null; } }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
-  dpdk = target.callPackage ../software/dpdk-thunderx.nix { };
+  dpdk = thunderxPtp.dpdk;
   generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
@@ -39,7 +39,11 @@ let
     inherit identity;
     system = target.stdenv.hostPlatform.config;
     dpdkVersion = dpdk.version;
-    packages = { generator = "${generator}"; dpdk = "${dpdk}"; };
+    packages = {
+      generator = "${generator}"; dpdk = "${dpdk}";
+      thunderxPtpModules = "${thunderxPtp.modules}";
+    };
+    kernelRelease = thunderxPtp.modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
@@ -51,7 +55,10 @@ let
     name = "lauberhorn-client-environment";
     paths = [ generator wrappers ] ++ utilities;
     pathsToLink = [ "/bin" "/sbin" ];
-    postBuild = "ln -s ${manifest} $out/manifest.json";
+    postBuild = ''
+      ln -s ${manifest} $out/manifest.json
+      ln -s ${thunderxPtp.modules}/lib/modules/${thunderxPtp.modules.kernelRelease}/extra $out/modules
+    '';
   };
   image = pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
     storeContents = [ environment ];
