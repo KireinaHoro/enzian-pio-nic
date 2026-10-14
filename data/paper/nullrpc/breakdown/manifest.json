@@ -1,0 +1,67 @@
+{
+  "unit": "ns",
+  "selection": "Mean components of the two central MAC-latency-ranked measured requests; their total equals the sample median. Ties ordered by request ID. No sum of marginal medians.",
+  "boundaries": {
+    "lauberhorn": "RxCmacEntry -> TxCmacExit",
+    "dpdk": "ThunderX RX MAC -> TX MAC"
+  },
+  "categories": [
+    "handler",
+    "rpc",
+    "network",
+    "cpu_mac"
+  ],
+  "lauberhorn": {
+    "events": "breakdown/lauberhorn-events.bin.gz",
+    "measured_count": 10000,
+    "setup_count": 100
+  },
+  "dpdk": {
+    "server": "breakdown/dpdk-hot-server.csv.gz",
+    "client": "breakdown/dpdk-hot-client.csv.gz",
+    "measured_count": 10000,
+    "warmup_count": 128,
+    "run_summaries": [
+      "breakdown/dpdk-hot-server-run.json",
+      "breakdown/dpdk-hot-client-run.json"
+    ]
+  },
+  "files": {
+    "breakdown/acquisition.json": "d96939ead37cbd92b8e23477ee6bb10d10d44d13018163261dadd53dab80ba10",
+    "breakdown/dpdk-control-client-before.json": "23b4d0625db4bc649f5c3638f9157c6419ff46e50813b9144c3d9fbce22a08d5",
+    "breakdown/dpdk-control-client-load.json": "d723953f784fb4ab08a4aa3e5cf273399cc7fe522d2270e8e254d86a81bd6ef2",
+    "breakdown/dpdk-control-client-manifest.json": "f152163116f6ef4a9dc1b081693f6a5d2403da6b2add2d7fd371dd4674eab294",
+    "breakdown/dpdk-control-client-run.json": "688a810f453185d6189a4baf49851b55ee23b49c6013b87978f4f4fec9e7edfb",
+    "breakdown/dpdk-control-client.csv.gz": "f71a640d1d9fc52f417c14cfe32e9c3efd6f3f0f3db9773adef3c544b11e1315",
+    "breakdown/dpdk-control-server-before.json": "98f690abb09c708d5c37169befd99738566b8aa6020a832eb6c7a9da224690b6",
+    "breakdown/dpdk-control-server-counters.json": "d6375293f3d5cf8f7885b01fae0357af9e748f484f8818db5b4dbd07fdd3d97b",
+    "breakdown/dpdk-control-server-manifest.json": "f152163116f6ef4a9dc1b081693f6a5d2403da6b2add2d7fd371dd4674eab294",
+    "breakdown/dpdk-control-server-run.json": "8b99421766a4ae1169109cad11b314ec35cbf1fec563d60c0c5199e2c1c853f7",
+    "breakdown/dpdk-control-server.csv.gz": "2ad919633cde9e976f46a01709a22d8bec68266b708713930d603fa74e443a33",
+    "breakdown/dpdk-hot-client-before.json": "b88a3f3786e2a460092cecf8f2a7fa4bc30249b332c85e6b50ee83d546b2b22f",
+    "breakdown/dpdk-hot-client-load.json": "2a804d38d2203dc4ebc0f17ec841adfe41e527b163be9e3b5d97a24fce3243c2",
+    "breakdown/dpdk-hot-client-manifest.json": "f152163116f6ef4a9dc1b081693f6a5d2403da6b2add2d7fd371dd4674eab294",
+    "breakdown/dpdk-hot-client-run.json": "bc72a2c312b82a55a2942140452f6afbadd670afb73a2d9e5681154f342c1dfc",
+    "breakdown/dpdk-hot-client.csv.gz": "6134711046d5a041242b589fc26adede84ffbf3d3d47c183d749666455f3ef68",
+    "breakdown/dpdk-hot-server-before.json": "80b427a1a591cf49801d80d33888a1a250fed68079479cf055e3094486e10006",
+    "breakdown/dpdk-hot-server-counters.json": "d6375293f3d5cf8f7885b01fae0357af9e748f484f8818db5b4dbd07fdd3d97b",
+    "breakdown/dpdk-hot-server-manifest.json": "f152163116f6ef4a9dc1b081693f6a5d2403da6b2add2d7fd371dd4674eab294",
+    "breakdown/dpdk-hot-server-run.json": "9e59aa96ebd6a7f277d377904d92598b7767d5b89da50e19c86fae4e56341fa8",
+    "breakdown/dpdk-hot-server.csv.gz": "c39104ff180304535ba30100348292135355078a7a354eac1496b8f7b23d3b01",
+    "breakdown/dpdk-pilot2-client-before.json": "0cbb872dbd6d17615d4f1e1a17f72c629a4164f3536f019597b9586f8b4b788b",
+    "breakdown/dpdk-pilot2-client-load.json": "39eaf83e2f1538a3b9a52615f9a5525a8f8543ab40ada4d557b203095d88c795",
+    "breakdown/dpdk-pilot2-client-manifest.json": "f152163116f6ef4a9dc1b081693f6a5d2403da6b2add2d7fd371dd4674eab294",
+    "breakdown/dpdk-pilot2-client-run.json": "6fe9a1da2f064932cf3e751b7788ce3f855e87449c5371452964b0cdbe795723",
+    "breakdown/dpdk-pilot2-client.csv.gz": "08762b6b19b7b2c03d1862a6c4ef4fb4cc2b5ebb687fc07ebc9cfdbdce57e232",
+    "breakdown/dpdk-pilot2-server-before.json": "e6eebdcff1c05e4a18400d4976e4f8a338915041afd51a3cec36c7e02bb15188",
+    "breakdown/dpdk-pilot2-server-counters.json": "0b845e44fdbbd7ae744e1057d15197eda03f33ba3b0e5e023b94bd8667c70d4d",
+    "breakdown/dpdk-pilot2-server-manifest.json": "f152163116f6ef4a9dc1b081693f6a5d2403da6b2add2d7fd371dd4674eab294",
+    "breakdown/dpdk-pilot2-server-run.json": "9ff57fe042d81bf05bd780b11d56eada7b6a99e032769736b9302242eb75d813",
+    "breakdown/dpdk-pilot2-server.csv.gz": "180dc6ca5b40f4d7d1d3c5fa7276a8b9ea1824abbd1c28ddd7469bbe4add6911",
+    "breakdown/lauberhorn-events.bin.gz": "221dc1e48af729e4a20bfc9cf7db85d5bb618b802d0a0dae4940df55fd3f1d41",
+    "w1-hot-w1.csv.gz": "9cdc8bfc485201f1350bb1f41988d34494b4aedb053c338457ab0e68eeaa8dc2",
+    "w1-mac-latency.csv.gz": "07386126731021cb7f09deeb3328401b083a34c7ccdf0386fab0a4586661c95c",
+    "w1-server.csv.gz": "3ccdb83407c6e13d844cd713f041ce889d05d2e4ceda13affa1b76c12650f190",
+    "w1-trace-map.json": "f02311517bc18670ee6c055ad746ebb97356fa848324ee5d29b221b9e05cc002"
+  }
+}

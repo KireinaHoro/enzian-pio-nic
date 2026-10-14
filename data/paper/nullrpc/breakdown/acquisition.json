@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-14",
+  "base_revision": "444d1818",
+  "source": "sw/apps/microbenchmarks/dpdk/nullrpc_server.c",
+  "source_sha256": "ea5502bea334b651b3661c8ac86b1477735c44f9c7c12160805e5fc272f43930",
+  "image": "/nix/store/a8d9hb3mcfl0w22xyqqj3ssf17j5mk9x-lauberhorn-client.img",
+  "image_sha256": "45f26ccd1f58929b8473cf8a60d853e2147a1e7137c879d8a6bfc249f82fb8e2",
+  "kernel": "6.8.0-146-generic",
+  "dut": "zuestoll14",
+  "dut_cpu": 45,
+  "peer": "zuestoll07",
+  "peer_cpu": 6,
+  "profile_environment": "LH_NULLRPC_PROFILE=1",
+  "staging_failure": "DUT disk filled during image copy; mount failed before responder/NIC setup. Preserved out/mac-latency-breakdown/dpdk/staging-failure.log; retried under fresh pilot2 label with RAM image.",
+  "trace_extraction": {
+    "file": "breakdown/lauberhorn-events.bin.gz",
+    "sha256": "221dc1e48af729e4a20bfc9cf7db85d5bb618b802d0a0dae4940df55fd3f1d41",
+    "source_sha256": "808d94a85f72058d1d4b8c86ffd72d0d170252762b43776292c52a7c33ae43ca",
+    "events": [
+      3,
+      4,
+      5,
+      6,
+      9,
+      44,
+      45,
+      2
+    ]
+  },
+  "pilot2": {
+    "measured": 100,
+    "mac_p50_ns": 2313.0,
+    "probe_min_ns": 40,
+    "profile": 1
+  },
+  "hot": {
+    "measured": 10000,
+    "mac_p50_ns": 2280.0,
+    "probe_min_ns": 40,
+    "profile": 1
+  },
+  "control": {
+    "measured": 10000,
+    "mac_p50_ns": 1858.0,
+    "probe_min_ns": 0,
+    "profile": 0
+  }
+}

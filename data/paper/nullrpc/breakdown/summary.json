@@ -1,0 +1,36 @@
+{
+  "LH": {
+    "count": 10000,
+    "request_ids": [
+      2298,
+      2306
+    ],
+    "ns": {
+      "total": 4145.0,
+      "handler": 235.0,
+      "rpc": 1475.0,
+      "network": 210.0,
+      "cpu_mac": 2225.0
+    },
+    "rpc_detail_ns": {
+      "unmarshal_stage": 310.0,
+      "marshal_stage": 295.0,
+      "other_cpu_runtime": 795.0,
+      "fpga_rpc": 75.0
+    }
+  },
+  "DPDK": {
+    "count": 10000,
+    "request_ids": [
+      1242,
+      1314
+    ],
+    "ns": {
+      "total": 2280.0,
+      "handler": 0.0,
+      "rpc": 250.0,
+      "network": 270.0,
+      "cpu_mac": 1760.0
+    }
+  }
+}

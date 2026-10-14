@@ -240,11 +240,19 @@ retain the result. Reproduce validation and percentiles with
 `python3 data/paper/nullrpc/dpdk-hot/summarize.py`. The directory includes image
 hash, deployment manifests, runner provenance/restoration results, counters,
 load settings and the acquisition script. The hot PDF includes both Lauberhorn and DPDK, with hashed inputs and
-explicit hardware timestamp boundaries in `manifest.json`. These chart inputs remain
-uncommitted under the paper iteration rule.
+explicit hardware timestamp boundaries in `manifest.json`. These chart inputs are tracked in platform.
 
 The maintained driver package is `../thunderx-dpdk-ptp`; see
 [platform integration](../../../docs/development/workflow.md#thunderx-cpu-nic-timestamps).
 The DUT was already booted with the packaged 6.8.0-146 kernel at preflight;
 this run did not reset/program the FPGA or deploy Lauberhorn. Both services have
 exited. Peer outputs were kept in RAM because its persistent disk is full.
+
+## Median MAC breakdown
+
+The [four-category breakdown](breakdown/README.md) compares the existing
+Lauberhorn hot cohort with a fresh, profiled DPDK cohort. CPU–NIC transport and
+NIC–MAC are merged as **CPU–MAC**. Its totals are 4.145 µs and 2.280 µs;
+the DPDK probe-off control is 1.858 µs. The hot CDF retains its original
+1.843 µs DPDK dataset. Stage definitions, raw samples, controls and the additive
+median-case selection are recorded with the breakdown. The PDF is included in `evaluation.tex`.

@@ -98,7 +98,7 @@ def cdf(manifest, output):
         rows, values = mac_values(entry, manifest)
         if len(rows) != entry["measured_count"]:
             raise ValueError("Sample count differs from provenance")
-        series = [("Lauberhorn", values)]
+        series = [("LH", values)]
         if condition in manifest.get("latency_baselines", {}):
             baseline = manifest["latency_baselines"][condition]
             series.append((baseline["label"], dpdk_mac_values(baseline)))
@@ -112,7 +112,7 @@ def cdf(manifest, output):
             # Compact two-line labels fit between the hot curves. Put the
             # adjacent hot tail labels at different heights below the line.
             placements = ((4, 0, "left", "center"), (4, -6, "left", "top"),
-                          (-4, -28 if condition == "hot" and label == "Lauberhorn" else -6,
+                          (-4, -28 if condition == "hot" and label == "LH" else -6,
                            "right", "top"))
             for name, value, fraction, placement in zip(
                     ("P50", "P99", "P100"), quantiles, (.5, .99, 1), placements):

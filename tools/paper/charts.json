@@ -9,7 +9,7 @@
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
-        "Lauberhorn",
+        "LH",
         "DPDK"
       ]
     },
@@ -37,6 +37,15 @@
       "script": "tools/paper/plot_nullrpc.py",
       "manifest": "data/paper/nullrpc/manifest.json",
       "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts workers",
+      "status": "included",
+      "tex": "evaluation.tex"
+    },
+    {
+      "id": "nullrpc-hot-latency-breakdown",
+      "output": "../paper/plots/nullrpc-hot-latency-breakdown.pdf",
+      "script": "tools/paper/plot_nullrpc_breakdown.py",
+      "manifest": "data/paper/nullrpc/breakdown/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_nullrpc_breakdown.py",
       "status": "included",
       "tex": "evaluation.tex"
     }
