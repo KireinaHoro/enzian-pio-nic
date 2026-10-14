@@ -47,6 +47,12 @@ let
     src = pkgs.lib.cleanSource (source + "/sw/devices");
   };
   kernel = pkgs.callPackage ./software/kernel.nix { inherit linuxTools kernelRelease; };
+  thunderxPtp = import (inputs.thunderx-ptp + "/package.nix") {
+    inherit pkgs target kernelRelease;
+    linux-noble = kernel;
+  };
+  thunderxPtpModules = thunderxPtp.modules;
+  thunderxDpdk = thunderxPtp.dpdk;
   kmod = target.callPackage ./software/module.nix {
     nukeReferences = pkgs.nukeReferences;
     inherit
@@ -123,6 +129,7 @@ let
   };
   deployment = pkgs.callPackage ./images/default.nix {
     target = deploymentTarget;
+    inherit thunderxPtp;
     inherit
       kmod
       runtime
@@ -135,6 +142,9 @@ let
 in
 {
   inherit
+    thunderxPtp
+    thunderxPtpModules
+    thunderxDpdk
     tlc
     dcsRom
     runtimeTests

@@ -1,0 +1,147 @@
+{
+  "hosts": [
+    {
+      "node": "pci@848000000000",
+      "compatible": "pci-host-ecam-generic",
+      "reg": [
+        "0x8480",
+        "0x0",
+        "0x0",
+        "0x2000000"
+      ],
+      "ranges": [
+        "0x3000000",
+        "0x8020",
+        "0x0",
+        "0x8020",
+        "0x0",
+        "0x60",
+        "0x0",
+        "0x3000000",
+        "0x8380",
+        "0x0",
+        "0x8380",
+        "0x0",
+        "0xa0",
+        "0x0",
+        "0x3000000",
+        "0x8460",
+        "0x0",
+        "0x8460",
+        "0x0",
+        "0x20",
+        "0x0",
+        "0x3000000",
+        "0x8680",
+        "0x0",
+        "0x8680",
+        "0x0",
+        "0x160",
+        "0x24000000",
+        "0x3000000",
+        "0x87e0",
+        "0x26000000",
+        "0x87e0",
+        "0x26000000",
+        "0x0",
+        "0x9a000000",
+        "0x3000000",
+        "0x87e0",
+        "0xc6000000",
+        "0x87e0",
+        "0xc6000000",
+        "0x1f",
+        "0x3a000000"
+      ],
+      "bus-range": [
+        "0x0",
+        "0x1f"
+      ]
+    },
+    {
+      "node": "pci@849000000000",
+      "compatible": "pci-host-ecam-generic",
+      "reg": [
+        "0x8490",
+        "0x0",
+        "0x0",
+        "0x2000000"
+      ],
+      "ranges": [
+        "0x3000000",
+        "0x8100",
+        "0x0",
+        "0x8100",
+        "0x0",
+        "0x80",
+        "0x0"
+      ],
+      "bus-range": [
+        "0x0",
+        "0x1f"
+      ]
+    },
+    {
+      "node": "pci@84a000000000",
+      "compatible": "pci-host-ecam-generic",
+      "reg": [
+        "0x84a0",
+        "0x0",
+        "0x0",
+        "0x2000000"
+      ],
+      "ranges": [
+        "0x3000000",
+        "0x8420",
+        "0x0",
+        "0x8420",
+        "0x0",
+        "0x20",
+        "0x0"
+      ],
+      "bus-range": [
+        "0x0",
+        "0x1f"
+      ]
+    },
+    {
+      "node": "pci@84b000000000",
+      "compatible": "pci-host-ecam-generic",
+      "reg": [
+        "0x84b0",
+        "0x0",
+        "0x0",
+        "0x2000000"
+      ],
+      "ranges": [
+        "0x3000000",
+        "0x8180",
+        "0x0",
+        "0x8180",
+        "0x0",
+        "0x80",
+        "0x0"
+      ],
+      "bus-range": [
+        "0x0",
+        "0x1f"
+      ]
+    }
+  ],
+  "bar_matches": [],
+  "ptp_devices": [],
+  "machine": "zuestoll14",
+  "kernel": "6.8.0-64-generic",
+  "date": "2026-10-14",
+  "requested_register": "0x807000000f00",
+  "rescan": {
+    "command": "echo 1 > /sys/bus/pci/rescan",
+    "devices_before": 63,
+    "devices_after": 63,
+    "added": [],
+    "removed": [],
+    "ptp_pci_functions": [],
+    "ptp_clocks": []
+  },
+  "scope": "Normal sysfs PCI enumeration and rescan; no raw MMIO, device removal, reset, or firmware changes."
+}

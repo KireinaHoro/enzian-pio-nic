@@ -70,3 +70,29 @@ Python tools. Build `.#trafficGeneratorDeployFs` on the build host and deploy
 the cross-built runtime closure. DPDK headers/static archives and Python setup
 tools have separate `dev`/`tools` outputs, which are not shipped to the client.
 Do not ship a toolchain or compile/install Ubuntu build dependencies on Enzian.
+
+## ThunderX CPU-NIC timestamps
+
+The `thunderx-ptp` flake input supplies reusable patches from
+[`../thunderx-dpdk-ptp`](../../../thunderx-dpdk-ptp/README.md). Its `package.nix`
+accepts the prepared `linux-noble` tree already pinned by this platform.
+`nix build .#thunderxPtpModules .#thunderxDpdk` builds the arm64 modules and
+DPDK runtime; `nix build .#checks.x86_64-linux.thunderx-ptp` exercises the
+actual PMD's RX/TX descriptor handling with synthetic rings.
+
+Application deploy images include `cavium_ptp.ko`, `nicvf.ko`, and
+`thunder_bgx.ko` under `/lauberhorn/modules`, plus the patched DPDK runtime at
+`/lauberhorn/apps/thunderx-dpdk`. The traffic-generator image includes the
+same modules under `/lauberhorn-client/modules` and links its generator against
+that DPDK. Both manifests record package paths and the required kernel release.
+These files are shipped for an explicit matched driver transition, not
+implicitly loaded over a running management NIC. No nicpf patch is required.
+
+The sibling README documents PHC fallback activation, BGX/LMAC selection,
+packet-kind mapping, API scope, and the outstanding board acceptance. For local iteration before
+local changes are published, override the pinned Git input with the local sibling
+checkout. Refresh it after sibling edits with
+`nix flake lock --override-input thunderx-ptp path:"$(realpath ../thunderx-dpdk-ptp)"`.
+After publishing that repository, restore the Git pin using
+`nix flake update thunderx-ptp`. The no-commit/no-push iteration rule applies
+to plotting changes; keep those separate from driver and measurement commits.

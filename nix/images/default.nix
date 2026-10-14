@@ -2,6 +2,7 @@
   pkgs,
   target,
   kmod,
+  thunderxPtp,
   runtime,
   genVerilog,
   devHdrs,
@@ -40,6 +41,8 @@ let
           packages = {
             runtime = "${runtime}";
             module = "${kmod}/lauberhorn.ko";
+            thunderxPtpModules = "${thunderxPtp.modules}";
+            thunderxDpdk = "${thunderxPtp.dpdk}";
           };
           applications = appInfo;
         }
@@ -52,6 +55,10 @@ let
       ln -s ${tools}/bin $out/bin
       ln -s ${tools}/sbin $out/sbin
       ln -s ${kmod}/lauberhorn.ko $out/modules/lauberhorn.ko
+      for module in ${thunderxPtp.modules}/lib/modules/${kernelRelease}/extra/*.ko; do
+        ln -s "$module" $out/modules/
+      done
+      ln -s ${thunderxPtp.dpdk} $out/apps/thunderx-dpdk
       ln -s ${manifest} $out/manifest.json
       ${pkgs.lib.concatStringsSep "\n" (
         pkgs.lib.mapAttrsToList (name: app: "ln -s ${app} $out/apps/${name}") applications

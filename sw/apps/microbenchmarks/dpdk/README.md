@@ -24,7 +24,10 @@ nix build .#trafficGenerator          # cross-compiled ThunderX/AArch64
 nix develop -c make -C sw/apps/microbenchmarks/dpdk check
 ```
 
-Both Nix packages include the ThunderX Linux PF receive-filter correction.
+Both Nix packages come from the `thunderx-ptp` flake input and include the
+ThunderX Linux PF receive-filter correction and opt-in packet timestamp support.
+See the [package/API documentation](../../../../../thunderx-dpdk-ptp/README.md).
+The generator does not enable hardware timestamps merely by linking this library.
 The cross package also supplies ThunderX T88 machine metadata and the target
 archiver. Only the required libraries and ThunderX/pcap PMDs are built.
 The native Enzian validation uses patched DPDK 23.11.4; Nix pins 26.03.
@@ -32,7 +35,7 @@ Preserve that version distinction in comparisons.
 
 The Ubuntu stock PMD sent valid packets but received none on zuestoll07:
 `SET_XCAST` applies the PF's CAM list but does not add its `mac` argument.
-The [compatibility patch](../../../../nix/software/patches/dpdk-thunderx-linux-cam.patch)
+The [compatibility patch](../../../../../thunderx-dpdk-ptp/patches/dpdk-thunderx-linux-cam.patch)
 sends `ADD_MCAST` first and uses Linux mailbox mode flags. This was confirmed by
 10,100 physical gateway echo exchanges and NIC loopback after the patch.
 Do not use an unpatched distribution PMD for measurements on this setup.

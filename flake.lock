@@ -179,7 +179,8 @@
         "memcached": "memcached",
         "memcachedUpstream": "memcachedUpstream",
         "mill-ivy-fetcher": "mill-ivy-fetcher",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "thunderx-ptp": "thunderx-ptp"
       }
     },
     "systems": {
@@ -195,6 +196,22 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "thunderx-ptp": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791979063,
+        "narHash": "sha256-+UUGWqSbHbZu9kXbJiHzRlC8GClQf0hO8dVx/gx8XnI=",
+        "ref": "refs/heads/master",
+        "rev": "07ad554b8e7b78efb1851475aae23d73d9546c0a",
+        "revCount": 1,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/enzian-software/thunderx-dpdk-ptp.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/enzian-software/thunderx-dpdk-ptp.git"
       }
     },
     "treefmt-nix": {

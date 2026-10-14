@@ -199,3 +199,156 @@ The DUT remains on the one-worker 519555 service with tracing frozen and the
 one-shot runtime export consumed. Temporary capture overrides are restored;
 the peer's interface is restored. Recheck reservations and live state before
 reuse. No commit or push was made during chart iteration.
+
+## CPU-NIC baseline preflight — October 14
+
+The reserved pair remains zuestoll14 (DUT) and zuestoll07 (generator).
+The repository DPDK program is a client, not a CPU-NIC RPC responder.
+Read-only DUT inspection found `cpu40g1`, PCI `0002:01:00.2`, running `nicvf`
+on kernel `6.8.0-64-generic`; `ethtool -T cpu40g1` reports software timestamps
+only, no PTP hardware clock, and no hardware transmit/receive modes.
+Pinned DPDK 26.03 `drivers/net/thunderx/nicvf_ethdev.c` likewise has no
+`timesync_*` callbacks. These findings establish a missing measurement path,
+not that the silicon cannot support timestamping with additional driver work.
+Do not substitute client RTT or software burst timestamps for MAC latency.
+The compact capability report is `acquisition/cpu-nic-timestamp-preflight.txt`.
+Reproduce the read-only inspection with `uname -r`, `ethtool -i cpu40g1`,
+`ethtool -T cpu40g1`, and `readlink -f /sys/class/net/cpu40g1/device` through
+`tools/enzian/run.py` after verifying the reservations. No NIC rebind, service
+restart, FPGA reprogramming, or new baseline experiment occurred in this preflight.
+
+### PTP implementation follow-up
+
+Read-only inspection on zuestoll14 confirmed `CONFIG_CAVIUM_PTP=m`,
+`CONFIG_PTP_1588_CLOCK=y`, and `cavium_ptp` loaded as a dependency of `nicvf`.
+`lspci -nn -d 177d:a00c` and `ls /sys/class/ptp` both returned no entries.
+Thus the immediate missing clock is not explained by an absent module or
+kernel configuration option. Firmware/device enumeration is a hypothesis,
+not yet a proven cause. No register writes or rebinds were performed.
+Full inspection output is retained in ignored `out/paper-thx-ptp-inspect/`.
+
+The existing Linux implementation is reusable design/source evidence:
+[2018 timestamping patch](https://lists.openwall.net/netdev/2018/01/15/123),
+[PTP clock driver](https://codebrowser.dev/linux/linux/drivers/net/ethernet/cavium/common/cavium_ptp.c.html).
+It configures RX through `NIC_MBOX_MSG_PTP_CFG` (0x19), handles the eight-byte
+big-endian MAC timestamp prefix, enables queue-set TX timestamping, sets the
+send descriptor timestamp bit, and consumes `CQE_TYPE_SEND_PTP` completions.
+Only one timestamped TX packet may be outstanding; timeout/conflict completions
+must invalidate the sample. This can fit the single-outstanding latency
+experiment, but does not establish full per-packet loaded-throughput coverage.
+
+Pinned DPDK 26.03 includes the descriptor fields but not the timestamp API,
+mailbox configuration, or completion handling. Its current receive loop assumes
+RX completions, so merely setting the TX timestamp bit is insufficient.
+No ready-made ThunderX PMD implementation was located in the upstream source
+or searched DPDK mailing-list records. This is a bounded port of known Linux
+logic, not a claim that it is a configuration-only change. Ordinary UDP can
+use the hardware mechanism; the Linux RX filter supports all packets.
+
+Next validate PTP device exposure and the clock with the existing Linux path,
+then port the required PMD pieces and check paired UDP RX/TX timestamps before
+collecting paper data. The Enzian BDK Git repository could not be inspected:
+the established SSH configuration returned `Internal API unreachable`.
+No boot firmware changes were made. Actual timestamp placement, units, and
+packet correlation still require validation on this board.
+
+### Normal PCI enumeration check
+
+On October 14, all four live ECAM controllers (`0x848000000000` through
+`0x84b000000000`) were present, each with buses 0..31 and a 32 MiB
+configuration-space aperture. Their compatible is `pci-host-ecam-generic`.
+The first host's memory window `[0x802000000000, 0x808000000000)` already
+contains the supplied PTP register address `0x807000000f00`.
+No enumerated PCI resource covers that register and no `177d:a00c` function
+exists. A standard `echo 1 > /sys/bus/pci/rescan` completed with the same 63
+PCI functions before/after and no PTP clock. This rules out a missing containing
+host memory window; it does not prove whether firmware hides the function or
+whether direct non-secure MMIO would succeed. No raw MMIO or firmware changes
+were attempted. Decoded DT and rescan evidence is
+`acquisition/ptp-enumeration.json`; full normal enumeration output is retained
+in ignored `out/paper-ptp-enumeration/` and `out/paper-ptp-pci-rescan/`.
+
+### Direct read-only PTP probes
+
+`tools/enzian/probe_thx_ptp.py` maps the documented BAR0 page through
+`/dev/mem` with read-only permissions and performs individual 64-bit reads
+in bounded child processes, stopping on failure. On zuestoll14, October 14,
+CFG (`0x807000000f00`), CLOCK_LO (`...f08`), CLOCK_HI (`...f10`), and COMP
+(`...f18`) all read zero. Repeated CFG and CLOCK_HI reads remained zero.
+All six accesses completed; no clock progress was observed. Zero values are
+consistent with an uninitialized/disabled block, but do not establish register
+identity or distinguish that from read-as-zero access. No clock configuration,
+compensation, PCI, or firmware writes were made during these probes.
+Raw values and health snapshots are in `acquisition/ptp-direct-probe.json`.
+The harness preserved full before/after kernel logs and TAD snapshots in
+`/dev/shm/lauberhorn-ptp-direct-20261014/results` on the DUT. Reproduce only on
+a verified reservation with a new output directory, using the console harness
+and Python script; the supplied address is specific to this CN88xx node.
+
+### Controlled clock-enable test
+
+The authorized October 14 write test demonstrated that the PTP counter is
+accessible and functional at the fixed BAR address despite absent PCI
+enumeration. `tools/enzian/test_thx_ptp_clock.py --enable-test --output NEW_DIR`
+reads the enumerated reset-controller BAR's `RST_BOOT` as Linux does, deriving
+800 MHz. It saves the PTP settings, writes CFG bit 0 and COMP
+`(1000000000 << 32) / 800000000 = 0x140000000`, and samples CLOCK_HI.
+Both writes read back exactly. CLOCK_HI advanced 102,968,453 ns over about
+102,968,931 ns of host monotonic time; this is a coarse progress/rate check,
+not a calibrated accuracy bound. The test restored CFG and COMP to their
+original zero values and verified readback. Counter registers were never
+written; elapsed counter state is not restored. No NIC timestamping was
+enabled and no RX/TX timestamps have yet been acquired.
+See `acquisition/ptp-enable-test.json` for values, restoration and health.
+This resolves the earlier read-as-zero ambiguity for these registers. It does
+not resolve PCI discovery or establish MAC timestamp placement/correlation.
+
+### Linux CPU-NIC packet timestamp validation and watchdog follow-up
+
+The subsequent fixed-address platform-device test exposed a Linux PHC and
+reused the existing nicvf timestamp path on the data VF only. Correcting BGX1
+RX_ID_MAP from packet-kind 0 to 4 resolved the mismatch with Linux's timestamp
+header-skip configuration. Two RX-only cohorts passed 100/100 requests each,
+with nonzero increasing hardware timestamps and independent client replies.
+These are functional tests, not null-RPC paper measurements.
+
+In the earlier incorrect-selector trials, TX requests reached hardware, but
+SEND_PTP completions returned status 0x86 and
+raw timestamp zero. Selecting TX timestamp interface 1 did not fix this.
+The watchdog follow-up verified SEND_CFG 0x10009 and all eight SQ interface
+selectors at 1. Increasing only the data watchdog to periods 8 and 15 still
+produced timestamp timeouts despite delivered replies. Request-to-CQE log
+delays grew to 1.082 ms and 134.249 ms, confirming the watchdog change takes
+effect and suggesting a ~1 GHz watchdog clock (distinct from the 800 MHz PTP
+reference). The original watchdog and packet-kind settings were restored;
+kernel/TAD health passed. This rules out simply needing a longer watchdog in
+these tested cases, but does not establish why timestamp return fails.
+
+See `acquisition/ptp-packet-validation.json`,
+`acquisition/ptp-watchdog-validation.json`, and the reproducible build/probe
+instructions in `tools/enzian/thx-ptp/README.md`. No CPU-NIC DPDK null-RPC samples are available for the charts yet. The test driver remains loaded after
+the watchdog follow-up to support further investigation; timestamp mode is off.
+
+The descriptor follow-up (`acquisition/ptp-descriptor-validation.json`) confirms
+live QS1 SEND_TSTMP_ENA=1 and a pre-doorbell header with TSTMP=1, DS=0, TSO=0,
+PNC=1. PNC was already set by the Linux driver. A single-request trial after a
+fresh test-driver load produced exactly one timestamp request and the same
+0x86/zero-timestamp completion, despite client receipt. There is no overlap
+between this probe's timestamp operations. Kernel/TAD health passed.
+
+### Correct TX port selector and paired hardware timestamps
+
+The CN88xx SQ TSTMP_BGX_INTF encoding is `(bgx << 2) | lmac`.
+The DUT data NIC is BGX1/LMAC0, so the correct selector is **4**, not 1.
+The corrected probe passed 10/10 paired RX/TX hardware timestamps and a further
+100/100 with diagnostic logging disabled. SEND_PTP status is zero; the original
+watchdog period 1 suffices. Evidence: `acquisition/ptp-port4-validation.json`
+and `acquisition/ptp-port4-control-validation.json`. This resolves the earlier
+TX timeout; no unsupported-hardware conclusion follows from those failures.
+The Python responder is functional validation, not a DPDK latency baseline.
+
+Reusable patches/package definitions now live in `../thunderx-dpdk-ptp`.
+The platform exposes `thunderxPtpModules`, `thunderxDpdk`, and the
+`checks.x86_64-linux.thunderx-ptp` check; deploy images carry the modules and
+patched DPDK runtime. Kernel packet tests remain distinct from the packaged
+DPDK implementation's build and synthetic completion-ring tests.
