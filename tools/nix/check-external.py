@@ -43,7 +43,7 @@ def main():
     packages.x86_64-linux = {
       application = app;
       inherit (platform) runtime kmod genVerilog;
-      image = platform.mkTestImage { name = "external"; applications.demo = app; };
+      image = platform.mkApplicationImage { name = "external"; applications.demo = app; };
     };
     devShells.x86_64-linux.default = platform.target.mkShell { inputsFrom = [ app ]; };
   };

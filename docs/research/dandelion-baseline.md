@@ -6,7 +6,7 @@ board access. **All 8,000 measured requests passed, but the paper's latency
 numbers were not reproduced.** No machine was acquired, rebooted, or FPGA
 reprogrammed. Neither kernel module state nor FPGA tracing was changed.
 
-Build and run instructions are in [the baseline recipe](../../tools/enzian/dandelion-baseline/README.md).
+Build and run instructions are in [the baseline recipe](../../nix/benchmarks/dandelion-baseline/README.md).
 The server is `98c4968017c050391475a20da8e30bbabf6ea618`, immediately before
 Sven's port. The original [SOSP artifact](https://github.com/eth-easl/dandelion_sosp_ae)
 client is pinned to `2a8e23d0aa641f9de91cbc35723ca2c6cd08536e`.

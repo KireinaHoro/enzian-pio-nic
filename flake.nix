@@ -1,5 +1,5 @@
 {
-  description = "devShell for Lauberhorn";
+  description = "Lauberhorn hardware, software and Enzian deployment";
   inputs = {
     self.submodules = true;
     thunderx-ptp = {
@@ -68,54 +68,71 @@
       let
         pkgs = import nixpkgs { inherit system overlays; };
         platform = mkPlatform { pkgs = import nixpkgs { inherit system; }; };
-        ci = import ./nix/ci { inherit pkgs; };
+        ciCommands = import ./nix/ci { inherit pkgs; };
         linux = pkgs.stdenv.hostPlatform.isLinux;
       in
-      {
+      rec {
         formatter = pkgs.nixfmt;
-        checks = platform.checks // pkgs.lib.optionalAttrs linux {
-          thunderx-ptp = platform.thunderx.checks;
-        };
-        packages = {
-          inherit (platform) genVerilog devHdrs tlc dcsRom;
-        }
-        // pkgs.lib.optionalAttrs linux (
-          {
-            inherit (platform)
-              runtime
-              runtimeTests
-              dandelion
-              dandelionDeployFs
-              memcached
-              memcachedDeployFs
-              memcachedReference
-              kmod
-              bootFiles
-              deployFs
-              eciVivadoInputs
-              ciEnvironment
-              ciDependencies
-              ;
-            dpdk = platform.thunderx.dpdk;
-            thunderxPtpModules = platform.thunderx.modules;
-            trafficGeneratorDeployFs = (import ./nix/images/traffic-generator.nix {
-              inherit pkgs;
-              inherit (platform.thunderx) dpdk modules;
-              identity = { revision = self.rev or "dirty"; };
-            }).image;
-            trafficGenerator = pkgs.pkgsCross.aarch64-multiplatform.callPackage
-              ./sw/apps/microbenchmarks/dpdk/package.nix {
-                inherit (platform.thunderx) dpdk;
-              };
-            trafficGeneratorNative = pkgs.callPackage
-              ./sw/apps/microbenchmarks/dpdk/package.nix {
-                dpdk = platform.thunderx.dpdkNative;
-              };
-            recovery-test = platform.applications.recovery-test;
-            nested-validation = platform.applications.nested-validation;
-            dummy-app-build-with-nix = platform.applications.nix-build-demo;
+        checks =
+          platform.checks
+          // {
+            # Custom output sets are otherwise ignored by `nix flake check`.
+            output-interface =
+              let
+                collect =
+                  value:
+                  if pkgs.lib.isDerivation value then
+                    [ value.drvPath ]
+                  else if builtins.isAttrs value then
+                    builtins.concatMap collect (builtins.attrValues value)
+                  else
+                    throw "dev and ci output leaves must be derivations";
+                paths = collect { inherit dev ci; };
+              in
+              builtins.deepSeq paths (
+                pkgs.writeText "lauberhorn-output-interface.json" (
+                  builtins.unsafeDiscardStringContext (builtins.toJSON paths)
+                )
+              );
           }
-          // ci
+          // pkgs.lib.optionalAttrs linux {
+            thunderx-ptp = platform.thunderx.checks;
+          };
+        # Standard package outputs are complete deployable artifacts.
+        packages = pkgs.lib.optionalAttrs linux platform.images;
+        # Intermediate builds are explicit conveniences, not deployment products.
+        dev = {
+          hardware = {
+            rtl = platform.genVerilog;
+            deviceHeaders = platform.devHdrs;
+            inherit (platform) dcsRom;
+          };
+        }
+        // pkgs.lib.optionalAttrs linux {
+          kernel = {
+            buildTree = platform.kernelBuildTree;
+            lauberhornModule = platform.kmod;
+            thunderxPtpModules = platform.thunderx.modules;
+          };
+          software = {
+            inherit (platform) runtime dandelion memcached;
+            inherit (platform.applications) microbenchmarks recovery-test nested-validation;
+            memcachedReferenceNative = platform.memcachedReference;
+            trafficGenerator = platform.trafficGenerator;
+            trafficGeneratorNative = platform.trafficGeneratorNative;
+            dpdk = platform.thunderx.dpdk;
+          };
+        };
+        ci = pkgs.lib.optionalAttrs linux {
+          environment = platform.ciEnvironment;
+          dependencies = platform.ciDependencies;
+        };
+        apps = pkgs.lib.optionalAttrs linux (
+          pkgs.lib.mapAttrs (_: package: {
+            type = "app";
+            inherit (package) meta;
+            program = pkgs.lib.getExe package;
+          }) ciCommands
         );
         devShells.default = platform.shell;
       }

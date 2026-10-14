@@ -12,9 +12,9 @@ for path in out/ci-scope.json out/ci/eci-inputs out/ci/deploy out/ci/memcached-d
   }
 done
 ci-build eci-inputs .#eciVivadoInputs
-ci-build deploy .#deployFs
+ci-build deploy .#microbenchmarksImage
 if [[ $skip_memcached == 0 ]]; then
-  ci-build memcached-deploy .#memcachedDeployFs
+  ci-build memcached-deploy .#memcachedImage
 fi
 [[ $(cat out/ci/eci-inputs/output/git-revision) == "$CI_COMMIT_SHA" ]] || {
   echo 'Bundle/source revision mismatch; artifacts remain under out/ci for inspection' >&2

@@ -50,12 +50,12 @@ on Enzian also differ from Morello/CloudLab hardware and kernel versions.
 From the platform repository root:
 
 ```sh
-nix build --impure --file tools/enzian/dandelion-baseline/default.nix \
+nix build --impure --file nix/benchmarks/dandelion-baseline/default.nix \
   image --out-link out/dandelion-baseline-image -L
-nix eval --impure --json --file tools/enzian/dandelion-baseline/default.nix \
+nix eval --impure --json --file nix/benchmarks/dandelion-baseline/default.nix \
   --apply 'f: builtins.mapAttrs (_: v: toString v) (builtins.removeAttrs (f {}) ["shell"])' \
   > out/dandelion-baseline-paths.json
-python3 tools/enzian/dandelion-baseline/verify.py out/dandelion-baseline-paths.json
+python3 nix/benchmarks/dandelion-baseline/verify.py out/dandelion-baseline-paths.json
 ```
 
 `image` uses the same Nix `make-squashfs.nix` store-closure format as previous
@@ -68,18 +68,18 @@ are not Enzian performance evidence. The native build uses the matching
 unmodified x86-64 function fixture and static worker.
 
 ```sh
-nix build --impure --file tools/enzian/dandelion-baseline/default.nix \
+nix build --impure --file nix/benchmarks/dandelion-baseline/default.nix \
   --arg native true runner --out-link out/dandelion-baseline-native
-nix eval --impure --json --file tools/enzian/dandelion-baseline/default.nix \
+nix eval --impure --json --file nix/benchmarks/dandelion-baseline/default.nix \
   --apply 'f: builtins.mapAttrs (_: v: toString v) (builtins.removeAttrs (f {native=true;}) ["shell"])' \
   > out/dandelion-baseline-native-paths.json
 # The local check isolates both fixed server paths and all network traffic.
 # CAP_SYS_PTRACE exists only inside the new user namespace; host policy stays intact.
-nix develop --impure --file tools/enzian/dandelion-baseline/default.nix shell -c \
+nix develop --impure --file nix/benchmarks/dandelion-baseline/default.nix shell -c \
   bwrap --unshare-all --uid 0 --gid 0 --cap-add CAP_SYS_PTRACE --die-with-parent \
   --ro-bind / / --dev /dev --tmpfs /dev/shm --tmpfs /tmp --proc /proc \
   --bind "$PWD/out" "$PWD/out" \
-  python3 "$PWD/tools/enzian/dandelion-baseline/smoke.py" \
+  python3 "$PWD/nix/benchmarks/dandelion-baseline/smoke.py" \
     "$PWD/out/dandelion-baseline-native-paths.json" "$PWD/out/dandelion-baseline-smoke"
 ```
 

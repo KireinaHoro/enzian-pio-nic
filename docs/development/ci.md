@@ -139,7 +139,7 @@ nix build -L .#checks.x86_64-linux.fast-tests-eci
 nix build -L .#checks.x86_64-linux.blocks-tests .#checks.x86_64-linux.trace-tests
 nix build -L .#checks.x86_64-linux.trace-fifo-tests
 nix build -L .#eciVivadoInputs --out-link out/vivado-inputs
-nix build -L .#deployFs --out-link out/deploy.img
+nix build -L .#microbenchmarksImage --out-link out/deploy.img
 nix build -L .#checks.x86_64-linux.workflow-tools
 ```
 
@@ -215,8 +215,8 @@ with the environment from platform revision `2aaa537`.
 
 The prewarmed image builds two targets:
 
-- `packages.x86_64-linux.ciEnvironment`: native build tools and locked Maven dependencies.
-- `packages.x86_64-linux.ciDependencies`: the prepared Ubuntu kernel build tree,
+- `ci.x86_64-linux.environment`: native build tools and locked Maven dependencies.
+- `ci.x86_64-linux.dependencies`: the prepared Ubuntu kernel build tree,
   fixed static-shell checkpoint, exact cross-compilation tools/libraries, and
   AArch64 deployment utilities.
 
@@ -296,14 +296,19 @@ To check the exact outputs needed by all jobs against locally realized warmup
 closures (without executing any project tests or hardware builds):
 
 ```sh
-nix build .#ciEnvironment .#ciDependencies --no-link
+nix build .#ci.x86_64-linux.environment .#ci.x86_64-linux.dependencies --no-link
 mkdir -p out/ci-image-audit
 nix eval --raw .#checks.x86_64-linux --apply \
   'checks: builtins.concatStringsSep "\n" (map (c: c.drvPath) (builtins.attrValues checks))' \
   > out/ci-image-audit/check-drvs
 mapfile -t ci_checks < out/ci-image-audit/check-drvs
-nix derivation show --recursive .#ciEnvironment .#ciDependencies \
-  .#deployFs .#eciVivadoInputs .#ciBuild .#prepareEci .#summarizePhysical \
+nix eval --json .#apps.x86_64-linux --apply '
+  apps: builtins.concatMap
+    (app: builtins.attrNames (builtins.getContext app.program))
+    (builtins.attrValues apps)' > out/ci-image-audit/app-drvs.json
+mapfile -t ci_apps < <(jq -r '.[]' out/ci-image-audit/app-drvs.json)
+nix derivation show --recursive .#ci.x86_64-linux.environment .#ci.x86_64-linux.dependencies \
+  .#microbenchmarksImage .#eciVivadoInputs "${ci_apps[@]}" \
   "${ci_checks[@]}" > out/ci-image-audit/graph.json
 python3 tools/ci/image/audit.py out/ci-image-audit/graph.json
 ```
@@ -320,6 +325,10 @@ The graph must include every CI target; new project-derived package names must
 follow the `lauberhorn-` prefix or be classified explicitly in the audit tool.
 
 ## Packaging interface checks
+
+`output-interface` evaluates every leaf of the custom `dev.SYSTEM` and
+`ci.SYSTEM` sets and records derivation paths without building their closures.
+It gates preparation alongside the existing packaging checks.
 
 `interactive` checks helper JSON, arguments, executable selection and failure
 status without NIC access. `runtime-interface` cross-compiles the standalone demo

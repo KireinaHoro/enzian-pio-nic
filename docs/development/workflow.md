@@ -12,17 +12,20 @@ Run commands from the repository root. Build checks and real-board validation ar
 
 ## Build commands and outputs
 
+See the [Nix output inventory](../../nix/README.md) for deployment products,
+`dev.SYSTEM` build conveniences, `checks`, `apps`, and CI cache closures.
+
 | Intent | Command | Output / prerequisites |
 | --- | --- | --- |
 | Compile Scala hardware | `nix develop -c mill gen.compile` | First-level compile check; does not elaborate RTL. |
 | Generate ECI RTL and ABI descriptions | `nix develop -c mill eci.generateVerilog` | `out/eci/generateVerilog.dest/`: RTL, XDC, `config.h`, `regblock_bases.h`, Mackerel `.dev`, trace-map JSON. |
-| Package generated RTL | `nix build .#genVerilog -L` | `result` contains RTL/XDC; derivation also has `headers` and `devices` outputs. The default output also retains trace-map JSON. |
+| Package generated RTL | `nix build .#dev.x86_64-linux.hardware.rtl -L` | `result` contains RTL/XDC; derivation also has `headers` and `devices` outputs. The default output also retains trace-map JSON. |
 | Package all Vivado inputs | `nix build .#eciVivadoInputs -L` | Portable source/RTL/XDC/static-shell bundle; see [CI](ci.md). |
-| Generate Mackerel C headers | `nix build .#devHdrs -L` | Compiles static `sw/devices/*.dev` and RTL-generated device descriptions. |
+| Generate Mackerel C headers | `nix build .#dev.x86_64-linux.hardware.deviceHeaders -L` | Compiles static `sw/devices/*.dev` and RTL-generated device descriptions. |
 | Create Vivado project / build ECI FPGA image | [Docker hardware build](hardware-build.md) | Same bundled runner and image as CI; installed/licensed Vivado required on Docker host. |
-| Cross-build kernel module | `nix build .#kmod -L` | `result/lauberhorn.ko`; pinned Ubuntu arm64 kernel 6.8.0-146.146. Match the target kernel ABI. |
-| Cross-build runtime | `nix build .#runtime -L` | `result/lib/liblauberhorn.so`; public headers/pkg-config in `runtime.dev`; aarch64, ThunderX tuning, libtirpc. |
-| Build deployment filesystem | `nix build .#deployFs -L` | SquashFS containing microbenchmarks, kernel module, provenance manifest and closure dependencies. |
+| Cross-build kernel module | `nix build .#dev.x86_64-linux.kernel.lauberhornModule -L` | `result/lauberhorn.ko`; pinned Ubuntu arm64 kernel 6.8.0-146.146. Match the target kernel ABI. |
+| Cross-build runtime | `nix build .#dev.x86_64-linux.software.runtime -L` | `result/lib/liblauberhorn.so`; public headers/pkg-config in `runtime.dev`; aarch64, ThunderX tuning, libtirpc. |
+| Build deployment filesystem | `nix build .#microbenchmarksImage -L` | SquashFS containing microbenchmarks, kernel module, provenance manifest and closure dependencies. |
 
 `pcie.generateVerilog` remains a legacy RTL target; PCIe hardware CI is disabled.
 Mill Vivado/project/bitstream targets have been removed. Use the Nix bundle and
@@ -66,7 +69,7 @@ products and unrelated submodules. Audit the actual store source contents;
 filtering a derivation cannot undo an earlier full-checkout flake snapshot.
 
 The DPDK generator admits seven direct build files; its client image admits four
-Python tools. Build `.#trafficGeneratorDeployFs` on the build host and deploy
+Python tools. Build `.#trafficGeneratorImage` on the build host and deploy
 the cross-built runtime closure. DPDK headers/static archives and Python setup
 tools have separate `dev`/`tools` outputs, which are not shipped to the client.
 Do not ship a toolchain or compile/install Ubuntu build dependencies on Enzian.
@@ -76,7 +79,7 @@ Do not ship a toolchain or compile/install Ubuntu build dependencies on Enzian.
 The `thunderx-ptp` flake input supplies reusable patches from
 [`../thunderx-dpdk-ptp`](../../../thunderx-dpdk-ptp/README.md). Its `package.nix`
 accepts the prepared `linux-noble` tree already pinned by this platform.
-`nix build .#thunderxPtpModules .#dpdk` builds the arm64 modules and
+`nix build .#dev.x86_64-linux.kernel.thunderxPtpModules .#dev.x86_64-linux.software.dpdk` builds the arm64 modules and
 DPDK runtime; `nix build .#checks.x86_64-linux.thunderx-ptp` exercises the
 actual PMD's RX/TX descriptor handling with synthetic rings.
 

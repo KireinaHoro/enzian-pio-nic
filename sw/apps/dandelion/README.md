@@ -72,11 +72,9 @@ and explicit codec output capacities accompany the migration. `dandelion.codecTe
 runs the bounded encoder regression under the target emulator; it is separate
 from the board-dependent interactive suite.
 
-The student fixture adapter `tools/enzian/student-request-outcomes.patch` replaces
-the printing callback with a third future. Its response now waits for all three
-children, and partial submission failure drains those already admitted. The sum
-still uses only the first two children. Historical runtime revisions continue to
-use the historical fixture API through `student_build.nix`.
+The historical student fixture adapter and packaging recipe are preserved in Git
+at `93ee25a6709fb8508d30e8298368cc11ecbc6f93` under `tools/enzian/`.
+They are retired from the current tree; use the maintained Dandelion input.
 
 September 17 validation: the bounded Rust codec test executed under target
 emulation and passed. The application, smoke harness, runtime/kernel and both

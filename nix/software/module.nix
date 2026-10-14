@@ -4,7 +4,7 @@
   src,
   linuxTools,
   nukeReferences,
-  kernel,
+  kernelBuildTree,
   kernelRelease,
   devHdrs,
   genVerilog,
@@ -22,7 +22,7 @@ stdenv.mkDerivation {
     ./worker-regs-check
     export ARCH=arm64
     export CROSS_COMPILE=aarch64-unknown-linux-gnu-
-    export KDIR=${kernel}
+    export KDIR=${kernelBuildTree}
     cd sw/kmod
     make V=1 KERNELRELEASE=${kernelRelease} \
       MACKEREL_DEV_HDRS=${devHdrs} \

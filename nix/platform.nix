@@ -47,10 +47,10 @@ let
     inherit genVerilog mackerel;
     src = pkgs.lib.cleanSource (source + "/sw/devices");
   };
-  kernel = pkgs.callPackage ./software/kernel.nix { inherit linuxTools kernelRelease; };
+  kernelBuildTree = pkgs.callPackage ./software/kernel.nix { inherit linuxTools kernelRelease; };
   thunderx = import (inputs.thunderx-ptp + "/package.nix") {
     inherit pkgs target kernelRelease;
-    linux-noble = kernel;
+    linux-noble = kernelBuildTree;
   };
   bootFiles = pkgs.callPackage ./images/boot.nix {
     inherit ubuntu;
@@ -59,7 +59,7 @@ let
   kmod = target.callPackage ./software/module.nix {
     nukeReferences = pkgs.nukeReferences;
     inherit
-      kernel
+      kernelBuildTree
       linuxTools
       kernelRelease
       devHdrs
@@ -130,7 +130,13 @@ let
     source = inputs.memcachedUpstream;
     enableLauberhorn = false;
   };
-  deployment = pkgs.callPackage ./images/default.nix {
+  trafficGeneratorDeployment = import ./images/traffic-generator.nix {
+    inherit pkgs;
+    inherit (thunderx) dpdk modules;
+    identity = { inherit (identity) revision; };
+  };
+  deployment = import ./images/application.nix {
+    inherit pkgs;
     target = deploymentTarget;
     inherit (thunderx) dpdk modules;
     inherit
@@ -145,6 +151,7 @@ let
 in
 {
   inherit
+    kernelBuildTree
     bootFiles
     thunderx
     tlc
@@ -162,49 +169,56 @@ in
     devHdrs
     kernelRelease
     ;
-  inherit (deployment) mkDeploymentEnvironment mkTestImage;
-  deployFs = deployment.mkTestImage {
-    name = "microbenchmarks";
-    applications = { inherit (applications) microbenchmarks recovery-test nested-validation; };
-  };
-  dandelionDeployFs = deployment.mkTestImage {
-    name = "dandelion";
-    applications = {
-      inherit dandelion;
-      dandelion-tests = dandelion.interactiveTests.smoke;
+  inherit (deployment) mkDeploymentEnvironment mkApplicationImage;
+  images = import ./images {
+    inherit
+      bootFiles
+      applications
+      deployment
+      memcachedTools
+      ;
+    eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
+      inherit
+        genVerilog
+        staticShell
+        dcsRom
+        dcsRomCheck
+        dcsRtlCheck
+        ;
+      source = sources.vivado;
+      gitRev = identity.revision;
     };
+    trafficGeneratorImage = trafficGeneratorDeployment.image;
   };
-  memcachedDeployFs = deployment.mkTestImage {
-    name = "memcached";
-    applications = { inherit memcached; memcached-tools = memcachedTools; };
+  trafficGenerator = trafficGeneratorDeployment.generator;
+  trafficGeneratorNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {
+    dpdk = thunderx.dpdkNative;
   };
-  eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
-    inherit genVerilog staticShell dcsRom dcsRomCheck dcsRtlCheck;
-    source = sources.vivado;
-    gitRev = identity.revision;
-  };
-  checks = (import ./checks {
-    inherit pkgs tlc dcsRom;
-    src = sources.spinal [
-      "build.mill"
-      "hw"
-      "deps"
-    ];
-    ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
-    replayPcaps = sources.pcaps;
-    runtimeInterface = applications.nix-build-demo;
-    inherit runtimeTests;
-    eciToolkit = pkgs.lib.cleanSource (source + "/vivado/eci/eci-toolkit");
-  }) // {
-    memcached-adapter = import ./checks/memcached.nix {
-      inherit pkgs source;
-      appSource = inputs.memcached;
-      upstreamSource = inputs.memcachedUpstream;
+  checks =
+    (import ./checks {
+      inherit pkgs tlc dcsRom;
+      src = sources.spinal [
+        "build.mill"
+        "hw"
+        "deps"
+      ];
+      ivyCache = pkgs.ivy-gather (source + "/project-lock.nix");
+      replayPcaps = sources.pcaps;
+      runtimeInterface = applications.nix-build-demo;
+      inherit runtimeTests;
+      eciToolkit = pkgs.lib.cleanSource (source + "/vivado/eci/eci-toolkit");
+    })
+    // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+      memcached-adapter = import ./checks/memcached.nix {
+        inherit pkgs source;
+        appSource = inputs.memcached;
+        upstreamSource = inputs.memcachedUpstream;
+      };
     };
-  };
   shell = pkgs.callPackage ./toolchain/shell.nix { inherit crossGcc mackerel tlc; };
   ciDependencies = import ./ci/dependencies.nix {
-    inherit pkgs kernel staticShell;
+    inherit pkgs staticShell;
+    kernel = kernelBuildTree;
     crossPkgs = target;
     deploymentPackages = import ./interactive/dependencies.nix { target = deploymentTarget; };
   };

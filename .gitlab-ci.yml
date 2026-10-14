@@ -63,6 +63,9 @@ eci-toolkit-rx:
 workflow-tools:
   extends: .test-nix
 
+output-interface:
+  extends: .test-nix
+
 interactive:
   extends: .test-nix
 
@@ -104,6 +107,8 @@ prepare-eci:
     - job: eci-toolkit-rx
       artifacts: false
     - job: workflow-tools
+      artifacts: false
+    - job: output-interface
       artifacts: false
     - job: interactive
       artifacts: false

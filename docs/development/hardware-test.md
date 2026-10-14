@@ -204,7 +204,7 @@ and check `ip route get DUT_FPGA_IP`: `cpu40g1` is in the FPGA NIC VLAN.
 Use `cpu40g1` for traffic/capture on the client and `lauberhorn0` on the DUT;
 keep management/root storage on `cpu40g0`.
 
-Build `.#trafficGeneratorDeployFs` on the build host and deploy that runtime-only
+Build `.#trafficGeneratorImage` on the build host and deploy that runtime-only
 image to the client. Cross-build all client binaries and tools; do not ship
 compilers, build on Enzian, or rely on Ubuntu userspace packages for measurement.
 Keep host kernel/modules provisioned through `emg` and record their versions.
@@ -228,73 +228,20 @@ module-load test is implied. If a newly acquired BMC reports an uninitialized
 drivers before retrying the normal verified reset. Do not treat `is_up` in the
 reservation listing as proof of Linux readiness.
 
-For a matched AArch64 client independent of the golden image's development
-tools, `student_build.nix` also exposes `peerImage`. Mount that closure on the
-peer without loading its kernel module, then run its `*-lauberhorn-peer-client`
-binary. Keep every test's client machine, software and capture paths in the
-manifest. Never count peer boot/setup failures as runtime test failures.
+For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.
+Keep every test's client machine, software and capture paths in its manifest.
+Never count peer boot/setup failures as runtime test failures.
 
-## Student runtime and Dandelion application-only probes
+## Retired student-runtime packaging
 
-`runtime-peer.example.json` records the five-case setup (upstream add/mul,
-Sven's standalone/nested adder, Dandelion matmul). Edit machine addresses,
-programmer paths, image paths and unique case names before running it. Stage
-the client scripts in its shared directory and prepare the peer first.
-
-`student_build.nix` builds Sven's adder demos, the AArch64 baseline client,
-and Dandelion against a pinned runtime revision. It uses that same revision for
-RTL/header generation and the NIC revision marker, while importing this tree's
-kernel-release packaging fix. Before using it, verify `sw/{rt,include,core,kmod}`,
-`hw`, `build.mill`, `project-lock.nix` and hardware dependencies match the pinned
-revision. It is not a mechanism for testing changed hardware under an old marker.
-Record the student source revisions, endpoint patch, and output image hashes.
-
-Prepare archived source directories from `../sven-dandelion/platform` and
-`../sven-dandelion/dandelion`. For the platform snapshot archive only
-`sw/apps/adder-demo` and `sw/apps/nested_adder-demo`; the recipe supplies the
-matched upstream includes and common Makefile. Archive the complete Dandelion
-tree. The recipe applies `student-nested-remote.patch` itself to initialize one
-shared endpoint before workers, preserve request IDs and configure the nested
-destination through `NESTED_REMOTE_IP` (default: local NIC `192.168.129.129`).
-Use unpatched snapshots. The main flake now also exposes pinned `dandelion` and
-`dandelionDeployFs` outputs. Pass the archived snapshots'
-absolute paths as Nix path arguments:
-
-```sh
-nix build --impure --file tools/enzian/student_build.nix \
-  --argstr runtimeRevision "$(git rev-parse HEAD)" \
-  --arg studentSource /ABS/PREPARED-STUDENT-PLATFORM \
-  --arg dandelionSource /ABS/DANDELION-SNAPSHOT \
-  studentImage --out-link /tmp/student-image
-# Other outputs: peerImage, dandelionImage, apps, dandelion, dandelionTests.
-```
-
-`student_adder_client.py --bind PEER_DATA_IP` checks 100 calls to Sven's
-standalone adder, including its echoed 64-bit timestamp and arithmetic result.
-That schema differs from both the upstream benchmark and nested demo.
-
-`nested_adder_client.py --bind PEER_DATA_IP` runs the nested-demo correctness
-client and an ordinary UDP ONC-RPC add responder on that peer. Start the DUT's
-nested demo with `NESTED_REMOTE_IP=PEER_DATA_IP`. This deliberately tests remote
-nested calls, not unsupported switch reflection or local loopback. It checks
-sum=10 and receipt of two future calls plus one callback call; socket observations
-are not a substitute for a packet capture. It reports but does not validate the
-nested response's request ID, which Sven's handler leaves uninitialized.
-`capture-client.sh` can wrap the
-client, preserving `peer.pcap`, capture diagnostics and the client result.
-Stage `peer_capture.py` beside that wrapper. Its raw socket records Ethernet
-frames to/from the DUT MAC without putting the peer interface into promiscuous
-mode. PCAP timestamps are userspace receive times, not latency measurements;
-the recorder does not measure capture drops. This avoids the tested image's
-tcpdump failures (NFS ownership change failure and a later SIGSEGV).
-
-`dandelion_matmul_client.py` mirrors the student's single-function `test_matmul`
-fixture: register the AArch64 process-isolated matmul binary, invoke a 1x1 matrix
-through FPGA UDP RPC, then validate the returned matrix. It needs pymongo's
-`bson` module and a DUT-visible fixture path; specify separate `--management`,
-`--nic`, `--bind` and `--binary` arguments. Set `PROCESS_WORKER_PATH` to the
-packaged `mmu_worker` and `DANDELION_LAUBERHORN_CONFIG` to the DUT configuration.
-Composition tests remain separate because local nested transport has not landed.
+The September student-runtime image recipe and its fixture patches were retired
+when the maintained Dandelion application replaced that adapter. They remain in
+Git at `93ee25a6709fb8508d30e8298368cc11ecbc6f93:tools/enzian/student_build.nix`
+(with both adjacent `student-*.patch` files). Reproduce that campaign from its
+historical checkout; do not combine its packaging with the current flake.
+See [historical results](hardware-test-results.md) for its finite coverage.
+Current application testing uses `dandelionImage` and the
+[Dandelion integration workflow](../research/dandelion.md).
 
 ## Historical B4 recovery evidence
 

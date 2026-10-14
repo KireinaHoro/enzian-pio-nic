@@ -17,7 +17,7 @@ rsync -rLt out/vivado-inputs/ enzian-ba2:/tmp/eci-inputs-UNIQUE/
 Choose unique staging/output names. Copy the contents of the result link.
 The bundle contains source, generated collateral, the hash-pinned static-shell
 checkpoint, scripts and provenance. No Nix installation or source checkout is
-needed on the destination host. Build `.#deployFs` from the same clean revision
+needed on the destination host. Build `.#microbenchmarksImage` from the same clean revision
 for a matching deployment image; preserve its manifest and bundle provenance.
 
 ## Run on the Docker host

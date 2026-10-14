@@ -1043,7 +1043,7 @@ results, not ECI/scheduler/board acceptance. The normal CI configuration now has
 compatible pinned adapter/image; pipeline 518689 itself still omits memcached.
 
 For the already running hardware pipeline, use
-`tools/memcached/matched-image.nix` with immutable platform revision
+`nix/images/memcached-matched.nix` with immutable platform revision
 `45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4` and the application revision above.
 It preserves the platform identity and asserts unchanged RTL, generated headers,
 runtime and kernel-module derivations. A plain `--override-input` experiment
@@ -1073,7 +1073,7 @@ are prepared locally only; no board state was changed during software work.
 Reproduce the matched build through `nix develop`:
 
 ```sh
-nix build --impure --file tools/memcached/matched-image.nix \
+nix build --impure --file nix/images/memcached-matched.nix \
   --argstr platformRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4&submodules=1' \
   --argstr applicationRevision 9453656b629acc33728a18ad98d7320c8d7eed45 \
   --out-link out/contiguous-transport/memcached-518689-matched.img
@@ -1180,7 +1180,7 @@ remains unrun; board acceptance awaits the scheduled hardware results follow-up.
 Reproduce through `nix develop`:
 
 ```sh
-nix build --impure --file tools/memcached/matched-image.nix \
+nix build --impure --file nix/images/memcached-matched.nix \
   --argstr platformRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4&submodules=1' \
   --argstr applicationRevision 2eaa2b84e7a6ed0a7d0489b6caad49c211649864 \
   --argstr runtimeRef 'git+file:///local/home/pengxu/work-local/lauberhorn/platform?rev=aa1255b7c271769e67a84767a67ee57882140aa3&submodules=1' \
