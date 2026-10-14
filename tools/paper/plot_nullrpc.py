@@ -56,10 +56,41 @@ def mac_values(entry, manifest):
     return rows, values / 1000
 
 
+def dpdk_mac_values(entry):
+    if entry["unit"] != "ns" or entry["interval"] != "ThunderX RX MAC -> TX MAC":
+        raise ValueError("Unexpected DPDK timestamp boundary or units")
+    inputs = {}
+    for field in ("file", "client_file"):
+        path = DATA / entry[field]
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry[field + "_sha256"]:
+            raise ValueError(f"DPDK input hash mismatch: {path}")
+        with gzip.open(path, "rt") as stream:
+            inputs[field] = list(csv.DictReader(stream))
+        if len(inputs[field]) != entry["measured_count"] + entry["warmup_count"]:
+            raise ValueError("Incomplete DPDK cohort")
+    values = []
+    previous_rx = 0
+    for index, (server, client) in enumerate(zip(inputs["file"], inputs["client_file"]), 1):
+        warmup = str(int(index <= entry["warmup_count"]))
+        if (int(server["request_id"]) != index or int(client["request_id"]) != index
+                or server["warmup"] != warmup or client["warmup"] != warmup
+                or server["status"] != "1" or client["ok"] != "1" or client["rpc_status"] != "0"):
+            raise ValueError("DPDK request identity, warmup or success mismatch")
+        rx, tx = int(server["rx_hw_ns"]), int(server["tx_hw_ns"])
+        elapsed = int(server["mac_to_mac_ns"])
+        if not (previous_rx < rx < tx and tx - rx == elapsed
+                and elapsed <= int(client["client_call_exit_ns"]) - int(client["client_call_enter_ns"])):
+            raise ValueError("Invalid paired DPDK MAC interval")
+        previous_rx = rx
+        if warmup == "0":
+            values.append(elapsed)
+    return np.array(values) / 1000
+
+
 def cdf(manifest, output):
-    fig, ax = paper_chart.figure()
     statistics = {}
     for condition in ("hot", "cold"):
+        fig, ax = paper_chart.figure()
         entry = manifest["latency"][condition]
         path = DATA / entry["file"]
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
@@ -67,26 +98,36 @@ def cdf(manifest, output):
         rows, values = mac_values(entry, manifest)
         if len(rows) != entry["measured_count"]:
             raise ValueError("Sample count differs from provenance")
-        ordered = np.sort(values)
-        line, = ax.step(np.r_[ordered[0], ordered],
-                        np.r_[0, np.arange(1, len(values)+1)/len(values)],
-                        where="post", label=condition.capitalize())
-        quantiles = np.percentile(values, [50, 99, 100])
-        for name, value, fraction, offset in zip(
-                ("median", "P99", "max"), quantiles, (.5, .99, 1),
-                ((4, 0), (4, -24), (4 if condition == "hot" else 0, -12))):
-            ax.plot(value, fraction, marker="o", markersize=3, color=line.get_color())
-            ax.annotate(rf"{name}={value:.2f} $\mu$s", (value, fraction),
-                        xytext=offset, textcoords="offset points",
-                        ha="right" if name == "max" and condition == "cold" else "left",
-                        va="center" if name == "median" else "top", fontsize=7,
-                        color=line.get_color())
-        statistics[condition] = {"count": len(rows), "mac_us": dict(zip(
-            ("p50", "p99", "max"), quantiles.tolist()))}
-    ax.set(xlabel=r"MAC-to-MAC latency ($\mu$s)", ylabel="CDF", ylim=(0, 1.05))
-    ax.set_xlim(left=0)
-    ax.legend(loc="lower right")
-    paper_chart.save(fig, output / "nullrpc-hot-cold-latency-cdf.pdf")
+        series = [("Lauberhorn", values)]
+        if condition in manifest.get("latency_baselines", {}):
+            baseline = manifest["latency_baselines"][condition]
+            series.append((baseline["label"], dpdk_mac_values(baseline)))
+        statistics[condition] = {}
+        for label, values in series:
+            ordered = np.sort(values)
+            line, = ax.step(np.r_[ordered[0], ordered],
+                            np.r_[0, np.arange(1, len(values)+1)/len(values)],
+                            where="post", label=label)
+            quantiles = np.percentile(values, [50, 99, 100])
+            # Compact two-line labels fit between the hot curves. Put the
+            # adjacent hot tail labels at different heights below the line.
+            placements = ((4, 0, "left", "center"), (4, -6, "left", "top"),
+                          (-4, -28 if condition == "hot" and label == "Lauberhorn" else -6,
+                           "right", "top"))
+            for name, value, fraction, placement in zip(
+                    ("P50", "P99", "P100"), quantiles, (.5, .99, 1), placements):
+                dx, dy, horizontal, vertical = placement
+                ax.plot(value, fraction, marker="o", markersize=3, color=line.get_color())
+                ax.annotate(name + "\n" + rf"{value:.2f} $\mu$s", (value, fraction),
+                            xytext=(dx, dy), textcoords="offset points",
+                            ha=horizontal, va=vertical, fontsize=7,
+                            color=line.get_color())
+            statistics[condition][label] = {"count": len(values), "mac_us": dict(zip(
+                ("p50", "p99", "max"), quantiles.tolist()))}
+        ax.set(xlabel=r"MAC-to-MAC latency ($\mu$s)", ylabel="CDF", ylim=(0, 1.05), yticks=np.linspace(0, 1, 6))
+        ax.set_xlim(left=0)
+        ax.legend(loc="lower right")
+        paper_chart.save(fig, output / f"nullrpc-{condition}-latency-cdf.pdf")
     return statistics
 
 

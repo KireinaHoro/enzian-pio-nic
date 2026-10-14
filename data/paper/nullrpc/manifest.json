@@ -1383,5 +1383,19 @@
     "unit": "ns",
     "interval": "RxCmacEntry -> TxCmacExit",
     "provenance": "mac-provenance.json"
+  },
+  "latency_baselines": {
+    "hot": {
+      "label": "DPDK",
+      "file": "dpdk-hot/hot-server.csv.gz",
+      "client_file": "dpdk-hot/hot-client.csv.gz",
+      "measured_count": 10000,
+      "warmup_count": 128,
+      "unit": "ns",
+      "interval": "ThunderX RX MAC -> TX MAC",
+      "provenance": "dpdk-hot/README.md",
+      "file_sha256": "cfee69a4293f7410070be1dffccf111c491163582b8cb686b0a6266a903f055a",
+      "client_file_sha256": "cd8b968e2d9cfe74b6436ce84a3017edff0164d9a1a65fd5c6ada9a6862eb09a"
+    }
   }
 }

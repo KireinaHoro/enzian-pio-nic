@@ -1,0 +1,45 @@
+{
+  "pilot": {
+    "measured": 100,
+    "warmup": 16,
+    "min_ns": 1780,
+    "mean_ns": 1898.86,
+    "p50_ns": 1865.5,
+    "p90_ns": 1996.0,
+    "p95_ns": 2159.3,
+    "p99_ns": 2212.7200000000003,
+    "p999_ns": 2276.872,
+    "max_ns": 2284,
+    "first_quarter_p50_ns": 1847,
+    "last_quarter_p50_ns": 1853
+  },
+  "delay20us": {
+    "measured": 100,
+    "warmup": 16,
+    "min_ns": 21792,
+    "mean_ns": 21884.5,
+    "p50_ns": 21859.0,
+    "p90_ns": 21955.3,
+    "p95_ns": 21984.75,
+    "p99_ns": 22267.93,
+    "p999_ns": 22350.792999999998,
+    "max_ns": 22360,
+    "first_quarter_p50_ns": 21854,
+    "last_quarter_p50_ns": 21865
+  },
+  "hot": {
+    "measured": 10000,
+    "warmup": 128,
+    "min_ns": 1720,
+    "mean_ns": 1879.6288,
+    "p50_ns": 1843.0,
+    "p90_ns": 1912.0,
+    "p95_ns": 1942.0,
+    "p99_ns": 2261.0,
+    "p999_ns": 6104.035000000007,
+    "max_ns": 9929,
+    "first_quarter_p50_ns": 1854.0,
+    "last_quarter_p50_ns": 1806.0
+  },
+  "delay_control_shift_ns": 19993.5
+}

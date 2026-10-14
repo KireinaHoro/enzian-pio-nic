@@ -33,11 +33,13 @@ the PDF, because that would change its intended physical size.
 
 The null-RPC script validates input hashes, success markers, request identity,
 warmup and observation windows before computing distributions or throughput.
-The combined `nullrpc-hot-cold-latency-cdf.pdf` uses the default 1.2 pt lines and
-annotates median, P99 and max MAC-to-MAC latency. It prints the CDF sample counts and percentiles. All measured latency samples
+The separate hot and cold CDFs use the default 1.2 pt lines and
+annotate P50, P99 and P100 MAC-to-MAC latency beside their markers. It prints the CDF sample counts and percentiles. All measured latency samples
 are included, including tails; the manifest selects the exact recorded latency
-endpoint. Current latency charts use paired hardware `RxCmacEntry` and
-`TxCmacExit` events. Throughput still uses the client observation window.
+endpoint. Lauberhorn latency uses paired hardware `RxCmacEntry` and
+`TxCmacExit` events; the hot DPDK baseline uses paired ThunderX RX/TX MAC
+timestamps. The plotter validates the baseline against its client IDs, success
+markers, warmups and elapsed-time bounds. Throughput still uses the client observation window.
 Client RTT is retained as acquisition evidence, not plotted as MAC latency.
 Missing load measurements raise an error rather than producing invented points.
 See [measurement provenance](../../data/paper/nullrpc/README.md).
@@ -185,3 +187,8 @@ client/runtime plan, retain the complete capture check under
 `import_nullrpc_mac.py --campaign CAMPAIGN --trace RAW --map MATCHED_MAP`.
 Subsequent MAC regeneration needs only `--campaign CAMPAIGN`; per-cohort MAC
 provenance allows different campaign revisions without relabeling old CDF data.
+
+The latency CDF command now emits separate hot and cold PDFs. The hot chart
+compares Lauberhorn with the CPU-NIC DPDK MAC timestamp samples in
+`data/paper/nullrpc/dpdk-hot/` (see the data README). The combined CDF is
+retired. Run `python3 tools/paper/check_charts.py` after regeneration.

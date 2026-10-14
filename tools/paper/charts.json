@@ -1,8 +1,21 @@
 {
   "charts": [
     {
-      "id": "nullrpc-hot-cold-latency-cdf",
-      "output": "../paper/plots/nullrpc-hot-cold-latency-cdf.pdf",
+      "id": "nullrpc-hot-latency-cdf",
+      "output": "../paper/plots/nullrpc-hot-latency-cdf.pdf",
+      "script": "tools/paper/plot_nullrpc.py",
+      "manifest": "data/paper/nullrpc/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf",
+      "status": "included",
+      "tex": "evaluation.tex",
+      "series": [
+        "Lauberhorn",
+        "DPDK"
+      ]
+    },
+    {
+      "id": "nullrpc-cold-latency-cdf",
+      "output": "../paper/plots/nullrpc-cold-latency-cdf.pdf",
       "script": "tools/paper/plot_nullrpc.py",
       "manifest": "data/paper/nullrpc/manifest.json",
       "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf",

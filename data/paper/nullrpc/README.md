@@ -200,17 +200,51 @@ one-shot runtime export consumed. Temporary capture overrides are restored;
 the peer's interface is restored. Recheck reservations and live state before
 reuse. No commit or push was made during chart iteration.
 
-## CPU-NIC baseline status
+## Split CDFs — October 14
 
-No validated DPDK null-RPC MAC-to-MAC dataset is available yet; the hot CDF
-therefore contains only Lauberhorn measurements. Do not substitute client RTT
-or software timestamps for hardware MAC latency.
+The active CDF outputs are `nullrpc-hot-latency-cdf.pdf` and
+`nullrpc-cold-latency-cdf.pdf`; the combined hot/cold PDF is retired.
+Both retain the original measured MAC intervals and numeric P50/P99/P100
+annotations. The hot chart compares Lauberhorn with the CPU-NIC DPDK
+MAC-to-MAC samples in `dpdk-hot/` (below). Both retain all 10,000 measured samples.
 
-The maintained ThunderX PTP/DPDK package is `../thunderx-dpdk-ptp`;
-[platform integration](../../../docs/development/workflow.md#thunderx-cpu-nic-timestamps)
-describes its exports and deployment. Linux RX/TX timestamp functionality was
-verified with TX selector 4 for BGX1/LMAC0, including 100 paired packets with
-diagnostics disabled. That functional check is not DPDK baseline acceptance.
-The migration to kernel 6.8.0-146 and validation of the packaged DPDK responder
-are still in progress. Superseded exploratory probes and reports are available
-in Git history, not part of the supported reproduction path.
+## CPU-NIC baseline — October 14
+
+The CPU-NIC DPDK hot baseline passed **10,000 measured requests + 128 excluded
+warmups**, one outstanding RPC, on reserved zuestoll14 (responder CPU 45) and
+zuestoll07 (generator CPU 6). Both used kernel 6.8.0-146-generic; the matched
+runtime uses patched DPDK 26.03. The responder implements the same ONC-RPC `add`
+wire format. These are server RX-MAC to TX-MAC intervals from the common
+ThunderX hardware nanosecond counter, with TX selector 4, not client RTT.
+
+| Statistic | DPDK MAC-to-MAC latency |
+| --- | ---: |
+| Minimum | 1.720 µs |
+| Median | 1.843 µs |
+| P95 | 1.942 µs |
+| P99 | 2.261 µs |
+| P99.9 | 6.104 µs |
+| Maximum | 9.929 µs |
+
+All 10,128 requests joined exactly by ID and warmup status across client and
+server, with valid responses and positive paired timestamps bounded by client
+RTT. No samples were removed. Hardware RX/TX error and missed-packet counters
+were zero. Both runners passed and restored their NIC/resource state. First/last
+quarter medians were 1.854/1.806 µs. A preceding 100-request pilot and a separate
+100-request injected-delay control (16 warmups each) passed; adding 20 µs shifted
+the median by 19.9935 µs. This is one finite hot cohort with timestamping enabled;
+no timestamp-overhead correction, loaded-throughput or repeated-boot claim is made.
+
+[`dpdk-hot/summary.json`](dpdk-hot/summary.json) and compressed client/server CSVs
+retain the result. Reproduce validation and percentiles with
+`python3 data/paper/nullrpc/dpdk-hot/summarize.py`. The directory includes image
+hash, deployment manifests, runner provenance/restoration results, counters,
+load settings and the acquisition script. The hot PDF includes both Lauberhorn and DPDK, with hashed inputs and
+explicit hardware timestamp boundaries in `manifest.json`. These chart inputs remain
+uncommitted under the paper iteration rule.
+
+The maintained driver package is `../thunderx-dpdk-ptp`; see
+[platform integration](../../../docs/development/workflow.md#thunderx-cpu-nic-timestamps).
+The DUT was already booted with the packaged 6.8.0-146 kernel at preflight;
+this run did not reset/program the FPGA or deploy Lauberhorn. Both services have
+exited. Peer outputs were kept in RAM because its persistent disk is full.

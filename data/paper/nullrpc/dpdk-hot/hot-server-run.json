@@ -1,0 +1,28 @@
+{
+  "status": "pass",
+  "returncode": 0,
+  "restored": true,
+  "argv": [
+    "/nix/store/lp34mhclcjgmww3axky5x2hciva87j72-lauberhorn-traffic-generator-aarch64-unknown-linux-gnu-0.1/bin/nullrpc_dpdk",
+    "-l",
+    "45",
+    "-a",
+    "0002:01:00.2,ptp_bgx=4",
+    "--file-prefix=lh-bench-2274",
+    "--iova-mode=pa",
+    "--no-telemetry",
+    "--legacy-mem",
+    "-m",
+    "512",
+    "--",
+    "192.168.129.193",
+    "192.168.128.225",
+    "0c:53:31:03:00:e1",
+    "49152",
+    "10000",
+    "128",
+    "2000000",
+    "add",
+    "/dev/shm/dpdk-hot-baseline-20261014/hot-server.csv"
+  ]
+}
