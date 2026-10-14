@@ -6,7 +6,7 @@ Geometry is obtained from the installed `acmart` class after `\maketitle` (befor
 that point acmart still reports a full-width column). Typography is Libertine
 with New TX math. Axis text is 9 pt, ticks and legends 8 pt. The paper class is
 `\documentclass[sigconf,screen,10pt,dvipsnames]{acmart}`. No captions, titles,
-footnotes or annotations are emitted. The default aspect ratio is 0.68.
+footnotes or annotations are emitted unless requested. The default aspect ratio is 0.68.
 
 The reusable skill is [paper-chart](skills/paper-chart/SKILL.md). Its installed
 copy lives at `~/.codex/skills/paper-chart/SKILL.md`; keep it in sync with this
@@ -33,7 +33,8 @@ the PDF, because that would change its intended physical size.
 
 The null-RPC script validates input hashes, success markers, request identity,
 warmup and observation windows before computing distributions or throughput.
-It prints the CDF sample counts and percentiles. All measured latency samples
+The combined `nullrpc-hot-cold-latency-cdf.pdf` uses thicker 2.2 pt lines and
+marks each P100 endpoint. It prints the CDF sample counts and percentiles. All measured latency samples
 are included, including tails; the manifest selects the exact recorded latency
 endpoint. Current charts use
 client RX-observation minus entry for a consistent boundary in both client modes;
@@ -77,7 +78,7 @@ See [measurement provenance](../../data/paper/nullrpc/README.md).
    The importer joins each drained cohort to runtime requests, verifies success
    and distinct cold activations, and archives original CSVs as deterministic
    gzip files in Git. Commit its source plan and the manifests too.
-7. Render all five PDFs with `plot_nullrpc.py --charts all`, check the numeric
+7. Render all four PDFs with `plot_nullrpc.py --charts all`, check the numeric
    summaries and visuals, and commit the PDFs in the paper repository.
 
 The hardware has 16 reply contexts. A 64-outstanding exploratory burst exceeded

@@ -2,7 +2,7 @@
 
 ## Current figures: October 13, pipeline 518922
 
-All five current charts use matched hardware/runtime
+All four current charts use matched hardware/runtime
 `cc19c4285148db65c5b5517f6a02abd04b7f9142` (pipeline 518922). This was the latest
 successful hardware build at acquisition; the read-only CI query is retained.
 The client source is `4e1372c0`; its deployed SHA-256 is
@@ -127,6 +127,6 @@ nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf \
   --manifest data/paper/nullrpc/historical-manifest.json --output out/historical-cdf
 ```
 
-Outputs are `out/historical-cdf/nullrpc-{hot,cold}-latency-cdf.pdf`. Expected p50/p99
+Outputs are `out/historical-cdf/nullrpc-hot-cold-latency-cdf.pdf`. Expected p50/p99
 RTTs: hot **12.760/13.640 µs**, cold **44.440/53.8614 µs**. The script verifies
 hashes and counts, removes only warmup, and renders the full empirical CDF.
