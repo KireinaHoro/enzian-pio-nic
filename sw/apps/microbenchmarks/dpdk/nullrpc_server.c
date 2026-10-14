@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
@@ -14,7 +15,19 @@
 #include <rte_mbuf_dyn.h>
 #include <rte_version.h>
 #include "wire.h"
-struct sample { uint32_t id; uint64_t rx, tx; int status; };
+struct sample {
+    uint32_t id; uint64_t rx, tx; int status;
+    uint64_t cpu_rx, network_rx_begin, network_rx_end, network_tx_begin, network_tx_end, cpu_tx;
+};
+/* Opt-in raw software boundaries. Keep compiler motion across probes bounded;
+ * durations use the same nanosecond scale as the NIC, never a fitted epoch. */
+static uint64_t stamp(void) {
+    struct timespec ts;
+    __asm__ volatile("" ::: "memory");
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts)) rte_exit(1,"clock_gettime failed\n");
+    __asm__ volatile("" ::: "memory");
+    return (uint64_t)ts.tv_sec*1000000000+ts.tv_nsec;
+}
 static void check(int rc,const char *s) { if(rc<0) rte_exit(1,"%s: %s\n",s,strerror(-rc)); }
 static unsigned number(const char *s,unsigned max) {
     char *end; errno=0; unsigned long v=strtoul(s,&end,10);
@@ -38,6 +51,7 @@ int main(int argc,char **argv) {
     const char *delay_env=getenv("LH_NULLRPC_DELAY_NS");
     unsigned delay=delay_env?number(delay_env,1000000):0;
     int hardware=getenv("LH_NULLRPC_SOFTWARE_CONTROL")==NULL;
+    int profile=getenv("LH_NULLRPC_PROFILE")!=NULL;
     FILE *csv=fopen(argv[9],"wx"); if(!csv) rte_exit(1,"CSV: %s\n",strerror(errno));
     struct sample *samples=calloc(count+warmup,sizeof(*samples));
     if(!samples) rte_exit(1,"sample allocation failed\n");
@@ -71,7 +85,12 @@ int main(int argc,char **argv) {
         rte_version(),info.driver_name,rte_lcore_id(),hardware,delay,link.link_speed);
     const char *ready=getenv("LH_NULLRPC_READY_FILE");
     if(ready) { FILE *f=fopen(ready,"wx"); if(!f) rte_exit(1,"ready file failed\n"); fputs("ready\n",f); fclose(f); }
+    uint64_t probe_min=UINT64_MAX;
+    if(profile) for(unsigned i=0;i<10000;i++) {
+        uint64_t a=stamp(), b=stamp(); if(b-a<probe_min) probe_min=b-a;
+    }
     struct rte_mbuf *pending=NULL;
+    uint64_t pending_stamp=0;
     unsigned completed=0,attempted=0; uint64_t unrelated=0;
     int error=0;
     for(unsigned i=0;i<count+warmup;i++) {
@@ -79,11 +98,16 @@ int main(int argc,char **argv) {
         uint64_t deadline=rte_get_timer_cycles()+(i?timeout:120*hz);
         struct rte_mbuf *rx=NULL;
         while(!rx) {
-            if(pending) { rx=pending; pending=NULL; }
-            else rte_eth_rx_burst(port,0,&rx,1);
+            if(pending) { rx=pending; pending=NULL; s->cpu_rx=pending_stamp; }
+            else {
+                rte_eth_rx_burst(port,0,&rx,1);
+                if(rx && profile) s->cpu_rx=stamp();
+            }
             if(rx) {
-                const uint8_t *payload; size_t size;
+                const uint8_t *payload=NULL; size_t size=0;
+                if(profile) s->network_rx_begin=stamp();
                 int valid=parse_udp(rte_pktmbuf_mtod(rx,const uint8_t *),rx->pkt_len,&src,&peer,&payload,&size);
+                if(profile) s->network_rx_end=stamp();
                 if(valid==0) { unrelated++; rte_pktmbuf_free(rx); rx=NULL; }
                 else if(valid<0 || size!=52 || get32(payload)!=i+1 || get32(payload+4)!=0 ||
                     get32(payload+8)!=2 || get32(payload+12)!=0x23451111 ||
@@ -102,10 +126,13 @@ int main(int argc,char **argv) {
         }
         if(delay_ticks) { uint64_t end=rte_get_timer_cycles()+delay_ticks; while(rte_get_timer_cycles()<end) {} }
         uint8_t reply[32]={0}; put32(reply,s->id); put32(reply+4,1); put32(reply+24,s->id); put32(reply+28,18);
+        if(profile) s->network_tx_begin=stamp();
         make_udp(rte_pktmbuf_mtod(rx,uint8_t *),&src,&peer,reply,sizeof(reply));
+        if(profile) s->network_tx_end=stamp();
         if(rte_pktmbuf_trim(rx,rx->pkt_len-74)) rte_exit(1,"trim failed\n");
         rx->ol_flags=hardware?RTE_MBUF_F_TX_IEEE1588_TMST:0;
         deadline=rte_get_timer_cycles()+timeout;
+        if(profile) s->cpu_tx=stamp();
         while(!rte_eth_tx_burst(port,0,&rx,1)) {
             if(rte_get_timer_cycles()>deadline) { s->status=-ETIMEDOUT; error=1; rte_pktmbuf_free(rx); break; }
         }
@@ -117,7 +144,10 @@ int main(int argc,char **argv) {
                 if(!rc) { s->tx=(uint64_t)ts.tv_sec*1000000000+ts.tv_nsec; break; }
                 if(rc!=-EAGAIN && rc!=-EINVAL) { s->status=rc; error=1; break; }
                 /* The next closed-loop request can precede SEND_PTP in the CQ. */
-                if(!pending) rte_eth_rx_burst(port,0,&pending,1);
+                if(!pending) {
+                    rte_eth_rx_burst(port,0,&pending,1);
+                    if(pending && profile) pending_stamp=stamp();
+                }
                 if(rte_get_timer_cycles()>deadline) { s->status=-ETIMEDOUT; error=1; break; }
             }
             if(!error && (!s->rx || s->tx<=s->rx || (i && s->rx<=samples[i-1].rx))) {
@@ -129,11 +159,12 @@ int main(int argc,char **argv) {
     }
     if(pending) rte_pktmbuf_free(pending);
     struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"stats");
-    fprintf(csv,"request_id,warmup,status,rx_hw_ns,tx_hw_ns,mac_to_mac_ns,injected_delay_ns\n");
+    fprintf(csv,"request_id,warmup,status,rx_hw_ns,tx_hw_ns,mac_to_mac_ns,injected_delay_ns,profile,cpu_rx_ns,network_rx_begin_ns,network_rx_end_ns,network_tx_begin_ns,network_tx_end_ns,cpu_tx_ns,probe_min_ns\n");
     for(unsigned i=0;i<attempted;i++) {
         struct sample *s=&samples[i];
-        fprintf(csv,"%u,%d,%d,%"PRIu64",%"PRIu64",%"PRIu64",%u\n",s->id,i<warmup,s->status,s->rx,s->tx,
-            s->tx>=s->rx?s->tx-s->rx:0,delay);
+        fprintf(csv,"%u,%d,%d,%"PRIu64",%"PRIu64",%"PRIu64",%u,%d,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64"\n",s->id,i<warmup,s->status,s->rx,s->tx,
+            s->tx>=s->rx?s->tx-s->rx:0,delay,profile,
+            s->cpu_rx,s->network_rx_begin,s->network_rx_end,s->network_tx_begin,s->network_tx_end,s->cpu_tx,profile?probe_min:0);
     }
     int io_error=ferror(csv); if(fclose(csv)) io_error=1;
     fprintf(stderr,"{\"expected\":%u,\"completed\":%u,\"unrelated\":%"PRIu64",\"hardware\":%d,\"rx_errors\":%"PRIu64",\"tx_errors\":%"PRIu64",\"rx_missed\":%"PRIu64",\"passed\":%s}\n",

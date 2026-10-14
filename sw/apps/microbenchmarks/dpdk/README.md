@@ -256,3 +256,20 @@ Save the image manifest and both CSVs with any dataset used in the paper.
 `LH_NULLRPC_DELAY_NS=20000` inserts a deliberate 20 µs service delay for a
 clock/interval control. `LH_NULLRPC_SOFTWARE_CONTROL=1` disables timestamps for
 a packet-path control; its zero timestamp columns are not MAC measurements.
+
+### Optional CPU-stage profiling
+
+Set `LH_NULLRPC_PROFILE=1` on the responder to buffer six
+`CLOCK_MONOTONIC_RAW` boundaries alongside each paired MAC timestamp: first
+successful RX-burst observation (including a packet held while draining the
+preceding TX timestamp), network parse start/end, network framing start/end,
+and immediately before the TX-burst attempt. CSV records retain the minimum
+adjacent-clock probe duration; no probe-cost subtraction is applied.
+
+The RX-to-pre-TX CPU interval includes RPC validation/encoding, dispatch and
+buffer preparation. Network time is the sum of the parse and framing spans.
+The fixed-input responder validates 7 and 11 and encodes 18 directly, so there
+is no separately executed handler to time. The residual MAC interval includes
+PMD, DMA, completion polling, NIC processing and queueing; it is not a pure
+interconnect delay. Profiled measurements are a separate cohort: use a
+probe-off control and do not assign their components to an earlier total.

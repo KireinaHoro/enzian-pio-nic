@@ -192,3 +192,18 @@ The latency CDF command now emits separate hot and cold PDFs. The hot chart
 compares Lauberhorn with the CPU-NIC DPDK MAC timestamp samples in
 `data/paper/nullrpc/dpdk-hot/` (see the data README). The combined CDF is
 retired. Run `python3 tools/paper/check_charts.py` after regeneration.
+
+## Median MAC breakdown
+
+```sh
+nix develop -c python3 tools/paper/plot_nullrpc_breakdown.py
+```
+
+This emits `nullrpc-hot-latency-breakdown.pdf`: two horizontal stacked bars for
+Lauberhorn and DPDK, sharing handler, RPC runtime, network stack and CPU–MAC
+categories. Components come from the two central MAC-ranked requests, so each
+bar sums to the actual sample median; marginal component medians are not summed.
+The DPDK bar is a separate profiled cohort, with its probe-off control preserved.
+[Boundary definitions and reproduction](../../data/paper/nullrpc/breakdown/README.md)
+explain included runtime/probe overhead and the combined CPU–MAC residual.
+The chart is included in `evaluation.tex`.
