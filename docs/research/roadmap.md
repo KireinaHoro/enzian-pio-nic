@@ -281,16 +281,15 @@ Put the RX return-half study in the application evaluation round, after the
 correct independent RX/TX baseline is running. Start with RPC workloads and
 Dandelion, then the planned application portfolio in the
 [paper evidence plan](paper-goals.md). The
-[RX return-half design note](../hardware/rx-writeback.md) describes possible
+[hot-path optimization note](../hardware/rx-writeback.md) describes possible
 commands/status and responses carried by intentionally dirtying an RX CL.
 This is an experiment to establish benefit, not a prerequisite for the address
 or DESCHED work and not a selected replacement protocol.
 
-- Evaluate [borrowed RX payload spans](../hardware/rx-writeback.md#related-performance-opportunity-borrow-rx-payload-instead-of-staging-it)
-  alongside this study: remove worker RX staging where possible, account for
-  the parity-0 gap before overflow, and preserve ownership across receives and
-  yields. Memcached can first copy directly into its parser buffer; RPC codecs
-  need direct or segmented decoding with owned deferred arguments/results.
+- Investigate [software hot-path costs](../hardware/rx-writeback.md#software-investigation-stub)
+  alongside this study, using the current contiguous borrowed-RX/replay layout
+  and ownership contract. Separate copies, codecs, allocation and runtime work;
+  deferred arguments/results still need owned storage.
 - First measure response-size distributions, the fraction fitting in the usable
   return payload, handler time, and the share of latency/CPU work spent on TX.
 - Compare the independent path with a coupled prototype on the same hardware,
