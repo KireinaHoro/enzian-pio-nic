@@ -19,5 +19,17 @@ int main(void) {
     assert(ol_reply(OL_LATE,100,200,10000000,true)==OL_LATE);
     assert(ol_reply(OL_ONTIME,100,200,10000000,false)==OL_MALFORMED);
     assert(ol_reply(OL_PENDING,100,99,10000000,true)==OL_MALFORMED);
+    for(unsigned cores=1;cores<=32;cores++) for(unsigned batch=1;batch<=64;batch*=2)
+        for(unsigned count=1;count<3000;count+=137) for(unsigned owner=0;owner<cores;owner++) {
+            uint64_t previous=0;
+            for(unsigned slot=owner;slot<count;) {
+                unsigned n=ol_batch_count(slot,cores,batch,count);
+                uint64_t due=ol_batch_due(0,slot,1000,cores,batch,count);
+                assert(n && n<=batch && due<count*1000000ULL && due>=previous);
+                for(unsigned i=0;i<n;i++)
+                    assert(ol_batch_due(0,slot+i*cores,1000,cores,batch,count)==due);
+                previous=due;slot+=n*cores;
+            }
+        }
     puts("absolute scheduling and deadline boundaries: passed");
 }

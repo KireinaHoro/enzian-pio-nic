@@ -18,7 +18,8 @@ binary, output = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 output.mkdir(parents=True, exist_ok=False)
 core = min(os.sched_getaffinity(0))
 results = []
-for name, stall in [('complete-loss', False), ('generator-stall', True)]:
+for name, stall, batched in [('complete-loss',False,False), ('generator-stall',True,False),
+                             ('batch-loss',False,True), ('batch-stall',True,True)]:
     root=output/name; root.mkdir()
     rx,tx,out,ready,start=[root/n for n in ('rx.pcap','tx.pcap','samples.csv','ready','start')]
     rx.write_bytes(struct.pack('<IHHIIII',0xa1b2c3d4,2,4,0,0,65535,1))
@@ -26,6 +27,8 @@ for name, stall in [('complete-loss', False), ('generator-stall', True)]:
              LH_BENCH_WARMUP_MS='0',LH_BENCH_FLOWS='1',
              LH_BENCH_DRAINED_FILE=str(root/'drained'),
              LH_BENCH_READY_FILE=str(ready),LH_BENCH_START_FILE=str(start))
+    if batched:
+        env.update(LH_BENCH_RATE='8000',LH_BENCH_BATCH_MAX='64',LH_BENCH_BATCH_TARGET_NS='1000000')
     for key in ('LH_BENCH_WINDOW','LH_BENCH_GAP_NS'): env.pop(key,None)
     argv=[str(binary),'-l',str(core),'--no-huge','--no-pci','--no-shconf','--no-telemetry',
           '--vdev',f'net_pcap0,rx_pcap={rx},tx_pcap={tx}','--','192.0.2.1','192.0.2.2',
@@ -43,11 +46,22 @@ for name, stall in [('complete-loss', False), ('generator-stall', True)]:
         rc=process.wait(timeout=10)
     summary=json.loads(Path(str(out)+'.open.json').read_text())
     rows=list(csv.DictReader(out.open()))
-    assert len(rows)==50 and summary['duration_ns']==500000000
+    count=4000 if batched else 50
+    assert len(rows)==count and summary['duration_ns']==500000000
     assert not summary['on_time'] and not summary['late']
-    assert all(int(b['scheduled_ns'])-int(a['scheduled_ns'])==10000000 for a,b in zip(rows,rows[1:]))
-    assert summary['transmitted']+summary['generator_misses']==50
-    assert (rc!=0)==stall and (summary['generator_misses']>0)==stall
+    if batched:
+        assert summary['batch_size']==8 and summary['arrival_model']=='paced-batch'
+        assert all(int(row['scheduled_ns'])==int(rows[0]['scheduled_ns'])+(i//8)*1000000 for i,row in enumerate(rows) if int(row['scheduled_ns']))
+        for i in range(0,len(rows),8):
+            burst=[row for row in rows[i:i+8] if int(row['client_tx_submit_ns'])]
+            assert len({row['client_tx_admit_enter_ns'] for row in burst})<=1
+            assert len({row['client_tx_submit_ns'] for row in burst})<=1
+    else:
+        assert all(int(b['scheduled_ns'])-int(a['scheduled_ns'])==10000000 for a,b in zip(rows,rows[1:]))
+    assert summary['transmitted']+summary['generator_misses']<=count
+    if not stall: assert summary['transmitted']==count
+    assert (rc!=0)==stall
+    if stall: assert summary['generator_misses']>0 or 'overran send opportunity' in (root/'process.log').read_text()
     assert summary['valid']==(not stall)
     assert (root/'drained').exists()
     results.append(dict(case=name,passed=True,summary=summary))

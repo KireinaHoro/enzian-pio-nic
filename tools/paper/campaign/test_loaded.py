@@ -10,6 +10,40 @@ from .policy import loss
 
 
 class Loaded(unittest.TestCase):
+    def test_batched_partial_phases(self):
+        from .policy import batch_due
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);source=root/'samples.csv';summary=root/'summary.json'
+            # 5 warmup slots rotates the 3 core owners at the phase boundary;
+            # 11 measured slots also ends with a partial batch round.
+            state=dict(schema=2,tx_phase_boundary='admission-entry',generator_cpus=[16,17,18],
+                arrival_model='paced-batch',batch_max=64,batch_target_ns=1_000_000,batch_size=3,
+                benchmark='echo8',rate=10000,warmup_ns=500_000,duration_ns=1_100_000,
+                send_start_ns=500_000,send_end_ns=1_600_000,deadline_ns=10_000_000,
+                transmitted=11,on_time=11,late=0,duplicates=0,generator_misses=0,
+                tx_admission_failures=0,malformed=0,valid=True)
+            rows=[]
+            for i in range(16):
+                warm=i<5;due=batch_due(0 if warm else 500_000,i if warm else i-5,10000,3,3,5 if warm else 11)
+                rows.append(dict(request_id=i+1,benchmark='echo8',ok=1,rpc_status=0,warmup=int(warm),
+                    scheduled_ns=due,start_lag_ns=100,client_call_enter_ns=due+100,
+                    client_tx_admit_enter_ns=due+200,client_tx_submit_ns=due+300,
+                    client_rx_burst_ns=due+2000,duplicates=0))
+            def write():
+                with source.open('w') as f:
+                    writer=csv.DictWriter(f,fieldnames=rows[0]);writer.writeheader();writer.writerows(rows)
+                summary.write_text(json.dumps(state))
+            write();actual,latencies=load(source,summary)
+            self.assertEqual(len(latencies),11)
+            self.assertEqual(actual['batch_size'],3)
+            rows[-1]['scheduled_ns']+=1;write()
+            with self.assertRaisesRegex(ValueError,'schedule'):load(source,summary)
+            rows[-1]['scheduled_ns']-=1
+            rows[3]['client_tx_admit_enter_ns']+=1;write()
+            with self.assertRaisesRegex(ValueError,'share a TX call'):load(source,summary)
+            rows[3]['client_tx_admit_enter_ns']-=1;state['batch_size']=4;write()
+            with self.assertRaisesRegex(ValueError,'batch configuration'):load(source,summary)
+
     def test_tx_entry_boundary_and_bounded_return(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);source=root/'samples.csv';summary=root/'summary.json'

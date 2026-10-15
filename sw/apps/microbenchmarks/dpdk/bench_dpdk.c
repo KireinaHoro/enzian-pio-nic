@@ -33,6 +33,8 @@ static void check(int rc, const char *what) {
 }
 #include "open_loop.h"
 static unsigned open_rate;
+static unsigned open_batch=1, open_batch_max=1;
+static uint64_t open_batch_target=250000;
 static unsigned open_cpus[32];
 static uint64_t open_duration, open_warmup;
 #include "load.h"
@@ -115,6 +117,12 @@ int main(int argc, char **argv) {
     const char *rate_env=getenv("LH_BENCH_RATE");
     if(rate_env) {
         open_rate=number(rate_env,100000000);
+        const char *batch=getenv("LH_BENCH_BATCH_MAX");
+        const char *period=getenv("LH_BENCH_BATCH_TARGET_NS");
+        open_batch_max=batch?number(batch,64):1;
+        if(period) open_batch_target=number(period,1000000);
+        uint64_t desired=(uint64_t)open_rate*open_batch_target/(1000000000ULL*rte_lcore_count());
+        open_batch=desired<1?1:desired>open_batch_max?open_batch_max:desired;
         const char *duration=getenv("LH_BENCH_DURATION_MS");
         const char *warming=getenv("LH_BENCH_WARMUP_MS");
         if(!duration || !warming || argc!=10) rte_exit(1,"open loop requires duration and warmup milliseconds\n");
@@ -354,6 +362,8 @@ int main(int argc, char **argv) {
         FILE *f=fopen(path,"wx"); if(!f) rte_exit(1,"open-loop summary output failed\n");
         fprintf(f,"{\"schema\":2,\"tx_phase_boundary\":\"admission-entry\",\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
                 bench->name,open_warmup,observation_start,observation_end);
+        fprintf(f,"\"arrival_model\":\"%s\",\"batch_size\":%u,\"batch_max\":%u,\"batch_target_ns\":%"PRIu64",",
+                open_batch_max>1?"paced-batch":"fixed-spacing",open_batch,open_batch_max,open_batch_target);
         fprintf(f,"\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","
           "\"transmitted\":%"PRIu64",\"on_time\":%"PRIu64",\"late\":%"PRIu64",\"duplicates\":%"PRIu64","
           "\"generator_misses\":%"PRIu64",\"tx_admission_failures\":%"PRIu64",\"malformed\":%"PRIu64",\"server_rejections\":%"PRIu64","

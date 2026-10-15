@@ -81,3 +81,13 @@ def validate_activity_coverage(groups):
         for counts in records:validate_activity(counts,workers)
         if not records or any(not any(row[i]>0 for row in records) for i in range(workers)):
             raise ValueError('Workers never exercised in collected grid: '+str(key))
+
+
+
+def batch_due(start, slot, rate, cores, batch, count):
+    block=slot//(cores*batch)*(cores*batch)
+    remaining=count-block
+    each=min(batch,remaining//cores)
+    extra=remaining%cores if each<batch else 0
+    owner=slot%cores
+    return start+(block+owner*each+min(owner,extra))*1_000_000_000//rate

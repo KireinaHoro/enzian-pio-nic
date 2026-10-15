@@ -45,6 +45,7 @@ class Acquisition:
             endpoint=[source['ip'],destination['ip'],destination['mac'],49152 if server else 12345],
             source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'] if loaded else 1,
             payload_bytes=r['payload_bytes'],count=16 if setup else r.get('count',1),warmup=0 if setup else r.get('warmup',0),
+            batch_max=c.get('batch_max',1),batch_target_ns=c.get('batch_target_ns',250000),
             rate=r.get('rate',0),duration_ms=r.get('duration_ms',0),warmup_ms=r.get('warmup_ms',0),
             instrumentation='off' if setup else r.get('instrumentation','off'),
             tracking_mib=c['tracking_mib'],timeout_seconds=900)

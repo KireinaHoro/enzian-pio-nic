@@ -64,7 +64,13 @@ and per-trial rejection counts for later plots; do not count duplicate rejection
 replies as additional lost requests. Generator misses, admission failure, corruption and resource exhaustion invalidate
 a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
 not invalidation conditions; enforce the requested absolute send schedule in
-both warmup and measurement. Keep failed attempts and exact rates.
+both warmup and measurement. The current high-throughput campaign uses paced
+adaptive TX batches (up to 64 packets, target 250 microseconds per core), configured
+and validated by the maintained generator and importer. Record the actual batch
+size and arrival model; describe this as bursty paced traffic. Use identical
+batch policy for both systems, and do not merge earlier fixed-spacing loaded
+cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse.
+Keep failed attempts and exact rates.
 
 Launch using the documented detached user-service command. After launch, return
 the campaign root and service identifier without intermediate polling. Inspect

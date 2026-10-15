@@ -4,7 +4,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
-from .policy import validate_trial
+from .policy import validate_trial, batch_due
 
 
 def digest(path):
@@ -27,6 +27,16 @@ def load(csv_path, summary_path, *, collect_latencies=True):
     admission_boundary=summary.get('tx_phase_boundary')=='admission-entry'
     if summary.get('tx_phase_boundary') not in (None,'admission-entry'):
         raise ValueError('Unknown TX phase boundary')
+    batched=summary.get('arrival_model')=='paced-batch'
+    if summary.get('arrival_model') not in (None,'fixed-spacing','paced-batch'):
+        raise ValueError('Unknown arrival model')
+    if batched:
+        cores=len(summary['generator_cpus'])
+        maximum=summary['batch_max'];target=summary['batch_target_ns'];batch=summary['batch_size']
+        if not 1<maximum<=64 or not 0<target<=1_000_000 or batch!=max(1,min(maximum,summary['rate']*target//(cores*1_000_000_000))):
+            raise ValueError('Invalid batch configuration')
+        if not admission_boundary:raise ValueError('Batches require TX admission timestamps')
+    batch_round=None;batch_calls={}
     if strict:
         if summary['send_end_ns']-summary['send_start_ns']!=summary['duration_ns']:
             raise ValueError('Send interval differs from duration')
@@ -51,7 +61,12 @@ def load(csv_path, summary_path, *, collect_latencies=True):
             if status==7 and int(row['client_rx_burst_ns'])<int(row['client_call_enter_ns']):
                 raise ValueError('Rejection precedes transmission')
             if strict:
-                scheduled=start+(xid-1)*1_000_000_000//summary['rate']
+                warmup=xid<=warmup_slots
+                first=0 if warmup else warmup_slots
+                phase_start=start if warmup else summary['send_start_ns']
+                phase_count=warmup_slots if warmup else summary['rate']*summary['duration_ns']//1_000_000_000
+                scheduled=(batch_due(phase_start,xid-1-first,summary['rate'],cores,batch,phase_count)
+                           if batched else start+(xid-1)*1_000_000_000//summary['rate'])
                 enter=int(row['client_call_enter_ns']);submitted=int(row['client_tx_submit_ns'])
                 warmup=xid<=warmup_slots
                 if (int(row['scheduled_ns'])!=scheduled or int(row['warmup'])!=int(warmup)
@@ -61,7 +76,17 @@ def load(csv_path, summary_path, *, collect_latencies=True):
                 if submitted:
                     if admission_boundary:
                         admitted=int(row['client_tx_admit_enter_ns'])
-                        next_due=start+(xid-1+len(summary['generator_cpus']))*1_000_000_000//summary['rate']
+                        if batched:
+                            block=(first,(xid-1-first)//(cores*batch))
+                            if block!=batch_round:
+                                batch_round=block;batch_calls.clear()
+                            owner=(xid-1-first)%cores
+                            call=(admitted,submitted)
+                            if owner in batch_calls and batch_calls[owner]!=call:
+                                raise ValueError('Batch members do not share a TX call')
+                            batch_calls[owner]=call
+                        next_due=(scheduled+(cores*batch*1_000_000_000+summary['rate']-1)//summary['rate']
+                                  if batched else start+(xid-1+len(summary['generator_cpus']))*1_000_000_000//summary['rate'])
                         if not scheduled<=enter<=admitted<end or not admitted<=submitted<next_due:
                             raise ValueError('TX admission outside phase or call overran send opportunity')
                     elif not scheduled<=enter<=submitted<end:

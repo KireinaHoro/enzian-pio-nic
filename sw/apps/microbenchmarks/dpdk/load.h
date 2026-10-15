@@ -165,6 +165,73 @@ static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *pack
     rte_pktmbuf_free(packet);
 }
 
+static uint64_t parallel_batch_due(struct parallel_load *load, unsigned id) {
+    uint64_t warm=open_warmup*open_rate/1000000000, slot=id-1;
+    bool measured=slot>=warm;
+    return ol_batch_due(load->start+(measured?open_warmup:0),slot-(measured?warm:0),
+                        open_rate,load->cores,open_batch,measured?load->count-warm:warm);
+}
+
+/* One bounded burst per visit: never accumulate overdue batches. */
+static void parallel_batch_send(struct parallel_worker *worker) {
+    struct parallel_load *load=worker->load;
+    if(worker->sent>=worker->count) return;
+    unsigned id=load->first+worker->index+worker->sent*load->cores+1;
+    uint64_t due=parallel_batch_due(load,id), clock=now();
+    if(clock<due) return;
+    uint64_t warm=open_warmup*open_rate/1000000000,slot=id-1;
+    bool measured=slot>=warm;
+    uint64_t phase_end=load->start+open_warmup+(measured?open_duration:0);
+    unsigned count=ol_batch_count(slot-(measured?warm:0),load->cores,open_batch,
+                                 measured?load->count-warm:warm);
+    uint64_t expires=due+((uint64_t)load->cores*open_batch*1000000000+open_rate-1)/open_rate;
+    struct rte_mbuf *packets[64];
+    if(clock>=phase_end || clock>=expires) {
+        for(unsigned i=0;i<count;i++) {
+            struct sample *s=&load->samples[id-1+i*load->cores];
+            s->scheduled=due;s->status=OL_MISSED;
+        }
+        worker->sent+=count;
+        return;
+    }
+    if(rte_pktmbuf_alloc_bulk(load->pool,packets,count)) {
+        parallel_fail(load,"TX batch buffer exhaustion");return;
+    }
+    for(unsigned i=0;i<count;i++) {
+        unsigned xid=id+i*load->cores;
+        struct sample *s=&load->samples[xid-1];s->scheduled=due;s->enter=now();
+        uint8_t payload[1472];
+        size_t size=load->bench->encode(payload,sizeof(payload),xid);
+        uint8_t *bytes=(uint8_t *)rte_pktmbuf_append(packets[i],42+size);
+        if(!size || size>sizeof(payload) || !bytes) rte_exit(1,"batch codec size\n");
+        struct endpoint source=load->src;source.port+=(xid-1)%load->flows;
+        make_udp(bytes,&source,&load->dst,payload,size);s->ready=now();
+    }
+    unsigned queue=worker->index%load->queues;
+    rte_spinlock_lock(&load->tx_locks[queue]);
+    uint64_t admitted=now();
+    if(admitted>=phase_end || admitted>=expires) {
+        rte_spinlock_unlock(&load->tx_locks[queue]);
+        for(unsigned i=0;i<count;i++) {
+            rte_pktmbuf_free(packets[i]);
+            struct sample *s=&load->samples[id-1+i*load->cores];
+            s->status=OL_MISSED;s->exit=admitted;
+        }
+        worker->sent+=count;return;
+    }
+    unsigned accepted=rte_eth_tx_burst(load->port,queue,packets,count);
+    uint64_t returned=now();
+    rte_spinlock_unlock(&load->tx_locks[queue]);
+    for(unsigned i=0;i<count;i++) {
+        struct sample *s=&load->samples[id-1+i*load->cores];
+        s->admitted=admitted;s->submitted=returned;
+        if(i>=accepted) { rte_pktmbuf_free(packets[i]);s->status=OL_TX_FAILED;s->exit=returned; }
+    }
+    worker->sent+=count;
+    if(accepted!=count) parallel_fail(load,"TX batch admission failure");
+    if(returned>=expires) parallel_fail(load,"TX batch overran send opportunity");
+}
+
 static int parallel_poll(void *argument) {
     struct parallel_worker *worker=argument;
     struct parallel_load *load=worker->load;
@@ -179,8 +246,9 @@ static int parallel_poll(void *argument) {
     unsigned oldest=0; int announced=0;
     while(!atomic_load_explicit(&load->failed,memory_order_relaxed) &&
           atomic_load_explicit(&load->finished,memory_order_relaxed)<load->cores) {
+        if(open_rate && open_batch_max>1) parallel_batch_send(worker);
         uint64_t clock=now(); unsigned budget=8;
-        while(worker->sent<worker->count && (open_rate || worker->sent-worker->done<limit) &&
+        while(!(open_rate && open_batch_max>1) && worker->sent<worker->count && (open_rate || worker->sent-worker->done<limit) &&
               budget-- && clock>=next) {
             unsigned id=load->first+worker->index+worker->sent*load->cores+1;
             struct sample *s=&load->samples[id-1];

@@ -101,7 +101,9 @@ def run(config):
         else:
             env['LH_NULLRPC_SOFTWARE_CONTROL']='1'
     elif loaded:
-        env.update(LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
+        env.update(LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
+                   LH_BENCH_BATCH_TARGET_NS=str(config.get('batch_target_ns',250000)),
+                   LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),
                    LH_BENCH_TRACKING_MIB=str(config['tracking_mib']),LH_BENCH_DRAINED_FILE=str(root/'drained'))
     count=config.get('count',1)

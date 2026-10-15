@@ -11,6 +11,23 @@ static inline bool ol_missed(uint64_t now_ns, uint64_t start, uint64_t slot,
                              uint64_t rate, unsigned cores) {
     return now_ns >= ol_due(start, slot + cores, rate);
 }
+/* Stagger per-core batches, including a shortened final batch round. Slot
+ * numbering is relative to a phase, so no batch straddles warmup/measurement. */
+static inline uint64_t ol_batch_due(uint64_t start, uint64_t slot, uint64_t rate,
+                                   unsigned cores, unsigned batch, uint64_t count) {
+    uint64_t block=slot/(cores*batch)*(cores*batch), remaining=count-block;
+    unsigned owner=slot%cores;
+    uint64_t each=remaining/cores;
+    if(each>batch) each=batch;
+    uint64_t extra=each<batch?remaining%cores:0;
+    return ol_due(start,block+owner*each+(owner<extra?owner:extra),rate);
+}
+static inline unsigned ol_batch_count(uint64_t slot, unsigned cores,
+                                     unsigned batch, uint64_t count) {
+    uint64_t available=(count-slot+cores-1)/cores;
+    unsigned left=batch-(slot/cores)%batch;
+    return available<left?available:left;
+}
 enum ol_state { OL_PENDING, OL_ONTIME, OL_EXPIRED, OL_MALFORMED, OL_LATE,
                 OL_MISSED, OL_TX_FAILED, OL_REJECTED };
 /* Arrival timestamp is captured before forwarding or payload validation. */
