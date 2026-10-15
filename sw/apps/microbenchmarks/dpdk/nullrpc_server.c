@@ -99,7 +99,7 @@ static int serve_queue(void *argument) {
                 if(!stop_file) deadline = rte_get_timer_cycles() + 2 * rte_get_timer_hz();
             }
         }
-        if(completed) atomic_fetch_add_explicit(&multi_done, completed, memory_order_relaxed);
+        if(completed && !stop_file) atomic_fetch_add_explicit(&multi_done, completed, memory_order_relaxed);
         if (rte_get_timer_cycles() > deadline) atomic_store(&multi_error, 1);
     }
     return 0;
@@ -161,16 +161,26 @@ static int multi_server(char **argv, const struct benchmark *bench) {
     const char *ready = getenv("LH_NULLRPC_READY_FILE");
     if (ready) { FILE *f=fopen(ready,"wx"); if(!f) rte_exit(1,"ready failed\n"); fputs("ready\n",f); fclose(f); }
     serve_queue(&state[0]); rte_eal_mp_wait_lcore();
+    uint64_t total_completed=0;
     fprintf(csv,"queue,lcore,completed,measured\n");
     for (q=0; q<workers; q++) {
         fprintf(csv,"%u,%u,%"PRIu64",%"PRIu64"\n",q,state[q].cpu,state[q].completed,state[q].measured);
+        total_completed+=state[q].completed;
         if (!state[q].measured) atomic_store(&multi_error,1);
     }
     int failed = ferror(csv); if (fclose(csv)) failed=1;
     struct rte_eth_stats stats; check(rte_eth_stats_get(port,&stats),"stats");
+    char stats_path[4096];
+    if (snprintf(stats_path,sizeof(stats_path),"%s.nic.json",argv[9]) >= (int)sizeof(stats_path))
+        rte_exit(1,"NIC counter path too long\n");
+    FILE *nic=fopen(stats_path,"wx");
+    if (!nic) rte_exit(1,"cannot create NIC counters\n");
+    fprintf(nic,"{\"rx_packets\":%"PRIu64",\"tx_packets\":%"PRIu64",\"rx_missed\":%"PRIu64",\"rx_no_buffer\":%"PRIu64",\"rx_errors\":%"PRIu64",\"tx_errors\":%"PRIu64"}\n",
+            stats.ipackets,stats.opackets,stats.imissed,stats.rx_nombuf,stats.ierrors,stats.oerrors);
+    failed |= ferror(nic); if (fclose(nic)) failed=1;
     failed |= atomic_load(&multi_error) || (!stop_file && atomic_load(&multi_done) != count+warmup) ||
-              stats.ierrors || stats.oerrors || (!stop_file && stats.imissed);
-    fprintf(stderr,"multi-worker completed=%u expected=%u passed=%s\n",atomic_load(&multi_done),count+warmup,failed?"false":"true");
+              stats.ierrors || stats.oerrors || stats.rx_nombuf || (!stop_file && stats.imissed);
+    fprintf(stderr,"multi-worker completed=%"PRIu64" expected=%u passed=%s\n",total_completed,count+warmup,failed?"false":"true");
     check(rte_eth_dev_stop(port),"stop"); check(rte_eth_dev_close(port),"close");
     rte_mempool_free(pool); rte_eal_cleanup();
     return !!failed;

@@ -40,8 +40,10 @@ def rows(name):
         return list(csv.DictReader(stream))
 
 
-def extract(trace, map_path):
-    check = json.loads((DATA / f'acquisition/{CAMPAIGN}-trace-check.json').read_text())
+def extract(trace, map_path, *, data=None, campaign=None, events=EVENTS):
+    data = DATA if data is None else Path(data)
+    campaign = CAMPAIGN if campaign is None else campaign
+    check = json.loads((data / f'acquisition/{campaign}-trace-check.json').read_text())
     if digest(trace) != check['sha256'] or digest(map_path) != check['map_sha256']:
         raise ValueError('Capture/map differs from validated campaign evidence')
     m = json.loads(map_path.read_text())
@@ -55,16 +57,18 @@ def extract(trace, map_path):
         src = (block[:, 1] >> 11) & 127
         if np.any((src == 127) & ((block[:, 0] & 0xffffffff) != 0)):
             raise ValueError('Stored trace loss')
-        keep = np.isin(src, sources) & np.isin(block[:, 0] & 63, list(EVENTS))
+        keep = np.isin(src, sources) & np.isin(block[:, 0] & 63, list(events))
         selected.append(block[keep].copy())
-    compressed(DATA / f'{CAMPAIGN}-mac-events.bin.gz', np.concatenate(selected).tobytes())
-    (DATA / f'{CAMPAIGN}-trace-map.json').write_bytes(map_path.read_bytes())
+    compressed(data / f'{campaign}-mac-events.bin.gz', np.concatenate(selected).tobytes())
+    (data / f'{campaign}-trace-map.json').write_bytes(map_path.read_bytes())
 
 
-def correlate():
-    m = json.loads((DATA / f'{CAMPAIGN}-trace-map.json').read_text())
+def correlate(*, data=None, campaign=None):
+    data = DATA if data is None else Path(data)
+    campaign = CAMPAIGN if campaign is None else campaign
+    m = json.loads((data / f'{campaign}-trace-map.json').read_text())
     fmt = m['payload_formats']['lauberhorn_event']
-    with gzip.open(DATA / f'{CAMPAIGN}-mac-events.bin.gz', 'rb') as stream:
+    with gzip.open(data / f'{campaign}-mac-events.bin.gz', 'rb') as stream:
         raw = np.frombuffer(stream.read(), dtype='<u8').reshape(-1, 2)
     sources = {s['source']: s for s in m['sources']}
     events = []
@@ -133,7 +137,7 @@ def correlate():
             # be mistaken for later uses of the same packet identifier.
             if i < len(a) and 0 <= a[i] - t < 10000:
                 record['tx_mac_ns'] = marker(6, a[i])
-    expected = json.loads((DATA / f'acquisition/{CAMPAIGN}-trace-check.json').read_text())['expected_rpcs']
+    expected = json.loads((data / f'acquisition/{campaign}-trace-check.json').read_text())['expected_rpcs']
     if len(calls) != expected or pending or replies:
         raise ValueError('Incomplete whole-capture RPC accounting')
     return calls

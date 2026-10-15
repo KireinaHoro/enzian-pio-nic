@@ -3,8 +3,8 @@
 The new workload is defined by `sw/apps/microbenchmarks/bench.x`: `echo0` is
 void to void; `echo8`, `echo128` and `echo1432` return fixed opaque application
 bytes. `rpcgen` produces runtime codecs; `echo_registry.py` derives procedure,
-size and codec registration from the same schema. The ONC-RPC XID is the only
-request identifier, including size zero. Adder acceptance and legacy loopback
+size and codec registration from the same schema. The ONC-RPC XID identifies client
+requests, including size zero; existing internal RPC IDs pair FPGA events. Adder acceptance and legacy loopback
 measurements retain their original semantics and provenance.
 
 ## Implementation and acceptance status
@@ -13,14 +13,32 @@ The schema, responders, duration-based generator, selection policy, raw loaded
 importer and detached controller are implemented. Local wire, scheduling,
 complete-loss, induced-generator-stall and legacy replay tests have passed.
 The unloaded importer validates separate MAC and instrumented cohorts, including
-matched controls. The controller's hardware acquisition adapter is not yet
-connected. LH correlation retains the existing internal RPC IDs, paired within
+matched controls. `echo_hardware.py` connects the controller to the maintained
+Enzian harness through `campaign/adapter.py`, `hardware.py`, and the remote role
+helpers. Local transport, cleanup and archive fixtures pass; real preflight
+passed reservations, isolation, budgets, artifact matching, preservation and
+callback delivery. The adapter still requires its first board rehearsal.
+LH correlation retains the existing internal RPC IDs, paired within
 each request lifetime; single-outstanding order and causal bounds associate
 those pairs with XID-validated client observations. No trace format or RTL
 change is needed. No new board rehearsal or full echo campaign has run.
 The plotting entry point has not yet been validated against a real full echo
 cohort; existing active figures remain in place. Do not launch a controller with
 an invented passing adapter or use the historical add data as echo evidence.
+
+The currently authorized execution stops after the unattended rehearsal passes.
+It emits `rehearsal-complete` and four validated plot previews; it never freezes
+a full grid or acquires full cohorts. A later full campaign requires an explicit
+`scope: "full"` configuration and a new campaign root. An omitted scope also
+stops at rehearsal. Completed rehearsal callbacks and failure hooks are terminal
+without accidentally restarting acquisition.
+
+Unloaded CDFs and breakdowns use the same 8/128/1432-byte echo bodies as loaded
+cases, with one worker and one outstanding request. Zero-body echo remains a
+wire/dispatch validation case. A null RPC still includes dispatch and protocol
+processing; payload-bearing calls additionally exercise payload decoding and
+reply preparation. The largest body is 1432 bytes: 40-byte RPC call + 8-byte UDP
++ 20-byte IPv4 headers fill the 1500-byte MTU.
 
 ## Generator contract
 
@@ -50,7 +68,9 @@ budget (at most 256 GiB); sustained trials must budget their full schedule. Outp
 request. File or tracking exhaustion is terminal. Missing replies do not stall
 the schedule. `samples.csv.open.json` records on-time replies, observed late
 replies, duplicate replies, missed sends, failed admissions, malformed replies,
-actual generator CPUs and NIC counters. CSV statuses are 0 for valid on-time
+actual generator CPUs and NIC counters. Schema 2 also records workload, warmup,
+and absolute measured send-start/end timestamps; the importer checks each slot,
+phase label, transmit boundary and recorded start lag against that schedule. CSV statuses are 0 for valid on-time
 (with `ok=1`), 2 expired, 3 malformed, 4 late, 5 missed, 6 failed admission.
 Loss is `(transmitted - on_time) / transmitted`. Actual offered load and goodput
 use the fixed measured send interval; warmup is excluded. A generator miss in
@@ -59,7 +79,9 @@ either warmup or measurement invalidates the acquisition.
 Use `LH_NULLRPC_BATCHED=1`, `LH_NULLRPC_SOFTWARE_CONTROL=1` and a fresh
 `LH_NULLRPC_STOP_FILE` for a loaded DPDK responder. The campaign creates that
 file after client draining, allowing clean counter export without requiring
-all sent requests to arrive. A 120-second bound remains as an orphan safeguard.
+all sent requests to arrive. The client publishes a drained marker before CSV
+serialization, so stop delivery never waits for large output files. A 120-second
+bound remains as a responder orphan safeguard.
 `LH_BENCH_ACTIVITY_FILE` on the LH responder enables a fresh shared activity
 file with one 64-byte record per worker: little-endian uint64 call count, int32
 CPU, int32 TID, 48 padding bytes. Snapshot differences between quiescent
@@ -72,7 +94,7 @@ variable unset for unloaded software-uninstrumented measurements.
 rate grids, extensions, sustained confirmation, resume, locks and callbacks.
 A JSON launch configuration supplies `adapter` (argv array), `thread`,
 `generator_cpus` (eight distinct CPU IDs), `flows`, `initial_rate`,
-`max_extensions` (1–30), and `deadlines` in seconds for `preflight`, `build`,
+`max_extensions` (1–30), `scope` (`rehearsal` by default, or explicitly `full`), and `deadlines` in seconds for `preflight`, `build`,
 `loaded`, `unloaded`, `rehearsal-validation` and `finalize`. An optional `notify`
 argv defaults to `codex queue`.
 
@@ -86,8 +108,9 @@ raw `csv`, `summary`, actual placement/flows and per-worker activity. Unloaded
 stages return `cohort` from `campaign.import_unloaded`, augmented with a
 `build_config_sha256` fingerprint excluding instrumentation toggles. They require
 complete MAC pairs, validated identity correlation, no stored loss, independent
-JTAG checks, health and restoration. `full-unloaded.json` keeps the six distinct
-cohorts. Never substitute the 6-bit internal FPGA RpcID for the wire XID. Preflight must check reservations, artifact
+JTAG checks for LH (matched PTP module/clock checks for DPDK), health and restoration. `full-unloaded.json` keeps the 18 distinct
+cohorts: both systems, 8/128/1432-byte bodies, and three instrumentation modes.
+Internal FPGA RPC IDs pair trace events within request lifetimes; the client validates wire XIDs. Preflight must check reservations, artifact
 matching, budgets, isolated CPUs, prior-state preservation and actual callback
 delivery. The final stage must archive raw observations and provenance, validate
 all cohorts, generate figures, validate dimensions/fonts and supply previews.
@@ -102,7 +125,25 @@ gate. All grid points are retained. Candidate ranking uses goodput within the
 contiguous prefix before the first rate where any repetition exceeds 1% loss;
 failed sustained confirmations step down through that candidate order.
 
-Once a concrete adapter and its rehearsal gates are ready:
+The hardware adapter argv is `python3 tools/paper/echo_hardware.py HARDWARE.json`.
+Its manifest names immutable build products, artifact hashes, the matched boot
+case and trace map, reservations/endpoints, RAM/storage budgets, and a dedicated
+transfer directory. Build commands realize the frozen products; source-defined
+Nix builds establish them before configuration is frozen. The adapter stages
+images with streaming SHA256 verification. DPDK receives a fresh harness boot
+without native workers. Native loaded cohorts reuse a resident pool only while
+size and worker count match; configuration changes use a verified cold boot.
+Normal loaded runs never dump traces. Exceptional capture failures retain partial
+CMAC evidence and attempt bounded JTAG preservation before returning failure.
+
+Remote role outputs are removed only after their local archive and member hashes
+are verified. Loaded CSVs are compressed after acquisition. The final archive uses
+relative paths and lossless raw observations; echo compressed data uses Git LFS.
+Presentation PDFs stay in the campaign directory until visual review, leaving
+existing active figures intact. A failed finalization gets a fresh attempt
+directory on explicit resume; it never overwrites an earlier archive.
+
+Launch after local validation and live preflight:
 
 ```sh
 python3 tools/paper/benchmark_campaign.py launch --config CAMPAIGN.json --root out/echo-CAMPAIGN
@@ -128,7 +169,7 @@ nix build .#dev.x86_64-linux.software.trafficGeneratorNative -o out/echo-generat
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
-PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded -v
+PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_acquire campaign.test_hardware -v
 nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
 nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```
@@ -141,3 +182,9 @@ Regular arrivals are covered; Poisson arrivals are deferred to memcached.
 Unloaded MAC CDF and instrumented service-path elapsed components belong to
 separate cohorts; never assign those components to uninstrumented totals or
 claim they independently measure CPU utilization.
+
+Sixteen local Python regression tests and 20 native replay cases pass.
+The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
+notification delivery to a file-backed sink. All five plots also passed portable
+synthetic-input rendering, exact PDF dimensions and embedded-font checks. These
+fixtures are excluded from paper inputs and are not board acceptance.

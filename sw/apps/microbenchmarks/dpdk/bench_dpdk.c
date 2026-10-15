@@ -239,6 +239,13 @@ int main(int argc, char **argv) {
         observation_start+=open_warmup;
         observation_end=observation_start+open_duration;
         failed=load_failed;
+        /* Campaign stop control must not wait for potentially large CSV output.
+         * The bounded receive drain has finished and the send interval is fixed. */
+        const char *drained=getenv("LH_BENCH_DRAINED_FILE");
+        if(drained) {
+            FILE *signal=fopen(drained,"wx");
+            if(!signal || fclose(signal)) rte_exit(1,"cannot publish drained marker\n");
+        }
     } else if(generators>1) {
         int load_failed=0;uint64_t warm_start=0,warm_end=0;
         completed=parallel_phase(port,pool,src,dst,bench,samples,0,warmup,window,gap,timeout_ns,&unrelated,&load_failed,&warm_start,&warm_end);
@@ -344,7 +351,9 @@ int main(int argc, char **argv) {
         struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"open-loop NIC stats");
         char path[4096]; snprintf(path,sizeof(path),"%s.open.json",argv[9]);
         FILE *f=fopen(path,"wx"); if(!f) rte_exit(1,"open-loop summary output failed\n");
-        fprintf(f,"{\"schema\":1,\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","
+        fprintf(f,"{\"schema\":2,\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
+                bench->name,open_warmup,observation_start,observation_end);
+        fprintf(f,"\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","
           "\"transmitted\":%"PRIu64",\"on_time\":%"PRIu64",\"late\":%"PRIu64",\"duplicates\":%"PRIu64","
           "\"generator_misses\":%"PRIu64",\"tx_admission_failures\":%"PRIu64",\"malformed\":%"PRIu64","
           "\"nic_rx_no_buffer\":%"PRIu64",\"nic_rx_missed\":%"PRIu64",\"nic_rx_errors\":%"PRIu64",\"nic_tx_errors\":%"PRIu64","

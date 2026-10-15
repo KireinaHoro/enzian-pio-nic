@@ -21,8 +21,11 @@ Never promote a fixture, an unvalidated adapter, or historical measurements into
 passing rehearsal evidence.
 
 Run local gates first. The controller must pass the small rehearsal, including
-both unloaded instrumentation modes and overloaded loaded cases, before it
-freezes and collects the full grid. Loaded cases disable FPGA recording and
+all three unloaded payload sizes and instrumentation modes and overloaded loaded cases, before it
+freezes and collects the full grid. Default to `scope: "rehearsal"`, which
+terminates with a callback after validated rehearsal plots and never starts full
+collection. Use `scope: "full"` only when full acquisition is authorized; a user
+request to stop after rehearsal overrides any earlier full-campaign plan. Loaded cases disable FPGA recording and
 software profiling and perform no trace reads. Boot/module failures still require
 the repository's diagnostic capture before reset. Expected server loss is data;
 generator misses, admission failure, corruption and resource exhaustion invalidate
