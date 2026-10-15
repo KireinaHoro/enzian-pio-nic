@@ -109,7 +109,7 @@ static int multi_server(char **argv, const struct benchmark *bench) {
     if(stop_file && !access(stop_file,F_OK)) rte_exit(1,"stale server stop file\n");
     unsigned workers = rte_lcore_count();
     if (workers < 1 || workers > 4 || rte_eth_dev_count_avail() != 1 ||
-        (strncmp(argv[8], "loopback", 8) && strncmp(argv[8], "echo", 4)) || !getenv("LH_NULLRPC_SOFTWARE_CONTROL") ||
+        (strncmp(argv[8], "loopback", 8) && (strncmp(argv[8], "echo", 4) || !argv[8][4])) || !getenv("LH_NULLRPC_SOFTWARE_CONTROL") ||
         getenv("LH_NULLRPC_PROFILE"))
         rte_exit(1,"batched throughput requires 1-4 CPUs, one port, loopback, software control and no profiling\n");
     unsigned count = number(argv[5], 10000000), warmup = number(argv[6], stop_file ? UINT32_MAX : 1000000);
@@ -183,7 +183,7 @@ int main(int argc,char **argv) {
         "EAL -- SRC_IP PEER_IP PEER_MAC PEER_PORT COUNT WARMUP TIMEOUT_US add|loopbackSIZE OUTPUT.csv\n");
     const struct benchmark *bench = benchmark_find(argv[8]);
     uint8_t expected_call[1472];
-    int loopback = !strncmp(argv[8], "loopback", 8) || !strncmp(argv[8], "echo", 4);
+    int loopback = !strncmp(argv[8], "loopback", 8) || (!strncmp(argv[8], "echo", 4) && argv[8][4]);
     if (!bench || (!loopback && strcmp(argv[8], "add"))) rte_exit(1,"unsupported RPC codec\n");
     if (rte_lcore_count() > 1 || getenv("LH_NULLRPC_BATCHED")) return multi_server(argv, bench);
     size_t expected_size = bench->encode(expected_call, sizeof(expected_call), 1);

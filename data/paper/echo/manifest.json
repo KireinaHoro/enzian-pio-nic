@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "status": "awaiting_measurements",
+  "workload_schema": "sw/apps/microbenchmarks/bench.x",
+  "controller": "tools/paper/benchmark_campaign.py",
+  "unloaded": {
+    "payload_bytes": 0,
+    "workers": 1,
+    "outstanding": 1,
+    "warmup": 128,
+    "measured": 10000,
+    "interval": "paired hardware MAC RX to MAC TX",
+    "cohorts": ["software-uninstrumented", "instrumented-breakdown", "matched-probe-off-control"]
+  },
+  "loaded": {
+    "systems": ["LH", "DPDK"],
+    "payload_bytes": [8, 128, 1432],
+    "workers": [1, 2, 3, 4],
+    "generator_cores": 8,
+    "arrival_process": "fixed absolute spacing; regular arrivals",
+    "interval": "client call entry to RX-burst observation before forwarding and validation",
+    "deadline_ms": 10,
+    "warmup_seconds": 2,
+    "grid_seconds": 10,
+    "sustained_seconds": 60,
+    "repetitions": 3,
+    "software_profiling": false,
+    "fpga_recording": false,
+    "trace_readouts": 0,
+    "loss_limit": 0.01
+  },
+  "cohorts": [],
+  "qualifications": [
+    "No new echo board results have been acquired.",
+    "Rehearsal and synthetic fixtures are excluded from paper inputs.",
+    "Poisson arrivals are deferred to memcached.",
+    "Elapsed instrumented service-path components do not independently measure CPU utilization.",
+    "Historical adder/loopback measurements retain their original provenance."
+  ]
+}
