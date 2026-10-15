@@ -179,44 +179,9 @@ namespace['start']({service!r})
                 '--root',self.directory,'--label',label,'--pipeline',c['pipeline'],
                 '--transfer-root',c['transfer_root'],'--transfer-url',c['transfer_url']],
                 'capture',timeout=7200)
-        except Exception:
-            self.jtag_fallback(label)
-            # A fallback preserves the failed acquisition; it is never silently
-            # substituted into a passing campaign receipt.
-            raise
         finally:
             self.last_recorder=self.h.vio('preserve',label,self.directory/(label+'-restore.log'))
         return self.directory/(label+'-dump/trace/trace-dram.bin')
-
-    def jtag_fallback(self,label):
-        c=self.config;remote=c['fpga_directory'];script=self.directory/(label+'-fallback.tcl')
-        for value in (remote,c['cable'],c['hardware_server']):
-            if any(ch in value for ch in '{}\n\r'): raise ValueError('Unsafe Tcl configuration')
-        script.write_text('''proc main {} {
-open_hw_manager
-connect_hw_server -url {SERVER}
-set targets [get_hw_targets */xilinx_tcf/CABLE]
-if {[llength $targets] != 1} {error "JTAG target mismatch"}
-current_hw_target [lindex $targets 0]
-open_hw_target
-set devices [get_hw_devices xcvu9p_*]
-if {[llength $devices] != 1} {error "JTAG device mismatch"}
-set_property PROBES.FILE {REMOTE/shell_lauberhorn-eci.ltx} $devices
-refresh_hw_device $devices
-source {REMOTE/dump_trace_hw_axi.tcl}
-lhtrace::dump -out {REMOTE/LABEL-fallback.bin} -use-vio-status 1 -vio-probes {trace_write_slot_1 trace_wrapped_1 trace_sample_lost_1 trace_dma_error_1}
-close_hw_target
-}
-if {[catch {main} message]} {puts stderr $message;exit 1}
-exit 0
-'''.replace('SERVER',c['hardware_server']).replace('CABLE',c['cable']).replace('REMOTE',remote).replace('LABEL',label))
-        self.h.command(['rsync',script,c['programmer']+':'+remote+'/'+script.name],'fallback-stage')
-        try:
-            self.h.command(['ssh',c['programmer'],shlex.join([c['vivado'],'-mode','batch','-nolog','-nojournal',
-                '-source',remote+'/'+script.name])],'fallback-jtag',timeout=7200)
-        finally:
-            self.h.command(['rsync',c['programmer']+':'+remote+'/'+label+'-fallback.bin',
-                self.directory/(label+'-fallback.bin')],'fallback-evidence',timeout=1800,check=False)
 
     def run(self):
         r=self.request;c=self.config;loaded=r['stage']=='loaded'

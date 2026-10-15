@@ -56,6 +56,19 @@ class Hardware(unittest.TestCase):
                 acquisition.h.cpu.assert_not_called()
                 self.assertFalse(json.loads((root/'hardware-state.json').read_text())['safe'])
 
+    def test_ethernet_failure_stops_without_jtag_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);stage=root/'stage';stage.mkdir()
+            request=dict(stage='unloaded',system='LH',payload_bytes=8)
+            (stage/'request.json').write_text(json.dumps(request))
+            config=dict(pipeline=519555,transfer_root='/fixture',transfer_url='http://fixture')
+            acquisition=Acquisition(config,request,stage,root)
+            acquisition.h=Mock();acquisition.h.command.side_effect=RuntimeError('Ethernet failure')
+            with self.assertRaisesRegex(RuntimeError,'Ethernet failure'): acquisition.capture()
+            self.assertEqual(acquisition.h.command.call_count,1)
+            self.assertEqual([c.args[0] for c in acquisition.h.vio.call_args_list],['configure','preserve'])
+            self.assertFalse(hasattr(acquisition,'jtag_fallback'))
+
     def test_archive_is_portable_and_checks_source(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);source=root/'observations.csv';source.write_bytes(b'xid,value\n1,17\n')

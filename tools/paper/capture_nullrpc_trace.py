@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 import pathlib,subprocess,sys,re,json,hashlib,time
 import argparse
+from campaign.trace_capture import trigger_result
 parser=argparse.ArgumentParser(description='Preserve a full frozen, unwrapped paper trace over F_MAC1.')
 parser.add_argument('--root',type=pathlib.Path,required=True)
 parser.add_argument('--label',required=True)
 parser.add_argument('--pipeline',type=int,required=True)
 parser.add_argument('--transfer-root',required=True)
 parser.add_argument('--transfer-url',default='http://192.168.255.254:18843')
+parser.add_argument('--export-existing',action='store_true',help='Recover a completed receiver from a failed trigger shutdown; never retrigger or overwrite its raw capture')
 a=parser.parse_args()
+export_existing=a.export_existing
 if not a.label.replace('-','').replace('_','').isalnum():raise ValueError('unsafe label')
 b=a.root;label=a.label;pipeline=a.pipeline;transfer_root=a.transfer_root;transfer_url=a.transfer_url.rstrip('/')
 artifacts=f'/tmp/lauberhorn-{pipeline}'
@@ -21,34 +24,46 @@ start=0;end=z['trace_write_slot_1']*64;size=end
 # time bounded, but scale the budget with the complete frozen byte count.
 receive_timeout=max(1200,180+(size+4_000_000-1)//4_000_000)
 export_timeout=max(240,120+(size+8_000_000-1)//8_000_000)
-work=b/(label+'-dump');work.mkdir()
+work=b/(label+'-dump')
+if export_existing:
+ if not work.is_dir() or (work/'trace').exists():raise ValueError('Recovery needs an existing dump with no previous local export')
+else:work.mkdir()
 remote=f'/dev/shm/trace-recorder-{pipeline}-'+label
 shared=transfer_root+'/'+label+'-receive.sh'
 def run(argv,path,timeout=180):
  with path.open('w') as f:subprocess.run(argv,stdout=f,stderr=subprocess.STDOUT,check=True,timeout=timeout)
 def vio(mode):
- run(['ssh','enzian-ba2','/opt/Xilinx/Vivado/2023.2/bin/vivado -mode batch -nolog -nojournal -source '+artifacts+'/capture-vio.tcl -tclargs '+mode+' paper-'+label],work/(mode+'.log'))
-# The matching freeze/configure step is preserved in freeze.log.
-script=work/'receive.sh'
-script.write_text(f'''set -eu
-export PATH=/nix/store/lauberhorn-client/bin:/nix/store/lauberhorn-client/sbin
-unset LD_LIBRARY_PATH PYTHONPATH PYTHONHOME
-mkdir {remote}
-python3 -c 'import urllib.request;urllib.request.urlopen(urllib.request.Request("{transfer_url}/{label}-receiver-ready",data=b"ready",method="PUT")).read()'
-lh-trace-dump --bind-ip 192.168.128.225 --offset {start} --bytes {size} --wait-timeout 90 --timeout 1 --retries 5 --chunk-bytes 1408 --out {remote}/trace-dram.bin > {remote}/receiver.stdout 2> {remote}/receiver.stderr
-sha256sum {remote}/trace-dram.bin > {remote}/SHA256SUMS
-''')
-run(['rsync',str(script),'enzian-gateway:'+shared],work/'stage.log')
-f=(work/'receiver-run.log').open('w')
-p=subprocess.Popen([sys.executable,'tools/enzian/run.py','--machine','zuestoll07','--logs',str(work/'peer'),'--timeout',str(receive_timeout),'--','/nix/store/lauberhorn-client/bin/python3','-c',f"import urllib.request,subprocess;subprocess.run(['bash','-c',urllib.request.urlopen('{transfer_url}/{label}-receive.sh').read().decode()],check=True)"],stdout=f,stderr=subprocess.STDOUT)
-for i in range(90):
- r=subprocess.run(['ssh','enzian-gateway','test -f '+transfer_root+'/'+label+'-receiver-ready'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
- if r.returncode==0:break
- if p.poll() is not None:raise RuntimeError('receiver exited before readiness')
- time.sleep(1)
-else:raise RuntimeError('receiver not ready')
-vio('trigger');print('DUMP_STARTED',size,flush=True)
-if p.wait(timeout=receive_timeout+50):raise RuntimeError('receiver failed; preserve partial trace')
+ path=work/(mode+'.log')
+ argv=['ssh','enzian-ba2','/opt/Xilinx/Vivado/2023.2/bin/vivado -mode batch -nolog -nojournal -source '+artifacts+'/capture-vio.tcl -tclargs '+mode+' paper-'+label]
+ with path.open('w') as f:result=subprocess.run(argv,stdout=f,stderr=subprocess.STDOUT,timeout=180)
+ return trigger_result(result.returncode,path.read_text())
+if export_existing:
+ if 'COMMAND_SUCCEEDED' not in (work/'receiver-run.log').read_text():
+  raise ValueError('Receiver did not complete successfully; retain partial evidence')
+ trigger_log=(work/'trigger.log').read_text()
+ trigger=trigger_result(139 if 'Segmentation fault' in trigger_log else 0,trigger_log)
+else:
+ # The matching freeze/configure step is preserved in freeze.log.
+ script=work/'receive.sh'
+ script.write_text(f'''set -eu
+ export PATH=/nix/store/lauberhorn-client/bin:/nix/store/lauberhorn-client/sbin
+ unset LD_LIBRARY_PATH PYTHONPATH PYTHONHOME
+ mkdir {remote}
+ python3 -c 'import urllib.request;urllib.request.urlopen(urllib.request.Request("{transfer_url}/{label}-receiver-ready",data=b"ready",method="PUT")).read()'
+ lh-trace-dump --bind-ip 192.168.128.225 --offset {start} --bytes {size} --wait-timeout 90 --timeout 1 --retries 5 --chunk-bytes 1408 --out {remote}/trace-dram.bin > {remote}/receiver.stdout 2> {remote}/receiver.stderr
+ sha256sum {remote}/trace-dram.bin > {remote}/SHA256SUMS
+ ''')
+ run(['rsync',str(script),'enzian-gateway:'+shared],work/'stage.log')
+ f=(work/'receiver-run.log').open('w')
+ p=subprocess.Popen([sys.executable,'tools/enzian/run.py','--machine','zuestoll07','--logs',str(work/'peer'),'--timeout',str(receive_timeout),'--','/nix/store/lauberhorn-client/bin/python3','-c',f"import urllib.request,subprocess;subprocess.run(['bash','-c',urllib.request.urlopen('{transfer_url}/{label}-receive.sh').read().decode()],check=True)"],stdout=f,stderr=subprocess.STDOUT)
+ for i in range(90):
+  r=subprocess.run(['ssh','enzian-gateway','test -f '+transfer_root+'/'+label+'-receiver-ready'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+  if r.returncode==0:break
+  if p.poll() is not None:raise RuntimeError('receiver exited before readiness')
+  time.sleep(1)
+ else:raise RuntimeError('receiver not ready')
+ trigger=vio('trigger');print('DUMP_STARTED',size,flush=True)
+ if p.wait(timeout=receive_timeout+50):raise RuntimeError('receiver failed; preserve partial trace')
 # Export only this capture, with one bounded HTTP request; no scratch copy.
 serve=work/'export.py'
 serve.write_text('''import http.server,tarfile,os
@@ -77,5 +92,5 @@ with raw.open('rb') as f:
  for chunk in iter(lambda:f.read(1024*1024),b''):h.update(chunk)
 digest=h.hexdigest()
 assert raw.stat().st_size==size and digest==(work/'trace/SHA256SUMS').read_text().split()[0]
-result=dict(bytes=size,sha256=digest,offset=start,start=a,end=z,bounded_window=True,pipeline=pipeline)
+result=dict(bytes=size,sha256=digest,offset=start,start=a,end=z,bounded_window=True,pipeline=pipeline,trigger=trigger,recovered_export=export_existing)
 (work/'summary.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result),flush=True)

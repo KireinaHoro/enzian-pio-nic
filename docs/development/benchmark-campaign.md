@@ -19,19 +19,20 @@ helpers. Local transport, cleanup and archive fixtures pass; real preflight
 passed reservations, isolation, budgets, artifact matching, preservation and
 callback delivery. A detached local fixture completed 66 synthetic cohorts,
 delivered one terminal callback, and stopped before the full grid; the separate
-forced-termination fixture exercised the service failure hook. Nineteen local
+forced-termination fixture exercised the service failure hook. Twenty-one local
 policy/import/transport tests pass. These are workflow tests, not board results.
-The first board rehearsal stopped in setup: boot/module checks passed, but the
-first echo hit the cold FPGA neighbor cache and exceeded the 10 ms setup deadline.
-The complete 151,688,256-byte failure trace and client archive are preserved in
-`out/echo-rehearsal-20261015`; its stored-loss scan passed and shows one admitted
-RPC and one encoded reply. A separate 16-call diagnostic passed on the now-primed
-service. No measured cohort passed in this attempt. The revised adapter requires
-a fresh rehearsal to validate explicit neighbor priming.
+The first native 8-byte rehearsal cohort has 100 valid measured replies and 16
+warmups, complete measured MAC pairing and valid client causal bounds. Its
+133-request whole capture (including preparation) has no stored loss markers.
+Full rehearsal acceptance is still pending. The setup neighbor miss is now
+primed separately. The second attempt's Ethernet receiver completed, but Vivado
+segfaulted on shutdown and the old controller incorrectly entered full JTAG
+fallback. The complete Ethernet file was recovered and hash-verified before
+interrupting that fallback; failures remain in `out/echo-rehearsal-20261015*`.
 LH correlation retains the existing internal RPC IDs, paired within
 each request lifetime; single-outstanding order and causal bounds associate
 those pairs with XID-validated client observations. No trace format or RTL
-change is needed. No new board rehearsal or full echo campaign has run.
+change is needed. No complete board rehearsal or full echo campaign has passed.
 The plotting entry point has not yet been validated against a real full echo
 cohort; existing active figures remain in place. Do not launch a controller with
 an invented passing adapter or use the historical add data as echo evidence.
@@ -158,8 +159,11 @@ Nix builds establish them before configuration is frozen. The adapter stages
 images with streaming SHA256 verification. DPDK receives a fresh harness boot
 without native workers. Native loaded cohorts reuse a resident pool only while
 size and worker count match; configuration changes use a verified cold boot.
-Normal loaded runs never dump traces. Exceptional capture failures retain partial
-CMAC evidence and attempt bounded JTAG preservation before returning failure.
+Normal loaded runs never dump traces. Ethernet capture failures retain partial evidence and return failure without
+a full JTAG fallback or a hardware reset. Independent 4 KiB JTAG head/tail
+checks validate successful Ethernet captures. A recognized Vivado shutdown
+segfault after a completed trigger permits receiver validation; it never
+substitutes for a successful receiver, exact length, and matching SHA256.
 
 Remote role outputs are removed only after their local archive and member hashes
 are verified. Loaded CSVs are compressed after acquisition. The final archive uses
@@ -194,7 +198,7 @@ nix build .#dev.x86_64-linux.software.trafficGeneratorNative -o out/echo-generat
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
-PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_acquire campaign.test_hardware -v
+PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_acquire campaign.test_hardware campaign.test_trace_capture -v
 nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
 nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```
