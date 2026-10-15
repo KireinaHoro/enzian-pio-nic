@@ -120,8 +120,11 @@ int main(int argc, char **argv) {
         open_duration=(uint64_t)number(duration,60000)*1000000;
         open_warmup=strcmp(warming,"0")?(uint64_t)number(warming,60000)*1000000:0;
         uint64_t total=(open_duration+open_warmup)*open_rate/1000000000;
-        if(!total || total>UINT32_MAX || total*sizeof(struct sample)>4ULL*1024*1024*1024)
-            rte_exit(1,"open-loop tracking budget exceeds 4 GiB or XID space\n");
+        const char *budget=getenv("LH_BENCH_TRACKING_MIB");
+        uint64_t tracking_limit=(uint64_t)(budget?number(budget,262144):4096)*1024*1024;
+        if(!total || total>UINT32_MAX || total*sizeof(struct sample)>tracking_limit)
+            rte_exit(1,"open-loop tracking requires %"PRIu64" bytes (limit %"PRIu64"); slots %"PRIu64" must fit XID space\n",
+                     total*sizeof(struct sample),tracking_limit,total);
         warmup=open_warmup*open_rate/1000000000;
         count=total-warmup;
         if((open_warmup*open_rate)%1000000000 || (open_duration*open_rate)%1000000000)

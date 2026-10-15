@@ -12,8 +12,12 @@ measurements retain their original semantics and provenance.
 The schema, responders, duration-based generator, selection policy, raw loaded
 importer and detached controller are implemented. Local wire, scheduling,
 complete-loss, induced-generator-stall and legacy replay tests have passed.
-The controller's hardware acquisition adapter and unloaded echo breakdown importer
-are not yet connected. No new board rehearsal or full echo campaign has run.
+The unloaded importer validates separate MAC and instrumented cohorts, including
+matched controls. The controller's hardware acquisition adapter is not yet
+connected. LH correlation retains the existing internal RPC IDs, paired within
+each request lifetime; single-outstanding order and causal bounds associate
+those pairs with XID-validated client observations. No trace format or RTL
+change is needed. No new board rehearsal or full echo campaign has run.
 The plotting entry point has not yet been validated against a real full echo
 cohort; existing active figures remain in place. Do not launch a controller with
 an invented passing adapter or use the historical add data as echo evidence.
@@ -40,8 +44,9 @@ relative to call entry; the final drain does not extend the send interval.
 A bounded additional 10 ms drain observes late replies; later arrivals remain
 unobserved losses, not fabricated late replies.
 
-Tracking is allocated and prefaulted before NIC setup, with a 4 GiB limit and no
-XID wrap. Output space is reserved before acquisition at 256 bytes per scheduled
+Tracking is allocated and prefaulted before NIC setup, with a default 4 GiB
+limit and no XID wrap. `LH_BENCH_TRACKING_MIB` sets the explicit preflight-checked
+budget (at most 256 GiB); sustained trials must budget their full schedule. Output space is reserved before acquisition at 256 bytes per scheduled
 request. File or tracking exhaustion is terminal. Missing replies do not stall
 the schedule. `samples.csv.open.json` records on-time replies, observed late
 replies, duplicate replies, missed sends, failed admissions, malformed replies,
@@ -78,8 +83,11 @@ preserve evidence on failure. The controller has additional explicit stage gates
 in `Campaign.stage`; these are assertions to implement and verify, not fields
 that can be set merely because a subprocess exited zero. Loaded stages return
 raw `csv`, `summary`, actual placement/flows and per-worker activity. Unloaded
-stages require complete MAC pairs, XID correlation, no stored loss, independent
-JTAG checks, health and restoration. Preflight must check reservations, artifact
+stages return `cohort` from `campaign.import_unloaded`, augmented with a
+`build_config_sha256` fingerprint excluding instrumentation toggles. They require
+complete MAC pairs, validated identity correlation, no stored loss, independent
+JTAG checks, health and restoration. `full-unloaded.json` keeps the six distinct
+cohorts. Never substitute the 6-bit internal FPGA RpcID for the wire XID. Preflight must check reservations, artifact
 matching, budgets, isolated CPUs, prior-state preservation and actual callback
 delivery. The final stage must archive raw observations and provenance, validate
 all cohorts, generate figures, validate dimensions/fonts and supply previews.
@@ -120,8 +128,9 @@ nix build .#dev.x86_64-linux.software.trafficGeneratorNative -o out/echo-generat
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
-PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign -v
+PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded -v
 nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
+nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```
 
 The loaded plotting script uses the shared paper library. It pools on-time RTT

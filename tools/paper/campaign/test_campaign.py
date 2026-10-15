@@ -54,8 +54,26 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
             path=Path(next(iter(result['files']))); path.write_text('changed')
             with self.assertRaises(ValueError): c.stage('build',{})
 
+    def test_instrumented_cohort_separation(self):
+        from .import_unloaded import validate_matched, partition
+        cohorts=[]
+        for system in ('LH','DPDK'):
+            for mode in ('off','breakdown','probe-off-control'):
+                row=dict(request_id=1,warmup=0,rx_mac_ns=1,tx_mac_ns=101,mac_ns=100)
+                if mode=='breakdown': row['components_ns']=partition(100,10,20,30)
+                cohorts.append(dict(system=system,instrumentation=mode,count=1,warmup=0,
+                                    build_config_sha256='matched',rows=[row]))
+        validate_matched(cohorts)
+        bad=copy.deepcopy(cohorts);bad[0]['rows'][0]['components_ns']=partition(100,10,20,30)
+        with self.assertRaises(ValueError): validate_matched(bad)
+        bad=copy.deepcopy(cohorts);bad[1]['rows'][0]['mac_ns']=200
+        with self.assertRaises(ValueError): validate_matched(bad)
+        bad=copy.deepcopy(cohorts);bad[2]['build_config_sha256']='different'
+        with self.assertRaises(ValueError): validate_matched(bad)
+
     def test_full_grid_extensions_and_sustained_fallback(self):
         class Fixture(controller.Campaign):
+            def unloaded(self, phase): pass
             def stage(self, name, request):
                 if name=='finalize':
                     return dict({k:True for k in ('complete','hashes','boundaries','failure_accounting','worker_activity','pdf_dimensions','embedded_fonts')},previews=list('abcde'),files={p:'fixture' for p in 'abcde'})
@@ -80,6 +98,23 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
             self.assertGreater(len(result['confirmations']),1)
             self.assertLess(result['confirmed']['rate'],150)
             self.assertEqual(controller.read(root/'status.json')['stage'],'complete')
+
+    def test_notification_subprocess_fixture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); sink=root/'queue.py'; log=root/'queue.jsonl'
+            sink.write_text("import json,sys\nfrom pathlib import Path\np=Path(sys.argv[1])\nwith p.open('a') as f: f.write(json.dumps(sys.argv[2:])+'\\n')\nraise SystemExit(1 if p.with_suffix('.fail').exists() else 0)\n")
+            config=dict(thread='fixture',notify=[controller.sys.executable,str(sink),str(log)])
+            controller.atomic(root/'status.json',dict(stage='failed',error='fixture failure'))
+            log.with_suffix('.fail').touch()
+            self.assertFalse(controller.notify(root,config,retry=False))
+            log.with_suffix('.fail').unlink()
+            self.assertTrue(controller.notify(root,config,retry=False))
+            controller.atomic(root/'status.json',dict(stage='complete',previews=['fixture.png']))
+            self.assertTrue(controller.notify(root,config,retry=False))
+            messages=[json.loads(line) for line in log.read_text().splitlines()]
+            self.assertEqual(len(messages),3)
+            self.assertEqual(messages[0][:2],['--thread','fixture'])
+            self.assertIn('complete',messages[-1][-1])
 
     def test_notification_retry_no_acquisition(self):
         with tempfile.TemporaryDirectory() as d:
