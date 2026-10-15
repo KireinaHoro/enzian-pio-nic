@@ -20,8 +20,20 @@ Use `../caladan`, with centralized NICVF DPDK networking and the `simple`
 scheduler. The intended configuration is `simple noht nobw no_hw_qdel`, with
 build-time exclusion of unsupported subsystems as well as runtime settings.
 Do not enable IAS or reproduce Caladan's interference-control or fairness claims.
-The result should be identified as a Caladan-derived AArch64 baseline with the
-simple policy and centralized DPDK datapath.
+Use **SH-A64** as the chart label alongside **DPDK** and **LH**. Define it once
+in the paper's experimental setup with the following paragraph (use completed
+port wording only after implementation and acceptance):
+
+> SH-A64 is our AArch64 port of the Caladan codebase, configured with its simple,
+> Shenango-style core-allocation policy: demand-driven allocation of guaranteed
+> and burstable cores, with idle workers yielding their cores. It uses centralized
+> DPDK networking and retains Caladan's runtime and KSCHED handoff mechanisms;
+> Caladan's interference controllers and directpath networking are disabled.
+
+This identifies the shared policy model without claiming that the policy details,
+implementation or core-reclamation timings are identical to original Shenango.
+Use SH-A64 for the Enzian port; label any optional x86 calibration configuration
+separately so the architecture remains explicit.
 
 Reuse `../thunderx-dpdk-ptp` for NICVF and packet timestamp support and
 [shenango/memcached](https://github.com/shenango/memcached) for the application
