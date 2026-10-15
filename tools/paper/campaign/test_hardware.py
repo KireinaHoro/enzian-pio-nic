@@ -3,6 +3,7 @@ import gzip
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import Mock
 
@@ -38,6 +39,22 @@ class Hardware(unittest.TestCase):
                 self.assertEqual([call.args[0] for call in acquisition.h.vio.call_args_list],['configure','preserve'])
                 state=json.loads((root/'hardware-state.json').read_text())
                 self.assertEqual(state['safe'],healthy)
+
+    def test_baseline_boot_failure_preserves_before_recovery(self):
+        for error in (RuntimeError('boot failed'),subprocess.TimeoutExpired('boot',3600)):
+            with self.subTest(error=type(error).__name__),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);stage=root/'stage';stage.mkdir()
+                request=dict(stage='unloaded',system='DPDK',payload_bytes=8)
+                (stage/'request.json').write_text(json.dumps(request))
+                case=root/'case.json';case.write_text(json.dumps([dict(program=['fixture'])]))
+                config=dict(boot_case=str(case),gateway='fixture',dut='fixture',owner='fixture')
+                acquisition=Acquisition(config,request,stage,root)
+                acquisition.h=Mock();acquisition.h.command.side_effect=error
+                acquisition.capture=Mock()
+                with self.assertRaises(type(error)): acquisition.ensure_dpdk()
+                acquisition.capture.assert_called_once_with(exceptional=True)
+                acquisition.h.cpu.assert_not_called()
+                self.assertFalse(json.loads((root/'hardware-state.json').read_text())['safe'])
 
     def test_archive_is_portable_and_checks_source(self):
         with tempfile.TemporaryDirectory() as directory:

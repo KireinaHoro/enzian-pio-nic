@@ -17,7 +17,11 @@ matched controls. `echo_hardware.py` connects the controller to the maintained
 Enzian harness through `campaign/adapter.py`, `hardware.py`, and the remote role
 helpers. Local transport, cleanup and archive fixtures pass; real preflight
 passed reservations, isolation, budgets, artifact matching, preservation and
-callback delivery. The adapter still requires its first board rehearsal.
+callback delivery. A detached local fixture completed 66 synthetic cohorts,
+delivered one terminal callback, and stopped before the full grid; the separate
+forced-termination fixture exercised the service failure hook. Nineteen local
+policy/import/transport tests pass. These are workflow tests, not board results.
+The adapter still requires its first board rehearsal.
 LH correlation retains the existing internal RPC IDs, paired within
 each request lifetime; single-outstanding order and causal bounds associate
 those pairs with XID-validated client observations. No trace format or RTL
@@ -96,7 +100,10 @@ A JSON launch configuration supplies `adapter` (argv array), `thread`,
 `generator_cpus` (eight distinct CPU IDs), `flows`, `initial_rate`,
 `max_extensions` (1–30), `scope` (`rehearsal` by default, or explicitly `full`), and `deadlines` in seconds for `preflight`, `build`,
 `loaded`, `unloaded`, `rehearsal-validation` and `finalize`. An optional `notify`
-argv defaults to `codex queue`.
+argv defaults to `codex queue`. Supply `ENZIAN_BMC_PASSWORD` in the launch
+environment so cold boots cannot prompt; the service inherits it and any SSH
+authentication socket. While geometric bracketing is unfinished, status `total`
+is the finite maximum cohort budget; terminal status records the exact count.
 
 The adapter receives `STAGE REQUEST.json RESULT.json`. It must use maintained
 EMG/harness acquisition commands and emit a result with `passed: true` and
