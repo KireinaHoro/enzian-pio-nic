@@ -45,6 +45,8 @@ def main():
     p.add_argument('--repeats', type=int, default=1)
     p.add_argument('--gateway', default='enzian-gateway')
     p.add_argument('--machine', default='zuestoll14')
+    p.add_argument('--cold-start-first', action='store_true',
+                   help='first boot only: skip power_down after BMC rail-state inspection; boot still verifies rails off')
     args = p.parse_args()
     cases = json.loads(args.manifest.read_text())
     if args.repeats < 1 or not cases:
@@ -76,7 +78,9 @@ def main():
             print(json.dumps({'case': name, 'stage': 'boot'}), flush=True)
             started = time.monotonic()
             rc = run_step([sys.executable, str(HERE/'boot.py'), *shared,
-                       '--logs', str(root/'boot'), '--', *case['program']],
+                       '--logs', str(root/'boot'),
+                       *(['--cold-start'] if args.cold_start_first and len(results)==1 else []),
+                       '--', *case['program']],
                       root/'boot-output.log', 3300)
             result['boot_exit'] = rc
             boot_summary = root / 'boot' / 'summary.json'

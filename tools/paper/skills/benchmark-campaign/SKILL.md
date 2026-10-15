@@ -7,8 +7,16 @@ description: Prepare, launch, inspect, or recover unattended Lauberhorn hot echo
 
 Work in the Lauberhorn platform repository. Read
 `docs/development/benchmark-campaign.md` for implementation status, the adapter
-contract and validation commands. Read `AGENTS.md` and the hardware-test guide
-before touching a board. Use `paper-chart` for figure generation and final review.
+contract and validation commands. Read `AGENTS.md` and the
+[enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md) before touching a
+board, including its BMC rail-state and D-Bus recovery guidance. All linked paths
+are relative to the platform repository root. The benchmark adapter
+[campaign/hardware.py](tools/paper/campaign/hardware.py) invokes the same
+[test.py](tools/enzian/test.py) and expect-based [boot.py](tools/enzian/boot.py)
+used for ordinary hardware acceptance; [campaign/harness.py](tools/paper/campaign/harness.py)
+uses [run.py](tools/enzian/run.py) and shared [console.py](tools/enzian/console.py).
+Keep deployment fixes in these shared scripts, never a parallel benchmark boot
+or console workflow. Use `paper-chart` for figure generation and final review.
 Keep execution logic in `tools/paper/benchmark_campaign.py` and its campaign
 package; do not reproduce its rate selection or acquisition loops in chat.
 

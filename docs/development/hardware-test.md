@@ -48,6 +48,29 @@ BMC console is `zuestoll14-bmc`; detach with Ctrl-E, c, period. Do not force
 another console user off. See the [quickstart](https://gitlab.inf.ethz.ch/project-openenzian/documentation/userguide/-/jobs/artifacts/main/raw/enzian_quickstart.pdf?job=build)
 and [machine/JTAG inventory](https://enzian.systems/generated/cluster-info.html).
 
+## BMC recovery and powered-off starts
+
+The discoverable [enzian-deploy skill](../../tools/enzian/skills/enzian-deploy/SKILL.md)
+is the agent workflow entry point. In `enzian-shell bringup`, inspect
+`print_voltage_all()` before choosing the power sequence. An uninitialized-device
+error suggesting `init_driver()` can mean CPU rails are off: do not call that
+function as a repair. Use `common_power_up()` followed by `cpu_power_up()` through
+the boot helper, which catches BDK before FPGA programming. Missing voltage
+readings are not numeric proof of off rails; the helper verifies actual core
+voltages after restoring common monitor power.
+
+For this powered-off starting state, pass `--cold-start-first` to `test.py`.
+It forwards `--cold-start` only to the first boot: skip the redundant
+`power_down()`, restore common power, require CPU/FPGA core rails below 0.2 V,
+then continue normal bring-up. Subsequent cases and bounded ECI retries use a full
+cold reset. Never use this option to bypass a failed rail check.
+
+A D-Bus `NoReply` timeout is different from a normal API/state error. Preserve
+the failing log, reboot the DUT BMC, verify its return, inspect voltages, then retry
+the appropriate sequence. If a timeout recurs after one reboot and bounded
+retry, stop and report evidence. Do not steal an occupied console or replace
+EMG provisioning with manual export/boot configuration changes.
+
 ## 2. Prepare matching artifacts once
 
 Known working reference: job **2812450**, commit
