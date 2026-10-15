@@ -27,7 +27,19 @@ package; do not reproduce its rate selection or acquisition loops in chat.
 
 Before launch, require a concrete manifest, current EMG reservations, matching
 artifact hashes, 32 isolated generator CPUs (currently 16–47), best-effort IRQ affinity setup, storage and RAM budgets,
-restoration paths, and working terminal callback delivery to the current thread.
+restoration paths, and established terminal callback delivery to the current thread.
+A successfully received probe or terminal callback already proves delivery for
+the same thread and callback command/setup. Reuse that evidence across preflight,
+launch, resume and new campaign roots; do not send another visible probe just
+because preflight runs again. Re-probe only after a relevant callback destination,
+command, authentication or service-environment change, or an observed delivery
+failure. Record and reuse delivery evidence in maintained preflight tooling so
+manual and detached preflights do not each notify the user. If existing tooling
+still probes unconditionally, fix that before the next launch rather than adding
+a manual probe; do not modify a running campaign's frozen implementation.
+A probe receipt is not an acquisition result and does not call for progress
+polling or a repetitive acknowledgement. Terminal success/failure callbacks and
+delivery retries remain required.
 A dated hardware handoff is not a reservation. Preserve any earlier failure
 before resetting. Provision through EMG and use the repository hardware harness.
 Never promote a fixture, an unvalidated adapter, or historical measurements into
