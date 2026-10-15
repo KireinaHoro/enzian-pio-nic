@@ -18,6 +18,7 @@ from .acquire import ROOT, cpu_set
 from .harness import Harness
 from .hardware import Acquisition, atomic
 from .import_loaded import digest, load
+from .recovery import invalidated
 from .import_unloaded import validate_matched
 from .policy import SYSTEMS, SIZES, WORKERS, loss, qualifying
 
@@ -179,6 +180,7 @@ def rehearsal(config,h,campaign):
     cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts)
     points={}
     for receipt in sorted((campaign/'stages').glob('*/receipt.json')):
+        if invalidated(campaign,receipt): continue
         saved=read(receipt);request=next(p for p in saved['hashes'] if p.endswith('/request.json') and Path(p).parent.name.startswith('attempt-'))
         request=read(request)
         if request['stage']!='loaded' or request.get('phase')!='rehearsal': continue

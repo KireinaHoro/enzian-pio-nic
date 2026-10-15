@@ -18,6 +18,7 @@ import time
 from campaign.policy import SYSTEMS, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates
 from campaign.import_loaded import load, digest
 from campaign.import_unloaded import validate_matched
+from campaign.recovery import prepare as prepare_recovery, invalidated
 
 ROOT = Path(__file__).resolve().parents[2]
 SELF = Path(__file__).resolve()
@@ -93,10 +94,11 @@ class Campaign:
         directory = self.root/'stages'/token
         directory.mkdir(parents=True, exist_ok=True)
         receipt = directory/'receipt.json'
-        if receipt.exists():
+        if receipt.exists() and not invalidated(self.root, receipt):
             saved = read(receipt)
             if any(digest(path) != sha for path, sha in saved['hashes'].items()):
                 raise ValueError('Completed stage evidence changed: '+str(directory))
+            self.latest = next((p for p in saved['hashes'] if Path(p).name=='result.json'), self.latest)
             return saved['result']
         # Explicit resume preserves prior attempts, including incomplete hardware actions.
         attempt = directory/str(len(list(directory.glob('attempt-*')))+1)
@@ -169,7 +171,8 @@ class Campaign:
                 if result.get(gate) is not True:
                     raise ValueError('Rehearsal gate missing: '+gate)
         hashes = dict(files, **{str(request_path): digest(request_path), str(result_path): digest(result_path)})
-        atomic(receipt, dict(result=result, hashes=hashes))
+        atomic(receipt, dict(result=result, hashes=hashes,
+                             code=read(snapshot) if snapshot.exists() else {}))
         self.latest = str(result_path)
         return result
 
@@ -291,33 +294,47 @@ def config_check(config):
         if not 0 < config['deadlines'][name] <= 86400: raise ValueError('Invalid stage deadline')
 
 
+def implementation(config):
+    paths=[SELF,*sorted((SELF.parent/'campaign').glob('*.py')),
+           SELF.parent/'paper_chart.py', SELF.parent/'plot_echo.py',
+           SELF.parent/'plot_echo_unloaded.py',
+           *(SELF.parent/name for name in ('capture_nullrpc_trace.py','check_trace_jtag.py',
+               'check_nullrpc_capture.py','import_nullrpc_mac.py','transfer_results.py')),
+           *sorted((ROOT/'tools/enzian').glob('*.py')), ROOT/'tools/enzian/cpu.sh',
+           *(Path(p).resolve() for p in config['adapter'] if Path(p).is_file())]
+    code={str(p):digest(p) for p in paths}
+    return code
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('launch','run','status','notify','failed'))
+    parser.add_argument('command', choices=('launch','run','status','notify','failed','recovery-plan'))
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--config', type=Path)
     parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--recovery-review', type=Path)
     args = parser.parse_args(); root = args.root.resolve()
+    if args.command == 'recovery-plan':
+        from campaign.recovery import draft
+        print(json.dumps(draft(root,implementation(read(root/'config.json'))),indent=2))
+        return
     if args.command == 'status': print(json.dumps(read(root/'status.json'), indent=2)); return
     if args.command == 'launch':
         config = read(args.config); config_check(config)
+        if args.recovery_review and not args.resume: raise ValueError('Recovery requires --resume')
         if root.exists() and not args.resume: raise ValueError('Campaign root already exists')
         root.mkdir(parents=True, exist_ok=args.resume)
         if (root/'config.json').exists() and read(root/'config.json') != config: raise ValueError('Incompatible resume configuration')
-        with (root/'lock').open('a') as launch_lock:
-            fcntl.flock(launch_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        atomic(root/'config.json', config)
         # Controller code is hashed too; resume cannot silently change semantics.
-        paths=[SELF,*sorted((SELF.parent/'campaign').glob('*.py')),
-               SELF.parent/'paper_chart.py', SELF.parent/'plot_echo.py',
-               SELF.parent/'plot_echo_unloaded.py',
-               *(SELF.parent/name for name in ('capture_nullrpc_trace.py','check_trace_jtag.py',
-                   'check_nullrpc_capture.py','import_nullrpc_mac.py','transfer_results.py')),
-               *sorted((ROOT/'tools/enzian').glob('*.py')), ROOT/'tools/enzian/cpu.sh',
-               *(Path(p).resolve() for p in config['adapter'] if Path(p).is_file())]
-        code={str(p):digest(p) for p in paths}
-        if (root/'code.json').exists() and read(root/'code.json') != code: raise ValueError('Controller changed; new campaign required')
-        atomic(root/'code.json',code)
+        code=implementation(config)
+        with (ROOT/'out/echo-campaign.lock').open('a') as global_lock, (root/'lock').open('a') as lock:
+            fcntl.flock(global_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            atomic(root/'config.json', config)
+            if (root/'code.json').exists():
+                prepare_recovery(root,code,read(args.recovery_review) if args.recovery_review else None,atomic)
+            else:
+                atomic(root/'code.json',code)
         unit='echo-campaign-'+hashlib.sha256(str(root).encode()).hexdigest()[:12]
         hook=' '.join('"'+str(x).replace('\\','\\\\').replace('"','\\"')+'"' for x in [sys.executable,SELF,'failed','--root',root])
         atomic(root/'status.json',dict(stage='queued',completed=0,total=0,artifact_paths=[str(root)]))

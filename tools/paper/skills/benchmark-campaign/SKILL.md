@@ -40,7 +40,13 @@ Launch using the documented detached user-service command. After launch, return
 the campaign root and service identifier without intermediate polling. Inspect
 `status.json` only when the user asks or a terminal queued prompt arrives. Normal
 progress uses the compact status, not raw console logs. Resume explicitly with
-the identical configuration and implementation; never overwrite a cohort.
+the identical acquisition configuration; never overwrite a cohort. For compatible
+code fixes, use the documented `recovery-plan` and `--recovery-review` workflow:
+retain unaffected completed cohorts, justify reuse with validation evidence, and
+rerun only affected or unfinished cases. Preserve original acquisition provenance.
+Do not restart an entire campaign solely because implementation hashes changed.
+Develop fixes in a separate worktree while a campaign is running; apply them only
+after it stops. Hardware preservation and restoration gates still apply.
 
 On failure, inspect the named failed stage and preserved evidence, diagnose the
 bounded failure, and repair before explicitly resuming. Retry notification

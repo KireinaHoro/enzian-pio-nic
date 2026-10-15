@@ -10,6 +10,7 @@ import sys
 from .acquire import ROOT
 from .hardware import atomic
 from .import_loaded import digest, load
+from .recovery import invalidated
 from .import_unloaded import validate_matched
 from .policy import SYSTEMS, SIZES, WORKERS, candidates, loss
 
@@ -91,8 +92,10 @@ def finalize(config,h,request,campaign):
     atomic(destination/'loaded.json',archive.records(loaded))
     atomic(destination/'unloaded.json',archive.records(unloaded))
     atomic(destination/'hardware.json',config)
+    atomic(destination/'recovery-history.json',[json.loads(p.read_text()) for p in sorted((campaign/'recoveries').glob('*/review.json'))])
     provenance={}
     for receipt in (campaign/'stages').glob('*/receipt.json'):
+        if invalidated(campaign,receipt): continue
         saved=json.loads(receipt.read_text())
         if any(digest(p)!=sha for p,sha in saved['hashes'].items()): raise ValueError('Stage evidence hash mismatch')
         result=saved['result']

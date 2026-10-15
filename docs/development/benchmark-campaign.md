@@ -207,8 +207,37 @@ The detached user service has a stop hook for unexpected controller termination.
 Durable notification state prevents ordinary duplicate delivery; failed delivery
 schedules another notification attempt, never acquisition. No intermediate agent
 polling after launch. Read atomic `status.json` and structured `events.jsonl`.
-Code/configuration changes require a fresh campaign root. Completed stages are
-reused only with matching hashes; current reservations are checked again on resume.
+Configuration/build changes require a fresh campaign root. Compatible source fixes
+can resume the same root with an explicit, hash-bound recovery review:
+
+```sh
+python3 tools/paper/benchmark_campaign.py recovery-plan --root out/echo-CAMPAIGN > out/recovery-review.json
+# Fill reason, hashed validation evidence, and a reason/action for every receipt.
+python3 tools/paper/benchmark_campaign.py launch --resume --recovery-review out/recovery-review.json --config CAMPAIGN.json --root out/echo-CAMPAIGN
+```
+
+The template defaults every completed stage to `rerun`. Mark unaffected acquisition
+receipts `reuse` after reviewing the fix and validating any affected analysis
+against preserved observations. `evidence` maps absolute validation-artifact paths
+to SHA256 hashes; each receipt decision contains its SHA256, action, and reason.
+The exact old/new implementation hashes bind the review to the proposed change.
+No additional user approval is required for a compatible recovery within the
+already authorized campaign scope. Do not mark an affected result reusable merely
+because acquisition succeeded; revalidate it or rerun that case.
+
+Resume checks all saved evidence hashes, retains original attempts, archives old
+receipts and both revision maps in `recoveries/`, and records acquisition code
+hashes in new receipts. Only selected or unfinished acquisition cases run again.
+Build/preflight and derived validation/plotting stages rerun after a code change.
+The frozen grid is never silently regenerated; a changed rehearsal boundary that
+conflicts with it stops for review. Configuration and non-code artifact changes
+are rejected. Current reservations are checked again on every resume. Recovery
+holds campaign/global locks and cannot modify a running controller's manifest.
+Develop fixes outside its worktree until it stops. An unsafe hardware state still
+requires evidence preservation, restoration and explicit recovery before preflight;
+a code compatibility review does not waive those gates. Failed acquisition attempts
+without a completed receipt are retried, not promoted to success. A final archive
+includes the recovery history.
 
 ## Validation and figures
 
@@ -218,7 +247,7 @@ nix develop -c python3 sw/apps/microbenchmarks/dpdk/echo_replay_test.py out/echo
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
-PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_acquire campaign.test_hardware campaign.test_trace_capture -v
+PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_acquire campaign.test_hardware campaign.test_trace_capture campaign.test_recovery -v
 nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
 nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```
