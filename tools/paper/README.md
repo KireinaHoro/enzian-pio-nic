@@ -177,10 +177,9 @@ python3 tools/paper/make_hot_load_plan.py --prefix CAMPAIGN --output PLAN.json
 ```
 
 For a fresh peer RAM directory, pass `--peer-base /dev/shm/CAMPAIGN` to
-`run_nullrpc_plan.py`. After draining/exporting the runtime and freezing the
-trace with the matched capture VIO script, preserve the entire buffer with
-`capture_nullrpc_trace.py --root OUTPUT --label CAMPAIGN --pipeline PIPELINE
---transfer-root /tmp/CAMPAIGN`. The transfer endpoint and reserved peer must
+`run_nullrpc_plan.py`. After draining/exporting the runtime, preserve the entire buffer through the
+[canonical trace workflow](../enzian/trace/README.md):
+`python3 tools/enzian/trace_capture.py capture --config TRACE.json --output NEW_DIR`. The transfer endpoint and reserved peer must
 remain available until the capture has been validated. Import the validated
 client/runtime plan, retain the complete capture check under
 `data/paper/nullrpc/acquisition/CAMPAIGN-trace-check.json`, then run

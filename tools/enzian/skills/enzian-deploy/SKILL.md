@@ -7,7 +7,10 @@ description: Deploy matched Lauberhorn artifacts to reserved Enzian boards, run 
 
 Work in the Lauberhorn platform repository. Read `docs/development/hardware-test.md`
 for manifests and acceptance, `docs/development/workflow.md` for matching build
-products, and `docs/development/tracing.md` when failure preservation is needed.
+products, and the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) when
+failure preservation is needed. Both manual preservation and benchmark capture
+use `tools/enzian/trace_capture.py` / `trace.session.capture()`; do not generate
+separate VIO or dump Tcl.
 Keep execution in the shared deployment scripts (paths relative to the repository
 root): [test.py](tools/enzian/test.py) orchestrates acceptance,
 [boot.py](tools/enzian/boot.py) implements expect-based power/BDK/program/boot,

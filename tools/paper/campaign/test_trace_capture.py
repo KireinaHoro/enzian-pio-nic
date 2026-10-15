@@ -1,6 +1,9 @@
 """A shutdown crash may salvage receiver evidence, never hide a trigger error."""
 import unittest
-from .trace_capture import trigger_result
+import sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[3]))
+from tools.enzian.trace.trigger import trigger_result
 
 
 class Trigger(unittest.TestCase):

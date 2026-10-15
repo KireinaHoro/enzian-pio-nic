@@ -13,7 +13,7 @@ relevant source and subsequent changes before relying on implementation details.
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md), [Nix-to-Vivado CI handoff](docs/development/ci.md).
 - Real Enzian hardware / adder E2E: use the [enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md), then [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
-- Trace capture: use the [CMAC-first agent procedure](docs/development/tracing.md#default-agent-capture-pipeline) on F_MAC1; JTAG is the fallback for unavailable Ethernet and independent spot checks.
+- Trace capture: use the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and [canonical workflow](tools/enzian/trace/README.md). Manual and campaign capture share the same scripts; CMAC for full dumps, JTAG only for bounded integrity checks. Failed Ethernet capture stops without reset or full JTAG fallback.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
 - Go runtime / HOST_WORK / future etcd: [design and dispatch matrix](docs/research/etcd.md); documentation only, no implementation authorized by this handoff.
@@ -229,7 +229,7 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   dump trace DDR over the dedicated F_MAC1 CMAC with the matching trace map
   and bitstream provenance; follow the [capture procedure](docs/development/tracing.md#default-agent-capture-pipeline).
   If Ethernet is unavailable or a bounded dump fails, preserve the partial output
-  and use JTAG before reset. Never reset merely to recover the capture link.
+  and stop without a full JTAG fallback or reset. Never reset merely to recover the capture link.
   Investigate the captured ECI traffic to pinpoint the failure; this recurring,
   hard-to-catch issue warrants capture without asking again. Keep tracing active
   through module load. If it was already stopped or the window was lost, record

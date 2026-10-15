@@ -90,10 +90,11 @@ class Hardware(unittest.TestCase):
             (stage/'request.json').write_text(json.dumps(request))
             config=dict(pipeline=519555,transfer_root='/fixture',transfer_url='http://fixture')
             acquisition=Acquisition(config,request,stage,root)
-            acquisition.h=Mock();acquisition.h.command.side_effect=RuntimeError('Ethernet failure')
+            acquisition.h=Mock();acquisition.h.capture.side_effect=RuntimeError('Ethernet failure')
             with self.assertRaisesRegex(RuntimeError,'Ethernet failure'): acquisition.capture()
-            self.assertEqual(acquisition.h.command.call_count,1)
-            self.assertEqual([c.args[0] for c in acquisition.h.vio.call_args_list],['configure','preserve'])
+            acquisition.h.capture.assert_called_once()
+            acquisition.h.command.assert_not_called()
+            acquisition.h.vio.assert_not_called()
             self.assertFalse(hasattr(acquisition,'jtag_fallback'))
 
     def test_archive_is_portable_and_checks_source(self):

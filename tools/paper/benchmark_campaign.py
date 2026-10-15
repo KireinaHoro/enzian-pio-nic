@@ -298,9 +298,11 @@ def implementation(config):
     paths=[SELF,*sorted((SELF.parent/'campaign').glob('*.py')),
            SELF.parent/'paper_chart.py', SELF.parent/'plot_echo.py',
            SELF.parent/'plot_echo_unloaded.py',
-           *(SELF.parent/name for name in ('capture_nullrpc_trace.py','check_trace_jtag.py',
-               'check_nullrpc_capture.py','import_nullrpc_mac.py','transfer_results.py')),
-           *sorted((ROOT/'tools/enzian').glob('*.py')), ROOT/'tools/enzian/cpu.sh',
+           *(SELF.parent/name for name in ('check_nullrpc_capture.py','import_nullrpc_mac.py','transfer_results.py')),
+           *sorted((ROOT/'tools/enzian').glob('*.py')),
+           *sorted((ROOT/'tools/enzian/trace').glob('*.py')),
+           ROOT/'tools/enzian/trace/control.tcl', ROOT/'data/eci/sys_trace/dump_trace_udp.py',
+           ROOT/'data/eci/sys_trace/dump_trace_hw_axi.tcl', ROOT/'tools/enzian/cpu.sh',
            *(Path(p).resolve() for p in config['adapter'] if Path(p).is_file())]
     code={str(p):digest(p) for p in paths}
     return code

@@ -176,15 +176,9 @@ namespace['start']({service!r})
 
     def capture(self, exceptional=False):
         c=self.config;label=self.label+('-failure' if exceptional else '')
-        try:
-            self.h.vio('configure',label,self.directory/(label+'-freeze.log'))
-            self.h.command([sys.executable,ROOT/'tools/paper/capture_nullrpc_trace.py',
-                '--root',self.directory,'--label',label,'--pipeline',c['pipeline'],
-                '--transfer-root',c['transfer_root'],'--transfer-url',c['transfer_url']],
-                'capture',timeout=7200)
-        finally:
-            self.last_recorder=self.h.vio('preserve',label,self.directory/(label+'-restore.log'))
-        return self.directory/(label+'-dump/trace/trace-dram.bin')
+        result=self.h.capture(label)
+        self.last_recorder=result['restored_recorder']
+        return Path(result['raw'])
 
     def run(self):
         r=self.request;c=self.config;loaded=r['stage']=='loaded'
@@ -254,8 +248,6 @@ namespace['start']({service!r})
         check=data/'acquisition'/f'{self.label}-trace-check.json'
         self.h.command([sys.executable,ROOT/'tools/paper/check_nullrpc_capture.py',trace,'--map',c['trace_map'],
             '--expected-rpcs',self.state['setup_count']+options['count']+options['warmup'],'--output',check],'trace-check')
-        self.h.command([sys.executable,ROOT/'tools/paper/check_trace_jtag.py','--trace',trace,'--pipeline',c['pipeline'],
-            '--label',self.label,'--output',self.directory/'jtag'],'jtag',timeout=300)
         stages={3,4,9,44,45,2,5,6}
         mac.extract(trace,Path(c['trace_map']),data=data,campaign=self.label,events=mac.EVENTS|stages)
         pairs=mac.correlate(data=data,campaign=self.label)

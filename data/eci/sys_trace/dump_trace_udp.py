@@ -147,6 +147,7 @@ def main() -> int:
     parser.add_argument("--wait-timeout", type=float, help="timeout while waiting for FPGA metadata")
     parser.add_argument("--timeout", type=float, default=1.0)
     parser.add_argument("--retries", type=int, default=5)
+    parser.add_argument("--ready-file", type=Path, help="create exclusively after binding the receiver socket")
     parser.add_argument("--status", action="store_true", help="query status only")
     args = parser.parse_args()
 
@@ -157,6 +158,9 @@ def main() -> int:
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((args.bind_ip, args.port))
+    if args.ready_file:
+        with args.ready_file.open("x") as ready:
+            ready.write("bound\n")
 
     print(f"waiting for FPGA metadata on {args.bind_ip}:{args.port}", file=sys.stderr)
     status_response, peer = wait_for_fpga(sock, args.wait_timeout)

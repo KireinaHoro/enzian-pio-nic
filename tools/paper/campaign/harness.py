@@ -117,16 +117,19 @@ peer['upload'](dut['Path']({output!r}),{self.config['transfer_url']!r})
         self.command(['rsync',self.config['gateway']+':'+self.config['transfer_root']+'/'+archive.name,archive],'fetch-'+name)
         return extract(archive,self.directory/(name+'-extracted'),name)
 
+    def trace_config(self):
+        if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
+        from tools.enzian.trace.control import campaign_config
+        return campaign_config(self.config)
+
     def vio(self, mode, label, output):
-        remote=self.config['fpga_directory']
-        argv=[self.config['vivado'],'-mode','batch','-nolog','-nojournal','-source',
-              remote+'/capture-vio.tcl','-tclargs',mode,'paper-'+label]
-        with Path(output).open('w') as stream:
-            subprocess.run(['ssh',self.config['programmer'],shlex.join(argv)],stdout=stream,
-                           stderr=subprocess.STDOUT,timeout=180,check=True)
-        import re
-        fields={name:int(value,16) for name,value in re.findall(r'^DIAG vio_output \S*/(\w+) ([0-9a-fA-F]+)$',Path(output).read_text(),re.M)}
-        if mode in ('configure','preserve') and fields.get('trace_stop')!=1:
-            raise ValueError('FPGA recording did not stop')
-        fields['_status']={name:int(value,16) for name,value in re.findall(r'^TRACE_STATUS (\w+) ([0-9a-fA-F]+)$',Path(output).read_text(),re.M)}
-        return fields
+        # Recording-only controls share canonical snapshots, without trace reads.
+        config=self.trace_config()
+        from tools.enzian.trace.control import Control
+        mode='freeze' if mode=='configure' else mode
+        return Control(config,self.directory/('trace-control-'+label)).call(mode,output)
+
+    def capture(self, label):
+        config=self.trace_config()
+        from tools.enzian.trace.session import capture
+        return capture(config,self.directory/(label+'-dump'))

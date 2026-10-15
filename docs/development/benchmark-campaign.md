@@ -170,6 +170,18 @@ gate. All grid points are retained. Candidate ranking uses goodput within the
 contiguous prefix before the first rate where any repetition exceeds 1% loss;
 failed sustained confirmations step down through that candidate order.
 
+All trace lifecycle operations now use the canonical
+[Lauberhorn trace infrastructure](../../tools/enzian/trace/README.md).
+`Harness.capture` calls the same session API as the manual CLI; `Harness.vio`
+uses its recording-only snapshot/freeze/restore controls. The existing CMAC
+receiver and JTAG reader remain the only low-level dump implementations. The
+paper-specific dump/check wrappers and remote-only VIO script dependency are
+retired. Manual validation on the already-frozen 519555 recovery buffer preserved
+975,586,752 bytes with matching SHA256 and independent 4 KiB head/tail checks;
+controls were restored with recording frozen. This is transport validation, not
+a passing benchmark cohort or a claim of loss-free workload traces. Evidence is
+`out/echo-redesign/canonical-trace-validation/summary.json`. Acquisition hashes include the shared Python/Tcl and receiver sources.
+
 The hardware adapter argv is `python3 tools/paper/echo_hardware.py HARDWARE.json`.
 Its manifest names immutable build products, artifact hashes, the matched boot
 case and trace map, reservations/endpoints, RAM/storage budgets, and a dedicated

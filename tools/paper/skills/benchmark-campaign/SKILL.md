@@ -17,6 +17,11 @@ used for ordinary hardware acceptance; [campaign/harness.py](tools/paper/campaig
 uses [run.py](tools/enzian/run.py) and shared [console.py](tools/enzian/console.py).
 Keep deployment fixes in these shared scripts, never a parallel benchmark boot
 or console workflow. Use `paper-chart` for figure generation and final review.
+For trace preservation use the shared
+[lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and
+`tools.enzian.trace.session.capture()`. The adapter uses the same session API as
+the manual CLI, including existing CMAC/JTAG readers; never generate trial Tcl
+or implement a paper-specific dump/export/restore path.
 Keep execution logic in `tools/paper/benchmark_campaign.py` and its campaign
 package; do not reproduce its rate selection or acquisition loops in chat.
 

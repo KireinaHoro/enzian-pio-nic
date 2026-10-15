@@ -35,7 +35,7 @@ def prepare(root, code, review, atomic):
     # JSON hardware manifests and other non-code artifacts are immutable. A
     # source fix is reviewable; changed builds/placement/workload need a new root.
     changed={p for p in old.keys()|code.keys() if old.get(p)!=code.get(p)}
-    if any(Path(p).suffix not in ('.py','.sh') for p in changed):
+    if any(Path(p).suffix not in ('.py','.sh','.tcl') for p in changed):
         raise ValueError('Recovery cannot change acquisition manifests/artifacts')
     receipts={str(p.relative_to(root)):p for p in (root/'stages').glob('*/receipt.json')}
     decisions=review.get('receipts',{})
