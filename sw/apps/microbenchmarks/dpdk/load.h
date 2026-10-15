@@ -109,6 +109,10 @@ struct parallel_worker {
     uint64_t unrelated;
 } __rte_cache_aligned;
 
+static void parallel_fail(struct parallel_load *load, const char *reason) {
+    if(!atomic_exchange(&load->failed,1)) fprintf(stderr,"load_error=%s\n",reason);
+}
+
 static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *packet) {
     struct parallel_load *load=worker->load;
     struct parallel_rx *meta=rte_mbuf_to_priv(packet);
@@ -117,12 +121,19 @@ static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *pack
     const uint8_t *payload=rte_pktmbuf_mtod_offset(packet,const uint8_t *,meta->offset);
     if(open_rate) {
         if(slot>=worker->sent || !s->submitted || s->status==OL_TX_FAILED || s->status==OL_MISSED) {
-            atomic_store(&load->failed,1);
+            parallel_fail(load,"reply for unsent request");
         } else {
             int valid=load->bench->validate(payload,meta->length,meta->id)==1;
             int state=ol_reply(s->status,s->enter,meta->received,load->timeout,valid);
-            if(state==OL_MALFORMED) { s->status=state; atomic_store(&load->failed,1); }
-            else if(s->status==OL_ONTIME || s->status==OL_LATE) s->duplicates++;
+            if(state==OL_MALFORMED) { s->status=state; parallel_fail(load,"malformed reply"); }
+            else if(s->status==OL_ONTIME || s->status==OL_LATE) {
+                s->duplicates++;
+                /* Forwarding can reorder copies from different RX queues. */
+                if(meta->received<s->received) {
+                    s->received=meta->received;
+                    s->status=ol_reply(OL_PENDING,s->enter,meta->received,load->timeout,true);
+                }
+            }
             else { s->received=meta->received; s->exit=now(); s->status=state; worker->done++; }
         }
     } else {
@@ -167,7 +178,7 @@ static int parallel_poll(void *argument) {
                 }
             }
             struct rte_mbuf *tx=rte_pktmbuf_alloc(load->pool);
-            if(!tx) { atomic_store(&load->failed,1); break; }
+            if(!tx) { parallel_fail(load,"TX buffer exhaustion"); break; }
             uint8_t payload[1472]; s->enter=now();
             size_t size=load->bench->encode(payload,sizeof(payload),id);
             uint8_t *bytes=(uint8_t *)rte_pktmbuf_append(tx,42+size);
@@ -187,7 +198,7 @@ static int parallel_poll(void *argument) {
             }
             if(!rte_eth_tx_burst(load->port,worker->index,&tx,1)) {
                 rte_pktmbuf_free(tx); s->status=open_rate?OL_TX_FAILED:2; s->submitted=s->exit=now();
-                worker->sent++; atomic_store(&load->failed,1); break;
+                worker->sent++; parallel_fail(load,"TX admission failure"); break;
             }
             s->submitted=now(); worker->sent++;
             next=open_rate?ol_due(load->start,worker->index+(uint64_t)worker->sent*load->cores,open_rate):s->enter+load->gap*load->cores;
@@ -200,7 +211,7 @@ static int parallel_poll(void *argument) {
         for(unsigned j=0;j<received;j++) {
             struct rte_mbuf *packet=packets[j];
             if(rte_pktmbuf_linearize(packet)) {
-                atomic_store(&load->failed,1); rte_pktmbuf_free(packet); continue;
+                parallel_fail(load,"invalid RX packet or transaction identity"); rte_pktmbuf_free(packet); continue;
             }
             const uint8_t *bytes=rte_pktmbuf_mtod(packet,const uint8_t *),*reply=NULL;
             size_t size=0;
@@ -212,14 +223,14 @@ static int parallel_poll(void *argument) {
             unsigned id=size>=4?get32(reply):0;
             if(parsed<0 || id<=load->first || id>load->first+load->count ||
                source.port!=load->src.port+(id-1)%load->flows) {
-                atomic_store(&load->failed,1); rte_pktmbuf_free(packet); continue;
+                parallel_fail(load,"invalid RX packet or transaction identity"); rte_pktmbuf_free(packet); continue;
             }
             struct parallel_rx *meta=rte_mbuf_to_priv(packet);
             *meta=(struct parallel_rx){.received=stamp,.id=id,.offset=reply-bytes,.length=size};
             unsigned owner=(id-load->first-1)%load->cores;
             if(owner==worker->index) parallel_reply(worker,packet);
             else if(rte_ring_enqueue(load->workers[owner].inbox,packet)) {
-                atomic_store(&load->failed,1); rte_pktmbuf_free(packet);
+                parallel_fail(load,"reply forwarding ring exhaustion"); rte_pktmbuf_free(packet);
             }
         }
         void *objects[32];

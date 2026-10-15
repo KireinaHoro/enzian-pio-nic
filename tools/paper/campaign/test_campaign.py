@@ -1,0 +1,103 @@
+"""Local fixtures exercise selection, durable stages, and notification delivery."""
+import copy
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+from .policy import aggregate, candidates, grid, qualifying, validate_trial
+
+SPEC=importlib.util.spec_from_file_location('controller',Path(__file__).parents[1]/'benchmark_campaign.py')
+controller=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(controller)
+
+
+def trial(on_time=100, transmitted=100):
+    return dict(transmitted=transmitted,on_time=on_time,late=0,duplicates=0,
+        generator_misses=0,tx_admission_failures=0,malformed=0,duration_ns=10_000_000_000,
+        deadline_ns=10_000_000,valid=True)
+
+
+class Policy(unittest.TestCase):
+    def test_prefix_and_nonmonotonic(self):
+        points=[dict(rate=r,trials=[trial(n,t)]*3) for r,n,t in [(10,100,100),(20,90,90),(30,197,200),(40,300,300)]]
+        self.assertEqual([p['rate'] for p in qualifying(points)],[10,20])
+        self.assertEqual([p['rate'] for p in candidates(points)],[10,20])
+        self.assertEqual(len(points),4) # Overload is retained.
+        self.assertEqual(aggregate(points[1]['trials'])['goodput'],9)
+        points[1]['trials']=[trial(100),trial(98),trial(100)]
+        self.assertEqual(len(qualifying(points)),1)
+
+    def test_threshold_and_generator(self):
+        self.assertEqual(len(qualifying([dict(rate=10,trials=[trial(99)]*3)])),1)
+        t=trial(); t['generator_misses']=1
+        with self.assertRaises(ValueError): validate_trial(t)
+        self.assertGreaterEqual(max(grid(101)),1.5*101)
+        t=trial(); t['duration_ns']=20_000_000_000
+        with self.assertRaises(ValueError): aggregate([trial(),t])
+
+    def test_resume_and_failures(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); adapter=root/'adapter.py'
+            adapter.write_text('''import sys,json,hashlib
+from pathlib import Path
+stage,request,result=sys.argv[1:]
+p=Path(request)
+if json.loads(p.read_text()).get('fail'): raise SystemExit(7)
+Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256(p.read_bytes()).hexdigest()})))
+''')
+            c=controller.Campaign(root,dict(adapter=[controller.sys.executable,str(adapter)],deadlines={'build':5}))
+            result=c.stage('build',{})
+            self.assertEqual(c.stage('build',{}),result)
+            self.assertEqual(len(list((root/'stages').glob('*/attempt-*'))),1)
+            with self.assertRaises(RuntimeError): c.stage('build',{'fail':True})
+            path=Path(next(iter(result['files']))); path.write_text('changed')
+            with self.assertRaises(ValueError): c.stage('build',{})
+
+    def test_full_grid_extensions_and_sustained_fallback(self):
+        class Fixture(controller.Campaign):
+            def stage(self, name, request):
+                if name=='finalize':
+                    return dict({k:True for k in ('complete','hashes','boundaries','failure_accounting','worker_activity','pdf_dimensions','embedded_fonts')},previews=list('abcde'),files={p:'fixture' for p in 'abcde'})
+                return {}
+            def loaded(self, system, size, workers, rate, phase, trial=0, sustained=False):
+                seconds=60 if sustained else 10
+                # Full acquisition exceeds the rehearsal's estimated boundary.
+                limit=100 if phase=='rehearsal' else 210
+                if sustained: limit=150
+                count=rate*seconds
+                t=globals()['trial'](count if rate<limit else count-count//10,count)
+                t['duration_ns']=seconds*1_000_000_000
+                self.completed+=1
+                return t
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            config=dict(initial_rate=50,max_extensions=10)
+            with patch.object(controller,'SYSTEMS',('LH',)), patch.object(controller,'SIZES',(8,)), patch.object(controller,'WORKERS',(1,)):
+                Fixture(root,config).run()
+            result=controller.read(root/'loaded.json')[0]
+            self.assertGreater(max(p['rate'] for p in result['points']),max(result['rates']))
+            self.assertGreater(len(result['confirmations']),1)
+            self.assertLess(result['confirmed']['rate'],150)
+            self.assertEqual(controller.read(root/'status.json')['stage'],'complete')
+
+    def test_notification_retry_no_acquisition(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); controller.atomic(root/'status.json',dict(stage='failed',error='fixture'))
+            config=dict(thread='fixture',notify=['queue-fixture'])
+            with patch.object(controller.subprocess,'run') as run:
+                run.return_value.returncode=1; run.return_value.stderr='temporary failure'
+                self.assertFalse(controller.notify(root,config,retry=False))
+                run.return_value.returncode=0; run.return_value.stderr=''
+                self.assertTrue(controller.notify(root,config,retry=False))
+                controller.notify(root,config,retry=False)
+                self.assertEqual(run.call_count,2)
+                self.assertEqual(run.call_args.args[0][1:3],['--thread','fixture'])
+                self.assertEqual(controller.read(root/'notification.json')['attempts'],2)
+            controller.atomic(root/'status.json',dict(stage='complete',previews=['fixture.pdf']))
+            with patch.object(controller.subprocess,'run') as run:
+                run.return_value.returncode=0; run.return_value.stderr=''
+                self.assertTrue(controller.notify(root,config,retry=False))
+
+
+if __name__=='__main__': unittest.main()

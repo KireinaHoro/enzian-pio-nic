@@ -299,3 +299,13 @@ exercise partial AXI write strobes; keep the direct fixture too.
 
 These tests belong to the normal fast ECI suite. See the [isolation correction
 and board-acceptance boundary](../hardware/payload-isolation-blocker.md#source-correction--october-3-follow-up).
+
+## Hot echo RPC generator and campaign
+
+See the [campaign contract and current acceptance status](benchmark-campaign.md).
+The native traffic-generator package checks schema/raw-wire compatibility,
+zero-length bodies, MTU boundaries and absolute schedule/deadline rules.
+`open_loop_replay_test.py` exercises complete loss and an induced generator
+stall through the real DPDK pcap PMD. Campaign fixtures cover rate-prefix
+selection, overload extensions, sustained fallback, resume integrity and
+notification retries. These local checks do not establish hardware acceptance.
