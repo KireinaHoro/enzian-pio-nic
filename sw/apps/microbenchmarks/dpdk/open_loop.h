@@ -12,7 +12,7 @@ static inline bool ol_missed(uint64_t now_ns, uint64_t start, uint64_t slot,
     return now_ns >= ol_due(start, slot + cores, rate);
 }
 enum ol_state { OL_PENDING, OL_ONTIME, OL_EXPIRED, OL_MALFORMED, OL_LATE,
-                OL_MISSED, OL_TX_FAILED };
+                OL_MISSED, OL_TX_FAILED, OL_REJECTED };
 /* Arrival timestamp is captured before forwarding or payload validation. */
 static inline int ol_reply(int previous, uint64_t enter, uint64_t received,
                            uint64_t deadline, bool valid) {

@@ -11,6 +11,10 @@ def validate_trial(t):
                 'tx_admission_failures', 'malformed', 'duration_ns'):
         if type(t[key]) is not int or t[key] < 0:
             raise ValueError(f'Invalid {key}')
+    if type(t.get('server_rejections',0)) is not int or t.get('server_rejections',0)<0:
+        raise ValueError('Invalid server rejection count')
+    if t.get('server_rejections',0)>t['transmitted']+t['duplicates']:
+        raise ValueError('Rejection replies exceed received/transmitted requests')
     if any(t.get(k,0) for k in ('nic_rx_missed','nic_rx_no_buffer','nic_rx_errors','nic_tx_errors')):
         raise ValueError('Client NIC resource/health failure')
     if t['valid'] is not True or t['generator_misses'] or t['tx_admission_failures'] or t['malformed']:

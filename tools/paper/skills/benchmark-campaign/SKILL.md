@@ -46,7 +46,10 @@ compiled-out software tracing, disable FPGA recording and perform no trace reads
 the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
 JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;
-generator misses, admission failure, corruption and resource exhaustion invalidate
+record well-formed ONC-RPC `SYSTEM_ERR` rejections separately and include requests
+without an on-time successful reply in the 1% loss condition. Retain per-request
+and per-trial rejection counts for later plots; do not count duplicate rejection
+replies as additional lost requests. Generator misses, admission failure, corruption and resource exhaustion invalidate
 a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
 not invalidation conditions; enforce the requested absolute send schedule in
 both warmup and measurement. Keep failed attempts and exact rates.

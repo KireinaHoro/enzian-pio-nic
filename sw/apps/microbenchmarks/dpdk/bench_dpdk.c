@@ -17,7 +17,7 @@
 #include <rte_version.h>
 #include "wire.h"
 #include "benchmark.h"
-struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled; uint32_t duplicates; int status; } __rte_cache_aligned;
+struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled; uint32_t duplicates, rejections; int status; } __rte_cache_aligned;
 static uint64_t now(void) {
     struct timespec t;
     if(clock_gettime(CLOCK_MONOTONIC_RAW,&t)) rte_exit(1,"clock_gettime failed\n");
@@ -311,14 +311,14 @@ int main(int argc, char **argv) {
     }
     observation_end=now();
     }
-    fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport,scheduled_ns,start_lag_ns,duplicates\n");
+    fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport,scheduled_ns,start_lag_ns,duplicates,server_rejections\n");
     for(unsigned i=0;i<((generators>1 || open_rate)?count+warmup:completed);i++) {
         struct sample *s=&samples[i];
         if(!open_rate && generators>1 && !s->enter) continue;
         int ok=s->status==1;
-        fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk,%"PRIu64",%"PRIu64",%u\n",
+        fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk,%"PRIu64",%"PRIu64",%u,%u\n",
             i+1,ok?0:s->status,ok,bench->name,
-            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates);
+            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates,s->rejections);
     }
     int io_error=ferror(csv);
     if(open_rate) {
@@ -341,13 +341,13 @@ int main(int argc, char **argv) {
     if(open_rate) {
         for(unsigned i=0;i<warmup;i++)
             failed |= samples[i].status==OL_MISSED || samples[i].status==OL_TX_FAILED || samples[i].status==OL_MALFORMED;
-        uint64_t transmitted=0, ontime=0, late=0, duplicates=0, misses=0, admission=0, malformed=0;
+        uint64_t transmitted=0, ontime=0, late=0, duplicates=0, misses=0, admission=0, malformed=0, rejections=0;
         for(unsigned i=warmup;i<count+warmup;i++) {
             struct sample *s=&samples[i];
             transmitted+=s->submitted && s->status!=OL_TX_FAILED;
             ontime+=s->status==OL_ONTIME; late+=s->status==OL_LATE;
             misses+=s->status==OL_MISSED; admission+=s->status==OL_TX_FAILED;
-            malformed+=s->status==OL_MALFORMED; duplicates+=s->duplicates;
+            malformed+=s->status==OL_MALFORMED; duplicates+=s->duplicates; rejections+=s->rejections;
         }
         struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"open-loop NIC stats");
         char path[4096]; snprintf(path,sizeof(path),"%s.open.json",argv[9]);
@@ -356,9 +356,9 @@ int main(int argc, char **argv) {
                 bench->name,open_warmup,observation_start,observation_end);
         fprintf(f,"\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","
           "\"transmitted\":%"PRIu64",\"on_time\":%"PRIu64",\"late\":%"PRIu64",\"duplicates\":%"PRIu64","
-          "\"generator_misses\":%"PRIu64",\"tx_admission_failures\":%"PRIu64",\"malformed\":%"PRIu64","
+          "\"generator_misses\":%"PRIu64",\"tx_admission_failures\":%"PRIu64",\"malformed\":%"PRIu64",\"server_rejections\":%"PRIu64","
           "\"nic_rx_no_buffer\":%"PRIu64",\"nic_rx_missed\":%"PRIu64",\"nic_rx_errors\":%"PRIu64",\"nic_tx_errors\":%"PRIu64","
-          "\"valid\":%s,\"generator_cpus\":[",open_rate,open_duration,timeout_ns,transmitted,ontime,late,duplicates,misses,admission,malformed,
+          "\"valid\":%s,\"generator_cpus\":[",open_rate,open_duration,timeout_ns,transmitted,ontime,late,duplicates,misses,admission,malformed,rejections,
           stats.rx_nombuf,stats.imissed,stats.ierrors,stats.oerrors,(!failed&&!misses&&!admission&&!malformed&&!stats.ierrors&&!stats.oerrors&&!stats.imissed&&!stats.rx_nombuf)?"true":"false");
         for(unsigned i=0;i<generators;i++) fprintf(f,"%s%u",i?",":"",open_cpus[i]);
         fputs("]}\n",f);

@@ -126,7 +126,9 @@ static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *pack
         if(slot>=worker->sent || !s->submitted || s->status==OL_TX_FAILED || s->status==OL_MISSED) {
             parallel_fail(load,"reply for unsent request");
         } else {
-            int valid=load->bench->validate(payload,meta->length,meta->id)==1;
+            int validation=load->bench->validate(payload,meta->length,meta->id);
+            int rejected=validation==2, valid=validation==1 || rejected;
+            if(rejected) s->rejections++;
             int state=ol_reply(s->status,s->enter,meta->received,load->timeout,valid);
             if(state==OL_MALFORMED) {
                 s->status=state; s->received=meta->received; s->exit=now();
@@ -141,15 +143,15 @@ static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *pack
                     fputc('\n',stderr);
                 }
             }
-            else if(s->status==OL_ONTIME || s->status==OL_LATE) {
+            else if(s->status==OL_ONTIME || s->status==OL_LATE || s->status==OL_REJECTED) {
                 s->duplicates++;
                 /* Forwarding can reorder copies from different RX queues. */
-                if(meta->received<s->received) {
+                if(!rejected && (s->status==OL_REJECTED || meta->received<s->received)) {
                     s->received=meta->received;
                     s->status=ol_reply(OL_PENDING,s->enter,meta->received,load->timeout,true);
                 }
             }
-            else { s->received=meta->received; s->exit=now(); s->status=state; worker->done++; }
+            else { s->received=meta->received; s->exit=now(); s->status=rejected?OL_REJECTED:state; worker->done++; }
         }
     } else {
     if(slot>=worker->sent || s->status || meta->received<s->enter ||

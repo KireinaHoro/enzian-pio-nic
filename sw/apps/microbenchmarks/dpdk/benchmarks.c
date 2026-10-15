@@ -90,6 +90,8 @@ static size_t label##_encode(uint8_t *p, size_t cap, uint32_t id) { \
 } \
 static int label##_validate(const uint8_t *p, size_t n, uint32_t id) { \
     if (n < 4 || get32(p) != id) return 0; \
+    if (n == 24 && get32(p+4)==1 && !get32(p+8) && !get32(p+12) && \
+        !get32(p+16) && get32(p+20)==5) return 2; \
     if (n != 24+size || get32(p+4)!=1 || get32(p+8) || get32(p+12) || \
         get32(p+16) || get32(p+20)) return -1; \
     return memcmp(p+24, loopback_pattern+(id&255), size) ? -1 : 1; \

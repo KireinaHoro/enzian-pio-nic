@@ -98,11 +98,23 @@ limit and no XID wrap. `LH_BENCH_TRACKING_MIB` sets the explicit preflight-check
 budget (at most 256 GiB); sustained trials must budget their full schedule. Output space is reserved before acquisition at 256 bytes per scheduled
 request. File or tracking exhaustion is terminal. Missing replies do not stall
 the schedule. `samples.csv.open.json` records on-time replies, observed late
-replies, duplicate replies, missed sends, failed admissions, malformed replies,
+replies, duplicate replies, server rejection replies, missed sends, failed admissions, malformed replies,
 actual generator CPUs and NIC counters. Schema 2 also records workload, warmup,
 and absolute measured send-start/end timestamps; the importer checks each slot,
 phase label, transmit boundary and recorded start lag against that schedule. CSV statuses are 0 for valid on-time
-(with `ok=1`), 2 expired, 3 malformed, 4 late, 5 missed, 6 failed admission.
+(with `ok=1`), 2 expired, 3 malformed, 4 late, 5 missed, 6 failed admission,
+7 server rejection. An exact matching 24-byte ONC-RPC `SYSTEM_ERR` envelope is
+a rejection, not malformed traffic. Other invalid headers or payloads remain
+fatal. The per-request `server_rejections` CSV field counts observed rejection
+replies (including duplicates); the same summary field sums measured rows only.
+Warmup rejection counts remain in the raw CSV. Older records without this field
+have zero recorded rejections. Rejections neither abort an open-loop run nor
+contribute goodput or latency samples. Loss remains
+`(transmitted - on_time) / transmitted`, so a rejected request counts once
+toward the 1% cutoff regardless of duplicate error replies. A subsequent valid
+successful reply uses its own RX timestamp and may satisfy the deadline;
+the earlier rejection count is retained. Rejection counters are preserved in
+imported per-trial data for future panel choices.
 Loss is `(transmitted - on_time) / transmitted`. Actual offered load and goodput
 use the fixed measured send interval; warmup is excluded. A generator miss in
 either warmup or measurement invalidates the acquisition.
@@ -291,17 +303,20 @@ fixtures are excluded from paper inputs and are not board acceptance.
 
 ### Generator isolation and placement transitions
 
-The current loaded client still rejects a well-formed ONC-RPC `SYSTEM_ERR`
-response as malformed. This blocks overload collection: the FPGA emits that
-24-byte response when its 16-entry reply-context table is full. A targeted
-256,292 RPC/s, LH echo8/one-worker reproduction preserved such a reply for XID
-109 (9.23 us RTT), with passing hardware health and restored peer controls, in
-`out/echo-redesign/malformed-reply/reproduction/`. The original r6 failure did
-not retain the rejected bytes, so its exact packet cannot be reconstructed.
-The generator now logs the first invalid reply's bytes and timestamps and
-distinguishes payload validation from timestamp-order errors. Rejection
-accounting must be corrected before resuming the overload sweep; this diagnostic
-run is not a passing acquisition or a capacity result.
+The FPGA emits a 24-byte ONC-RPC `SYSTEM_ERR` response when its 16-entry
+reply-context table fills. A targeted 256,292 RPC/s LH echo8/one-worker
+reproduction preserved this response for XID 109 (9.23 us RTT), with passing
+hardware health and restored peer controls, in
+`out/echo-redesign/malformed-reply/reproduction/`. This exposed the former
+success-only validator's overload misclassification. The client now accounts
+for these rejections separately as described above. The diagnostic run is not
+a passing acquisition or capacity result. The corrected client's first targeted
+1 s warmup + 1 s measured trial at the same rate completed all 256,292 measured
+transmissions: 230,970 on-time successes and 25,322 rejection replies (9.88%
+loss), with zero generator misses or malformed replies. Its raw observations,
+imported accounting and health checks are in
+`out/echo-redesign/malformed-reply/rejection-validation/trial-0/`; it remains
+diagnostic evidence, excluded from paper inputs.
 
 The current generator uses CPUs 16–47, leaving 0–15 for housekeeping. Provision
 boot isolation through EMG (`isolcpus=nohz,domain,managed_irq,16-47`,

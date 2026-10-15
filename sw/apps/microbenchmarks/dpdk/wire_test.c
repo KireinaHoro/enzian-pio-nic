@@ -32,6 +32,15 @@ int main(void) {
     assert(echo->validate(payload,64,42)==1);
     payload[63]^=1; assert(echo->validate(payload,64,42)==-1);
     assert(!benchmark_find("absent"));
+    /* Only an exact, matching SYSTEM_ERR envelope is an overload rejection. */
+    const struct benchmark *rpc_echo=benchmark_find("echo8");
+    memset(payload,0,32);put32(payload,42);put32(payload+4,1);put32(payload+20,5);
+    assert(rpc_echo->validate(payload,24,42)==2);
+    assert(rpc_echo->validate(payload,24,43)==0);
+    assert(rpc_echo->validate(payload,25,42)==-1);
+    put32(payload+20,4);assert(rpc_echo->validate(payload,24,42)==-1);
+    put32(payload+20,5);put32(payload+8,1);
+    assert(rpc_echo->validate(payload,24,42)==-1);
     const unsigned sizes[] = {8, 64, 128, 512, 1432};
     for (size_t k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++) {
         char name[32]; uint8_t call[1472], reply[1472];

@@ -19,7 +19,7 @@ def load(csv_path, summary_path, *, collect_latencies=True):
     csv_path, summary_path = Path(csv_path), Path(summary_path)
     summary = validate_trial(json.loads(summary_path.read_text()))
     counts = dict(transmitted=0, on_time=0, late=0, duplicates=0,
-                  generator_misses=0, tx_admission_failures=0, malformed=0)
+                  generator_misses=0, tx_admission_failures=0, malformed=0, server_rejections=0)
     latencies = []
     previous = 0
     measured = 0
@@ -37,8 +37,16 @@ def load(csv_path, summary_path, *, collect_latencies=True):
                 raise ValueError('Missing/repeated XID observation')
             previous = xid
             status = 1 if row['ok'] == '1' else int(row['rpc_status'])
-            if status not in range(1, 7):
+            if status not in range(1, 8):
                 raise ValueError('Unclassified request')
+            rejections=int(row.get('server_rejections',0))
+            duplicates=int(row['duplicates'])
+            if (rejections<0 or duplicates<0 or rejections>duplicates+1
+                    or (status==7 and not rejections)
+                    or (rejections and status not in (1,4,7))):
+                raise ValueError('Invalid server rejection accounting')
+            if status==7 and int(row['client_rx_burst_ns'])<int(row['client_call_enter_ns']):
+                raise ValueError('Rejection precedes transmission')
             if strict:
                 scheduled=start+(xid-1)*1_000_000_000//summary['rate']
                 enter=int(row['client_call_enter_ns']);submitted=int(row['client_tx_submit_ns'])
@@ -66,7 +74,8 @@ def load(csv_path, summary_path, *, collect_latencies=True):
             counts['malformed'] += status == 3
             counts['generator_misses'] += status == 5
             counts['tx_admission_failures'] += status == 6
-            counts['duplicates'] += int(row['duplicates'])
+            counts['duplicates'] += duplicates
+            counts['server_rejections'] += rejections
             if status in (1, 4):
                 rtt = rx-enter
                 if rtt < 0 or (rtt <= summary['deadline_ns']) != (status == 1):
@@ -77,6 +86,6 @@ def load(csv_path, summary_path, *, collect_latencies=True):
         raise ValueError('Observation count differs from fixed schedule')
     if strict and previous!=warmup_slots+measured:
         raise ValueError('Warmup observation count differs from schedule')
-    if any(summary[k] != v for k, v in counts.items()):
+    if any(summary.get(k,0) != v for k, v in counts.items()):
         raise ValueError('Raw observations disagree with counters')
     return dict(summary, files={str(csv_path): digest(csv_path), str(summary_path): digest(summary_path)}), latencies

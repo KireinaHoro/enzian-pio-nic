@@ -36,6 +36,13 @@ class Policy(unittest.TestCase):
         t=trial(); t['duration_ns']=20_000_000_000
         with self.assertRaises(ValueError): aggregate([trial(),t])
 
+    def test_server_rejections_count_toward_cutoff(self):
+        at_limit=dict(trial(99),server_rejections=1)
+        over_limit=dict(trial(98),server_rejections=2)
+        points=[dict(rate=10,trials=[at_limit]*3),dict(rate=20,trials=[over_limit]*3)]
+        self.assertEqual([p['rate'] for p in qualifying(points)],[10])
+        self.assertEqual(aggregate([over_limit]*3)['goodput'],9.8)
+
     def test_resume_and_failures(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); adapter=root/'adapter.py'
