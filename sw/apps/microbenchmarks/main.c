@@ -1,3 +1,10 @@
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <sched.h>
+#include <stdatomic.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include "lauberhorn/trace.h"
 #include <errno.h>
 #include <limits.h>
@@ -13,6 +20,7 @@
 #include "lauberhorn/oncrpc.h"
 
 #include "bench.h"
+#include "echo_registry.h"
 
 #define DEFAULT_WORKERS 4
 
@@ -24,11 +32,36 @@ struct bench_def {
   uint16_t port;
   int (*compute)(int, int);
   lauberhorn_trace_check_t trace_check;
+  bool echo;
+  size_t body_size;
+  xdrproc_t xdr;
 };
 
 // Handlers execute on multiple worker threads.
 thread_local bench_resp resp;
+/* Optional loaded-case activity counters. Each worker owns one cache line;
+ * the controller snapshots this file between cohorts, without trace recording. */
+struct activity_counter {
+  _Atomic uint64_t calls;
+  int32_t cpu, tid;
+  unsigned char padding[48];
+};
+_Static_assert(sizeof(struct activity_counter) == 64, "activity counter layout");
+static struct activity_counter *activity;
+static thread_local struct activity_counter *my_activity;
+static thread_local uint64_t my_calls;
+static void worker_init(int index) {
+  if (activity) my_activity = &activity[index];
+}
 static unsigned flush_spin_us;
+static unsigned loopback_size;
+static bool_t xdr_loopback(XDR *xdr, void *bytes) {
+  return xdr_opaque(xdr, bytes, loopback_size);
+}
+static const struct bench_def loopback_def = {
+    .name = "loopback", .prog = 0x23451113, .vers = 1, .proc = 1,
+    .port = 12345,
+};
 static uint64_t raw_ns(void) {
   struct timespec t;
   clock_gettime(CLOCK_MONOTONIC_RAW, &t);
@@ -60,7 +93,12 @@ static bool mul_check(void *req, void *resp_msg) {
          result->result == compute_mul(call->a, call->b);
 }
 
+#define ECHO_DEF(label, size, procedure, codec) { \
+    .name = #label, .prog = ECHO_PROGRAM, .vers = ECHO_VERSION, \
+    .proc = procedure, .port = 12345, .echo = true, .body_size = size, \
+    .xdr = (xdrproc_t)codec },
 static const struct bench_def benches[] = {
+    ECHO_VARIANTS(ECHO_DEF)
     {
         .name = "add",
         .prog = ADD_PROG,
@@ -83,7 +121,18 @@ static const struct bench_def benches[] = {
 
 static lauberhorn_outcome_t bench_handler(void *data, lauberhorn_msg_t req,
                                       lauberhorn_request_context_t context) {
+  if (my_activity) {
+    if (!my_calls) {
+      my_activity->cpu = sched_getcpu();
+      my_activity->tid = syscall(SYS_gettid);
+    }
+    atomic_store_explicit(&my_activity->calls, ++my_calls, memory_order_release);
+  }
+  if (loopback_size)
+    return lauberhorn_reply(req, loopback_size, NULL);
   const struct bench_def *def = data;
+  if (def->echo)
+    return lauberhorn_reply(req, def->body_size, NULL);
   bench_call *call = req;
   (void)context;
   lauberhorn_trace_request_id(bench_request_id(req));
@@ -101,6 +150,15 @@ static lauberhorn_outcome_t bench_handler(void *data, lauberhorn_msg_t req,
 
 static const struct bench_def *find_bench(const char *name) {
   size_t i;
+  const unsigned sizes[] = {8, 64, 128, 512, 1432};
+  for (i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+    char label[32];
+    snprintf(label, sizeof(label), "loopback%u", sizes[i]);
+    if (!strcmp(name, label)) {
+      loopback_size = sizes[i];
+      return &loopback_def;
+    }
+  }
 
   for (i = 0; i < sizeof(benches) / sizeof(benches[0]); ++i) {
     if (strcmp(name, benches[i].name) == 0)
@@ -125,7 +183,7 @@ static int parse_positive_int(const char *text, const char *name) {
 }
 
 static void usage(const char *argv0) {
-  fprintf(stderr, "usage: %s add|mul [workers=%d] [server_trace.csv]\n",
+  fprintf(stderr, "usage: %s add|mul|echo{0,8,128,1432}|loopback{8,64,128,512,1432} [workers=%d] [server_trace.csv]\n",
           argv0, DEFAULT_WORKERS);
 }
 
@@ -155,6 +213,18 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  if (def->echo) {
+    /* A void codec still gets a non-null allocation; its wire body is empty. */
+    adapter.call_size = adapter.resp_size = def->body_size ? def->body_size : 1;
+    adapter.call_xdrproc = adapter.resp_xdrproc = def->xdr;
+    codec.response_inline = def->body_size <= 64;
+  }
+  if (loopback_size) {
+    adapter.call_size = adapter.resp_size = loopback_size;
+    adapter.call_xdrproc = adapter.resp_xdrproc = (xdrproc_t)xdr_loopback;
+    codec.response_inline = loopback_size <= 64;
+  }
+
   const char *spin = getenv("LH_BENCH_FLUSH_SPIN_US");
   if (spin && *spin) {
     flush_spin_us = parse_positive_int(spin, "LH_BENCH_FLUSH_SPIN_US");
@@ -165,6 +235,17 @@ int main(int argc, char *argv[]) {
   }
   if (argc >= 3)
     workers_count = parse_positive_int(argv[2], "workers");
+
+  const char *activity_path = getenv("LH_BENCH_ACTIVITY_FILE");
+  if (activity_path) {
+    size_t bytes = workers_count * sizeof(*activity);
+    int fd = open(activity_path, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (fd < 0 || ftruncate(fd, bytes)) { perror("activity file"); return EXIT_FAILURE; }
+    activity = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (activity == MAP_FAILED) { perror("activity mapping"); return EXIT_FAILURE; }
+    memset(activity, 0, bytes);
+  }
 
   lauberhorn_handler_t handler = {
       .func = bench_handler,
@@ -204,7 +285,7 @@ int main(int argc, char *argv[]) {
     goto fini;
   }
   for (i = 0; i < workers_count; ++i) {
-    workers[i] = lauberhorn_create_worker(&ctx, NULL, NULL);
+    workers[i] = lauberhorn_create_worker(&ctx, worker_init, NULL);
     if (!workers[i])
       fprintf(stderr, "Failed to launch worker #%d!\n", i);
   }
