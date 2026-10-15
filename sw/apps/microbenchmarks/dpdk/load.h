@@ -128,7 +128,19 @@ static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *pack
         } else {
             int valid=load->bench->validate(payload,meta->length,meta->id)==1;
             int state=ol_reply(s->status,s->enter,meta->received,load->timeout,valid);
-            if(state==OL_MALFORMED) { s->status=state; parallel_fail(load,"malformed reply"); }
+            if(state==OL_MALFORMED) {
+                s->status=state; s->received=meta->received; s->exit=now();
+                /* Preserve the first rejected reply before freeing its mbuf.
+                 * This executes only after invalidation, outside valid timings. */
+                if(!atomic_exchange(&load->failed,1)) {
+                    fprintf(stderr,"load_error=%s id=%u owner=%u enter_ns=%" PRIu64
+                        " received_ns=%" PRIu64 " payload_valid=%d length=%u payload_hex=",
+                        valid?"RX timestamp precedes call entry":"malformed reply",
+                        meta->id,worker->index,s->enter,meta->received,valid,meta->length);
+                    for(unsigned byte=0;byte<meta->length;byte++) fprintf(stderr,"%02x",payload[byte]);
+                    fputc('\n',stderr);
+                }
+            }
             else if(s->status==OL_ONTIME || s->status==OL_LATE) {
                 s->duplicates++;
                 /* Forwarding can reorder copies from different RX queues. */

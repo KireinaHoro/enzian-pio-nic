@@ -291,6 +291,18 @@ fixtures are excluded from paper inputs and are not board acceptance.
 
 ### Generator isolation and placement transitions
 
+The current loaded client still rejects a well-formed ONC-RPC `SYSTEM_ERR`
+response as malformed. This blocks overload collection: the FPGA emits that
+24-byte response when its 16-entry reply-context table is full. A targeted
+256,292 RPC/s, LH echo8/one-worker reproduction preserved such a reply for XID
+109 (9.23 us RTT), with passing hardware health and restored peer controls, in
+`out/echo-redesign/malformed-reply/reproduction/`. The original r6 failure did
+not retain the rejected bytes, so its exact packet cannot be reconstructed.
+The generator now logs the first invalid reply's bytes and timestamps and
+distinguishes payload validation from timestamp-order errors. Rejection
+accounting must be corrected before resuming the overload sweep; this diagnostic
+run is not a passing acquisition or a capacity result.
+
 The current generator uses CPUs 16–47, leaving 0–15 for housekeeping. Provision
 boot isolation through EMG (`isolcpus=nohz,domain,managed_irq,16-47`,
 `nohz_full=16-47`, `rcu_nocbs=16-47`, `irqaffinity=0-15`,
