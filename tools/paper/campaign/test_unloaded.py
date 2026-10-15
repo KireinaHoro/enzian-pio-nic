@@ -60,6 +60,9 @@ class Unloaded(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'whole-capture RPC accounting'):
             lauberhorn(client,pairs[:-1],**kwargs)
         pairs[0]['tx_mac_ns']=None
+        primed=lauberhorn(client,pairs,priming_count=1,**kwargs)
+        self.assertEqual(primed['preparation']['priming_count'],1)
+        self.assertEqual(len(primed['rows']),3)
         with self.assertRaisesRegex(ValueError,'Unpaired'):
             lauberhorn(client,pairs,**kwargs)
 

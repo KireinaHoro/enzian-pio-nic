@@ -111,11 +111,19 @@ namespace['start']({service!r})
             "printf '0\\n' > /sys/kernel/tracing/tracing_on",'systemctl start rpcbind',
             "python3 - <<'ECHOSTART'",self.h.image_code(),code,'ECHOSTART'])
         setup=self.role('client',setup=True)
-        setup_path=self.directory/'setup-request.json';atomic(setup_path,setup)
-        setup_url=self.h.stage(setup_path,self.label+'-setup.json')
+        priming=dict(setup,count=1,deadline_ms=1000,purpose='neighbor-priming',
+                     label=self.label+'-neighbor',output='/dev/shm/'+self.label+'-neighbor-client')
         peer_script=Path(__file__).with_name('peer.py');peer_url=self.h.stage(peer_script,self.label+'-peer.py')
         case['client_machine']=c['peer']
-        case['client']=remote_script(setup_url,peer_url,digest(peer_script),c['client_image_remote'],c['client_image_sha256'])
+        scripts=[]
+        for name,role in (('neighbor',priming),('setup',setup)):
+            path=self.directory/(name+'-request.json');atomic(path,role)
+            url=self.h.stage(path,self.label+'-'+name+'.json')
+            scripts.append(remote_script(url,peer_url,digest(peer_script),c['client_image_remote'],c['client_image_sha256']))
+        # The first reply populates the FPGA neighbor cache through the normal
+        # kernel miss path. This isolated priming call precedes all setup,
+        # warmup and measured requests; only priming permits a longer deadline.
+        case['client']='set -eu\n'+'\n'.join(scripts)
         cases=self.directory/'cases.json';atomic(cases,[case])
         atomic(self.state_path,dict(safe=False,stage=str(self.directory),service_key=key,service=service))
         try:
@@ -123,12 +131,21 @@ namespace['start']({service!r})
                             '--machine',c['dut'],'--logs',self.directory/'board','--repeats','1'],
                             'board',timeout=7200)
         except Exception:
-            # Preserve failures and timeouts before any future reset.
+            # Preserve both preparation roles even when the harness exits early.
+            for role in (priming,setup):
+                archive=self.directory/(Path(role['output']).name+'.tar.gz')
+                self.h.command(['rsync',c['gateway']+':'+c['transfer_root']+'/'+archive.name,archive],
+                               'failed-setup-evidence',check=False)
             self.capture(exceptional=True)
             raise
-        setup_archive=self.directory/(Path(setup['output']).name+'.tar.gz')
-        self.h.command(['rsync',c['gateway']+':'+c['transfer_root']+'/'+setup_archive.name,setup_archive],'setup-evidence')
-        self.state=dict(safe=True,service_key=key,service=service,setup_count=16,board=str(self.directory/'board/summary.json'))
+        for role in (priming,setup):
+            archive=self.directory/(Path(role['output']).name+'.tar.gz')
+            self.h.command(['rsync',c['gateway']+':'+c['transfer_root']+'/'+archive.name,archive],'setup-evidence')
+            from .acquire import extract
+            unpacked=extract(archive,self.directory/(Path(role['output']).name+'-extracted'),Path(role['output']).name)
+            validate_role(unpacked,role,c['client_sha256'])
+        self.state=dict(safe=True,service_key=key,service=service,setup_count=17,priming_count=1,
+                        board=str(self.directory/'board/summary.json'))
         atomic(self.state_path,self.state)
         return service
 
@@ -277,6 +294,7 @@ exit 0
             if eid in events: events[eid].append(((high>>18)-source['pipeline_stages'])*5)
         for values in events.values(): values.sort()
         cohort=lauberhorn(client,pairs,setup_count=self.state['setup_count'],
+            priming_count=self.state.get('priming_count',0),
             server_path=server/'server.csv' if options['instrumentation']=='breakdown' else None,
             app_events=events,**options)
         cohort['files'].update({str(p):digest(p) for p in data.rglob('*') if p.is_file()})
