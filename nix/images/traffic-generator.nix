@@ -1,5 +1,5 @@
 # Runtime-only Enzian client image: all executables are cross-built on the host.
-{ pkgs, dpdk, modules, identity ? { revision = null; } }:
+{ pkgs, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {} }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
   generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk; };
@@ -42,6 +42,11 @@ let
       generator = "${generator}"; dpdk = "${dpdk}";
       thunderxPtpModules = "${modules}";
     };
+    nativeVariants = pkgs.lib.mapAttrs (_: variant: {
+      app = "${variant.app}"; runtime = "${variant.runtime}";
+      tracing = variant.runtime.tracing;
+    }) nativeVariants;
+    responderTracing = { nullrpc_dpdk = true; nullrpc_dpdk_uninstrumented = false; };
     kernelRelease = modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {

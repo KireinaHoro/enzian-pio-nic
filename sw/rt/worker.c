@@ -83,7 +83,9 @@ static void *lauberhorn_worker_loop(void *arg) {
 
     if (init_worker(w) < 0) worker_fail(w);
 
+#if LH_ENABLE_TRACING
     server_trace_thread_init();
+#endif
 
     // initialize scheduler context
     fiber_sched_init();
@@ -103,6 +105,7 @@ static void *lauberhorn_worker_loop(void *arg) {
 
         // wait for data
         bool received;
+#if LH_ENABLE_TRACING
         if (server_trace_enabled) {
             server_trace_rx_begin(&w->rx_trace, w->worker_id);
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
@@ -110,7 +113,9 @@ static void *lauberhorn_worker_loop(void *arg) {
             w->rx_trace.timestamp_calls++; /* RX-unblock probe */
             w->rx_trace.rx_exit_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_exit);
             w->rx_trace.rx_cpu_id = sched_getcpu();
-        } else {
+        } else
+#endif
+        {
             received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (received && desc.type == TY_DESCHED) {
@@ -203,7 +208,9 @@ int lauberhorn_udp_attach(lauberhorn_t *ctx, uint32_t index) {
     w->thread = pthread_self();
     w->dp.rx_next_cl = &w->rx_next;
     w->dp.tx_next_cl = &w->tx_next;
+#if LH_ENABLE_TRACING
     server_trace_thread_init();
+#endif
     if (ioctl(ctx->fd, LAUBERHORN_IOCTL_REGISTER_THREAD, &index)) {
         free(w);
         return -1;

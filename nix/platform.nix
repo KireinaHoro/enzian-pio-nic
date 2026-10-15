@@ -81,6 +81,10 @@ let
       "sw/kmod/ioctl.h"
     ];
   };
+  runtimeUninstrumented = runtime.override { tracing = false; };
+  microbenchmarksUninstrumented = target.callPackage (source + "/sw/apps/microbenchmarks/package.nix") {
+    lauberhornRuntime = runtimeUninstrumented;
+  };
   callPackage = recipe: args: target.callPackage recipe ({ lauberhornRuntime = runtime; } // args);
   applications =
     pkgs.lib.mapAttrs
@@ -130,6 +134,15 @@ let
     source = inputs.memcachedUpstream;
     enableLauberhorn = false;
   };
+  echoCampaignDeployment = import ./images/traffic-generator.nix {
+    inherit pkgs;
+    nativeVariants = {
+      breakdown = { app = applications.microbenchmarks; inherit runtime; };
+      off = { app = microbenchmarksUninstrumented; runtime = runtimeUninstrumented; };
+    };
+    inherit (thunderx) dpdk modules;
+    identity = { inherit (identity) revision; };
+  };
   trafficGeneratorDeployment = import ./images/traffic-generator.nix {
     inherit pkgs;
     inherit (thunderx) dpdk modules;
@@ -164,6 +177,8 @@ in
     callPackage
     applications
     runtime
+    runtimeUninstrumented
+    microbenchmarksUninstrumented
     kmod
     genVerilog
     devHdrs
@@ -189,6 +204,7 @@ in
       gitRev = identity.revision;
     };
     trafficGeneratorImage = trafficGeneratorDeployment.image;
+    echoCampaignImage = echoCampaignDeployment.image;
   };
   trafficGenerator = trafficGeneratorDeployment.generator;
   trafficGeneratorNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {

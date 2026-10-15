@@ -115,7 +115,7 @@
             thunderxPtpModules = platform.thunderx.modules;
           };
           software = {
-            inherit (platform) runtime dandelion memcached;
+            inherit (platform) runtime runtimeUninstrumented microbenchmarksUninstrumented dandelion memcached;
             inherit (platform.applications) microbenchmarks recovery-test nested-validation;
             memcachedReferenceNative = platform.memcachedReference;
             trafficGenerator = platform.trafficGenerator;

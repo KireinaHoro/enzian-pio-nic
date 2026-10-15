@@ -170,6 +170,15 @@ serialized and follow the endpoint lifetime rules.
 
 ## Optional per-request latency tracing
 
+`nix/software/runtime.nix` accepts `tracing = false` (`LH_ENABLE_TRACING=0`).
+This build excludes server tracing and PMU objects, request/fiber trace storage,
+probe calls and export threads. Its pkg-config Cflags propagate the same define
+into applications, whose public annotation macros do not evaluate arguments.
+Runtime and applications must use the same compiled variant. Environment variables
+cannot enable tracing in this build. The default build retains optional tracing
+for existing applications and acceptance tests. `runtimeUninstrumented` and
+`microbenchmarksUninstrumented` expose the disabled variant through Nix.
+
 `LAUBERHORN_SERVER_TRACE_CSV` enables runtime-owned receive/decode/handler/encode/TX
 probes. Application code supplies its correlation ID through
 `<lauberhorn/trace.h>`; no wire XID or client-address ABI is added. Rows follow

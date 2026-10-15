@@ -35,6 +35,15 @@ pkgs.stdenv.mkDerivation {
     $CC $flags -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer sw/tests/codec.c sw/rt/oncrpc.c $(pkg-config --libs libtirpc) -o codec-sanitized-test
     # LeakSanitizer cannot attach inside the Nix sandbox; keep bounds/UB checks.
     ASAN_OPTIONS=detect_leaks=0 ./codec-sanitized-test
+    for test in rpc udp; do
+      extra=""
+      if [ "$test" = rpc ]; then extra="sw/rt/future.c sw/rt/pending_call_table.c"; fi
+      $CC $flags -DLH_ENABLE_TRACING=0 -I sw/kmod sw/tests/$test.c $extra sw/rt/fiber/*.c sw/rt/utils/bitmap.c -o $test-uninstrumented-test
+      ./$test-uninstrumented-test
+      if nm $test-uninstrumented-test | grep -E 'server_trace_|lauberhorn_trace_|lh_pmu_'; then exit 1; fi
+    done
+    $CC $flags -DLH_ENABLE_TRACING=0 -I sw/kmod sw/tests/activation.c sw/rt/activation.c -o activation-uninstrumented-test
+    ./activation-uninstrumented-test
     runHook postBuild
   '';
   installPhase = "mkdir -p $out; echo passed > $out/result";

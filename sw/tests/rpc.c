@@ -293,6 +293,7 @@ int main(void) {
     assert(!worker.execution_active && !worker.execution_pending);
     ctx._watchdog_enabled = false;
 
+#if LH_ENABLE_TRACING
     /* Trace ownership survives deferred scheduling and forwarded completions.
      * Reusing the worker RX scratch must not overwrite either parent's row. */
     char path[] = "/tmp/lauberhorn-trace-XXXXXX";
@@ -359,5 +360,13 @@ int main(void) {
     fclose(events); unlink(event_path);
     snprintf(event_path,sizeof(event_path),"%s.events.status.json",path);
     unlink(event_path);
+
+#else
+    int evaluated=0;
+    lauberhorn_trace_request_id(++evaluated);
+    lauberhorn_trace_result(++evaluated);
+    lauberhorn_trace_event(LH_TRACE_APP_ENTRY,++evaluated,++evaluated);
+    assert(!evaluated && !lauberhorn_trace_events_enabled() && !lauberhorn_trace_new_id());
+#endif
 
 }

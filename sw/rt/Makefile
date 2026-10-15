@@ -10,6 +10,8 @@ ifndef MACKEREL_DEV_HDRS
 endif
 
 ARCH ?= arm64
+LH_ENABLE_TRACING ?= 1
+override CFLAGS += -DLH_ENABLE_TRACING=$(LH_ENABLE_TRACING)
 
 # Base flags shared across all architectures
 override CFLAGS += -O2 -g -pipe -fpic \
@@ -33,6 +35,10 @@ endif
 
 all: liblauberhorn.so
 ALL_SRCS := $(wildcard *.c) $(wildcard fiber/*.c) $(wildcard utils/*.c)
+
+ifeq ($(LH_ENABLE_TRACING),0)
+ALL_SRCS := $(filter-out server_trace.c pmu.c,$(ALL_SRCS))
+endif
 
 include ../usr-common.mk
 

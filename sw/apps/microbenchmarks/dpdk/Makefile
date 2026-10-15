@@ -7,11 +7,13 @@ echo_registry.h: ../bench.x ../echo_registry.py
 
 .PHONY: all check clean
 .DEFAULT_GOAL := all
-all: bench_dpdk nullrpc_dpdk
+all: bench_dpdk nullrpc_dpdk nullrpc_dpdk_uninstrumented
 bench_dpdk: bench_dpdk.c benchmarks.c benchmark.h wire.h echo_registry.h load.h open_loop.h
 	$(CC) $(CFLAGS) $(shell $(PKG_CONFIG) --cflags libdpdk) $< benchmarks.c -o $@ $(shell $(PKG_CONFIG) --libs libdpdk)
 nullrpc_dpdk: nullrpc_server.c benchmarks.c benchmark.h wire.h echo_registry.h
 	$(CC) $(CFLAGS) $(shell $(PKG_CONFIG) --cflags libdpdk) $< benchmarks.c -o $@ $(shell $(PKG_CONFIG) --libs libdpdk)
+nullrpc_dpdk_uninstrumented: nullrpc_server.c benchmarks.c benchmark.h wire.h echo_registry.h
+	$(CC) $(CFLAGS) -DLH_ENABLE_TRACING=0 $(shell $(PKG_CONFIG) --cflags libdpdk) $< benchmarks.c -o $@ $(shell $(PKG_CONFIG) --libs libdpdk)
 wire_test: wire_test.c benchmarks.c benchmark.h wire.h echo_registry.h
 	$(CC) $(CFLAGS) $< benchmarks.c -o $@
 open_loop_test: open_loop_test.c open_loop.h
@@ -27,4 +29,4 @@ check: wire_test open_loop_test schema_test
 	./open_loop_test
 	./schema_test
 clean:
-	rm -f bench_dpdk nullrpc_dpdk wire_test open_loop_test schema_test echo_registry.h
+	rm -f bench_dpdk nullrpc_dpdk nullrpc_dpdk_uninstrumented wire_test open_loop_test schema_test echo_registry.h

@@ -18,12 +18,19 @@
 #include <rte_version.h>
 #include "wire.h"
 #include "benchmark.h"
+#ifndef LH_ENABLE_TRACING
+#define LH_ENABLE_TRACING 1
+#endif
 struct sample {
-    uint32_t id; uint64_t rx, tx; int status;
+    uint32_t id; int status;
+#if LH_ENABLE_TRACING
+    uint64_t rx, tx;
     uint64_t cpu_rx, network_rx_begin, network_rx_end, network_tx_begin, network_tx_end, cpu_tx;
+#endif
 };
 /* Opt-in raw software boundaries. Keep compiler motion across probes bounded;
  * durations use the same nanosecond scale as the NIC, never a fitted epoch. */
+#if LH_ENABLE_TRACING
 static uint64_t stamp(void) {
     struct timespec ts;
     __asm__ volatile("" ::: "memory");
@@ -31,6 +38,7 @@ static uint64_t stamp(void) {
     __asm__ volatile("" ::: "memory");
     return (uint64_t)ts.tv_sec*1000000000+ts.tv_nsec;
 }
+#endif
 static void check(int rc,const char *s) { if(rc<0) rte_exit(1,"%s: %s\n",s,strerror(-rc)); }
 static unsigned number(const char *s,unsigned max) {
     char *end; errno=0; unsigned long v=strtoul(s,&end,10);
@@ -212,8 +220,13 @@ int main(int argc,char **argv) {
     if(!count || !timeout_us) rte_exit(1,"positive count and timeout required\n");
     const char *delay_env=getenv("LH_NULLRPC_DELAY_NS");
     unsigned delay=delay_env?number(delay_env,1000000):0;
+#if LH_ENABLE_TRACING
     int hardware=getenv("LH_NULLRPC_SOFTWARE_CONTROL")==NULL;
     int profile=getenv("LH_NULLRPC_PROFILE")!=NULL;
+#else
+    const int hardware=0;
+    if(getenv("LH_NULLRPC_PROFILE")) rte_exit(1,"profiling is compiled out\n");
+#endif
     FILE *csv=fopen(argv[9],"wx"); if(!csv) rte_exit(1,"CSV: %s\n",strerror(errno));
     struct sample *samples=calloc(count+warmup,sizeof(*samples));
     uint8_t *seen=calloc(count+warmup,1);
@@ -239,17 +252,20 @@ int main(int argc,char **argv) {
         rte_delay_us_sleep(100000);
     }
     if(!link.link_status) rte_exit(1,"link down\n");
+#if LH_ENABLE_TRACING
     int timestamp_offset=0; uint64_t timestamp_flag=0;
     if(hardware) {
         check(rte_mbuf_dyn_rx_timestamp_register(&timestamp_offset,&timestamp_flag),"timestamp field");
         check(rte_eth_timesync_enable(port),"timesync enable");
     }
+#endif
     uint64_t hz=rte_get_timer_hz(),timeout=(uint64_t)timeout_us*hz/1000000;
     uint64_t delay_ticks=(uint64_t)delay*hz/1000000000;
     fprintf(stderr,"dpdk=%s driver=%s lcore=%u hardware=%d delay_ns=%u link_mbps=%u\n",
         rte_version(),info.driver_name,rte_lcore_id(),hardware,delay,link.link_speed);
     const char *ready=getenv("LH_NULLRPC_READY_FILE");
     if(ready) { FILE *f=fopen(ready,"wx"); if(!f) rte_exit(1,"ready file failed\n"); fputs("ready\n",f); fclose(f); }
+#if LH_ENABLE_TRACING
     uint64_t probe_min=UINT64_MAX;
     if(profile) for(unsigned i=0;i<10000;i++) {
         uint64_t a=stamp(), b=stamp(); if(b-a<probe_min) probe_min=b-a;
@@ -259,6 +275,7 @@ int main(int argc,char **argv) {
     struct rte_mbuf *pending[256];
     uint64_t pending_stamp[256];
     unsigned pending_head=0, pending_tail=0;
+#endif
     unsigned completed=0,attempted=0; uint64_t unrelated=0;
     int error=0;
     for(unsigned i=0;i<count+warmup;i++) {
@@ -268,22 +285,31 @@ int main(int argc,char **argv) {
         const uint8_t *request_payload = NULL;
         size_t request_size = 0;
         while(!rx) {
+#if LH_ENABLE_TRACING
             if(pending_head != pending_tail) {
                 rx=pending[pending_head % 256];
                 s->cpu_rx=pending_stamp[pending_head++ % 256];
             }
-            else {
+            else
+#endif
+            {
                 rte_eth_rx_burst(port,0,&rx,1);
+#if LH_ENABLE_TRACING
                 if(rx && profile) s->cpu_rx=stamp();
+#endif
             }
             if(rx) {
                 const uint8_t *payload=NULL; size_t size=0;
+#if LH_ENABLE_TRACING
                 if(profile) s->network_rx_begin=stamp();
+#endif
                 const uint8_t *bytes=rte_pktmbuf_mtod(rx,const uint8_t *);
                 peer.port=rx->pkt_len>=42?get16(bytes+34):peer_port;
                 int valid=parse_udp(bytes,rx->pkt_len,&src,&peer,&payload,&size);
                 if(peer.port<peer_port || peer.port>=peer_port+flows) valid=0;
+#if LH_ENABLE_TRACING
                 if(profile) s->network_rx_end=stamp();
+#endif
                 if(valid==0) { unrelated++; rte_pktmbuf_free(rx); rx=NULL; }
                 else {
                     unsigned id=size>=4?get32(payload):0;
@@ -301,10 +327,12 @@ int main(int argc,char **argv) {
             if(rte_get_timer_cycles()>deadline) { error=1; s->status=-ETIMEDOUT; break; }
         }
         if(error) { if(rx) rte_pktmbuf_free(rx); break; }
+#if LH_ENABLE_TRACING
         if(hardware) {
             if(!(rx->ol_flags&timestamp_flag)) { error=1; s->status=-ENODATA; rte_pktmbuf_free(rx); break; }
             s->rx=*RTE_MBUF_DYNFIELD(rx,timestamp_offset,uint64_t *);
         }
+#endif
         if(delay_ticks) { uint64_t end=rte_get_timer_cycles()+delay_ticks; while(rte_get_timer_cycles()<end) {} }
         uint8_t reply[1472]={0};
         size_t reply_size = 32;
@@ -315,17 +343,24 @@ int main(int argc,char **argv) {
         } else {
             put32(reply+24,s->id); put32(reply+28,18);
         }
+#if LH_ENABLE_TRACING
         if(profile) s->network_tx_begin=stamp();
+#endif
         make_udp(rte_pktmbuf_mtod(rx,uint8_t *),&src,&peer,reply,reply_size);
+#if LH_ENABLE_TRACING
         if(profile) s->network_tx_end=stamp();
+#endif
         if(rte_pktmbuf_trim(rx,rx->pkt_len-(42+reply_size))) rte_exit(1,"trim failed\n");
         rx->ol_flags=hardware?RTE_MBUF_F_TX_IEEE1588_TMST:0;
         deadline=rte_get_timer_cycles()+timeout;
+#if LH_ENABLE_TRACING
         if(profile) s->cpu_tx=stamp();
+#endif
         while(!rte_eth_tx_burst(port,0,&rx,1)) {
             if(rte_get_timer_cycles()>deadline) { s->status=-ETIMEDOUT; error=1; rte_pktmbuf_free(rx); break; }
         }
         if(error) break;
+#if LH_ENABLE_TRACING
         if(hardware) {
             struct timespec ts;
             for(;;) {
@@ -347,17 +382,24 @@ int main(int argc,char **argv) {
                 s->status=-ERANGE; error=1;
             }
         }
+#endif
         if(error) break;
         s->status=1; completed++;
     }
+#if LH_ENABLE_TRACING
     while(pending_head != pending_tail) rte_pktmbuf_free(pending[pending_head++ % 256]);
+#endif
     struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"stats");
     fprintf(csv,"request_id,warmup,status,rx_hw_ns,tx_hw_ns,mac_to_mac_ns,injected_delay_ns,profile,cpu_rx_ns,network_rx_begin_ns,network_rx_end_ns,network_tx_begin_ns,network_tx_end_ns,cpu_tx_ns,probe_min_ns\n");
     for(unsigned i=0;i<attempted;i++) {
         struct sample *s=&samples[i];
+#if LH_ENABLE_TRACING
         fprintf(csv,"%u,%d,%d,%"PRIu64",%"PRIu64",%"PRIu64",%u,%d,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64"\n",s->id,s->id<=warmup,s->status,s->rx,s->tx,
             s->tx>=s->rx?s->tx-s->rx:0,delay,profile,
             s->cpu_rx,s->network_rx_begin,s->network_rx_end,s->network_tx_begin,s->network_tx_end,s->cpu_tx,profile?probe_min:0);
+#else
+        fprintf(csv,"%u,%d,%d,0,0,0,%u,0,0,0,0,0,0,0,0\n",s->id,s->id<=warmup,s->status,delay);
+#endif
     }
     int io_error=ferror(csv); if(fclose(csv)) io_error=1;
     fprintf(stderr,"{\"expected\":%u,\"completed\":%u,\"unrelated\":%"PRIu64",\"hardware\":%d,\"rx_errors\":%"PRIu64",\"tx_errors\":%"PRIu64",\"rx_missed\":%"PRIu64",\"passed\":%s}\n",

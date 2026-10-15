@@ -24,21 +24,26 @@ static int udp_wait(void) {
     if (!w) { errno = EINVAL; return -1; }
     /* A new wait must not retire a packet or reservation still in use. */
     if (w->dp.rx_view.pending || w->dp.tx_reserved) { errno = EBUSY; return -1; }
+#if LH_ENABLE_TRACING
     if (server_trace_inline == &w->rx_trace) {
         w->rx_trace.handler_exit_ns = server_trace_stamp(&w->rx_trace);
         server_trace_write(&w->rx_trace);
         server_trace_inline = NULL;
     }
+#endif
     for (;;) {
         lauberhorn_pkt_desc_t desc;
         bool received;
+#if LH_ENABLE_TRACING
         if (server_trace_enabled) {
             server_trace_rx_begin(&w->rx_trace, w->worker_id);
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &w->rx_trace.rx_unblock_ns, server_trace_clock);
             w->rx_trace.timestamp_calls++;
             w->rx_trace.rx_exit_ns = server_trace_stamp(&w->rx_trace);
-        } else {
+        } else
+#endif
+        {
             received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (!received) return 0;
@@ -59,6 +64,7 @@ static int udp_wait(void) {
             .data = w->dp.rx_view.data, .length = w->dp.rx_view.length,
             .trace_ref = desc.udp.trace_ref
         };
+#if LH_ENABLE_TRACING
         if (server_trace_enabled) {
             server_trace_inline = &w->rx_trace;
             w->rx_trace.request_context = desc.udp.trace_ref;
@@ -68,6 +74,7 @@ static int udp_wait(void) {
                 ((uint64_t)desc.udp.saddr << 32) | ((uint64_t)desc.udp.sport << 16) | desc.udp.dport,
                 desc.payload_len);
         }
+#endif
         return 1;
     }
 }
@@ -78,8 +85,10 @@ int lauberhorn_udp_receive_view(const lauberhorn_udp_datagram_t **packet) {
     int result = udp_wait();
     if (result <= 0) return result;
     *packet = &w->udp_rx_view;
+#if LH_ENABLE_TRACING
     if (server_trace_inline == &w->rx_trace)
         w->rx_trace.handler_enter_ns = server_trace_stamp(&w->rx_trace);
+#endif
     return 1;
 }
 
@@ -93,6 +102,7 @@ int lauberhorn_udp_release(void) {
 }
 
 static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+#if LH_ENABLE_TRACING
     size_t length = desc->payload_len;
     uint16_t dport = desc->udp.dport;
     if (server_trace_inline) {
@@ -118,6 +128,9 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
         row->ok &= result == CORE_TX_ACCEPTED;
         server_trace_event(row, LH_TRACE_UDP_TX_END, length, result);
     }
+#else
+    int result = core_eci_tx_commit(w->dp_base, &w->dp, desc);
+#endif
     return result;
 }
 

@@ -33,7 +33,9 @@ static void shutdown_signal(int signo) {
 }
 
 int lauberhorn_init(lauberhorn_t *ctx) {
+#if LH_ENABLE_TRACING
     server_trace_init();
+#endif
     ctx->_workers = 0;
     ctx->_created = 0;
     ctx->_declared_workers = 0;
@@ -101,7 +103,9 @@ int lauberhorn_stop(lauberhorn_t *ctx) {
 }
 
 void lauberhorn_fini(lauberhorn_t *ctx) {
+#if LH_ENABLE_TRACING
     server_trace_fini();
+#endif
     munmap(ctx->_aliases, LAUBERHORN_NUM_WORKER_CORES * LAUBERHORN_ECI_CORE_OFFSET);
     ctx->_aliases = NULL;
     close(ctx->fd);

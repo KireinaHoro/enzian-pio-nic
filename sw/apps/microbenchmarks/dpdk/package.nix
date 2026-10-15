@@ -16,10 +16,17 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ pkg-config python3 rpcsvc-proto ];
   buildInputs = [ dpdk libtirpc ];
   makeFlags = [ "PKG_CONFIG=${stdenv.cc.targetPrefix}pkg-config" ];
+  postBuild = ''
+    if ${stdenv.cc.targetPrefix}nm -u nullrpc_dpdk_uninstrumented | grep -E 'clock_gettime|rte_eth_timesync|rte_mbuf_dyn_rx_timestamp'; then
+      echo "Software/PTP timestamp hooks survived the uninstrumented responder build" >&2
+      exit 1
+    fi
+  '';
   doCheck = stdenv.buildPlatform.canExecute stdenv.hostPlatform;
   checkPhase = "make check";
   installPhase = ''
     install -Dm755 bench_dpdk $out/bin/bench_dpdk
+    install -Dm755 nullrpc_dpdk_uninstrumented $out/bin/nullrpc_dpdk_uninstrumented
     install -Dm755 nullrpc_dpdk $out/bin/nullrpc_dpdk
   '';
   meta.platforms = lib.platforms.linux;

@@ -6,9 +6,10 @@
   deployment,
   memcachedTools,
   trafficGeneratorImage,
+  echoCampaignImage,
 }:
 {
-  inherit bootFiles eciVivadoInputs trafficGeneratorImage;
+  inherit bootFiles eciVivadoInputs trafficGeneratorImage echoCampaignImage;
   microbenchmarksImage = deployment.mkApplicationImage {
     name = "microbenchmarks";
     applications = { inherit (applications) microbenchmarks recovery-test nested-validation; };
