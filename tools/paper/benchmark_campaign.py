@@ -133,8 +133,8 @@ class Campaign:
                 raise ValueError('Loaded case instrumentation contract violated')
             if result.get('generator_cpus') != self.config['generator_cpus'] or result.get('flows') != self.config['flows']:
                 raise ValueError('Generator placement/flow mismatch')
-            if len(result.get('worker_activity', [])) != request['workers'] or not all(n > 0 for n in result['worker_activity']):
-                raise ValueError('Worker activity coverage missing')
+            from campaign.policy import validate_activity
+            validate_activity(result.get('worker_activity', []),request['workers'])
             trial, _ = load(result['csv'], result['summary'], collect_latencies=False)
             if (trial.get('schema')!=2 or trial['benchmark']!='echo'+str(request['payload_bytes'])
                     or trial['warmup_ns']!=request['warmup_ms']*1_000_000):

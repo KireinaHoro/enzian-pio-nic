@@ -64,3 +64,20 @@ def grid(boundary):
 
 def next_rate(rate):
     return max(rate+1, math.ceil(rate*1.5))
+
+
+
+def validate_activity(counts, workers):
+    """Idle workers are valid at low load; activity is not a placement sentinel."""
+    if (len(counts)!=workers or any(type(n) is not int or n<0 for n in counts)
+            or not any(counts)):
+        raise ValueError('Invalid worker activity coverage')
+
+
+def validate_activity_coverage(groups):
+    """Each worker configuration must exercise every worker somewhere in its grid."""
+    for key,records in groups.items():
+        workers=key[-1]
+        for counts in records:validate_activity(counts,workers)
+        if not records or any(not any(row[i]>0 for row in records) for i in range(workers)):
+            raise ValueError('Workers never exercised in collected grid: '+str(key))

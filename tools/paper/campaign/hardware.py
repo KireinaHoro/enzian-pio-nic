@@ -207,7 +207,10 @@ namespace['start']({service!r})
                     b=json.loads((after/'provenance.json').read_text())['activity']
                     if len(a)!=r['workers'] or len(b)!=len(a) or any(x['calls'] and (x['tid']!=y['tid'] or x['cpu']!=y['cpu']) for x,y in zip(a,b)):
                         raise ValueError('Resident worker identity changed')
-                    if len({w['cpu'] for w in b})!=r['workers'] or not {w['cpu'] for w in b}<=set(c['worker_cpus']):
+                    active=[w for w in b if w['calls']>0]
+                    if (any(w['calls']<0 or (not w['calls'] and (w['cpu'] or w['tid'])) for w in b)
+                            or len({w['cpu'] for w in active})!=len(active)
+                            or not {w['cpu'] for w in active}<=set(c['worker_cpus'])):
                         raise ValueError('Resident worker placement differs')
                     activity=[y['calls']-x['calls'] for x,y in zip(a,b)]
                 else: activity=evidence['server']['worker_activity']

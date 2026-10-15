@@ -67,6 +67,35 @@ if not alive:
     h.gateway(['python3','-c',code],'transfer-start')
 
 
+def callback_identity(config):
+    command=config['notify']
+    executable=shutil.which(command[0])
+    return dict(command=command,thread=config['thread'],
+                executable_sha256=digest(executable) if executable else None,
+                environment={key:os.environ.get(key) for key in ('HOME','CODEX_HOME','PATH','SSH_AUTH_SOCK')})
+
+
+def verify_callback(config, directory):
+    identity=callback_identity(config)
+    cache=ROOT/'out/echo-callback-delivery'/hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
+    if cache.exists():
+        proof=read(cache)
+        evidence=Path(proof['evidence'])
+        if (proof['identity']==identity and digest(evidence)==proof['sha256']
+                and read(evidence)['returncode']==0):
+            atomic(directory/'callback-reused.json',proof)
+            return
+        raise ValueError('Callback delivery evidence changed; review before reprobe')
+    notification=subprocess.run(config['notify']+['--thread',config['thread'],'--message',
+        'Echo campaign callback delivery probe succeeded. This is a preflight probe, not a terminal acquisition result; no progress polling is needed.'],
+        capture_output=True,text=True,timeout=30)
+    evidence=(directory/'callback-probe.json').resolve()
+    atomic(evidence,dict(returncode=notification.returncode,stderr=notification.stderr[-2000:]))
+    if notification.returncode: raise RuntimeError('Terminal callback delivery probe failed')
+    cache.parent.mkdir(parents=True,exist_ok=True)
+    atomic(cache,dict(identity=identity,evidence=str(evidence),sha256=digest(evidence)))
+
+
 def preflight(config, h, campaign):
     c=config
     if not os.environ.get('ENZIAN_BMC_PASSWORD'):
@@ -116,11 +145,7 @@ def preflight(config, h, campaign):
             raise ValueError('Live recorder differs from preserved previous state')
         if digest(c['previous_capture'])!=prior['sha256']:
             raise ValueError('Previous capture preservation hash mismatch')
-    notification=subprocess.run(c['notify']+['--thread',c['thread'],'--message',
-        'Echo campaign callback delivery probe succeeded. This is a preflight probe, not a terminal acquisition result; no progress polling is needed.'],
-        capture_output=True,text=True,timeout=30)
-    atomic(h.directory/'callback-probe.json',dict(returncode=notification.returncode,stderr=notification.stderr[-2000:]))
-    if notification.returncode: raise RuntimeError('Terminal callback delivery probe failed')
+    verify_callback(c,h.directory)
     return dict(passed=True,reservations=True,matching_artifacts=True,storage_budget=True,
         ram_budget=True,restoration=True,callback_delivery=True,isolated_cpus=True,preserved_previous_state=True)
 
@@ -178,6 +203,8 @@ if path.exists():
 
 
 def rehearsal(config,h,campaign):
+    from .policy import validate_activity_coverage
+    activities={}
     cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts)
     points={}
     for receipt in sorted((campaign/'stages').glob('*/receipt.json')):
@@ -191,6 +218,8 @@ def rehearsal(config,h,campaign):
         if not result['restored'] or not result['health']: raise ValueError('Rehearsal health/restoration failure')
         key=request['system'],request['payload_bytes'],request['workers']
         points.setdefault(key,[]).append(dict(rate=request['rate'],trials=[trial]))
+        activities.setdefault(key,[]).append(result['worker_activity'])
+    validate_activity_coverage(activities)
     expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in (1,4)}
     if set(points)!=expected: raise ValueError('Rehearsal matrix incomplete')
     records=[]

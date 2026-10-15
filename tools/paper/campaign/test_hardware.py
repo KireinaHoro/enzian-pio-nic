@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import subprocess
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from .hardware import Acquisition
 from .peer import server_nic_prepared
@@ -21,6 +21,21 @@ class Hardware(unittest.TestCase):
         for state in (dict(flags=[],addr_info=[address]),dict(flags=['UP'],addr_info=[]),
                       dict(flags=['UP'],addr_info=[dict(address,local='192.0.2.2')])):
             with self.assertRaises(ValueError):server_nic_prepared(state,'192.0.2.1/24')
+
+    def test_callback_delivery_is_reused(self):
+        from . import adapter
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);a=root/'a';b=root/'b';a.mkdir();b.mkdir()
+            config=dict(notify=['fixture'],thread='thread')
+            with patch.object(adapter,'ROOT',root),patch.object(adapter,'callback_identity',return_value=config),patch.object(adapter.subprocess,'run',return_value=Mock(returncode=0,stderr='')) as send:
+                adapter.verify_callback(config,a)
+                adapter.verify_callback(config,b)
+                self.assertEqual(send.call_count,1)
+                self.assertTrue((b/'callback-reused.json').exists())
+                (a/'callback-probe.json').write_text('{}')
+                with self.assertRaisesRegex(ValueError,'evidence changed'):
+                    adapter.verify_callback(config,b)
+                self.assertEqual(send.call_count,1)
 
     def test_unloaded_uses_single_flow_on_both_roles(self):
         endpoint=dict(ip='192.0.2.1',mac='02:00:00:00:00:01',prefix=24)
@@ -38,10 +53,10 @@ class Hardware(unittest.TestCase):
                     self.assertEqual(acquisition.role(role,setup=True)['flows'],1)
 
     def test_loaded_never_captures_and_restores_on_health_failure(self):
-        for healthy in (True,False):
-            with self.subTest(healthy=healthy),tempfile.TemporaryDirectory() as directory:
+        for healthy,workers in ((True,1),(True,4),(False,1)):
+            with self.subTest(healthy=healthy,workers=workers),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory);stage=root/'stage';stage.mkdir()
-                request=dict(stage='loaded',system='LH',workers=1,payload_bytes=8)
+                request=dict(stage='loaded',system='LH',workers=workers,payload_bytes=8)
                 (stage/'request.json').write_text(json.dumps(request))
                 config=dict(worker_cpus=[44,45,46,47],generator_cpus=list(range(6,14)),flows=64)
                 acquisition=Acquisition(config,request,stage,root)
@@ -49,14 +64,14 @@ class Hardware(unittest.TestCase):
                 acquisition.capture=Mock(side_effect=AssertionError('Loaded trace acquisition'))
                 before=root/'before';after=root/'after';before.mkdir();after.mkdir()
                 for path,count in ((before,2),(after,10)):
-                    (path/'provenance.json').write_text(json.dumps(dict(activity=[dict(calls=count,cpu=45,tid=99)])))
+                    (path/'provenance.json').write_text(json.dumps(dict(activity=[dict(calls=count,cpu=45,tid=99)]+[dict(calls=0,cpu=0,tid=0)]*(workers-1))))
                 (stage/'health.json').write_text(json.dumps(dict(passed=healthy)))
                 acquisition.h=Mock();acquisition.h.snapshot.side_effect=[before,after]
                 acquisition.h.vio.return_value={'trace_stop':1,'_status':{}}
                 acquisition.execute_roles=Mock(return_value=({'client':root/'client'},{'client':{'files':{}}}))
                 if healthy:
                     result=acquisition.run()
-                    self.assertEqual(result['worker_activity'],[8]);self.assertEqual(result['trace_readouts'],0)
+                    self.assertEqual(result['worker_activity'],[8]+[0]*(workers-1));self.assertEqual(result['trace_readouts'],0)
                 else:
                     with self.assertRaisesRegex(ValueError,'health'):acquisition.run()
                 acquisition.capture.assert_not_called()

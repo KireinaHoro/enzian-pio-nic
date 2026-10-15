@@ -373,3 +373,13 @@ and every review identity and evidence hash must match. The new root retains
 `inheritance-review.json` alongside unchanged source receipts pointing to their
 original evidence. No failed attempt is promoted or overwritten. Use `--resume`
 only if the new root was already prepared with a reviewed hardware-state file.
+
+
+Low-load points may leave some configured workers idle: Lauberhorn allocates
+additional workers as queued demand rises. Activity slots with no observed call
+retain zero CPU/TID sentinels; they are not evidence of execution on CPU 0.
+Per-point validation checks nonnegative counters and distinct valid placement for
+workers that have executed, permitting zero activity for others. Rehearsal/final
+validation requires every worker in each system/payload/worker configuration to
+be exercised somewhere in the collected grid. Per-worker counts remain preserved;
+these checks do not establish simultaneous execution or CPU utilization.

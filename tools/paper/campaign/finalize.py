@@ -93,6 +93,8 @@ def finalize(config,h,request,campaign):
     atomic(destination/'unloaded.json',archive.records(unloaded))
     atomic(destination/'hardware.json',config)
     atomic(destination/'recovery-history.json',[json.loads(p.read_text()) for p in sorted((campaign/'recoveries').glob('*/review.json'))])
+    from .policy import validate_activity, validate_activity_coverage
+    activities={}
     provenance={}
     for receipt in (campaign/'stages').glob('*/receipt.json'):
         if invalidated(campaign,receipt): continue
@@ -100,8 +102,13 @@ def finalize(config,h,request,campaign):
         if any(digest(p)!=sha for p,sha in saved['hashes'].items()): raise ValueError('Stage evidence hash mismatch')
         result=saved['result']
         if 'trial' in result:
-            if not result['health'] or not result['restored'] or not all(n>0 for n in result['worker_activity']):
+            if not result['health'] or not result['restored']:
                 raise ValueError('Final worker/health/restoration gate failed')
+            request_path=next(p for p in saved['hashes'] if Path(p).name=='request.json' and Path(p).parent.name.startswith('attempt-'))
+            cohort=json.loads(Path(request_path).read_text())
+            key=cohort['system'],cohort['payload_bytes'],cohort['workers']
+            validate_activity(result['worker_activity'],cohort['workers'])
+            activities.setdefault(key,[]).append(result['worker_activity'])
             if result['trace_readouts']!=0 or result['software_profiling'] or result['fpga_recording']:
                 raise ValueError('Final loaded instrumentation gate failed')
         # Keep complete acquisition archives, health, placement and control
@@ -110,6 +117,7 @@ def finalize(config,h,request,campaign):
             p=Path(path)
             if p.suffix in ('.json','.gz') or p.name.endswith('-freeze.log') or p.name.endswith('-restore.log'):
                 name,hash_value=archive.file(p,sha);provenance[name]=hash_value
+    validate_activity_coverage(activities)
     for name in ('config.json','code.json','grid.json','events.jsonl','inheritance-review.json','inherited-unloaded.json'):
         source=campaign/name
         if source.exists(): shutil.copyfile(source,destination/name)

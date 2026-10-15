@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from .policy import aggregate, candidates, grid, qualifying, validate_trial
+from .policy import validate_activity, validate_activity_coverage, aggregate, candidates, grid, qualifying, validate_trial
 
 SPEC=importlib.util.spec_from_file_location('controller',Path(__file__).parents[1]/'benchmark_campaign.py')
 controller=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(controller)
@@ -35,6 +35,14 @@ class Policy(unittest.TestCase):
         self.assertGreaterEqual(max(grid(101)),1.5*101)
         t=trial(); t['duration_ns']=20_000_000_000
         with self.assertRaises(ValueError): aggregate([trial(),t])
+
+    def test_idle_workers_and_grid_coverage(self):
+        validate_activity([100,0,0,0],4)
+        validate_activity_coverage({('LH',8,4):[[100,0,0,0],[10,20,30,40]]})
+        with self.assertRaisesRegex(ValueError,'never exercised'):
+            validate_activity_coverage({('LH',8,4):[[100,0,0,0]]})
+        for counts in ([0,0,0,0],[1,-1,0,0],[1]):
+            with self.assertRaises(ValueError):validate_activity(counts,4)
 
     def test_server_rejections_count_toward_cutoff(self):
         at_limit=dict(trial(99),server_rejections=1)
