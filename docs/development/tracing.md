@@ -623,3 +623,13 @@ avoid the global batch-queue bias. New hardware validation is required before
 claiming corrected measurements; historical fine hardware intervals, including
 nullrpc comparisons, retain this newly identified limitation until reassessed.
 CPU-only intervals and client RTTs are unaffected by the recorder correction.
+
+### Vivado freeze shutdown recovery
+
+The shared trace controller handles the known Vivado exit-139 shutdown crash
+only for a completed `freeze`: the log must show `trace_stop=1`, target closure,
+`exit 0`, and Vivado shutdown without Tcl errors. It then performs one independent
+read-only status operation, requiring a successful exit and identical VIO outputs.
+A failed or mismatched readback remains terminal. The original freeze snapshot
+and crash log are preserved; freeze is not repeated, so restoration state is not
+overwritten. This does not relax Ethernet dump validation or enable JTAG fallback.

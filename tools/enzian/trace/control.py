@@ -39,6 +39,15 @@ def campaign_config(c):
         transfer_root=c['transfer_root'],transfer_url=c['transfer_url'])
 
 
+def freeze_shutdown_crash(returncode,text):
+    required=(r'^DIAG vio_output \S*/trace_stop 1$',
+              r'Closing hw_target ',r'^# exit 0$',r'Exiting Vivado at ')
+    return (returncode in (139,-11)
+            and all(re.search(pattern,text,re.M) for pattern in required)
+            and not re.search(r'^ERROR:',text,re.M)
+            and text.rfind('Exiting Vivado at ')>text.rfind('DIAG vio_output '))
+
+
 class Control:
     def __init__(self,config,directory):
         self.config=config;self.directory=Path(directory).resolve()
@@ -104,7 +113,17 @@ class Control:
         text=log.read_text()
         if output:Path(output).write_text(text)
         if mode=='trigger':trigger_result(result.returncode,text)
-        elif result.returncode:raise RuntimeError(f'Trace {mode} failed ({result.returncode}); evidence: {log}')
+        elif result.returncode:
+            if mode!='freeze' or not freeze_shutdown_crash(result.returncode,text):
+                raise RuntimeError(f'Trace {mode} failed ({result.returncode}); evidence: {log}')
+            # Read-only verification, once; never repeat freeze and overwrite
+            # the original restoration snapshot. A failed readback is terminal.
+            observed=self._call('status')
+            expected={k:int(v,16) for k,v in re.findall(r'^DIAG vio_output \S*/(\w+) ([0-9a-fA-F]+)$',text,re.M)}
+            if {k:v for k,v in observed.items() if k!='_status'}!=expected:
+                raise RuntimeError('Freeze shutdown recovery readback mismatch')
+            atomic(self.directory/'freeze-shutdown-recovery.json',dict(
+                original_log=str(log),returncode=result.returncode,readback=observed))
         values={k:int(v,16) for k,v in re.findall(r'^DIAG vio_output \S*/(\w+) ([0-9a-fA-F]+)$',text,re.M)}
         values['_status']={k:int(v,16) for k,v in re.findall(r'^TRACE_STATUS (\w+) ([0-9a-fA-F]+)$',text,re.M)}
         if mode in ('configure','freeze','preserve') and values.get('trace_stop')!=1:raise ValueError('Recorder did not freeze')
