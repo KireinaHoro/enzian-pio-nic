@@ -12,6 +12,12 @@ The reusable skill is [paper-chart](skills/paper-chart/SKILL.md). Its installed
 copy lives at `~/.codex/skills/paper-chart/SKILL.md`; keep it in sync with this
 tracked source when updating the skill.
 
+Comparison charts use **DPDK**, **SH-A64**, and **LH** for the DPDK control,
+Caladan-derived AArch64 baseline, and Lauberhorn, respectively. Define SH-A64
+once in the experimental setup using the [baseline description](../../docs/research/caladan-enzian.md#implementation-scope).
+The port and measurements are pending; add its series only when accepted data
+are available. Keep optional x86 calibration results separately labeled.
+
 From the platform root:
 
 ```sh
