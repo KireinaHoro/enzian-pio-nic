@@ -77,7 +77,7 @@ Keep the existing positional invocation for endpoint and output selection. For
 loaded runs set `LH_BENCH_RATE` (aggregate requests/second),
 `LH_BENCH_WARMUP_MS`, `LH_BENCH_DURATION_MS`, and `LH_BENCH_FLOWS`.
 Set the positional timeout to `10000` microseconds. In this mode duration/rate
-replace positional COUNT/WARMUP; EAL lcores determine generator CPUs. Use eight
+replace positional COUNT/WARMUP; EAL lcores determine generator CPUs. Use 32
 isolated CPUs and identical flows for both systems. Do not set profiling or
 FPGA recording. Single-outstanding unloaded acquisition omits the open-loop
 variables and the legacy window variable.
@@ -132,7 +132,7 @@ The general `trafficGeneratorImage` remains independent of native runtime builds
 `tools/paper/benchmark_campaign.py` owns preflight, build, rehearsal, frozen
 rate grids, extensions, sustained confirmation, resume, locks and callbacks.
 A JSON launch configuration supplies `adapter` (argv array), `thread`,
-`generator_cpus` (eight distinct CPU IDs), `flows`, `initial_rate`,
+`generator_cpus` (1–32 distinct CPU IDs; current campaign uses 16–47), `flows`, `initial_rate`,
 `max_extensions` (1–30), `scope` (`rehearsal` by default, or explicitly `full`), and `deadlines` in seconds for `preflight`, `build`,
 `loaded`, `unloaded`, `rehearsal-validation` and `finalize`. An optional `notify`
 argv defaults to `codex queue`. Supply `ENZIAN_BMC_PASSWORD` in the launch
@@ -288,3 +288,37 @@ The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
 notification delivery to a file-backed sink. All five plots also passed portable
 synthetic-input rendering, exact PDF dimensions and embedded-font checks. These
 fixtures are excluded from paper inputs and are not board acceptance.
+
+### Generator isolation and placement transitions
+
+The current generator uses CPUs 16–47, leaving 0–15 for housekeeping. Provision
+boot isolation through EMG (`isolcpus=nohz,domain,managed_irq,16-47`,
+`nohz_full=16-47`, `rcu_nocbs=16-47`, `irqaffinity=0-15`,
+`kthread_cpus=0-15`, `rcu_nocb_poll`). Boot flags alone are insufficient:
+`tools/enzian/dpdk_run.py` uses `cpu_isolation.py` to move device IRQs,
+unbound workqueues and software receive steering away from benchmark CPUs,
+verify effective IRQ affinity, and restore saved controls after each role.
+It fails if irqbalance is active or an active IRQ cannot be moved. Kernel-managed
+NVMe queues with zero lifetime interrupts may remain assigned to isolated CPUs;
+the runner records their counters and invalidates the run if any counter changes.
+This guard covers the whole generator process, including warmup and draining.
+
+The single ThunderX VF exposes eight queues without additional queue-set VFs.
+Up to 32 generator threads share eight serialized TX queues; eight threads own
+RX polling and forward replies to their request owners. Absolute schedules
+remain partitioned across all generator threads. Deadlines are rechecked after
+TX lock acquisition; contention is generator failure, never server loss.
+
+Placement/build changes require a new configuration root. To retain reviewed
+unloaded rehearsal acquisitions, pass `--inherit-unloaded OLD_ROOT
+--inherit-reason REASON` at launch. All twelve receipts and their evidence hashes
+are checked, with original code/configuration retained in
+`inherited-unloaded.json`. Loaded points are reacquired under the new placement.
+
+The October 15 32-core recovery check passed three separate 1 s warmup + 1 s
+measurement trials against the existing one-worker LH 8-byte service at 75,938
+RPC/s: 227,814 measured transmissions and on-time replies, zero generator misses,
+TX admission failures or NIC RX/TX errors. Actual placement was CPUs 16–47;
+isolation restoration and idle-NVMe guards passed each trial. Evidence is in
+`out/echo-redesign/generator32/board-check-3/`; these are diagnostic checks,
+excluded from paper inputs, not a completed loaded rehearsal or capacity claim.

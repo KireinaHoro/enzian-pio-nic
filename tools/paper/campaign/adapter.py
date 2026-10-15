@@ -102,7 +102,8 @@ def preflight(config, h, campaign):
     if dut['deployment_sha256']!=c['deploy_image_sha256']:
         raise ValueError('DUT deployment image differs from matched artifact')
     for role,host,cores in (('peer',peer,c['generator_cpus']),('DUT',dut,c['worker_cpus'])):
-        if not set(cores)<=cpu_set(host['isolated']) or 'dev cpu40g0' not in host['management_route']:
+        if (not set(cores)<=cpu_set(host['isolated']) or
+                not set(cores)<=cpu_set(host['nohz_full']) or 'dev cpu40g0' not in host['management_route']):
             raise ValueError(role+' isolation or management routing mismatch')
         if host['kernel']!=c['kernel']: raise ValueError(role+' kernel mismatch')
     if peer['mem_available']<c['peer_ram_reserve_bytes'] or peer['shm']['available']<c['peer_output_reserve_bytes']:

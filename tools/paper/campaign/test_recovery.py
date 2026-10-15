@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from .test_campaign import controller
-from .recovery import draft, prepare, invalidated
+from .recovery import draft, prepare, invalidated, inherit_unloaded
 from .import_loaded import digest
 
 
@@ -26,6 +26,12 @@ class Recovery(unittest.TestCase):
         self.source.write_text('fixed');self.new={str(self.source):digest(self.source)}
         self.review=draft(self.root,self.new);self.review.update(reason='Analysis fix; prior results independently revalidated',evidence={str(self.source):digest(self.source)})
         for d in self.review['receipts'].values():d.update(action='reuse',reason='Validated fixture')
+
+    def test_inheritance_rejects_running_source(self):
+        controller.atomic(self.root/'status.json',dict(stage='loaded'))
+        with self.assertRaisesRegex(ValueError,'must be stopped'):
+            inherit_unloaded(self.root,self.root/'new','review',controller.atomic)
+        self.assertFalse((self.root/'new').exists())
 
     def test_selective_reuse_and_derived_invalidation(self):
         original=self.receipts[0].read_bytes()

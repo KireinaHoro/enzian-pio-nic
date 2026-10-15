@@ -14,6 +14,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+from cpu_isolation import Isolation
 
 
 def command(*args):
@@ -135,6 +136,7 @@ def main():
     changed_driver = False
     proc = None
     summary = dict(status='failed', returncode=None, restored=False)
+    isolation=Isolation(lcores,args.logs/'isolation-before.json')
     def interrupted(_signum, _frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
@@ -154,6 +156,7 @@ def main():
         write('/sys/bus/pci/drivers_probe',bdf)
         if (dev/'driver').resolve().name != 'vfio-pci':
             raise RuntimeError('VFIO binding did not succeed')
+        summary['isolation']=isolation.apply()
         device_arg = bdf + (f',ptp_bgx={args.ptp_bgx}' if args.ptp_bgx is not None else '')
         argv = [str(args.binary.resolve()), '-l', ','.join(map(str, lcores)), '-a', device_arg,
                 '--file-prefix=lh-bench-'+str(os.getpid()), '--iova-mode=pa',
@@ -169,6 +172,16 @@ def main():
         if proc is not None and proc.poll() is None:
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait()
+        try:
+            isolation.verify()
+        except Exception as exc:
+            summary['isolation_activity_error']=str(exc)
+            summary['status']='failed'
+        try:
+            isolation.restore()
+        except Exception as exc:
+            summary['isolation_restore_error']=str(exc)
+            summary['status']='failed'
         try:
             if changed_driver and (dev/'driver').exists():
                 write(dev/'driver'/'unbind',bdf)
@@ -227,7 +240,7 @@ def main():
                     after_addresses['mtu'] != addresses['mtu'] or
                     after_addresses['address'] != addresses['address']):
                 raise RuntimeError('data VF driver/address/MTU did not restore')
-            summary['restored'] = 'resource_restore_error' not in summary
+            summary['restored'] = not any(k in summary for k in ('resource_restore_error','isolation_restore_error'))
         except Exception as exc:
             summary['restore_error'] = str(exc)
             summary['status'] = 'failed'

@@ -79,7 +79,7 @@ def run(config):
             raise ValueError('Peer tracking/CSV/archive budget exhausted before acquisition')
     cores=config['cpus']
     if not cores or len(set(cores))!=len(cores): raise ValueError('Invalid CPU list')
-    if not server and len(cores)!=(8 if loaded else 1): raise ValueError('Wrong generator CPU count')
+    if not server and ((not 1 <= len(cores) <= 32) if loaded else len(cores)!=1): raise ValueError('Wrong generator CPU count')
     if loaded and config['deadline_ms']!=10: raise ValueError('Loaded deadline must be 10 ms')
     env=dict(os.environ)
     for key in list(env):

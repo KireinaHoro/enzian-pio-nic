@@ -82,12 +82,14 @@ static unsigned load_phase(uint16_t port, struct rte_mempool *pool,
     return sent;
 }
 
-/* Multi-core load generation. Each core owns its samples and TX queue. RSS RX
+/* Multi-core load generation. Each core owns its samples; up to eight NIC TX
+ * queues are serialized across generators. One polling owner per RX queue. RSS RX
  * queues route validated replies through bounded MPSC rings to their owner.
  * Queue/core setup and the ready barrier precede the observation window. */
 #include <stdatomic.h>
 #include <rte_launch.h>
 #include <rte_ring.h>
+#include <rte_spinlock.h>
 struct parallel_rx { uint64_t received; uint32_t id, offset, length; };
 struct parallel_worker;
 struct parallel_load {
@@ -96,7 +98,8 @@ struct parallel_load {
     struct rte_mempool *pool;
     struct endpoint src, dst;
     struct parallel_worker *workers;
-    unsigned first, count, cores, flows, window;
+    unsigned first, count, cores, flows, window, queues;
+    rte_spinlock_t tx_locks[8];
     uint16_t port;
     uint64_t gap, timeout, start;
     atomic_uint ready, finished;
@@ -196,7 +199,21 @@ static int parallel_poll(void *argument) {
                     break;
                 }
             }
-            if(!rte_eth_tx_burst(load->port,worker->index,&tx,1)) {
+            unsigned queue=worker->index%load->queues;
+            rte_spinlock_lock(&load->tx_locks[queue]);
+            /* Lock contention must never turn an expired opportunity into TX. */
+            uint64_t admitted=now();
+            if(open_rate && (admitted>=(load->start+open_warmup+(s->scheduled>=load->start+open_warmup?open_duration:0)) ||
+                            ol_missed(admitted,load->start,id-1,open_rate,load->cores))) {
+                rte_spinlock_unlock(&load->tx_locks[queue]);
+                rte_pktmbuf_free(tx);s->status=OL_MISSED;s->exit=admitted;
+                worker->sent++;
+                next=ol_due(load->start,worker->index+(uint64_t)worker->sent*load->cores,open_rate);
+                break;
+            }
+            unsigned accepted=rte_eth_tx_burst(load->port,queue,&tx,1);
+            rte_spinlock_unlock(&load->tx_locks[queue]);
+            if(!accepted) {
                 rte_pktmbuf_free(tx); s->status=open_rate?OL_TX_FAILED:2; s->submitted=s->exit=now();
                 worker->sent++; parallel_fail(load,"TX admission failure"); break;
             }
@@ -206,7 +223,8 @@ static int parallel_poll(void *argument) {
             if(open_rate) break; /* Never enqueue a catch-up burst. */
         }
         struct rte_mbuf *packets[32];
-        unsigned received=rte_eth_rx_burst(load->port,worker->index,packets,32);
+        unsigned received=worker->index<load->queues?
+            rte_eth_rx_burst(load->port,worker->index,packets,32):0;
         uint64_t stamp=received?now():0;
         for(unsigned j=0;j<received;j++) {
             struct rte_mbuf *packet=packets[j];
@@ -265,10 +283,10 @@ static unsigned parallel_phase(uint16_t port,struct rte_mempool *pool,
     unsigned flows=text?number(text,1024):64;
     if((!open_rate && window<cores) || flows<cores || src.port+flows>65536)
         rte_exit(1,"parallel load requires at least one flow/window slot per core\n");
-    struct parallel_worker workers[8]={0};
+    struct parallel_worker workers[32]={0};
     struct parallel_load load={.samples=samples,.bench=bench,.pool=pool,
         .src=src,.dst=dst,.workers=workers,.first=first,.count=count,.cores=cores,
-        .flows=flows,.window=window,.port=port,.gap=gap,.timeout=timeout};
+        .flows=flows,.window=window,.queues=cores>8?8:cores,.port=port,.gap=gap,.timeout=timeout};
     for(unsigned i=0;i<cores;i++) {
         workers[i].load=&load;workers[i].index=i;
         workers[i].count=count/cores+(i<count%cores);

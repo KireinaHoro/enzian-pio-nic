@@ -284,9 +284,9 @@ class Campaign:
 def config_check(config):
     if config.get('scope', 'rehearsal') not in ('rehearsal', 'full'):
         raise ValueError('Scope must be rehearsal or full')
-    if len(config['generator_cpus']) != 8 or len(set(config['generator_cpus'])) != 8:
-        raise ValueError('Exactly eight distinct isolated generator CPUs required')
-    if config['flows'] < 8 or config['initial_rate'] < 1 or not 1 <= config['max_extensions'] <= 30:
+    if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):
+        raise ValueError('Between one and 32 distinct isolated generator CPUs required')
+    if config['flows'] < len(config['generator_cpus']) or config['initial_rate'] < 1 or not 1 <= config['max_extensions'] <= 30:
         raise ValueError('Invalid flow/rate/extension budget')
     if not config.get('thread') or not config.get('adapter'):
         raise ValueError('Thread and concrete acquisition adapter are required')
@@ -314,6 +314,8 @@ def main():
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--config', type=Path)
     parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--inherit-unloaded', type=Path)
+    parser.add_argument('--inherit-reason')
     parser.add_argument('--recovery-review', type=Path)
     args = parser.parse_args(); root = args.root.resolve()
     if args.command == 'recovery-plan':
@@ -325,6 +327,7 @@ def main():
         config = read(args.config); config_check(config)
         if args.recovery_review and not args.resume: raise ValueError('Recovery requires --resume')
         if root.exists() and not args.resume: raise ValueError('Campaign root already exists')
+        if args.inherit_unloaded and (root/'code.json').exists(): raise ValueError('Inheritance requires a new campaign root')
         root.mkdir(parents=True, exist_ok=args.resume)
         if (root/'config.json').exists() and read(root/'config.json') != config: raise ValueError('Incompatible resume configuration')
         # Controller code is hashed too; resume cannot silently change semantics.
@@ -337,6 +340,9 @@ def main():
                 prepare_recovery(root,code,read(args.recovery_review) if args.recovery_review else None,atomic)
             else:
                 atomic(root/'code.json',code)
+            if args.inherit_unloaded:
+                from campaign.recovery import inherit_unloaded
+                inherit_unloaded(args.inherit_unloaded,root,args.inherit_reason,atomic)
         unit='echo-campaign-'+hashlib.sha256(str(root).encode()).hexdigest()[:12]
         hook=' '.join('"'+str(x).replace('\\','\\\\').replace('"','\\"')+'"' for x in [sys.executable,SELF,'failed','--root',root])
         atomic(root/'status.json',dict(stage='queued',completed=0,total=0,artifact_paths=[str(root)]))

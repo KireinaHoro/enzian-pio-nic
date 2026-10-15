@@ -388,3 +388,10 @@ cooperative handoffs; verify physical-worker placement and simultaneous holds in
 the trace before counting it as an all-but-one-stalled-worker result. Pool sizes
 alone do not establish that placement. The pinned loopback test verifies RPC
 alternation, the minimum gap and bypass completions between RPCs.
+
+For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
+verified cold power sequence and BDK handling, skips FPGA programming, and
+requires Linux login. This is not FPGA/ECI acceptance. Provision its kernel and
+isolation arguments through EMG first. For the 32-core echo generator, use
+CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
+and temporarily corrects device IRQ, RPS and unbound-workqueue placement.

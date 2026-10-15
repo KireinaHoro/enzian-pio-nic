@@ -6,6 +6,7 @@ let
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
     lh-dpdk-run = "tools/enzian/dpdk_run.py";
+    lh-cpu-isolation = "tools/enzian/cpu_isolation.py";
     lh-benchmark-summary = "tools/enzian/benchmark_summary.py";
     lh-trace-dump = "data/eci/sys_trace/dump_trace_udp.py";
     lh-dpdk-replay = "sw/apps/microbenchmarks/dpdk/replay_test.py";

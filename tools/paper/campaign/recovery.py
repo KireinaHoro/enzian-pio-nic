@@ -73,3 +73,44 @@ def draft(root, code):
                 reason='',evidence={},receipts={
                     str(p.relative_to(root)):dict(sha256=digest(p),action='rerun',reason='')
                     for p in sorted((root/'stages').glob('*/receipt.json'))})
+
+
+def inherit_unloaded(source, destination, reason, atomic):
+    """Carry reviewed rehearsal unloaded receipts into a new placement cohort."""
+    import fcntl
+    with (Path(source)/'lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        status=json.loads((Path(source)/'status.json').read_text())['stage']
+        if status not in ('failed','rehearsal-complete'):
+            raise ValueError('Source rehearsal must be stopped')
+        return _inherit_unloaded(source,destination,reason,atomic)
+
+
+def _inherit_unloaded(source, destination, reason, atomic):
+    source=Path(source).resolve();destination=Path(destination).resolve()
+    if not reason or source==destination:raise ValueError('Distinct source and review reason required')
+    if json.loads((source/'config.json').read_text()).get('scope')!='rehearsal':
+        raise ValueError('Only rehearsal inheritance is supported')
+    selected=[]
+    for receipt in sorted((source/'stages').glob('*/receipt.json')):
+        if invalidated(source,receipt):continue
+        saved=json.loads(receipt.read_text())
+        cohort=saved['result'].get('cohort')
+        if not cohort:continue
+        if cohort['count']!=100 or cohort['warmup']!=16:raise ValueError('Wrong rehearsal sample count')
+        for path,sha in saved['hashes'].items():
+            if digest(path)!=sha:raise ValueError('Inherited evidence changed')
+        selected.append((receipt,saved))
+    from .import_unloaded import validate_matched
+    validate_matched([saved['result']['cohort'] for _,saved in selected])
+    if len(selected)!=12:raise ValueError('Expected all 12 validated unloaded cohorts')
+    if any((destination/'stages'/p.parent.name/'receipt.json').exists() for p,_ in selected):
+        raise ValueError('Cannot overwrite inherited receipts')
+    record=dict(source=str(source),reason=reason,
+        source_config=json.loads((source/'config.json').read_text()),
+        source_code=json.loads((source/'code.json').read_text()),
+        receipts={str(p):digest(p) for p,_ in selected})
+    atomic(destination/'inherited-unloaded.json',record)
+    for receipt,saved in selected:
+        target=destination/'stages'/receipt.parent.name;target.mkdir(parents=True,exist_ok=True)
+        atomic(target/'receipt.json',saved)

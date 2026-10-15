@@ -37,11 +37,14 @@ def main():
                    help='skip power_down when BMC inspection confirms all rails are off')
     p.add_argument('--resume-held', action='store_true',
                    help='verify existing BDK menu, program and boot without power cycling')
+    p.add_argument('--cpu-only', action='store_true',
+                   help='boot a traffic-generator peer without an FPGA image or ECI acceptance')
     p.add_argument('--negative-no-bitstream', action='store_true',
                    help='negative test: power cycle and boot with an unprogrammed FPGA')
     p.add_argument('program', nargs=argparse.REMAINDER,
                    help='command after --; must exit zero only after programming succeeds')
     args = p.parse_args()
+    args.negative_no_bitstream = args.negative_no_bitstream or args.cpu_only
     command = args.program
     if command[:1] == ['--']:
         command = command[1:]
@@ -134,7 +137,7 @@ def boot_once(args, command, logs):
         def program_and_boot():
             with (logs / 'program.log').open('w') as log:
                 if args.negative_no_bitstream:
-                    log.write('NEGATIVE TEST: FPGA power-cycled; programming deliberately skipped\n')
+                    log.write(('CPU-ONLY PEER' if args.cpu_only else 'NEGATIVE TEST') + ': FPGA power-cycled; programming deliberately skipped\n')
                 else:
                     subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
                                    check=True, timeout=600)

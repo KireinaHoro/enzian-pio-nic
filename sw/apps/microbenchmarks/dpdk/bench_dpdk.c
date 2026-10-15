@@ -33,7 +33,7 @@ static void check(int rc, const char *what) {
 }
 #include "open_loop.h"
 static unsigned open_rate;
-static unsigned open_cpus[8];
+static unsigned open_cpus[32];
 static uint64_t open_duration, open_warmup;
 #include "load.h"
 /* Preparation traffic is outside the measured RPC. Preserve every reply and
@@ -100,10 +100,11 @@ int main(int argc, char **argv) {
     argc-=consumed; argv+=consumed;
     if(argc!=10 && argc!=11) rte_exit(1,
         "EAL options -- SRC_IP DST_IP DST_MAC DST_PORT COUNT WARMUP TIMEOUT_US BENCHMARK OUTPUT.csv [loopback|flush:N[:ROUNDS]]\n"
-        "Use 1-8 EAL lcores and one allowlisted port (cpu40g1 VF). WARMUP may be zero.\n");
+        "Use 1-32 EAL lcores and one allowlisted port (cpu40g1 VF). WARMUP may be zero.\n");
     unsigned generators=rte_lcore_count();
-    if(generators>8 || rte_eth_dev_count_avail()!=1)
-        rte_exit(1,"require 1-8 generator cores and one port\n");
+    unsigned queues=generators>8?8:generators;
+    if(generators>32 || rte_eth_dev_count_avail()!=1)
+        rte_exit(1,"require 1-32 generator cores and one port\n");
     struct endpoint src={.port=49152}, dst={0};
     if(inet_pton(AF_INET,argv[1],src.ip)!=1 || inet_pton(AF_INET,argv[2],dst.ip)!=1)
         rte_exit(1,"invalid IPv4 address\n");
@@ -179,7 +180,7 @@ int main(int argc, char **argv) {
         config.rxmode.mq_mode=RTE_ETH_MQ_RX_RSS;
         config.rx_adv_conf.rss_conf.rss_hf=RTE_ETH_RSS_NONFRAG_IPV4_UDP;
     }
-    check(rte_eth_dev_configure(port,generators,generators,&config),"configure");
+    check(rte_eth_dev_configure(port,queues,queues,&config),"configure");
     uint16_t nrx=256,ntx=256;
     check(rte_eth_dev_adjust_nb_rx_tx_desc(port,&nrx,&ntx),"descriptors");
     int socket=rte_eth_dev_socket_id(port); if(socket<0) socket=0;
@@ -188,7 +189,7 @@ int main(int argc, char **argv) {
     struct rte_mempool *pool=rte_pktmbuf_pool_create("bench",generators>1?16383:4095,128,RTE_ALIGN_CEIL(sizeof(struct parallel_rx),128),
         RTE_MBUF_DEFAULT_BUF_SIZE,socket);
     if(!pool) rte_exit(1,"mempool failed\n");
-    for(unsigned q=0;q<generators;q++) {
+    for(unsigned q=0;q<queues;q++) {
         check(rte_eth_rx_queue_setup(port,q,nrx,socket,&info.default_rxconf,pool),"RX queue");
         check(rte_eth_tx_queue_setup(port,q,ntx,socket,&info.default_txconf),"TX queue");
     }

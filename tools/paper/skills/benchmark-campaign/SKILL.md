@@ -26,7 +26,7 @@ Keep execution logic in `tools/paper/benchmark_campaign.py` and its campaign
 package; do not reproduce its rate selection or acquisition loops in chat.
 
 Before launch, require a concrete manifest, current EMG reservations, matching
-artifact hashes, eight isolated generator CPUs, storage and RAM budgets,
+artifact hashes, 32 isolated generator CPUs (currently 16–47), verified effective IRQ affinity, storage and RAM budgets,
 restoration paths, and working terminal callback delivery to the current thread.
 A dated hardware handoff is not a reservation. Preserve any earlier failure
 before resetting. Provision through EMG and use the repository hardware harness.
@@ -69,3 +69,8 @@ visually, and report actual coverage and limitations. Preserve old active paper
 figures until their replacements have passed validation. Commit implementation,
 measurement data and provenance normally; leave layout and presentation changes
 uncommitted until requested.
+
+When generator placement or binaries change, keep the old loaded bracket separate.
+A new rehearsal root may use `--inherit-unloaded SOURCE --inherit-reason REASON`
+only after reviewing compatibility of the twelve unloaded cohorts. The controller
+checks every source hash and retains source configuration and code provenance.
