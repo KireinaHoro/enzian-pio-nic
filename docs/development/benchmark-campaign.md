@@ -307,7 +307,8 @@ The loaded plotting script uses the shared paper library. It pools on-time RTT
 observations across equal-duration repetitions, retains offered-rate ordering
 and nonmonotonic goodput, and shows median/P99. Overload plots retain every rate
 and trial, with a 1% line. Confirmed peak plots show median and trial range.
-Regular arrivals are covered; Poisson arrivals are deferred to memcached.
+Current loaded campaigns cover paced batch arrivals; the earlier fixed-spacing
+measurements remain separate. Poisson arrivals are deferred to memcached.
 Unloaded client-RTT CDF and instrumented MAC service-path components belong to
 separate cohorts; never assign those components to uninstrumented totals or
 claim they independently measure CPU utilization.
