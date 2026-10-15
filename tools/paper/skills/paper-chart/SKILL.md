@@ -31,8 +31,11 @@ Small source datasets should be preserved verbatim; never manufacture samples
 from percentiles. CDFs use every valid measured sample, without tail clipping.
 
 Write emitted plots to `../paper/plots/` for tracking in that repository.
-During chart iteration, do not commit or push unless the user explicitly asks;
-leave source, data, PDF and deletion changes reviewable in the worktrees.
+During chart iteration, leave chart layout and presentation changes (including
+PDFs and previews) uncommitted and unpushed unless explicitly requested.
+Commit and push implementation, acquisition tooling, validation, measurement
+data and provenance changes normally in coherent commits. Separate presentation
+hunks from implementation when they share a file; do not include others’ edits.
 Maintain `tools/paper/charts.json` as the active chart inventory: output PDF,
 plotting script, data manifest, regeneration command, and actual TeX inclusion
 (or pending inclusion). Check the paper source; do not claim a pending chart is
