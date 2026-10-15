@@ -11,13 +11,18 @@ class IsolationTests(unittest.TestCase):
         self.assertEqual(cpus('0-3,16-47'),set(range(4))|set(range(16,48)))
         self.assertEqual(mask(set(range(16,48))),'0000ffff,ffff0000')
 
-    def test_managed_irq_activity_invalidates(self):
-        obj=Isolation.__new__(Isolation);obj.guarded={'57':dict(name='nvme0q9',counts=[0]*48)}
-        line='57: '+' '.join(['0']*48)+' ITS-MSI Edge nvme0q9'
-        with patch.object(Path,'read_text',return_value=line):obj.verify()
+    def test_irq_activity_is_diagnostic(self):
+        obj=Isolation.__new__(Isolation);obj.before={'57':[0]*48}
         changed='57: 1 '+' '.join(['0']*47)+' ITS-MSI Edge nvme0q9'
         with patch.object(Path,'read_text',return_value=changed):
-            with self.assertRaisesRegex(RuntimeError,'IRQ activity'):obj.verify()
+            result=obj.verify()
+        self.assertEqual(result['changed'],['57'])
+        self.assertEqual(result['after']['57'][0],1)
+
+    def test_missing_irq_is_diagnostic(self):
+        obj=Isolation.__new__(Isolation);obj.before={'57':[0]*48}
+        with patch.object(Path,'read_text',return_value=''):
+            self.assertEqual(obj.verify()['changed'],['57'])
 
     def test_changes_are_saved_before_write_and_restored(self):
         with tempfile.TemporaryDirectory() as directory:

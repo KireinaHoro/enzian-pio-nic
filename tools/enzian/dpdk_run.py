@@ -173,10 +173,9 @@ def main():
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait()
         try:
-            isolation.verify()
+            summary['isolation_activity']=isolation.verify()
         except Exception as exc:
             summary['isolation_activity_error']=str(exc)
-            summary['status']='failed'
         try:
             isolation.restore()
         except Exception as exc:

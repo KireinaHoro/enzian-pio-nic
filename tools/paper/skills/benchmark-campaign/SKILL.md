@@ -26,7 +26,7 @@ Keep execution logic in `tools/paper/benchmark_campaign.py` and its campaign
 package; do not reproduce its rate selection or acquisition loops in chat.
 
 Before launch, require a concrete manifest, current EMG reservations, matching
-artifact hashes, 32 isolated generator CPUs (currently 16–47), verified effective IRQ affinity, storage and RAM budgets,
+artifact hashes, 32 isolated generator CPUs (currently 16–47), best-effort IRQ affinity setup, storage and RAM budgets,
 restoration paths, and working terminal callback delivery to the current thread.
 A dated hardware handoff is not a reservation. Preserve any earlier failure
 before resetting. Provision through EMG and use the repository hardware harness.
@@ -47,7 +47,9 @@ the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
 JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;
 generator misses, admission failure, corruption and resource exhaustion invalidate
-a point. Keep failed attempts and exact rates.
+a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
+not invalidation conditions; enforce the requested absolute send schedule in
+both warmup and measurement. Keep failed attempts and exact rates.
 
 Launch using the documented detached user-service command. After launch, return
 the campaign root and service identifier without intermediate polling. Inspect

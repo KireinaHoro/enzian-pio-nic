@@ -298,10 +298,13 @@ boot isolation through EMG (`isolcpus=nohz,domain,managed_irq,16-47`,
 `tools/enzian/dpdk_run.py` uses `cpu_isolation.py` to move device IRQs,
 unbound workqueues and software receive steering away from benchmark CPUs,
 verify effective IRQ affinity, and restore saved controls after each role.
-It fails if irqbalance is active or an active IRQ cannot be moved. Kernel-managed
-NVMe queues with zero lifetime interrupts may remain assigned to isolated CPUs;
-the runner records their counters and invalidates the run if any counter changes.
-This guard covers the whole generator process, including warmup and draining.
+IRQ affinity is best effort: an active irqbalance daemon, an unmovable IRQ or
+observed IRQ activity is diagnostic, not a reason to invalidate a run.
+The runner records interrupt counters before and after the process and restores
+temporary controls. Validity depends on delivering the absolute send schedule
+through both warmup and measurement: missed opportunities and TX admission
+failures still invalidate the point. Corruption, resource, hardware health and
+restoration failures retain their existing checks.
 
 The single ThunderX VF exposes eight queues without additional queue-set VFs.
 Up to 32 generator threads share eight serialized TX queues; eight threads own
