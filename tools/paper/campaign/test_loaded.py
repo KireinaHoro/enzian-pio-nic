@@ -10,6 +10,36 @@ from .policy import loss
 
 
 class Loaded(unittest.TestCase):
+    def test_tx_entry_boundary_and_bounded_return(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);source=root/'samples.csv';summary=root/'summary.json'
+            # Last slot begins at 9 ms; TX entry is just before 10 ms.
+            state=dict(schema=2,tx_phase_boundary='admission-entry',generator_cpus=[16,17],
+                benchmark='echo8',rate=1000,warmup_ns=0,duration_ns=10_000_000,
+                send_start_ns=0,send_end_ns=10_000_000,deadline_ns=10_000_000,
+                transmitted=10,on_time=10,late=0,duplicates=0,generator_misses=0,
+                tx_admission_failures=0,malformed=0,valid=True)
+            rows=[dict(request_id=i+1,benchmark='echo8',ok=1,rpc_status=0,warmup=0,
+                scheduled_ns=i*1_000_000,start_lag_ns=100,
+                client_call_enter_ns=i*1_000_000+100,client_tx_admit_enter_ns=i*1_000_000+200,
+                client_tx_submit_ns=i*1_000_000+300,client_rx_burst_ns=i*1_000_000+2000,
+                duplicates=0) for i in range(10)]
+            rows[-1].update(client_tx_admit_enter_ns=9_999_900,
+                client_tx_submit_ns=10_000_170,client_rx_burst_ns=10_002_000)
+            def write():
+                with source.open('w') as f:
+                    writer=csv.DictWriter(f,fieldnames=rows[0]);writer.writeheader();writer.writerows(rows)
+                summary.write_text(json.dumps(state))
+            write();load(source,summary)
+            rows[-1]['client_tx_admit_enter_ns']=10_000_000;write()
+            with self.assertRaisesRegex(ValueError,'TX admission'):load(source,summary)
+            rows[-1]['client_tx_admit_enter_ns']=9_999_900
+            rows[-1]['client_tx_submit_ns']=11_000_000;write()
+            with self.assertRaisesRegex(ValueError,'overran'):load(source,summary)
+            # Old observations keep their original stricter return-boundary rule.
+            state.pop('tx_phase_boundary');rows[-1]['client_tx_submit_ns']=10_000_170;write()
+            with self.assertRaisesRegex(ValueError,'scheduled phase'):load(source,summary)
+
     def test_phase_boundaries_loss_late_and_duplicates(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);source=root/'samples.csv';summary=root/'samples.csv.open.json'

@@ -101,7 +101,18 @@ the schedule. `samples.csv.open.json` records on-time replies, observed late
 replies, duplicate replies, server rejection replies, missed sends, failed admissions, malformed replies,
 actual generator CPUs and NIC counters. Schema 2 also records workload, warmup,
 and absolute measured send-start/end timestamps; the importer checks each slot,
-phase label, transmit boundary and recorded start lag against that schedule. CSV statuses are 0 for valid on-time
+phase label, transmit boundary and recorded start lag against that schedule.
+New observations declare `tx_phase_boundary: "admission-entry"`: the phase
+boundary is `client_tx_admit_enter_ns`, sampled under the TX queue lock directly
+before `rte_eth_tx_burst`. The existing `client_tx_submit_ns` remains the
+post-call timestamp. A successful call may return just after its phase ends,
+but must return before that core's next absolute send opportunity; a longer
+stall invalidates the run. Both timestamps are retained, and only accepted
+requests enter transmitted counts. Neither timestamp claims to measure wire
+departure. RTT boundaries and the fixed scheduled interval denominator are
+unchanged. Older observations without this declaration retain their original
+post-call boundary validation; failed old observations are reacquired, not
+relabelled. CSV statuses are 0 for valid on-time
 (with `ok=1`), 2 expired, 3 malformed, 4 late, 5 missed, 6 failed admission,
 7 server rejection. An exact matching 24-byte ONC-RPC `SYSTEM_ERR` envelope is
 a rejection, not malformed traffic. Other invalid headers or payloads remain

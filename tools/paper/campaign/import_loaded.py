@@ -24,6 +24,9 @@ def load(csv_path, summary_path, *, collect_latencies=True):
     previous = 0
     measured = 0
     strict=summary.get('schema')==2
+    admission_boundary=summary.get('tx_phase_boundary')=='admission-entry'
+    if summary.get('tx_phase_boundary') not in (None,'admission-entry'):
+        raise ValueError('Unknown TX phase boundary')
     if strict:
         if summary['send_end_ns']-summary['send_start_ns']!=summary['duration_ns']:
             raise ValueError('Send interval differs from duration')
@@ -55,8 +58,14 @@ def load(csv_path, summary_path, *, collect_latencies=True):
                         or row['benchmark']!=summary['benchmark']):
                     raise ValueError('Absolute schedule, phase or workload mismatch')
                 end=summary['send_start_ns'] if warmup else summary['send_end_ns']
-                if submitted and not scheduled<=enter<=submitted<end:
-                    raise ValueError('Transmission outside its scheduled phase')
+                if submitted:
+                    if admission_boundary:
+                        admitted=int(row['client_tx_admit_enter_ns'])
+                        next_due=start+(xid-1+len(summary['generator_cpus']))*1_000_000_000//summary['rate']
+                        if not scheduled<=enter<=admitted<end or not admitted<=submitted<next_due:
+                            raise ValueError('TX admission outside phase or call overran send opportunity')
+                    elif not scheduled<=enter<=submitted<end:
+                        raise ValueError('Transmission outside its scheduled phase')
                 if int(row['start_lag_ns'])!=max(0,enter-scheduled):
                     raise ValueError('Scheduled-start lag mismatch')
             if int(row['warmup']):

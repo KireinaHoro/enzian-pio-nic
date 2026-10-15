@@ -225,6 +225,7 @@ static int parallel_poll(void *argument) {
                 next=ol_due(load->start,worker->index+(uint64_t)worker->sent*load->cores,open_rate);
                 break;
             }
+            s->admitted=admitted;
             unsigned accepted=rte_eth_tx_burst(load->port,queue,&tx,1);
             rte_spinlock_unlock(&load->tx_locks[queue]);
             if(!accepted) {
@@ -232,6 +233,8 @@ static int parallel_poll(void *argument) {
                 worker->sent++; parallel_fail(load,"TX admission failure"); break;
             }
             s->submitted=now(); worker->sent++;
+            if(open_rate && ol_missed(s->submitted,load->start,id-1,open_rate,load->cores))
+                parallel_fail(load,"TX call overran send opportunity");
             next=open_rate?ol_due(load->start,worker->index+(uint64_t)worker->sent*load->cores,open_rate):s->enter+load->gap*load->cores;
             clock=now();
             if(open_rate) break; /* Never enqueue a catch-up burst. */

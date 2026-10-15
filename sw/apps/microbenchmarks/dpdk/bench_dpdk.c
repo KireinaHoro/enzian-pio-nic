@@ -17,7 +17,7 @@
 #include <rte_version.h>
 #include "wire.h"
 #include "benchmark.h"
-struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled; uint32_t duplicates, rejections; int status; } __rte_cache_aligned;
+struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled, admitted; uint32_t duplicates, rejections; int status; } __rte_cache_aligned;
 static uint64_t now(void) {
     struct timespec t;
     if(clock_gettime(CLOCK_MONOTONIC_RAW,&t)) rte_exit(1,"clock_gettime failed\n");
@@ -311,14 +311,14 @@ int main(int argc, char **argv) {
     }
     observation_end=now();
     }
-    fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport,scheduled_ns,start_lag_ns,duplicates,server_rejections\n");
+    fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport,scheduled_ns,start_lag_ns,duplicates,server_rejections,client_tx_admit_enter_ns\n");
     for(unsigned i=0;i<((generators>1 || open_rate)?count+warmup:completed);i++) {
         struct sample *s=&samples[i];
         if(!open_rate && generators>1 && !s->enter) continue;
         int ok=s->status==1;
-        fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk,%"PRIu64",%"PRIu64",%u,%u\n",
+        fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk,%"PRIu64",%"PRIu64",%u,%u,%"PRIu64"\n",
             i+1,ok?0:s->status,ok,bench->name,
-            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates,s->rejections);
+            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates,s->rejections,s->admitted);
     }
     int io_error=ferror(csv);
     if(open_rate) {
@@ -352,7 +352,7 @@ int main(int argc, char **argv) {
         struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"open-loop NIC stats");
         char path[4096]; snprintf(path,sizeof(path),"%s.open.json",argv[9]);
         FILE *f=fopen(path,"wx"); if(!f) rte_exit(1,"open-loop summary output failed\n");
-        fprintf(f,"{\"schema\":2,\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
+        fprintf(f,"{\"schema\":2,\"tx_phase_boundary\":\"admission-entry\",\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
                 bench->name,open_warmup,observation_start,observation_end);
         fprintf(f,"\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","
           "\"transmitted\":%"PRIu64",\"on_time\":%"PRIu64",\"late\":%"PRIu64",\"duplicates\":%"PRIu64","
