@@ -88,14 +88,17 @@ def clock_bounds(bounds):
     return dict(offset_us=float(fit.x[0]),rate_ppm=float(fit.x[1]),applied_to_measurements=False)
 
 def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
-               instrumentation, payload_bytes, server_path=None, app_events=None):
+               instrumentation, payload_bytes, server_path=None, app_events=None, priming_count=0):
     client=client_rows(client_path,count,warmup,payload_bytes)
     if len(mac_pairs)!=setup_count+len(client): raise ValueError('Incomplete whole-capture RPC accounting')
     calls=mac_pairs[setup_count:]
-    if any(r['tx_mac_ns'] is None for r in mac_pairs): raise ValueError('Unpaired MAC event')
-    if any(int(r['tx_mac_ns'])<=int(r['rx_mac_ns']) for r in mac_pairs):
+    if priming_count not in (0,1) or priming_count>setup_count:
+        raise ValueError('Invalid neighbor priming boundary')
+    direct=mac_pairs[priming_count:]
+    if any(r['tx_mac_ns'] is None for r in direct): raise ValueError('Unpaired MAC event')
+    if any(int(r['tx_mac_ns'])<=int(r['rx_mac_ns']) for r in direct):
         raise ValueError('Invalid whole-capture MAC interval')
-    if any(int(a['tx_mac_ns'])>int(b['rx_mac_ns']) for a,b in zip(mac_pairs,mac_pairs[1:])):
+    if any(int(a['tx_mac_ns'])>int(b['rx_mac_ns']) for a,b in zip(direct,direct[1:])):
         raise ValueError('Overlapping whole-capture unloaded requests')
     bounds=[]; runtime_bounds=[]; result=[]
     server=rows(server_path) if server_path else []
@@ -134,7 +137,9 @@ def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
     if server_path: files[str(server_path)]=digest(server_path)
     return dict(system='LH',instrumentation=instrumentation,count=count,warmup=warmup,payload_bytes=payload_bytes,
                 correlation='XID-validated single-outstanding order plus causal bounds',
-                rows=result,files=files,causal=causal)
+                rows=result,files=files,causal=causal,
+                preparation=dict(priming_count=priming_count,setup_count=setup_count,
+                                 excluded_from_observations=True,mac_pairs=mac_pairs[:setup_count]))
 
 
 def validate_matched(cohorts):

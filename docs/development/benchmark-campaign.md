@@ -21,7 +21,13 @@ callback delivery. A detached local fixture completed 66 synthetic cohorts,
 delivered one terminal callback, and stopped before the full grid; the separate
 forced-termination fixture exercised the service failure hook. Nineteen local
 policy/import/transport tests pass. These are workflow tests, not board results.
-The adapter still requires its first board rehearsal.
+The first board rehearsal stopped in setup: boot/module checks passed, but the
+first echo hit the cold FPGA neighbor cache and exceeded the 10 ms setup deadline.
+The complete 151,688,256-byte failure trace and client archive are preserved in
+`out/echo-rehearsal-20261015`; its stored-loss scan passed and shows one admitted
+RPC and one encoded reply. A separate 16-call diagnostic passed on the now-primed
+service. No measured cohort passed in this attempt. The revised adapter requires
+a fresh rehearsal to validate explicit neighbor priming.
 LH correlation retains the existing internal RPC IDs, paired within
 each request lifetime; single-outstanding order and causal bounds associate
 those pairs with XID-validated client observations. No trace format or RTL
@@ -43,6 +49,18 @@ wire/dispatch validation case. A null RPC still includes dispatch and protocol
 processing; payload-bearing calls additionally exercise payload decoding and
 reply preparation. The largest body is 1432 bytes: 40-byte RPC call + 8-byte UDP
 + 20-byte IPv4 headers fill the 1500-byte MTU.
+
+## Neighbor preparation
+
+After each native cold boot, install the known permanent peer MAC in Linux and
+send one separate echo to trigger the normal FPGA neighbor-cache fill. This
+priming call has a bounded one-second deadline and its own validated archive;
+it precedes 16 setup calls at the ordinary 10 ms deadline, all warmups, and all
+measured requests. Priming is not a benchmark observation. Its possible Linux
+bypass reply is preserved as preparation provenance, never assigned a fabricated
+MAC pair. Every later setup/warmup/measured reply requires complete native MAC
+pairing for unloaded cohorts. Loaded runs retain the 10 ms deadline and no trace
+readouts. The DPDK client already addresses the responder using its explicit MAC.
 
 ## Generator contract
 
