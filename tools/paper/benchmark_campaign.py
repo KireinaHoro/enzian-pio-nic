@@ -17,6 +17,7 @@ import sys
 import time
 from campaign.policy import SYSTEMS, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates
 from campaign.import_loaded import load, digest
+from campaign.import_unloaded import validate_matched
 
 ROOT = Path(__file__).resolve().parents[2]
 SELF = Path(__file__).resolve()
@@ -72,7 +73,7 @@ class Campaign:
     def __init__(self, root, config):
         self.root, self.config = root, config
         self.completed = 0
-        self.total = 0
+        self.total = None
         self.latest = None
 
     def status(self, stage, **extra):
@@ -135,6 +136,9 @@ class Campaign:
             files.update(trial['files'])
             result['trial'] = trial
         if name == 'unloaded':
+            cohort=result['cohort']
+            if any(cohort[k]!=request[k] for k in ('system','count','warmup','instrumentation')):
+                raise ValueError('Unloaded cohort differs from requested configuration')
             if result.get('mac_pairs') != request['count']+request['warmup'] or result.get('stored_loss') != 0:
                 raise ValueError('Incomplete unloaded MAC capture')
             for gate in ('xid_pairing', 'jtag_checks', 'health', 'restored'):
@@ -166,12 +170,18 @@ class Campaign:
         return result['trial']
 
     def unloaded(self, phase):
+        cohorts=[]
         for system in SYSTEMS:
             for instrumentation in ('off', 'breakdown', 'probe-off-control'):
-                self.stage('unloaded', dict(system=system, payload_bytes=0, workers=1,
+                result=self.stage('unloaded', dict(system=system, payload_bytes=0, workers=1,
                     outstanding=1, count=100 if phase=='rehearsal' else 10000,
                     warmup=16 if phase=='rehearsal' else 128,
                     instrumentation=instrumentation, phase=phase))
+                cohorts.append(result['cohort'])
+                self.completed+=1
+                self.status('acquisition')
+        validate_matched(cohorts)
+        atomic(self.root/(phase+'-unloaded.json'),cohorts)
 
     def run(self):
         self.stage('preflight', {'checked_at': time.time_ns()})
@@ -204,7 +214,7 @@ class Campaign:
             raise ValueError('Frozen grid conflicts with resumed rehearsal')
         atomic(plan_path, plans)
         self.completed = 0
-        self.total = sum((len(p['rates'])+1)*3 for p in plans)
+        self.total = 6+sum((len(p['rates'])+1)*3 for p in plans)
         self.unloaded('full')
         collected = []
         for plan in plans:
@@ -231,7 +241,7 @@ class Campaign:
             if confirmed is None: raise RuntimeError('No sustained qualifying candidate')
             collected.append(dict(plan, points=points, confirmed=confirmed, confirmations=confirmations))
             atomic(self.root/'loaded.json', collected)
-        result = self.stage('finalize', dict(grid=str(plan_path), loaded=str(self.root/'loaded.json')))
+        result = self.stage('finalize', dict(grid=str(plan_path), loaded=str(self.root/'loaded.json'), unloaded=str(self.root/'full-unloaded.json')))
         for gate in ('complete', 'hashes', 'boundaries', 'failure_accounting', 'worker_activity', 'pdf_dimensions', 'embedded_fonts'):
             if result.get(gate) is not True: raise ValueError('Final gate missing: '+gate)
         previews=result.get('previews', [])

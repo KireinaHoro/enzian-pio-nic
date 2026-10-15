@@ -15,15 +15,18 @@ p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--root',type=Path,required=True)
 p.add_argument('--bind',required=True)
 p.add_argument('--port',type=int,default=18843)
+p.add_argument('--max-upload-bytes',type=int,default=128*1024*1024,
+               help='Per-file bound; reserve campaign storage before increasing it')
 a=p.parse_args();root=a.root.resolve()
 if not root.is_dir():p.error('Create a dedicated campaign directory first')
+if a.max_upload_bytes<1:p.error('Upload bound must be positive')
 
 class Handler(SimpleHTTPRequestHandler):
     def do_PUT(self):
         name=self.path.removeprefix('/')
         try: size=int(self.headers.get('Content-Length','0'))
         except ValueError: size=0
-        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*',name) or not 0<size<=128*1024*1024:
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*',name) or not 0<size<=a.max_upload_bytes:
             self.send_error(400);return
         try:
             with (root/name).open('xb') as out:
