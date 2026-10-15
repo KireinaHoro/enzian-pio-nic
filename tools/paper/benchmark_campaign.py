@@ -127,7 +127,7 @@ class Campaign:
                 raise ValueError('Generator placement/flow mismatch')
             if len(result.get('worker_activity', [])) != request['workers'] or not all(n > 0 for n in result['worker_activity']):
                 raise ValueError('Worker activity coverage missing')
-            trial, _ = load(result['csv'], result['summary'])
+            trial, _ = load(result['csv'], result['summary'], collect_latencies=False)
             if trial['generator_cpus'] != self.config['generator_cpus']:
                 raise ValueError('Actual generator CPU placement differs from manifest')
             if trial['rate'] != request['rate'] or trial['duration_ns'] != request['duration_ms']*1_000_000:

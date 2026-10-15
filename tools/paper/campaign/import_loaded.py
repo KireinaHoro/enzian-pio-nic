@@ -15,7 +15,7 @@ def digest(path):
         return sha.hexdigest()
 
 
-def load(csv_path, summary_path):
+def load(csv_path, summary_path, *, collect_latencies=True):
     csv_path, summary_path = Path(csv_path), Path(summary_path)
     summary = validate_trial(json.loads(summary_path.read_text()))
     counts = dict(transmitted=0, on_time=0, late=0, duplicates=0,
@@ -53,7 +53,7 @@ def load(csv_path, summary_path):
                 rtt = rx-enter
                 if rtt < 0 or (rtt <= summary['deadline_ns']) != (status == 1):
                     raise ValueError('Deadline classification mismatch')
-                if status == 1:
+                if status == 1 and collect_latencies:
                     latencies.append(rtt)
     if measured != summary['rate'] * summary['duration_ns'] // 1_000_000_000:
         raise ValueError('Observation count differs from fixed schedule')
