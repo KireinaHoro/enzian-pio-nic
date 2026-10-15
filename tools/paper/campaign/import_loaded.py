@@ -4,7 +4,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
-from .policy import validate_trial, batch_due
+from .policy import validate_trial, batch_due, batch_period
 
 
 def digest(path):
@@ -85,7 +85,7 @@ def load(csv_path, summary_path, *, collect_latencies=True):
                             if owner in batch_calls and batch_calls[owner]!=call:
                                 raise ValueError('Batch members do not share a TX call')
                             batch_calls[owner]=call
-                        next_due=(scheduled+(cores*batch*1_000_000_000+summary['rate']-1)//summary['rate']
+                        next_due=(scheduled+batch_period(summary['rate'],cores,batch,phase_count)
                                   if batched else start+(xid-1+len(summary['generator_cpus']))*1_000_000_000//summary['rate'])
                         if not scheduled<=enter<=admitted<end or not admitted<=submitted<next_due:
                             raise ValueError('TX admission outside phase or call overran send opportunity')

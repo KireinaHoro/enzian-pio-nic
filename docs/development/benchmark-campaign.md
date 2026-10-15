@@ -87,7 +87,9 @@ Loaded campaigns may select paced batches with `batch_max: 64` and
 `LH_BENCH_BATCH_MAX` and `LH_BENCH_BATCH_TARGET_NS` on the client. The actual
 batch size is `clamp(floor(rate * target_ns / (cores * 1e9)), 1, batch_max)`.
 Each core submits one mbuf burst per absolute batch opportunity; core schedules
-are staggered and the final partial round is shortened. Warmup and measurement
+are staggered over the first half of each equal-duration round. The partial
+final round gets the same duration as earlier rounds, leaving preparation and
+admission margin at the phase boundary. Warmup and measurement
 are scheduled separately so a burst never contains both phases. Missed batches
 are recorded without catch-up sends; partial TX admission invalidates the point.
 This is a paced, bursty workload, not evenly spaced individual arrivals or

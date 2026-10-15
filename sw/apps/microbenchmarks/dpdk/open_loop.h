@@ -11,16 +11,19 @@ static inline bool ol_missed(uint64_t now_ns, uint64_t start, uint64_t slot,
                              uint64_t rate, unsigned cores) {
     return now_ns >= ol_due(start, slot + cores, rate);
 }
-/* Stagger per-core batches, including a shortened final batch round. Slot
- * numbering is relative to a phase, so no batch straddles warmup/measurement. */
+/* Equal-duration rounds, including the partial final round. Stagger cores
+ * through the first half of each round, leaving preparation/admission margin
+ * before the phase boundary. Slot numbering is relative to the phase. */
 static inline uint64_t ol_batch_due(uint64_t start, uint64_t slot, uint64_t rate,
                                    unsigned cores, unsigned batch, uint64_t count) {
-    uint64_t block=slot/(cores*batch)*(cores*batch), remaining=count-block;
-    unsigned owner=slot%cores;
-    uint64_t each=remaining/cores;
-    if(each>batch) each=batch;
-    uint64_t extra=each<batch?remaining%cores:0;
-    return ol_due(start,block+owner*each+(owner<extra?owner:extra),rate);
+    uint64_t rounds=(count+cores*batch-1)/(cores*batch);
+    uint64_t ordinal=2*cores*(slot/(cores*batch))+slot%cores;
+    return start+(uint64_t)((__uint128_t)ordinal*count*1000000000/(2*cores*rounds*rate));
+}
+static inline uint64_t ol_batch_period(uint64_t rate, unsigned cores,
+                                      unsigned batch, uint64_t count) {
+    uint64_t rounds=(count+cores*batch-1)/(cores*batch), denominator=rounds*rate;
+    return (uint64_t)(((__uint128_t)count*1000000000+denominator-1)/denominator);
 }
 static inline unsigned ol_batch_count(uint64_t slot, unsigned cores,
                                      unsigned batch, uint64_t count) {

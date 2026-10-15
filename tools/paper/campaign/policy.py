@@ -85,9 +85,11 @@ def validate_activity_coverage(groups):
 
 
 def batch_due(start, slot, rate, cores, batch, count):
-    block=slot//(cores*batch)*(cores*batch)
-    remaining=count-block
-    each=min(batch,remaining//cores)
-    extra=remaining%cores if each<batch else 0
-    owner=slot%cores
-    return start+(block+owner*each+min(owner,extra))*1_000_000_000//rate
+    rounds=(count+cores*batch-1)//(cores*batch)
+    ordinal=2*cores*(slot//(cores*batch))+slot%cores
+    return start+ordinal*count*1_000_000_000//(2*cores*rounds*rate)
+
+
+def batch_period(rate, cores, batch, count):
+    rounds=(count+cores*batch-1)//(cores*batch)
+    return (count*1_000_000_000+rounds*rate-1)//(rounds*rate)

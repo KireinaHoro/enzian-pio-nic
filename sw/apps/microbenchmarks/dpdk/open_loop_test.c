@@ -25,6 +25,7 @@ int main(void) {
             for(unsigned slot=owner;slot<count;) {
                 unsigned n=ol_batch_count(slot,cores,batch,count);
                 uint64_t due=ol_batch_due(0,slot,1000,cores,batch,count);
+                assert(count*1000000ULL-due >= ol_batch_period(1000,cores,batch,count)/2);
                 assert(n && n<=batch && due<count*1000000ULL && due>=previous);
                 for(unsigned i=0;i<n;i++)
                     assert(ol_batch_due(0,slot+i*cores,1000,cores,batch,count)==due);

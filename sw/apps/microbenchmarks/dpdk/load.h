@@ -184,7 +184,7 @@ static void parallel_batch_send(struct parallel_worker *worker) {
     uint64_t phase_end=load->start+open_warmup+(measured?open_duration:0);
     unsigned count=ol_batch_count(slot-(measured?warm:0),load->cores,open_batch,
                                  measured?load->count-warm:warm);
-    uint64_t expires=due+((uint64_t)load->cores*open_batch*1000000000+open_rate-1)/open_rate;
+    uint64_t expires=due+ol_batch_period(open_rate,load->cores,open_batch,measured?load->count-warm:warm);
     struct rte_mbuf *packets[64];
     if(clock>=phase_end || clock>=expires) {
         for(unsigned i=0;i<count;i++) {
