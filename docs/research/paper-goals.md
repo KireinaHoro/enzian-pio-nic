@@ -22,6 +22,8 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 ## Planned applications and baseline
 
+**October 15 baseline addition:** the [Caladan Enzian port design and progress](caladan-enzian.md) establishes a minimal AArch64 port for hot latency/throughput and breakdown, core reclamation, and multi-instance memcached. Enzian correctness and measurement validation precede baseline use; optional comparable x86/DPDK runs relate paper, x86 and Enzian results. Implementation and measurements are pending. This addition does not replace the separately planned Demikernel baseline.
+
 **Demikernel is the selected primary baseline.** Select and record its backend, version, supported platform, workload adapter and resource budget before comparison; no baseline integration was established in this survey. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and client/load generation comparable; disclose CPU/NIC differences where identical hardware is infeasible.
 
 | Planned application | Purpose in the evaluation / integration starting point |
