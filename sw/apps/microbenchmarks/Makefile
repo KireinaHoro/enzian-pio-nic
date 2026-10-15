@@ -17,10 +17,12 @@ all: $(APP)
 ALL_SRCS := $(wildcard *.c) bench_xdr.c
 
 bench_xdr.c: bench.x bench.h
-	rpcgen -c $< -o $@
+	rpcgen -c $< > $@.tmp && mv $@.tmp $@
 bench.h: bench.x
-	rpcgen -h $< -o $@
-main.c: bench.h
+	rpcgen -h $< > $@.tmp && mv $@.tmp $@
+echo_registry.h: bench.x echo_registry.py
+	python3 echo_registry.py bench.x $@
+main.c: bench.h echo_registry.h
 
 include ../../usr-common.mk
 
@@ -28,5 +30,5 @@ $(APP): $(ALL_OBJS)
 	$(LINK.c) $^ -o $@ $(LDLIBS)
 	
 clean:
-	rm -f *.o $(APP) bench.h bench_xdr.c
+	rm -f *.o $(APP) bench.h bench_xdr.c echo_registry.h
 	rm -rf $(DEPDIR)

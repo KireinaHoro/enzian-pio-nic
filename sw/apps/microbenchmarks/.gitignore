@@ -1,0 +1,8 @@
+/bench.h
+/bench_xdr.c
+/echo_registry.h
+/dpdk/echo_registry.h
+/dpdk/open_loop_test
+/microbenchmarks
+/dpdk/nullrpc_dpdk
+/dpdk/schema_test

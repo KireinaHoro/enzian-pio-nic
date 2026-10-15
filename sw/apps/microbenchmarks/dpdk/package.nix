@@ -1,16 +1,20 @@
-{ lib, stdenv, pkg-config, dpdk }:
+{ lib, stdenv, pkg-config, dpdk, python3, rpcsvc-proto, libtirpc }:
 stdenv.mkDerivation {
   pname = "lauberhorn-traffic-generator";
   version = "0.1";
-  src = lib.cleanSourceWith {
-    src = lib.cleanSource ./.;
-    # Only direct build inputs: exclude binaries, captures and nested trees.
-    filter = path: type: type == "regular" && builtins.elem (baseNameOf path) [
-      "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "wire_test.c" "Makefile"
+  src = lib.fileset.toSource {
+    root = ../.;
+    fileset = lib.fileset.unions [
+      ../bench.x ../echo_registry.py
+      (lib.fileset.fileFilter (f: builtins.elem f.name [
+        "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h"
+        "wire.h" "load.h" "open_loop.h" "open_loop_test.c" "wire_test.c" "schema_test.c" "Makefile"
+      ]) ./.)
     ];
   };
-  nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ dpdk ];
+  preBuild = "cd dpdk";
+  nativeBuildInputs = [ pkg-config python3 rpcsvc-proto ];
+  buildInputs = [ dpdk libtirpc ];
   makeFlags = [ "PKG_CONFIG=${stdenv.cc.targetPrefix}pkg-config" ];
   doCheck = stdenv.buildPlatform.canExecute stdenv.hostPlatform;
   checkPhase = "make check";

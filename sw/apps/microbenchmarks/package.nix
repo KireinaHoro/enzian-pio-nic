@@ -4,21 +4,31 @@
   lauberhornRuntime,
   pkg-config,
   rpcsvc-proto,
+  python3,
 }:
 stdenv.mkDerivation {
   pname = "lauberhorn-app-microbenchmarks";
   version = "0.0.1";
   # Keep the shared Makefile at its expected relative path, excluding outputs.
-  src = (import ../../../nix/sources.nix {
-    inherit lib;
+  src = lib.fileset.toSource {
     root = ../../..;
-  }).c [
-    "sw/apps/microbenchmarks"
-    "sw/usr-common.mk"
-  ];
+    fileset = lib.fileset.unions [
+      ../../../sw/apps/microbenchmarks/echo_registry.py
+      (lib.fileset.fromSource (
+        (import ../../../nix/sources.nix {
+          inherit lib;
+          root = ../../..;
+        }).c [
+          "sw/apps/microbenchmarks"
+          "sw/usr-common.mk"
+        ]
+      ))
+    ];
+  };
   nativeBuildInputs = [
     pkg-config
     rpcsvc-proto
+    python3
   ];
   buildInputs = [ lauberhornRuntime ];
   buildPhase = ''
