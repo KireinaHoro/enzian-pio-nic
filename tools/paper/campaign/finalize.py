@@ -110,7 +110,7 @@ def finalize(config,h,request,campaign):
             p=Path(path)
             if p.suffix in ('.json','.gz') or p.name.endswith('-freeze.log') or p.name.endswith('-restore.log'):
                 name,hash_value=archive.file(p,sha);provenance[name]=hash_value
-    for name in ('config.json','code.json','grid.json','events.jsonl'):
+    for name in ('config.json','code.json','grid.json','events.jsonl','inheritance-review.json','inherited-unloaded.json'):
         source=campaign/name
         if source.exists(): shutil.copyfile(source,destination/name)
     atomic(destination/'acquisition.json',dict(files=provenance,source=str(campaign),

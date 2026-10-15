@@ -352,3 +352,24 @@ TX admission failures or NIC RX/TX errors. Actual placement was CPUs 16–47;
 isolation restoration and idle-NVMe guards passed each trial. Evidence is in
 `out/echo-redesign/generator32/board-check-3/`; these are diagnostic checks,
 excluded from paper inputs, not a completed loaded rehearsal or capacity claim.
+
+
+### Reviewed artifact transitions
+
+A changed server/generator image or acquisition configuration blocks automatic
+reuse. The agent reviews the actual measurement impact and may explicitly retain
+unaffected passing cohorts; matching historical evidence hashes remain mandatory.
+Use a new root to keep both frozen configurations intact:
+
+```sh
+python3 tools/paper/benchmark_campaign.py inheritance-plan --root NEW_ROOT --config NEW_CONFIG --inherit-reviewed OLD_ROOT > REVIEW.json
+# Complete reason, hashed validation evidence, and reuse/rerun decisions for every receipt.
+python3 tools/paper/benchmark_campaign.py launch --root NEW_ROOT --config NEW_CONFIG --inherit-reviewed OLD_ROOT --inherit-review REVIEW.json
+```
+
+Only loaded/unloaded passing acquisitions can be inherited; preflight, builds,
+validation and plots run again. The source must be stopped, the scope unchanged,
+and every review identity and evidence hash must match. The new root retains
+`inheritance-review.json` alongside unchanged source receipts pointing to their
+original evidence. No failed attempt is promoted or overwritten. Use `--resume`
+only if the new root was already prepared with a reviewed hardware-state file.

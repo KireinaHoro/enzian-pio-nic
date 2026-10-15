@@ -310,14 +310,21 @@ def implementation(config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('launch','run','status','notify','failed','recovery-plan'))
+    parser.add_argument('command', choices=('launch','run','status','notify','failed','recovery-plan','inheritance-plan'))
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--config', type=Path)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--inherit-unloaded', type=Path)
     parser.add_argument('--inherit-reason')
+    parser.add_argument('--inherit-reviewed', type=Path)
+    parser.add_argument('--inherit-review', type=Path)
     parser.add_argument('--recovery-review', type=Path)
     args = parser.parse_args(); root = args.root.resolve()
+    if args.command == 'inheritance-plan':
+        from campaign.recovery import inheritance_draft
+        config=read(args.config);config_check(config)
+        print(json.dumps(inheritance_draft(args.inherit_reviewed,config,implementation(config)),indent=2))
+        return
     if args.command == 'recovery-plan':
         from campaign.recovery import draft
         print(json.dumps(draft(root,implementation(read(root/'config.json'))),indent=2))
@@ -327,6 +334,9 @@ def main():
         config = read(args.config); config_check(config)
         if args.recovery_review and not args.resume: raise ValueError('Recovery requires --resume')
         if root.exists() and not args.resume: raise ValueError('Campaign root already exists')
+        if bool(args.inherit_reviewed)!=bool(args.inherit_review): raise ValueError('Reviewed inheritance requires source and review')
+        if args.inherit_reviewed and args.inherit_unloaded: raise ValueError('Choose one inheritance mode')
+        if args.inherit_reviewed and (root/'code.json').exists(): raise ValueError('Reviewed inheritance requires a new root')
         if args.inherit_unloaded and (root/'code.json').exists(): raise ValueError('Inheritance requires a new campaign root')
         root.mkdir(parents=True, exist_ok=args.resume)
         if (root/'config.json').exists() and read(root/'config.json') != config: raise ValueError('Incompatible resume configuration')
@@ -335,6 +345,9 @@ def main():
         with (ROOT/'out/echo-campaign.lock').open('a') as global_lock, (root/'lock').open('a') as lock:
             fcntl.flock(global_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            if args.inherit_reviewed:
+                from campaign.recovery import inherit_reviewed
+                inherit_reviewed(args.inherit_reviewed,root,config,code,read(args.inherit_review),atomic)
             atomic(root/'config.json', config)
             if (root/'code.json').exists():
                 prepare_recovery(root,code,read(args.recovery_review) if args.recovery_review else None,atomic)

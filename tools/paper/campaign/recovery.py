@@ -114,3 +114,59 @@ def _inherit_unloaded(source, destination, reason, atomic):
     for receipt,saved in selected:
         target=destination/'stages'/receipt.parent.name;target.mkdir(parents=True,exist_ok=True)
         atomic(target/'receipt.json',saved)
+
+
+def inheritance_draft(source, config, code):
+    source=Path(source).resolve()
+    return dict(source=str(source),old_config=json.loads((source/'config.json').read_text()),
+        old_code=json.loads((source/'code.json').read_text()),new_config=config,new_code=code,
+        reason='',evidence={},receipts={
+            str(p.relative_to(source)):dict(sha256=digest(p),action='rerun',reason='')
+            for p in sorted((source/'stages').glob('*/receipt.json'))})
+
+
+def inherit_reviewed(source, destination, config, code, review, atomic):
+    """Explicit model override for intact acquisitions across artifact changes."""
+    import fcntl
+    source=Path(source).resolve();destination=Path(destination).resolve()
+    if source==destination:raise ValueError('Inheritance requires distinct roots')
+    with (source/'lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        status=json.loads((source/'status.json').read_text())['stage']
+        if status not in ('failed','rehearsal-complete','complete'):
+            raise ValueError('Source campaign must be stopped')
+        expected=inheritance_draft(source,config,code)
+        for key in ('source','old_config','old_code','new_config','new_code'):
+            if review.get(key)!=expected[key]:raise ValueError('Stale inheritance review: '+key)
+        if expected['old_config']['scope']!=config['scope']:
+            raise ValueError('Inheritance cannot change campaign scope')
+        if not review.get('reason') or not review.get('evidence'):
+            raise ValueError('Inheritance requires justification and validation evidence')
+        for path,sha in review['evidence'].items():
+            if not Path(path).is_absolute() or digest(path)!=sha:
+                raise ValueError('Inheritance validation evidence changed')
+        if set(review.get('receipts',{}))!=set(expected['receipts']):
+            raise ValueError('Review must classify every source receipt')
+        selected=[]
+        for name,decision in review['receipts'].items():
+            path=source/name;saved=json.loads(path.read_text())
+            if decision.get('sha256')!=digest(path) or not decision.get('reason'):
+                raise ValueError('Stale receipt or missing reason: '+name)
+            if decision.get('action') not in ('reuse','rerun'):
+                raise ValueError('Invalid inheritance action')
+            if any(digest(p)!=sha for p,sha in saved['hashes'].items()):
+                raise ValueError('Source evidence changed: '+name)
+            requests=[Path(p) for p in saved['hashes'] if Path(p).name=='request.json' and Path(p).parent.name.startswith('attempt-')]
+            if len(requests)!=1:raise ValueError('Ambiguous source request')
+            stage=json.loads(requests[0].read_text())['stage']
+            if decision['action']=='reuse':
+                if invalidated(source,path):raise ValueError('Cannot reuse invalidated receipt')
+                if stage not in ('loaded','unloaded') or saved['result'].get('passed') is not True:
+                    raise ValueError('Only passing acquisition receipts may be inherited')
+                target=destination/name
+                if target.exists():raise ValueError('Cannot overwrite inherited receipt')
+                selected.append((target,saved))
+        # Validate everything before writing. Original observations/code stay intact.
+        atomic(destination/'inheritance-review.json',review)
+        for target,saved in selected:
+            target.parent.mkdir(parents=True,exist_ok=True);atomic(target,saved)

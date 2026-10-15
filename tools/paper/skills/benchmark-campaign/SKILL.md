@@ -83,9 +83,12 @@ cohorts merely to fill a grid.
 
 For supported source-only fixes, use the documented `recovery-plan` and
 `--recovery-review` workflow. Current tooling restricts this to unchanged acquisition
-manifests and Python/shell/Tcl changes. General artifact/configuration overrides
-are not yet implemented: extend the maintained recovery tooling with a hash-bound,
-per-cohort review before applying such an override. Never bypass the guard by
+manifests and Python/shell/Tcl changes. For artifact/configuration transitions, create a new root with
+`inheritance-plan --inherit-reviewed SOURCE --config NEW_CONFIG --root NEW_ROOT`,
+complete its per-cohort decisions and validation evidence, then launch with
+`--inherit-reviewed SOURCE --inherit-review REVIEW`. The controller binds the
+override to both configurations and code/artifact manifest hashes, checks every
+source receipt and preserves original acquisition provenance. Never bypass the guard by
 editing frozen manifests, receipts or recorded hashes in place.
 Develop fixes in a separate worktree while a campaign is running; apply them only
 after it stops. Hardware preservation and restoration gates still apply.

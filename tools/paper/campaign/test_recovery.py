@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from .test_campaign import controller
-from .recovery import draft, prepare, invalidated, inherit_unloaded
+from .recovery import draft, prepare, invalidated, inherit_unloaded, inheritance_draft, inherit_reviewed
 from .import_loaded import digest
 
 
@@ -26,6 +26,29 @@ class Recovery(unittest.TestCase):
         self.source.write_text('fixed');self.new={str(self.source):digest(self.source)}
         self.review=draft(self.root,self.new);self.review.update(reason='Analysis fix; prior results independently revalidated',evidence={str(self.source):digest(self.source)})
         for d in self.review['receipts'].values():d.update(action='reuse',reason='Validated fixture')
+
+    def test_reviewed_artifact_inheritance(self):
+        controller.atomic(self.root/'config.json',dict(scope='rehearsal',adapter=['old-image']))
+        controller.atomic(self.root/'status.json',dict(stage='failed'))
+        target=self.root/'new';target.mkdir()
+        config=dict(scope='rehearsal',adapter=['new-image'])
+        review=inheritance_draft(self.root,config,self.new)
+        review.update(reason='Reviewed image-only transition',evidence=self.new)
+        for name,decision in review['receipts'].items():
+            decision.update(action='reuse' if name==str(self.receipts[0].relative_to(self.root)) else 'rerun',
+                            reason='Verified unaffected acquisition; regenerate derived outputs')
+        stale=dict(review,new_code={})
+        with self.assertRaisesRegex(ValueError,'Stale'):
+            inherit_reviewed(self.root,target,config,self.new,stale,controller.atomic)
+        self.assertFalse((target/'inheritance-review.json').exists())
+        inherit_reviewed(self.root,target,config,self.new,review,controller.atomic)
+        self.assertEqual((target/self.receipts[0].relative_to(self.root)).read_bytes(),self.receipts[0].read_bytes())
+        self.assertFalse((target/self.receipts[1].relative_to(self.root)).exists())
+        with self.assertRaisesRegex(ValueError,'overwrite'):
+            inherit_reviewed(self.root,target,config,self.new,review,controller.atomic)
+        (self.receipts[0].parent/'attempt-1/result.json').write_text('{}')
+        with self.assertRaisesRegex(ValueError,'evidence changed'):
+            inherit_reviewed(self.root,target,config,self.new,review,controller.atomic)
 
     def test_inheritance_rejects_running_source(self):
         controller.atomic(self.root/'status.json',dict(stage='loaded'))
