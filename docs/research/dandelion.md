@@ -211,7 +211,7 @@ Nested RPCs currently have a one-second timeout. This is a reply-completion time
 
 ## Evaluation interpretation and gaps
 
-Report results: approximately 120–140 kRPS for one adder service across four isolated cores; approximately 60 kRPS for seven applications multiplexed over four cores. Dandelion single-function median latency improves about 9% versus upstream HTTP; compositions are about 2%/4% slower at depths 2/4. These are **mock-only, workload-specific results**, with network protocol and scheduler changes confounded. There is no instrumented attribution separating all Dandelion execution, scheduling and network costs. Estimated hardware throughput is a projection, not a measurement. The full-system baseline requested by the maintainer is **Demikernel**; the thesis does not supply that comparison.
+Report results: approximately 120–140 kRPS for one adder service across four isolated cores; approximately 60 kRPS for seven applications multiplexed over four cores. Dandelion single-function median latency improves about 9% versus upstream HTTP; compositions are about 2%/4% slower at depths 2/4. These are **mock-only, workload-specific results**, with network protocol and scheduler changes confounded. There is no instrumented attribution separating all Dandelion execution, scheduling and network costs. Estimated hardware throughput is a projection, not a measurement. The currently selected full-system baseline is **Caladan** (see the [port and calibration plan](caladan-enzian.md)); the thesis does not supply that comparison.
 
 Port/evaluation checklist:
 
@@ -223,7 +223,7 @@ Port/evaluation checklist:
 - Define bounded admission/backpressure: fixed fiber/pending-call pools exhaust, some incoming requests are silently dropped, fiber stacks are fixed at 64 KiB without overflow detection, and cancellation remains unfinished. Service deregistration with in-flight work has undefined semantics; registration operations require external serialization.
 - Extend transport/application support as needed: the report uses small UDP ONC RPC messages, without retransmission, multi-packet framing or ONC RPC authentication. HTTP communication functions were not ported; the wait API currently handles RPC completions. OS/process isolation alone does not establish network authentication or full-system security guarantees.
 - Rebase/adapt Dandelion interfaces deliberately; report says upstream changed after its selected base. Local composition edges currently incur serialization and loopback RPCs. Shared intermediate-result tables and a separate inline function endpoint are proposals, not established optimizations.
-- Reproduce on hardware, separate protocol/scheduler/engine contributions, exercise concurrent DAGs and failures, and compare with Demikernel under matching isolation and resource assumptions. See [paper goals](paper-goals.md) and [roadmap](roadmap.md).
+- Reproduce on hardware, separate protocol/scheduler/engine contributions, exercise concurrent DAGs and failures, and compare with Caladan under matching isolation and resource assumptions once the required application adapter is available. See [paper goals](paper-goals.md) and [roadmap](roadmap.md).
 
 ## Packaging interface (2026-09-15)
 

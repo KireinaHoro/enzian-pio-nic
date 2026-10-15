@@ -8,10 +8,11 @@ comparable x86/DPDK configuration to strengthen confidence in the port.
 Calibration relates published results, our x86 measurements and our Enzian
 measurements; it does not require reproducing identical absolute numbers.
 
-This adds a concrete baseline integration plan alongside the existing
-[paper evidence plan](paper-goals.md). It does not change the status of the
-separately planned Demikernel baseline. Implementation and measurement stages
-below are pending; this note establishes their scope and acceptance criteria.
+Caladan replaces Demikernel as the primary baseline in the
+[paper evidence plan](paper-goals.md): its runtime-managed core allocation and
+networking are a closer match for the mechanisms under evaluation. Implementation
+and measurement stages below are pending; this note establishes their scope and
+acceptance criteria.
 
 ## Implementation scope
 
