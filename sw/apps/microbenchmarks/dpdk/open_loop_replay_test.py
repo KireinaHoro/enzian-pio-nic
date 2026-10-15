@@ -24,6 +24,7 @@ for name, stall in [('complete-loss', False), ('generator-stall', True)]:
     rx.write_bytes(struct.pack('<IHHIIII',0xa1b2c3d4,2,4,0,0,65535,1))
     env=dict(os.environ,LH_BENCH_RATE='100',LH_BENCH_DURATION_MS='500',
              LH_BENCH_WARMUP_MS='0',LH_BENCH_FLOWS='1',
+             LH_BENCH_DRAINED_FILE=str(root/'drained'),
              LH_BENCH_READY_FILE=str(ready),LH_BENCH_START_FILE=str(start))
     for key in ('LH_BENCH_WINDOW','LH_BENCH_GAP_NS'): env.pop(key,None)
     argv=[str(binary),'-l',str(core),'--no-huge','--no-pci','--no-shconf','--no-telemetry',
@@ -48,6 +49,22 @@ for name, stall in [('complete-loss', False), ('generator-stall', True)]:
     assert summary['transmitted']+summary['generator_misses']==50
     assert (rc!=0)==stall and (summary['generator_misses']>0)==stall
     assert summary['valid']==(not stall)
+    assert (root/'drained').exists()
     results.append(dict(case=name,passed=True,summary=summary))
+
+# Reject a schedule that cannot fit its declared budget before touching the NIC
+# or allocating observation output. It must not become a high-loss server point.
+root=output/'tracking-limit';root.mkdir()
+rx=root/'rx.pcap';rx.write_bytes(struct.pack('<IHHIIII',0xa1b2c3d4,2,4,0,0,65535,1))
+out=root/'samples.csv'
+argv=[str(binary),'-l',str(core),'--no-huge','--no-pci','--no-shconf','--no-telemetry',
+      '--vdev',f'net_pcap0,rx_pcap={rx},tx_pcap={root/"tx.pcap"}','--',
+      '192.0.2.1','192.0.2.2','02:00:00:00:00:02','9999','1','0','10000','echo0',str(out)]
+env=dict(os.environ,LH_BENCH_RATE='100000',LH_BENCH_DURATION_MS='1000',
+         LH_BENCH_WARMUP_MS='0',LH_BENCH_TRACKING_MIB='1')
+result=subprocess.run(argv,env=env,capture_output=True,text=True,timeout=10)
+(root/'process.log').write_text(result.stdout+result.stderr)
+assert result.returncode and 'open-loop tracking requires' in result.stderr and not out.exists()
+results.append(dict(case='tracking-limit',passed=True))
 (output/'summary.json').write_text(json.dumps(results,indent=2)+'\n')
 print(json.dumps(results))

@@ -1,0 +1,56 @@
+"""Verify acquisition cleanup and archive invariants without a board."""
+import gzip
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import Mock
+
+from .hardware import Acquisition
+from .finalize import Archive
+from .import_loaded import digest
+
+
+class Hardware(unittest.TestCase):
+    def test_loaded_never_captures_and_restores_on_health_failure(self):
+        for healthy in (True,False):
+            with self.subTest(healthy=healthy),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);stage=root/'stage';stage.mkdir()
+                request=dict(stage='loaded',system='LH',workers=1,payload_bytes=8)
+                (stage/'request.json').write_text(json.dumps(request))
+                config=dict(worker_cpus=[44,45,46,47],generator_cpus=list(range(6,14)),flows=64)
+                acquisition=Acquisition(config,request,stage,root)
+                acquisition.ensure_lh=Mock(return_value={'fixture':True})
+                acquisition.capture=Mock(side_effect=AssertionError('Loaded trace acquisition'))
+                before=root/'before';after=root/'after';before.mkdir();after.mkdir()
+                for path,count in ((before,2),(after,10)):
+                    (path/'provenance.json').write_text(json.dumps(dict(activity=[dict(calls=count,cpu=45,tid=99)])))
+                (stage/'health.json').write_text(json.dumps(dict(passed=healthy)))
+                acquisition.h=Mock();acquisition.h.snapshot.side_effect=[before,after]
+                acquisition.h.vio.return_value={'trace_stop':1,'_status':{}}
+                acquisition.execute_roles=Mock(return_value=({'client':root/'client'},{'client':{'files':{}}}))
+                if healthy:
+                    result=acquisition.run()
+                    self.assertEqual(result['worker_activity'],[8]);self.assertEqual(result['trace_readouts'],0)
+                else:
+                    with self.assertRaisesRegex(ValueError,'health'):acquisition.run()
+                acquisition.capture.assert_not_called()
+                self.assertEqual([call.args[0] for call in acquisition.h.vio.call_args_list],['configure','preserve'])
+                state=json.loads((root/'hardware-state.json').read_text())
+                self.assertEqual(state['safe'],healthy)
+
+    def test_archive_is_portable_and_checks_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);source=root/'observations.csv';source.write_bytes(b'xid,value\n1,17\n')
+            archive=Archive(root/'archive')
+            result=archive.records([dict(files={str(source):digest(source)})])
+            name,sha=next(iter(result[0]['files'].items()))
+            self.assertFalse(Path(name).is_absolute())
+            target=root/'archive'/name
+            self.assertEqual(digest(target),sha)
+            with gzip.open(target,'rb') as stream:self.assertEqual(stream.read(),source.read_bytes())
+            bad=root/'bad.csv';bad.write_bytes(b'bad')
+            with self.assertRaisesRegex(ValueError,'changed'):archive.file(bad,'0'*64)
+
+
+if __name__=='__main__':unittest.main()

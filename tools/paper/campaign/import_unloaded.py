@@ -1,4 +1,4 @@
-"""Validate single-outstanding echo0 cohorts without relabeling historical add data.
+"""Validate single-outstanding schema-defined echo cohorts without relabeling historical add data.
 
 LH input is the complete MAC-pair table from import_nullrpc_mac.correlate;
 its single-outstanding association is independently checked with causal clock
@@ -9,6 +9,7 @@ import gzip
 import json
 from pathlib import Path
 from .import_loaded import digest
+from .policy import SIZES
 
 
 def rows(path):
@@ -23,12 +24,13 @@ def partition(total, handler, rpc, network):
     return values
 
 
-def client_rows(path, count, warmup):
+def client_rows(path, count, warmup, payload_bytes):
+    if payload_bytes not in (0, *SIZES): raise ValueError("Unknown schema echo size")
     client=rows(path)
     if len(client)!=count+warmup: raise ValueError('Incomplete unloaded client cohort')
     previous_rx=0
     for i,row in enumerate(client,1):
-        if (int(row['request_id'])!=i or row['benchmark']!='echo0' or row['ok']!='1'
+        if (int(row['request_id'])!=i or row['benchmark']!='echo'+str(payload_bytes) or row['ok']!='1'
                 or row['rpc_status']!='0' or int(row['warmup'])!=int(i<=warmup)):
             raise ValueError('Wrong workload, XID, status or warmup label')
         enter,rx=int(row['client_call_enter_ns']),int(row['client_rx_burst_ns'])
@@ -37,8 +39,8 @@ def client_rows(path, count, warmup):
     return client
 
 
-def dpdk(client_path, server_path, *, count, warmup, instrumentation):
-    client=client_rows(client_path,count,warmup); server=rows(server_path)
+def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_bytes):
+    client=client_rows(client_path,count,warmup,payload_bytes); server=rows(server_path)
     if len(server)!=len(client): raise ValueError('Incomplete DPDK MAC cohort')
     by_id={int(r['request_id']):r for r in server}
     if len(by_id)!=len(server): raise ValueError('Duplicate DPDK XID')
@@ -61,7 +63,7 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation):
             a,b,c,d,e,f=times
             record['components_ns']=partition(total,d-c,(b-a)+(f-e),(c-b)+(e-d))
         result.append(record)
-    return dict(system='DPDK',instrumentation=instrumentation,count=count,warmup=warmup,
+    return dict(system='DPDK',instrumentation=instrumentation,count=count,warmup=warmup,payload_bytes=payload_bytes,
                 correlation='wire XID',rows=result,
                 files={str(p):digest(p) for p in (client_path,server_path)})
 
@@ -86,8 +88,8 @@ def clock_bounds(bounds):
     return dict(offset_us=float(fit.x[0]),rate_ppm=float(fit.x[1]),applied_to_measurements=False)
 
 def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
-               instrumentation, server_path=None, app_events=None):
-    client=client_rows(client_path,count,warmup)
+               instrumentation, payload_bytes, server_path=None, app_events=None):
+    client=client_rows(client_path,count,warmup,payload_bytes)
     if len(mac_pairs)!=setup_count+len(client): raise ValueError('Incomplete whole-capture RPC accounting')
     calls=mac_pairs[setup_count:]
     if any(r['tx_mac_ns'] is None for r in mac_pairs): raise ValueError('Unpaired MAC event')
@@ -130,15 +132,15 @@ def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
     if runtime_bounds: causal['runtime_mac']=clock_bounds(runtime_bounds)
     files={str(client_path):digest(client_path)}
     if server_path: files[str(server_path)]=digest(server_path)
-    return dict(system='LH',instrumentation=instrumentation,count=count,warmup=warmup,
+    return dict(system='LH',instrumentation=instrumentation,count=count,warmup=warmup,payload_bytes=payload_bytes,
                 correlation='XID-validated single-outstanding order plus causal bounds',
                 rows=result,files=files,causal=causal)
 
 
 def validate_matched(cohorts):
     """Instrumented components never borrow an uninstrumented total."""
-    expected={(s,m) for s in ('LH','DPDK') for m in ('off','breakdown','probe-off-control')}
-    if len(cohorts)!=len(expected) or {(c['system'],c['instrumentation']) for c in cohorts}!=expected:
+    expected={(s,n,m) for s in ('LH','DPDK') for n in SIZES for m in ('off','breakdown','probe-off-control')}
+    if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
     for system in ('LH','DPDK'):
         selected=[c for c in cohorts if c['system']==system]

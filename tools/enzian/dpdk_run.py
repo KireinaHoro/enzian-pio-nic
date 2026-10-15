@@ -28,6 +28,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--logs', type=Path, required=True)
     p.add_argument('--lcore', type=int, required=True)
+    p.add_argument('--worker-lcores', help='comma-separated additional polling CPUs')
     p.add_argument('--hugepages-mb', type=int, default=512)
     p.add_argument('--timeout', type=int, default=120)
     p.add_argument('--no-iommu', action='store_true')
@@ -39,13 +40,21 @@ def main():
     args = p.parse_args()
     if os.geteuid() or args.lcore < 0:
         p.error('root and a nonnegative lcore are required')
+    try:
+        lcores = [args.lcore] + ([int(v) for v in args.worker_lcores.split(',')] if args.worker_lcores else [])
+    except ValueError:
+        p.error('worker-lcores must be comma-separated CPU numbers')
+    if min(lcores) < 0 or len(set(lcores)) != len(lcores):
+        p.error('lcores must be distinct nonnegative CPU numbers')
+    if args.ptp_bgx is not None and len(lcores) != 1:
+        p.error('PTP timestamping supports one polling CPU only')
     # A login shell can inherit a mask excluding isolated CPUs. Expand this
     # process's mask explicitly; the kernel still enforces its cpuset cgroup.
     try:
-        os.sched_setaffinity(0, os.sched_getaffinity(0) | {args.lcore})
+        os.sched_setaffinity(0, os.sched_getaffinity(0) | set(lcores))
     except (OSError, ValueError) as exc:
         p.error(f'cannot enable requested lcore: {exc}')
-    if args.lcore not in os.sched_getaffinity(0):
+    if not set(lcores) <= os.sched_getaffinity(0):
         p.error('requested lcore is offline or excluded by the cpuset cgroup')
     if args.hugepages_mb <= 0 or args.timeout <= 0:
         p.error('positive hugepage budget and timeout required')
@@ -106,7 +115,7 @@ def main():
         provenance['clocks'] = {str(path): path.read_text().strip() for path in clocks}
     args.logs.mkdir(parents=True, exist_ok=False)
     snapshot = dict(timestamp_provenance=provenance, driver_override=original_override, neighbors=neighbors, pci=bdf, driver=original_driver, addresses=addresses, routes=routes,
-                    kernel=command('uname','-r'), no_iommu=args.no_iommu, lcore=args.lcore,
+                    kernel=command('uname','-r'), no_iommu=args.no_iommu, lcore=args.lcore, lcores=lcores,
                     binary_sha256=hashlib.sha256(args.binary.read_bytes()).hexdigest(),
                     kernel_cmdline=Path('/proc/cmdline').read_text().strip(),
                     isolated_cpus=Path('/sys/devices/system/cpu/isolated').read_text().strip(),
@@ -146,7 +155,7 @@ def main():
         if (dev/'driver').resolve().name != 'vfio-pci':
             raise RuntimeError('VFIO binding did not succeed')
         device_arg = bdf + (f',ptp_bgx={args.ptp_bgx}' if args.ptp_bgx is not None else '')
-        argv = [str(args.binary.resolve()), '-l', str(args.lcore), '-a', device_arg,
+        argv = [str(args.binary.resolve()), '-l', ','.join(map(str, lcores)), '-a', device_arg,
                 '--file-prefix=lh-bench-'+str(os.getpid()), '--iova-mode=pa',
                 '--no-telemetry', '--legacy-mem', '-m', str(args.hugepages_mb), '--', *app_args]
         summary['argv'] = argv

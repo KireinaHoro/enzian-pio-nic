@@ -23,6 +23,12 @@ def load(csv_path, summary_path, *, collect_latencies=True):
     latencies = []
     previous = 0
     measured = 0
+    strict=summary.get('schema')==2
+    if strict:
+        if summary['send_end_ns']-summary['send_start_ns']!=summary['duration_ns']:
+            raise ValueError('Send interval differs from duration')
+        start=summary['send_start_ns']-summary['warmup_ns']
+        warmup_slots=summary['rate']*summary['warmup_ns']//1_000_000_000
     opener = gzip.open if csv_path.suffix == '.gz' else open
     with opener(csv_path, 'rt') as stream:
         for row in csv.DictReader(stream):
@@ -33,6 +39,18 @@ def load(csv_path, summary_path, *, collect_latencies=True):
             status = 1 if row['ok'] == '1' else int(row['rpc_status'])
             if status not in range(1, 7):
                 raise ValueError('Unclassified request')
+            if strict:
+                scheduled=start+(xid-1)*1_000_000_000//summary['rate']
+                enter=int(row['client_call_enter_ns']);submitted=int(row['client_tx_submit_ns'])
+                warmup=xid<=warmup_slots
+                if (int(row['scheduled_ns'])!=scheduled or int(row['warmup'])!=int(warmup)
+                        or row['benchmark']!=summary['benchmark']):
+                    raise ValueError('Absolute schedule, phase or workload mismatch')
+                end=summary['send_start_ns'] if warmup else summary['send_end_ns']
+                if submitted and not scheduled<=enter<=submitted<end:
+                    raise ValueError('Transmission outside its scheduled phase')
+                if int(row['start_lag_ns'])!=max(0,enter-scheduled):
+                    raise ValueError('Scheduled-start lag mismatch')
             if int(row['warmup']):
                 if status in (3, 5, 6):
                     raise ValueError('Invalid warmup generator or payload')
@@ -57,6 +75,8 @@ def load(csv_path, summary_path, *, collect_latencies=True):
                     latencies.append(rtt)
     if measured != summary['rate'] * summary['duration_ns'] // 1_000_000_000:
         raise ValueError('Observation count differs from fixed schedule')
+    if strict and previous!=warmup_slots+measured:
+        raise ValueError('Warmup observation count differs from schedule')
     if any(summary[k] != v for k, v in counts.items()):
         raise ValueError('Raw observations disagree with counters')
     return dict(summary, files={str(csv_path): digest(csv_path), str(summary_path): digest(summary_path)}), latencies

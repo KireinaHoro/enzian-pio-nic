@@ -37,7 +37,7 @@ def read(path):
 
 def _notify(root, config, retry=True):
     state = read(root/'status.json')
-    if state['stage'] not in ('failed', 'complete'):
+    if state['stage'] not in ('failed', 'complete', 'rehearsal-complete'):
         return
     notice = root/'notification.json'
     old = read(notice) if notice.exists() else {}
@@ -46,7 +46,9 @@ def _notify(root, config, retry=True):
         return
     message = (f"Echo campaign {state['stage']}: {root}. "
                f"Status: {root/'status.json'}. Latest: {state.get('latest')}. "
-               f"Error: {state.get('error')}. "
+               f"Cohorts: {state.get('completed')}/{state.get('total')}. "
+               f"Failed stage: {state.get('failed_stage')}. Error: {state.get('error')}. "
+               f"Previews: {state.get('previews', [])}. "
                "Inspect preserved evidence on failure; visually review final plot previews on success.")
     argv = config.get('notify', ['codex', 'queue']) + ['--thread', config['thread'], '--message', message]
     try:
@@ -84,6 +86,9 @@ class Campaign:
             stream.write(json.dumps(state, sort_keys=True)+'\n'); stream.flush(); os.fsync(stream.fileno())
 
     def stage(self, name, request):
+        snapshot=self.root/'code.json'
+        if snapshot.exists() and any(digest(p)!=sha for p,sha in read(snapshot).items()):
+            raise ValueError('Campaign implementation changed during execution')
         token = hashlib.sha256(json.dumps([name, request], sort_keys=True).encode()).hexdigest()[:20]
         directory = self.root/'stages'/token
         directory.mkdir(parents=True, exist_ok=True)
@@ -129,6 +134,9 @@ class Campaign:
             if len(result.get('worker_activity', [])) != request['workers'] or not all(n > 0 for n in result['worker_activity']):
                 raise ValueError('Worker activity coverage missing')
             trial, _ = load(result['csv'], result['summary'], collect_latencies=False)
+            if (trial.get('schema')!=2 or trial['benchmark']!='echo'+str(request['payload_bytes'])
+                    or trial['warmup_ns']!=request['warmup_ms']*1_000_000):
+                raise ValueError('Workload/warmup boundary provenance differs from plan')
             if trial['generator_cpus'] != self.config['generator_cpus']:
                 raise ValueError('Actual generator CPU placement differs from manifest')
             if trial['rate'] != request['rate'] or trial['duration_ns'] != request['duration_ms']*1_000_000:
@@ -137,11 +145,12 @@ class Campaign:
             result['trial'] = trial
         if name == 'unloaded':
             cohort=result['cohort']
-            if any(cohort[k]!=request[k] for k in ('system','count','warmup','instrumentation')):
+            if any(cohort[k]!=request[k] for k in ('system','payload_bytes','count','warmup','instrumentation')):
                 raise ValueError('Unloaded cohort differs from requested configuration')
             if result.get('mac_pairs') != request['count']+request['warmup'] or result.get('stored_loss') != 0:
                 raise ValueError('Incomplete unloaded MAC capture')
-            for gate in ('xid_pairing', 'jtag_checks', 'health', 'restored'):
+            for gate in ('xid_pairing', 'health', 'restored',
+                         'jtag_checks' if request['system']=='LH' else 'timestamp_checks'):
                 if result.get(gate) is not True:
                     raise ValueError('Unloaded gate missing: '+gate)
         if name == 'preflight':
@@ -172,14 +181,15 @@ class Campaign:
     def unloaded(self, phase):
         cohorts=[]
         for system in SYSTEMS:
-            for instrumentation in ('off', 'breakdown', 'probe-off-control'):
-                result=self.stage('unloaded', dict(system=system, payload_bytes=0, workers=1,
-                    outstanding=1, count=100 if phase=='rehearsal' else 10000,
-                    warmup=16 if phase=='rehearsal' else 128,
-                    instrumentation=instrumentation, phase=phase))
-                cohorts.append(result['cohort'])
-                self.completed+=1
-                self.status('acquisition')
+            for size in SIZES:
+                for instrumentation in ('off', 'breakdown', 'probe-off-control'):
+                    result=self.stage('unloaded', dict(system=system, payload_bytes=size, workers=1,
+                        outstanding=1, count=100 if phase=='rehearsal' else 10000,
+                        warmup=16 if phase=='rehearsal' else 128,
+                        instrumentation=instrumentation, phase=phase))
+                    cohorts.append(result['cohort'])
+                    self.completed+=1
+                    self.status('acquisition')
         validate_matched(cohorts)
         atomic(self.root/(phase+'-unloaded.json'),cohorts)
 
@@ -200,7 +210,15 @@ class Campaign:
                     boundaries[f'{system}-{size}-{workers}'] = rate
                     # Verify acquisition continues beyond the boundary.
                     self.loaded(system, size, workers, next_rate(rate), 'rehearsal')
-        self.stage('rehearsal-validation', dict(boundaries=boundaries))
+        result = self.stage('rehearsal-validation', dict(boundaries=boundaries))
+        if self.config.get('scope', 'rehearsal') == 'rehearsal':
+            previews = result.get('previews', [])
+            if len(previews) != 4 or any(p not in result['files'] for p in previews):
+                raise ValueError('Rehearsal callback requires four hashed plot previews')
+            self.total = self.completed
+            self.status('rehearsal-complete', previews=previews,
+                        scope='rehearsal', full_collection_started=False)
+            return
         plans = []
         for system in SYSTEMS:
             for size in SIZES:
@@ -214,7 +232,7 @@ class Campaign:
             raise ValueError('Frozen grid conflicts with resumed rehearsal')
         atomic(plan_path, plans)
         self.completed = 0
-        self.total = 6+sum((len(p['rates'])+1)*3 for p in plans)
+        self.total = len(SYSTEMS)*len(SIZES)*3+sum((len(p['rates'])+1)*3 for p in plans)
         self.unloaded('full')
         collected = []
         for plan in plans:
@@ -230,11 +248,13 @@ class Campaign:
                 extension_path=self.root/f"extensions-{plan['system']}-{plan['size']}-{plan['workers']}.json"
                 rates=read(extension_path) if extension_path.exists() else []
                 if rate not in rates: rates.append(rate); atomic(extension_path,rates)
-                points.append(point(rate)); self.total += 3
-            else: raise RuntimeError('No overload boundary within extension budget')
+                self.total += 3; points.append(point(rate))
+            if not any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']):
+                raise RuntimeError('No overload boundary within extension budget')
             confirmed = None
             confirmations = []
             for candidate in candidates(points):
+                if confirmations: self.total += 3
                 sustained = point(candidate['rate'], True); confirmations.append(sustained)
                 if all(loss(t)<=LOSS_LIMIT for t in sustained['trials']):
                     confirmed = sustained; break
@@ -251,6 +271,8 @@ class Campaign:
 
 
 def config_check(config):
+    if config.get('scope', 'rehearsal') not in ('rehearsal', 'full'):
+        raise ValueError('Scope must be rehearsal or full')
     if len(config['generator_cpus']) != 8 or len(set(config['generator_cpus'])) != 8:
         raise ValueError('Exactly eight distinct isolated generator CPUs required')
     if config['flows'] < 8 or config['initial_rate'] < 1 or not 1 <= config['max_extensions'] <= 30:
@@ -279,6 +301,11 @@ def main():
         atomic(root/'config.json', config)
         # Controller code is hashed too; resume cannot silently change semantics.
         paths=[SELF,*sorted((SELF.parent/'campaign').glob('*.py')),
+               SELF.parent/'paper_chart.py', SELF.parent/'plot_echo.py',
+               SELF.parent/'plot_echo_unloaded.py',
+               *(SELF.parent/name for name in ('capture_nullrpc_trace.py','check_trace_jtag.py',
+                   'check_nullrpc_capture.py','import_nullrpc_mac.py','transfer_results.py')),
+               *sorted((ROOT/'tools/enzian').glob('*.py')), ROOT/'tools/enzian/cpu.sh',
                *(Path(p).resolve() for p in config['adapter'] if Path(p).is_file())]
         code={str(p):digest(p) for p in paths}
         if (root/'code.json').exists() and read(root/'code.json') != code: raise ValueError('Controller changed; new campaign required')
@@ -286,16 +313,21 @@ def main():
         unit='echo-campaign-'+hashlib.sha256(str(root).encode()).hexdigest()[:12]
         hook=' '.join('"'+str(x).replace('\\','\\\\').replace('"','\\"')+'"' for x in [sys.executable,SELF,'failed','--root',root])
         atomic(root/'status.json',dict(stage='queued',completed=0,total=0,artifact_paths=[str(root)]))
+        environment=['--setenv='+key+'='+os.environ[key] for key in
+                     ('PATH','PYTHONPATH','NIX_PYTHONPATH','NIX_SSL_CERT_FILE','SSL_CERT_FILE',
+                      'ENZIAN_BMC_PASSWORD','ENZIAN_PASSWORD') if key in os.environ]
         subprocess.run(['systemd-run','--user','--collect','--unit',unit,
             '--property=Type=exec','--property=KillMode=control-group',
             '--property=TimeoutStopSec=60','--property=ExecStopPost='+hook,
-            '--working-directory='+str(ROOT),sys.executable,str(SELF),'run','--root',str(root)], check=True)
+            '--working-directory='+str(ROOT),*environment,sys.executable,str(SELF),'run','--root',str(root)], check=True)
         print(json.dumps(dict(launched=True, unit=unit, status=str(root/'status.json')))); return
     config=read(root/'config.json'); config_check(config)
     if args.command=='notify': notify(root,config); return
     if args.command=='failed':
-        if not (root/'status.json').exists() or read(root/'status.json')['stage'] not in ('failed','complete'):
-            atomic(root/'status.json',dict(stage='failed',error='Controller terminated unexpectedly',artifact_paths=[str(root)]))
+        if not (root/'status.json').exists() or read(root/'status.json')['stage'] not in ('failed','complete','rehearsal-complete'):
+            previous=read(root/'status.json') if (root/'status.json').exists() else {}
+            atomic(root/'status.json',dict(previous,stage='failed',failed_stage=previous.get('stage'),
+                error='Controller terminated unexpectedly',artifact_paths=[str(root)]))
         notify(root,config); return
     with (ROOT/'out/echo-campaign.lock').open('a') as global_lock, (root/'lock').open('a') as lock:
         fcntl.flock(global_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -304,7 +336,8 @@ def main():
         campaign=Campaign(root,config)
         try: campaign.run()
         except BaseException as error:
-            campaign.status('failed',error=str(error)); notify(root,config); raise
+            failed_stage=read(root/'status.json').get('stage')
+            campaign.status('failed',failed_stage=failed_stage,error=str(error)); notify(root,config); raise
         notify(root,config)
 
 

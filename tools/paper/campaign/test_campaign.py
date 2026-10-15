@@ -58,11 +58,12 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
         from .import_unloaded import validate_matched, partition
         cohorts=[]
         for system in ('LH','DPDK'):
-            for mode in ('off','breakdown','probe-off-control'):
-                row=dict(request_id=1,warmup=0,rx_mac_ns=1,tx_mac_ns=101,mac_ns=100)
-                if mode=='breakdown': row['components_ns']=partition(100,10,20,30)
-                cohorts.append(dict(system=system,instrumentation=mode,count=1,warmup=0,
-                                    build_config_sha256='matched',rows=[row]))
+            for size in controller.SIZES:
+                for mode in ('off','breakdown','probe-off-control'):
+                    row=dict(request_id=1,warmup=0,rx_mac_ns=1,tx_mac_ns=101,mac_ns=100)
+                    if mode=='breakdown': row['components_ns']=partition(100,10,20,30)
+                    cohorts.append(dict(system=system,payload_bytes=size,instrumentation=mode,count=1,warmup=0,
+                                        build_config_sha256='matched',rows=[row]))
         validate_matched(cohorts)
         bad=copy.deepcopy(cohorts);bad[0]['rows'][0]['components_ns']=partition(100,10,20,30)
         with self.assertRaises(ValueError): validate_matched(bad)
@@ -90,7 +91,7 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
                 return t
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            config=dict(initial_rate=50,max_extensions=10)
+            config=dict(initial_rate=50,max_extensions=10,scope='full')
             with patch.object(controller,'SYSTEMS',('LH',)), patch.object(controller,'SIZES',(8,)), patch.object(controller,'WORKERS',(1,)):
                 Fixture(root,config).run()
             result=controller.read(root/'loaded.json')[0]
@@ -98,6 +99,30 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
             self.assertGreater(len(result['confirmations']),1)
             self.assertLess(result['confirmed']['rate'],150)
             self.assertEqual(controller.read(root/'status.json')['stage'],'complete')
+
+    def test_rehearsal_stops_before_full_collection(self):
+        class Fixture(controller.Campaign):
+            def unloaded(self, phase):
+                self.assert_phase(phase)
+            def assert_phase(self, phase):
+                if phase != 'rehearsal': raise AssertionError('Full acquisition started')
+            def stage(self, name, request):
+                if name not in ('preflight','build','rehearsal-validation'):
+                    raise AssertionError('Unexpected stage '+name)
+                return dict(previews=list('abcd'),files={p:'fixture' for p in 'abcd'})
+            def loaded(self, system, size, workers, rate, phase, **kwargs):
+                self.assert_phase(phase)
+                self.completed += 1
+                return trial(100 if rate < 100 else 90)
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            # Omitted scope is deliberately rehearsal-only, including legacy manifests.
+            Fixture(root,dict(initial_rate=50,max_extensions=10)).run()
+            state=controller.read(root/'status.json')
+            self.assertEqual(state['stage'],'rehearsal-complete')
+            self.assertFalse(state['full_collection_started'])
+            self.assertFalse((root/'grid.json').exists())
+            self.assertFalse((root/'loaded.json').exists())
 
     def test_notification_subprocess_fixture(self):
         with tempfile.TemporaryDirectory() as directory:
