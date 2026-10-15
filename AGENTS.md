@@ -158,7 +158,10 @@ See the [recorder board acceptance](docs/research/memcached.md#corrected-recorde
 ## Confirmed research and scheduling scope
 
 The full paper builds an efficient low-latency RPC system on published 2F2F,
-preserving OS flexibility and security. Demikernel is the primary baseline.
+preserving OS flexibility and security. Caladan is the primary baseline, selected
+as a closer match for runtime-managed core allocation and networking. Follow the
+[minimal Enzian port and calibration plan](docs/research/caladan-enzian.md); the
+port and its measurements are pending.
 Planned applications: Dandelion, RPC server, userspace NFS, memcached, and
 consensus such as etcd/Raft. Read [Dandelion](docs/research/dandelion.md) before
 porting student runtime work from `../sven-dandelion`; its evaluation uses a

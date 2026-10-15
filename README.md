@@ -16,8 +16,10 @@ TCP/HTTP/gRPC are placeholders in this checkout. See the status docs before
 assuming that a paper proposal or design note is implemented.
 
 RPC workers use isolated cores and run tasks to finish; timeout/recovery policy
-and queue-pair/DCU coloring remain open. The planned evaluation uses Demikernel
-as its primary baseline, with Dandelion, an RPC server, userspace NFS, memcached,
+and queue-pair/DCU coloring remain open. The planned evaluation uses [Caladan](docs/research/caladan-enzian.md)
+as its primary baseline, a closer match for runtime-managed core allocation and
+networking. Its minimal Enzian port and validation are planned. The application
+portfolio starts with Dandelion, an RPC server, userspace NFS, memcached,
 and a consensus service such as etcd/Raft. The [Dandelion student project](docs/research/dandelion.md)
 provides a mock-based port and nested-call runtime reference. Finished external
 [TCP and Protobuf projects](docs/research/grpc-roadmap.md) are planned for

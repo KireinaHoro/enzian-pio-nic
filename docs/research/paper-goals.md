@@ -9,7 +9,7 @@ records completed hot/cold DPDK microbenchmarks, GSYNC mitigation and CPU-work
 analysis. The [Dandelion campaign](dandelion-measurement.md) adds checked
 atomic/composition execution and correlated waterfalls, including three parallel
 children on real hardware. These are bounded results, not the full paper
-evaluation: loaded four-worker tails, broader application workloads, Demikernel controls,
+evaluation: loaded four-worker tails, broader application workloads, Caladan controls,
 recovery and broader adversarial acceptance remain open. HOST_WAKE/events and
 complete resource recovery are still follow-on implementation work. The
 experiment matrix below is an evidence plan, not a list of completed features.
@@ -22,9 +22,9 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 ## Planned applications and baseline
 
-**October 15 baseline addition:** the [Caladan Enzian port design and progress](caladan-enzian.md) establishes a minimal AArch64 port for hot latency/throughput and breakdown, core reclamation, and multi-instance memcached. Enzian correctness and measurement validation precede baseline use; optional comparable x86/DPDK runs relate paper, x86 and Enzian results. Implementation and measurements are pending. This addition does not replace the separately planned Demikernel baseline.
+**October 15 baseline selection:** the [Caladan Enzian port design and progress](caladan-enzian.md) establishes a minimal AArch64 port for hot latency/throughput and breakdown, core reclamation, and multi-instance memcached. Enzian correctness and measurement validation precede baseline use; optional comparable x86/DPDK runs relate paper, x86 and Enzian results. Implementation and measurements are pending. Caladan replaces Demikernel as the primary baseline because its runtime-managed core allocation and networking are a closer match.
 
-**Demikernel is the selected primary baseline.** Select and record its backend, version, supported platform, workload adapter and resource budget before comparison; no baseline integration was established in this survey. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and client/load generation comparable; disclose CPU/NIC differences where identical hardware is infeasible.
+**Caladan is the selected primary baseline.** Follow the [minimal Enzian port and calibration plan](caladan-enzian.md): centralized NICVF DPDK networking, the simple scheduler, and bounded hot, core-reclamation and memcached experiments. Pin the implementation, application versions and resource budget; the ARM port and measurement acceptance remain pending. Comparable x86/DPDK calibration is optional, and full Caladan interference-control claims are outside scope. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and client/load generation comparable; disclose CPU/NIC differences where identical hardware is infeasible.
 
 | Planned application | Purpose in the evaluation / integration starting point |
 | --- | --- |

@@ -60,7 +60,7 @@ the next application; investigate concrete application dependencies first.
 Complete kill/exit resource recovery, broader adversarial isolation/overload,
 and full-system refinement remain open claims. Cold-path Linux scheduler
 optimization and timing optimization remain deferred. Subsequent first-paper
-applications and Demikernel comparison continue, with memcached next; TCP/Protobuf and gRPC
+applications and the [Caladan baseline comparison](caladan-enzian.md) continue, with memcached next; TCP/Protobuf and gRPC
 retain their documented lower priority. Historical nested-runtime results are
 recorded in the [merge disposition](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23),
 not a substitute for current Dandelion composition acceptance.
@@ -320,7 +320,7 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 ## Confirmed design intent (maintainer, 2026-09-08)
 
 - Build the full RPC system on published 2F2F; demonstrate low latency and efficiency while retaining OS flexibility and security. [Paper scope and application portfolio](paper-goals.md).
-- Primary baseline: Demikernel. Planned applications: Dandelion, RPC server, userspace NFS, memcached, and consensus such as etcd/Raft.
+- Primary baseline: [Caladan](caladan-enzian.md), selected October 15 as a closer match for runtime-managed core allocation and networking. The minimal Enzian port and validation are pending. Planned applications: Dandelion, RPC server, userspace NFS, memcached, and consensus such as etcd/Raft.
 - `../sven-dandelion/{report,platform,dandelion}` contains the student report, mock platform/runtime extensions and Dandelion port. See [source map and limitations](dandelion.md); these are external reference trees, not merged support in this checkout.
 - Worker cores are isolated and never shared with ordinary Linux tasks. RPC tasks run to finish. Ordinary idle RX cooperatively yields on DESCHED. Unsupported exits and fatal
   activation failures kill and fence the domain; full resource-recycling recovery
@@ -508,7 +508,7 @@ model checks, THX credit assumptions and eventual board conformance separately.
 1. Complete expanded acceptance of the implemented physical-worker/domain design using the completed bounded scheduling models and the next-step sequence above. Establish concrete admission/resource guarantees and validate supported concurrency; the color-compatible seven-worker capacity is not yet a hardware progress guarantee.
 2. Specify receive-critical-section versus whole-application timeout, timer start/reset points, kill granularity and safe resource/reply cleanup. Define service allocation fairness if a guarantee is needed; run-to-finish alone does not define it.
 3. Validate the [managed outcome contract](../software/programming-model.md), including local reply forwarding for tail calls. Direct downstream-to-original-client replies remain separate protocol work. Implement [service-owned events/timers and resident-worker integration](../software/service-execution-design.md) in later runs.
-4. Consensus targets a runtime-managed raft-rs embedding; memcached uses [native UDP cooperative workers](memcached.md) with bounded maintenance. Select NFS implementation, Demikernel backend/version and comparison platform, target venue/cycle, and ordered feature milestones.
+4. Consensus targets a runtime-managed raft-rs embedding; memcached uses [native UDP cooperative workers](memcached.md) with bounded maintenance. Select NFS implementation, Caladan port/application revisions and resource budgets under the [Enzian baseline plan](caladan-enzian.md), target venue/cycle, and ordered feature milestones.
 5. Choose the TCP/Protobuf merge order and follow-on gRPC scope without displacing first-paper applications. Any separate Linux/full-paper source trees still need identification if required; student reports are not the full-system paper source.
 
 Keep maintainer intent separate from source-backed implementation status. Do not silently turn these remaining choices into requirements or reopen the settled isolated-worker policy.
