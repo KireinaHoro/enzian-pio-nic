@@ -54,12 +54,36 @@ both warmup and measurement. Keep failed attempts and exact rates.
 Launch using the documented detached user-service command. After launch, return
 the campaign root and service identifier without intermediate polling. Inspect
 `status.json` only when the user asks or a terminal queued prompt arrives. Normal
-progress uses the compact status, not raw console logs. Resume explicitly with
-the identical acquisition configuration; never overwrite a cohort. For compatible
-code fixes, use the documented `recovery-plan` and `--recovery-review` workflow:
-retain unaffected completed cohorts, justify reuse with validation evidence, and
-rerun only affected or unfinished cases. Preserve original acquisition provenance.
-Do not restart an entire campaign solely because implementation hashes changed.
+progress uses the compact status, not raw console logs. Never overwrite a cohort.
+Automatically reuse only passing cohorts whose request/configuration and relevant
+implementation identity match and whose saved evidence hashes still verify.
+If a server, generator, placement, configuration or implementation change prevents
+automatic reuse, fail fast before further acquisition and queue a terminal prompt
+for model review through the existing callback mechanism. Do not silently discard
+completed cohorts or restart the dataset because hashes differ.
+
+The agent may explicitly override the compatibility rejection after reviewing
+the change; separate user approval is not required within the authorized campaign
+scope. Classify each affected completed cohort as reuse or rerun, with a concrete
+reason and validation evidence. Bind the review to exact old/new code, artifacts
+and configurations, receipt hashes, and evidence hashes. Assess workload and wire
+semantics, timing boundaries, instrumentation, send schedule, placement and
+resource effects. A packaging or diagnostic-only change can leave measurements
+compatible; a server or generator change requires examining its actual effect,
+not blanket permission or blanket invalidation.
+
+An override authorizes reuse of intact passing evidence, not bypassing evidence
+integrity or relabeling failed attempts as passing. Retain original acquisition
+identities and record the review separately. Rerun affected or unfinished cases
+and regenerate derived validation/plots; do not combine scientifically incompatible
+cohorts merely to fill a grid.
+
+For supported source-only fixes, use the documented `recovery-plan` and
+`--recovery-review` workflow. Current tooling restricts this to unchanged acquisition
+manifests and Python/shell/Tcl changes. General artifact/configuration overrides
+are not yet implemented: extend the maintained recovery tooling with a hash-bound,
+per-cohort review before applying such an override. Never bypass the guard by
+editing frozen manifests, receipts or recorded hashes in place.
 Develop fixes in a separate worktree while a campaign is running; apply them only
 after it stops. Hardware preservation and restoration gates still apply.
 
@@ -72,7 +96,8 @@ figures until their replacements have passed validation. Commit implementation,
 measurement data and provenance normally; leave layout and presentation changes
 uncommitted until requested.
 
-When generator placement or binaries change, keep the old loaded bracket separate.
-A new rehearsal root may use `--inherit-unloaded SOURCE --inherit-reason REASON`
-only after reviewing compatibility of the twelve unloaded cohorts. The controller
-checks every source hash and retains source configuration and code provenance.
+The existing `--inherit-unloaded SOURCE --inherit-reason REASON` path supports
+reviewed inheritance of all twelve unloaded rehearsal cohorts into a new root,
+preserving source hashes and provenance. It is a limited implementation, not a
+policy that all loaded cohorts must be discarded after a binary change. Apply
+the compatibility review above when broader inheritance is needed.
