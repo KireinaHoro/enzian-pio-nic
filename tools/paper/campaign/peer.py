@@ -49,6 +49,17 @@ def upload(root, url):
         with urllib.request.urlopen(request,timeout=600) as response: response.read()
 
 
+def server_nic_prepared(state, source_cidr):
+    """Accept an idle prepared VF or its networkd-managed normal state."""
+    if not state['addr_info'] and 'UP' not in state['flags']:
+        return False
+    ipv4={a['local']+'/'+str(a['prefixlen']) for a in state['addr_info'] if a['family']=='inet'}
+    unexpected_v6=any(a['family']=='inet6' and a.get('scope')!='link' for a in state['addr_info'])
+    if 'UP' not in state['flags'] or ipv4!={source_cidr} or unexpected_v6:
+        raise ValueError('DUT data NIC has unexpected addresses or link state')
+    return True
+
+
 def run(config):
     def interrupted(signum, frame): raise KeyboardInterrupt('Campaign role interrupted')
     signal.signal(signal.SIGTERM,interrupted)
@@ -101,10 +112,9 @@ def run(config):
     try:
         if server:
             original=json.loads(subprocess.check_output(['ip','-j','addr','show','dev','cpu40g1']))[0]
-            if original['addr_info'] or 'UP' in original['flags']:
-                raise ValueError('DUT data NIC must start down without addresses')
-            subprocess.run(['ip','addr','add',config['source_cidr'],'dev','cpu40g1','noprefixroute'],check=True)
-            subprocess.run(['ip','link','set','cpu40g1','up'],check=True)
+            if not server_nic_prepared(original,config['source_cidr']):
+                subprocess.run(['ip','addr','add',config['source_cidr'],'dev','cpu40g1','noprefixroute'],check=True)
+                subprocess.run(['ip','link','set','cpu40g1','up'],check=True)
         elif config['system']=='DPDK':
             deadline=time.monotonic()+120
             while not present(url+'/'+label+'-ready'):

@@ -8,11 +8,20 @@ import unittest
 from unittest.mock import Mock
 
 from .hardware import Acquisition
+from .peer import server_nic_prepared
 from .finalize import Archive
 from .import_loaded import digest
 
 
 class Hardware(unittest.TestCase):
+    def test_networkd_restored_server_nic(self):
+        address=dict(family='inet',local='192.0.2.1',prefixlen=24)
+        self.assertFalse(server_nic_prepared(dict(flags=[],addr_info=[]),'192.0.2.1/24'))
+        self.assertTrue(server_nic_prepared(dict(flags=['UP'],addr_info=[address]),'192.0.2.1/24'))
+        for state in (dict(flags=[],addr_info=[address]),dict(flags=['UP'],addr_info=[]),
+                      dict(flags=['UP'],addr_info=[dict(address,local='192.0.2.2')])):
+            with self.assertRaises(ValueError):server_nic_prepared(state,'192.0.2.1/24')
+
     def test_unloaded_uses_single_flow_on_both_roles(self):
         endpoint=dict(ip='192.0.2.1',mac='02:00:00:00:00:01',prefix=24)
         config=dict(worker_cpus=[44],generator_cpus=list(range(6,14)),flows=64,
