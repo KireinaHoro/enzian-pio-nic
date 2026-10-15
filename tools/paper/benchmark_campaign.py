@@ -196,6 +196,8 @@ class Campaign:
     def run(self):
         self.stage('preflight', {'checked_at': time.time_ns()})
         self.stage('build', {})
+        # Before bracketing, total is the finite maximum cohort budget.
+        self.total = len(SYSTEMS)*len(SIZES)*3 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
         self.unloaded('rehearsal')
         boundaries = {}
         for system in SYSTEMS:
@@ -315,7 +317,7 @@ def main():
         atomic(root/'status.json',dict(stage='queued',completed=0,total=0,artifact_paths=[str(root)]))
         environment=['--setenv='+key+'='+os.environ[key] for key in
                      ('PATH','PYTHONPATH','NIX_PYTHONPATH','NIX_SSL_CERT_FILE','SSL_CERT_FILE',
-                      'ENZIAN_BMC_PASSWORD','ENZIAN_PASSWORD') if key in os.environ]
+                      'ENZIAN_BMC_PASSWORD','ENZIAN_PASSWORD','SSH_AUTH_SOCK') if key in os.environ]
         subprocess.run(['systemd-run','--user','--collect','--unit',unit,
             '--property=Type=exec','--property=KillMode=control-group',
             '--property=TimeoutStopSec=60','--property=ExecStopPost='+hook,

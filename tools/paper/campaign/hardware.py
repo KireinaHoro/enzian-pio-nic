@@ -118,13 +118,14 @@ namespace['start']({service!r})
         case['client']=remote_script(setup_url,peer_url,digest(peer_script),c['client_image_remote'],c['client_image_sha256'])
         cases=self.directory/'cases.json';atomic(cases,[case])
         atomic(self.state_path,dict(safe=False,stage=str(self.directory),service_key=key,service=service))
-        code=self.h.command([sys.executable,ROOT/'tools/enzian/test.py',cases,'--gateway',c['gateway'],
+        try:
+            self.h.command([sys.executable,ROOT/'tools/enzian/test.py',cases,'--gateway',c['gateway'],
                             '--machine',c['dut'],'--logs',self.directory/'board','--repeats','1'],
-                            'board',timeout=7200,check=False)
-        if code:
-            # Preserve before any future reset, including module-load failures.
+                            'board',timeout=7200)
+        except Exception:
+            # Preserve failures and timeouts before any future reset.
             self.capture(exceptional=True)
-            raise RuntimeError('Board acceptance failed; evidence preserved, no reset performed')
+            raise
         setup_archive=self.directory/(Path(setup['output']).name+'.tar.gz')
         self.h.command(['rsync',c['gateway']+':'+c['transfer_root']+'/'+setup_archive.name,setup_archive],'setup-evidence')
         self.state=dict(safe=True,service_key=key,service=service,setup_count=16,board=str(self.directory/'board/summary.json'))
@@ -136,9 +137,13 @@ namespace['start']({service!r})
         c=self.config;case=json.loads(Path(c['boot_case']).read_text())[0]
         program=[str(x).replace('program-hot-uninstrumented.log','program-'+self.label+'.log') for x in case['program']]
         atomic(self.state_path,dict(safe=False,stage=str(self.directory),system='DPDK'))
-        self.h.command([sys.executable,ROOT/'tools/enzian/boot.py','--gateway',c['gateway'],
-            '--machine',c['dut'],'--owner',c['owner'],'--logs',self.directory/'dpdk-boot','--',*program],
-            'dpdk-boot',timeout=3600)
+        try:
+            self.h.command([sys.executable,ROOT/'tools/enzian/boot.py','--gateway',c['gateway'],
+                '--machine',c['dut'],'--owner',c['owner'],'--logs',self.directory/'dpdk-boot','--',*program],
+                'dpdk-boot',timeout=3600)
+        except Exception:
+            self.capture(exceptional=True)
+            raise
         # Booting ends the native worker pool. No Lauberhorn application or
         # module is started for the CPU-NIC baseline; boot.py validates ECI.
         body='set -eu\nip link set cpu40g1 down\n'
