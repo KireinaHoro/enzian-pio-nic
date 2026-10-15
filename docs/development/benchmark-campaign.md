@@ -231,6 +231,17 @@ Regular arrivals are covered; Poisson arrivals are deferred to memcached.
 Unloaded client-RTT CDF and instrumented MAC service-path components belong to
 separate cohorts; never assign those components to uninstrumented totals or
 claim they independently measure CPU utilization.
+For LH, UDP header dispatch can precede the RX CDC last-payload-beat event.
+The elapsed-time partition assigns this overlap to host/MAC transport and
+starts the remaining RX RPC interval at the later of those two events. The
+RX network interval is zero when header decoding overlaps payload transport;
+this does not imply that network processing performed no work. Each imported
+row retains the original app-clock stages and `rx_streaming_overlap_ns`.
+The r4 1432-byte rehearsal exposed a 105 ns overlap in all 116 observations;
+its complete capture passed loss and independent head/tail checks. Offline
+reimport of all three r4 instrumented sizes passes the corrected ordering,
+causal bounds and component conservation checks. The controller failure remains
+preserved; this offline validation does not mark that campaign complete.
 
 The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
 notification delivery to a file-backed sink. All five plots also passed portable

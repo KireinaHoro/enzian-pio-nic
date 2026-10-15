@@ -129,17 +129,27 @@ def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
                 selected=events[bisect.bisect_left(events,rx):bisect.bisect_right(events,tx)]
                 if len(selected)!=1: raise ValueError('Nonunique/missing hardware service stage')
                 stages.append(selected[0])
-            if stages!=sorted(stages) or stages[0]!=rx or stages[-1]!=tx:
+            _,after_rx,udp_rx,to_host,from_host,udp_tx,before_tx,_=stages
+            # RX CDC traces the last payload beat; UDP traces header dispatch.
+            # A streaming decoder can dispatch before that last beat arrives.
+            if (stages[0]!=rx or stages[-1]!=tx
+                    or not rx<=udp_rx<=to_host<=from_host<=udp_tx<=before_tx<=tx
+                    or not rx<=after_rx<=to_host):
                 raise ValueError('Invalid app-clock stage ordering')
             sw=server[setup_count+i]
             if sw['ok']!='1': raise ValueError('Runtime reply failed')
             a,b,c,d=[int(sw[k]) for k in ('server_rx_exit_ns','server_handler_enter_ns',
                                          'server_handler_exit_ns','server_tx_enter_ns')]
             if not a<=b<=c<=d: raise ValueError('Invalid runtime service stages')
-            _,after_rx,udp_rx,to_host,from_host,udp_tx,before_tx,_=stages
             runtime_bounds.append((a,d,to_host,from_host))
-            record['components_ns']=partition(total,c-b,d-a-(c-b)+to_host-udp_rx+udp_tx-from_host,
-                                              udp_rx-after_rx+before_tx-udp_tx)
+            # Partition elapsed time, assigning the overlapping RX interval to
+            # host/MAC transport. Keep its extent and original events explicit;
+            # these components do not measure independent hardware work.
+            rpc_rx_begin=max(after_rx,udp_rx)
+            record['rx_streaming_overlap_ns']=max(0,after_rx-udp_rx)
+            record['app_stages_ns']=dict(zip((3,4,9,44,45,2,5,6),stages))
+            record['components_ns']=partition(total,c-b,d-a-(c-b)+to_host-rpc_rx_begin+udp_tx-from_host,
+                                              max(0,udp_rx-after_rx)+before_tx-udp_tx)
         result.append(record)
     causal=dict(client_mac=clock_bounds(bounds))
     if runtime_bounds: causal['runtime_mac']=clock_bounds(runtime_bounds)

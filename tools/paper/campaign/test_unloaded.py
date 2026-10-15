@@ -93,5 +93,25 @@ class Unloaded(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'partition'):
             dpdk(client,self.write('server.csv',self.server),count=2,warmup=1,payload_bytes=128,instrumentation='breakdown')
 
+    def test_lh_streaming_header_precedes_last_payload_beat(self):
+        client=self.write('client.csv',self.client)
+        pairs=[dict(rx_mac_ns=i*10000+400,tx_mac_ns=i*10000+1400) for i in range(1,4)]
+        server=self.write('runtime.csv',[dict(ok=1,server_rx_exit_ns=i*10000+800,
+            server_handler_enter_ns=i*10000+850,server_handler_exit_ns=i*10000+900,
+            server_tx_enter_ns=i*10000+950) for i in range(1,4)])
+        for last_beat,overlap in ((450,0),(650,150)):
+            events={eid:[i*10000+offset for i in range(1,4)] for eid,offset in
+                    zip((3,4,9,44,45,2,5,6),(400,last_beat,500,700,1000,1100,1200,1400))}
+            kwargs=dict(count=2,warmup=1,setup_count=0,payload_bytes=128,
+                        instrumentation='breakdown',server_path=server,app_events=events)
+            result=lauberhorn(client,pairs,**kwargs)
+            for row in result['rows']:
+                self.assertEqual(row['rx_streaming_overlap_ns'],overlap)
+                self.assertEqual(sum(row['components_ns'].values()),1000)
+                self.assertTrue(all(v>=0 for v in row['components_ns'].values()))
+            events[4][0]=10800  # Last beat cannot follow host enqueue.
+            with self.assertRaisesRegex(ValueError,'stage ordering'):
+                lauberhorn(client,pairs,**kwargs)
+
 
 if __name__=='__main__': unittest.main()
