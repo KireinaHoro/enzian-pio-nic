@@ -146,8 +146,14 @@ def run(config):
             except subprocess.TimeoutExpired:
                 process.kill(); process.wait(); failure=f'{failure or ""}; forced wrapper termination'
         if original is not None and not original['addr_info'] and 'UP' not in original['flags']:
-            for command in (['ip','addr','del',config['source_cidr'],'dev','cpu40g1'],
-                            ['ip','link','set','cpu40g1','down']):
+            # Driver rebinding may already have removed the temporary address.
+            current=json.loads(subprocess.check_output(['ip','-j','addr','show','dev','cpu40g1']))[0]
+            commands=[]
+            if any(a.get('local')+'/'+str(a.get('prefixlen'))==config['source_cidr']
+                   for a in current['addr_info'] if a.get('local')):
+                commands.append(['ip','addr','del',config['source_cidr'],'dev','cpu40g1'])
+            commands.append(['ip','link','set','cpu40g1','down'])
+            for command in commands:
                 if subprocess.run(command).returncode: failure=f'{failure or ""}; NIC restoration failed'
         (root/'result.json').write_text(json.dumps(dict(returncode=code,error=failure),indent=2)+'\n')
         upload(root,url)

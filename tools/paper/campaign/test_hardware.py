@@ -13,6 +13,21 @@ from .import_loaded import digest
 
 
 class Hardware(unittest.TestCase):
+    def test_unloaded_uses_single_flow_on_both_roles(self):
+        endpoint=dict(ip='192.0.2.1',mac='02:00:00:00:00:01',prefix=24)
+        config=dict(worker_cpus=[44],generator_cpus=list(range(6,14)),flows=64,
+                    dut_endpoint=endpoint,peer_endpoint=endpoint,fpga_endpoint=endpoint,
+                    transfer_url='http://fixture',ptp_bgx=4,tracking_mib=1024)
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for stage,flows in (('unloaded',1),('loaded',64)):
+                request=dict(stage=stage,system='DPDK',workers=1,payload_bytes=8)
+                (root/'request.json').write_text(json.dumps(request))
+                acquisition=Acquisition(config,request,root,root)
+                for role in ('client','server'):
+                    self.assertEqual(acquisition.role(role)['flows'],flows)
+                    self.assertEqual(acquisition.role(role,setup=True)['flows'],1)
+
     def test_loaded_never_captures_and_restores_on_health_failure(self):
         for healthy in (True,False):
             with self.subTest(healthy=healthy),tempfile.TemporaryDirectory() as directory:

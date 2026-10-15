@@ -43,7 +43,7 @@ class Acquisition:
             binary='/nix/store/lauberhorn-client/bin/'+(('nullrpc_dpdk' if r.get('instrumentation')=='breakdown' else 'nullrpc_dpdk_uninstrumented') if server else 'bench_dpdk'),
             manifest='/nix/store/lauberhorn-client/manifest.json',ptp_bgx=c['ptp_bgx'],
             endpoint=[source['ip'],destination['ip'],destination['mac'],49152 if server else 12345],
-            source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'],
+            source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'] if loaded else 1,
             payload_bytes=r['payload_bytes'],count=16 if setup else r.get('count',1),warmup=0 if setup else r.get('warmup',0),
             rate=r.get('rate',0),duration_ms=r.get('duration_ms',0),warmup_ms=r.get('warmup_ms',0),
             instrumentation='off' if setup else r.get('instrumentation','off'),
