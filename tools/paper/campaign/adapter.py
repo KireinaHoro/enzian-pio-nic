@@ -134,8 +134,6 @@ def build(config,h):
         if digest(path)!=sha: raise ValueError('Built artifact differs from frozen configuration')
     if h.stage(config['client_image_local'],'client.img')!=config['client_image_url']:
         raise ValueError('Image URL differs from transfer endpoint')
-    if h.stage(config['app_local'],'microbenchmarks')!=config['app_url']:
-        raise ValueError('Application URL differs from transfer endpoint')
     for machine in (config['peer'],config['dut']):
         h.python(machine,h.image_code(),'stage-image-'+machine,timeout=600)
     return dict(passed=True)
@@ -181,7 +179,7 @@ def rehearsal(config,h,campaign):
     cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts)
     points={}
     for receipt in sorted((campaign/'stages').glob('*/receipt.json')):
-        saved=read(receipt);request=next(p for p in saved['hashes'] if p.endswith('/request.json'))
+        saved=read(receipt);request=next(p for p in saved['hashes'] if p.endswith('/request.json') and Path(p).parent.name.startswith('attempt-'))
         request=read(request)
         if request['stage']!='loaded' or request.get('phase')!='rehearsal': continue
         result=saved['result'];trial,_=load(result['csv'],result['summary'],collect_latencies=False)

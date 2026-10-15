@@ -12,19 +12,27 @@ measurements retain their original semantics and provenance.
 The schema, responders, duration-based generator, selection policy, raw loaded
 importer and detached controller are implemented. Local wire, scheduling,
 complete-loss, induced-generator-stall and legacy replay tests have passed.
-The unloaded importer validates separate MAC and instrumented cohorts, including
-matched controls. `echo_hardware.py` connects the controller to the maintained
+Unloaded measurements use two distinct builds: tracing compiled out with client
+RTT only, and tracing enabled with paired MAC/PTP timestamps and a breakdown.
+There is no redundant runtime-off control. The off build excludes trace hooks,
+storage, PMU support and export threads; FPGA recording and DPDK PTP are off. `echo_hardware.py` connects the controller to the maintained
 Enzian harness through `campaign/adapter.py`, `hardware.py`, and the remote role
 helpers. Local transport, cleanup and archive fixtures pass; real preflight
 passed reservations, isolation, budgets, artifact matching, preservation and
-callback delivery. A detached local fixture completed 66 synthetic cohorts,
-delivered one terminal callback, and stopped before the full grid; the separate
-forced-termination fixture exercised the service failure hook. Twenty-one local
-policy/import/transport tests pass. These are workflow tests, not board results.
+callback delivery. The detached workflow and forced-termination fixture have exercised terminal
+callback delivery and the service failure hook. Twenty-three local policy/import/transport tests pass. Both native runtime
+variants pass RPC/UDP/activation semantic tests, and binary symbol checks reject
+tracing/PMU hooks in the disabled runtime and software/PTP timestamp hooks in
+the disabled DPDK responder. Sixteen schema echo pcap cases pass. The revised
+controller fixture completes 60 synthetic cohorts (12 unloaded), delivers its
+terminal notification and stops before full collection. Revised unloaded plots
+pass synthetic rendering, dimensions and font checks. These are workflow tests, not board results.
 The first native 8-byte rehearsal cohort has 100 valid measured replies and 16
 warmups, complete measured MAC pairing and valid client causal bounds. Its
 133-request whole capture (including preparation) has no stored loss markers.
-Full rehearsal acceptance is still pending. The setup neighbor miss is now
+Those early cohorts used runtime-disabled probes, not the new compiled-out
+configuration, and remain historical rehearsal evidence. Full rehearsal
+acceptance is still pending. The setup neighbor miss is now
 primed separately. The second attempt's Ethernet receiver completed, but Vivado
 segfaulted on shutdown and the old controller incorrectly entered full JTAG
 fallback. The complete Ethernet file was recovered and hash-verified before
@@ -111,6 +119,14 @@ CPU, int32 TID, 48 padding bytes. Snapshot differences between quiescent
 cohorts establish worker activity, not successful completions. Leave this
 variable unset for unloaded software-uninstrumented measurements.
 
+`echoCampaignImage` packages both native application/runtime variants and both
+DPDK responders in one hashed image. The native service mounts it in its own
+mount namespace; the global matched kernel deployment is unchanged. Hardware
+configuration records `native_variants` (app/runtime store paths and executable
+hashes), per-mode `server_sha256`, and per-system/per-mode build fingerprints.
+Snapshots check the running executable, runtime mapping and image manifest.
+The general `trafficGeneratorImage` remains independent of native runtime builds.
+
 ## Controller and adapter boundary
 
 `tools/paper/benchmark_campaign.py` owns preflight, build, rehearsal, frozen
@@ -132,10 +148,13 @@ in `Campaign.stage`; these are assertions to implement and verify, not fields
 that can be set merely because a subprocess exited zero. Loaded stages return
 raw `csv`, `summary`, actual placement/flows and per-worker activity. Unloaded
 stages return `cohort` from `campaign.import_unloaded`, augmented with a
-`build_config_sha256` fingerprint excluding instrumentation toggles. They require
-complete MAC pairs, validated identity correlation, no stored loss, independent
-JTAG checks for LH (matched PTP module/clock checks for DPDK), health and restoration. `full-unloaded.json` keeps the 18 distinct
-cohorts: both systems, 8/128/1432-byte bodies, and three instrumentation modes.
+`build_config_sha256` fingerprint identifying the compiled variant. All runs
+require validated client identity, health and restoration. Instrumented runs
+also require complete MAC pairs, no stored loss, independent JTAG checks for LH
+(or matched PTP module/clock checks for DPDK). Off runs require compiled-out
+tracing, frozen FPGA recording, no PTP and no trace readout.
+`full-unloaded.json` keeps 12 cohorts: both systems, 8/128/1432-byte bodies,
+and two instrumentation modes.
 Internal FPGA RPC IDs pair trace events within request lifetimes; the client validates wire XIDs. Preflight must check reservations, artifact
 matching, budgets, isolated CPUs, prior-state preservation and actual callback
 delivery. The final stage must archive raw observations and provenance, validate
@@ -195,6 +214,7 @@ reused only with matching hashes; current reservations are checked again on resu
 
 ```sh
 nix build .#dev.x86_64-linux.software.trafficGeneratorNative -o out/echo-generator
+nix develop -c python3 sw/apps/microbenchmarks/dpdk/echo_replay_test.py out/echo-generator/bin out/echo-schema-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
@@ -208,11 +228,10 @@ observations across equal-duration repetitions, retains offered-rate ordering
 and nonmonotonic goodput, and shows median/P99. Overload plots retain every rate
 and trial, with a 1% line. Confirmed peak plots show median and trial range.
 Regular arrivals are covered; Poisson arrivals are deferred to memcached.
-Unloaded MAC CDF and instrumented service-path elapsed components belong to
+Unloaded client-RTT CDF and instrumented MAC service-path components belong to
 separate cohorts; never assign those components to uninstrumented totals or
 claim they independently measure CPU utilization.
 
-Sixteen local Python regression tests and 20 native replay cases pass.
 The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
 notification delivery to a file-backed sink. All five plots also passed portable
 synthetic-input rendering, exact PDF dimensions and embedded-font checks. These

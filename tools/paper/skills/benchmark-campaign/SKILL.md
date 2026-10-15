@@ -21,12 +21,15 @@ Never promote a fixture, an unvalidated adapter, or historical measurements into
 passing rehearsal evidence.
 
 Run local gates first. The controller must pass the small rehearsal, including
-all three unloaded payload sizes and instrumentation modes and overloaded loaded cases, before it
+all three unloaded payload sizes in both compiled instrumentation modes and overloaded loaded cases, before it
 freezes and collects the full grid. Default to `scope: "rehearsal"`, which
 terminates with a callback after validated rehearsal plots and never starts full
 collection. Use `scope: "full"` only when full acquisition is authorized; a user
-request to stop after rehearsal overrides any earlier full-campaign plan. Loaded cases disable FPGA recording and
-software profiling and perform no trace reads. Boot/module failures still require
+request to stop after rehearsal overrides any earlier full-campaign plan. Uninstrumented unloaded cases use compiled-out software tracing and client RTT
+only, with FPGA recording and MAC/PTP timestamping disabled; they perform no
+trace readouts. Instrumented unloaded cases use MAC/PTP timing and their own
+breakdowns. Do not add a redundant runtime-off control. Loaded cases use
+compiled-out software tracing, disable FPGA recording and perform no trace reads. Boot/module failures still require
 the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
 JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;

@@ -147,12 +147,18 @@ class Campaign:
             cohort=result['cohort']
             if any(cohort[k]!=request[k] for k in ('system','payload_bytes','count','warmup','instrumentation')):
                 raise ValueError('Unloaded cohort differs from requested configuration')
-            if result.get('mac_pairs') != request['count']+request['warmup'] or result.get('stored_loss') != 0:
-                raise ValueError('Incomplete unloaded MAC capture')
-            for gate in ('xid_pairing', 'health', 'restored',
-                         'jtag_checks' if request['system']=='LH' else 'timestamp_checks'):
-                if result.get(gate) is not True:
-                    raise ValueError('Unloaded gate missing: '+gate)
+            gates=['xid_pairing','health','restored']
+            if request['instrumentation']=='breakdown':
+                if result.get('mac_pairs')!=request['count']+request['warmup'] or result.get('stored_loss')!=0:
+                    raise ValueError('Incomplete instrumented MAC capture')
+                gates.append('jtag_checks' if request['system']=='LH' else 'timestamp_checks')
+            else:
+                if (result.get('trace_readouts')!=0 or result.get('software_profiling') is not False
+                        or result.get('fpga_recording') is not False or result.get('mac_timestamping') is not False
+                        or result.get('tracing_compiled') is not False):
+                    raise ValueError('Uninstrumented RTT-only contract violated')
+            for gate in gates:
+                if result.get(gate) is not True: raise ValueError('Unloaded gate missing: '+gate)
         if name == 'preflight':
             for gate in ('reservations', 'matching_artifacts', 'storage_budget', 'ram_budget',
                          'restoration', 'callback_delivery', 'isolated_cpus', 'preserved_previous_state'):
@@ -182,7 +188,7 @@ class Campaign:
         cohorts=[]
         for system in SYSTEMS:
             for size in SIZES:
-                for instrumentation in ('off', 'breakdown', 'probe-off-control'):
+                for instrumentation in ('off', 'breakdown'):
                     result=self.stage('unloaded', dict(system=system, payload_bytes=size, workers=1,
                         outstanding=1, count=100 if phase=='rehearsal' else 10000,
                         warmup=16 if phase=='rehearsal' else 128,
@@ -197,7 +203,7 @@ class Campaign:
         self.stage('preflight', {'checked_at': time.time_ns()})
         self.stage('build', {})
         # Before bracketing, total is the finite maximum cohort budget.
-        self.total = len(SYSTEMS)*len(SIZES)*3 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
+        self.total = len(SYSTEMS)*len(SIZES)*2 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
         self.unloaded('rehearsal')
         boundaries = {}
         for system in SYSTEMS:
@@ -234,7 +240,7 @@ class Campaign:
             raise ValueError('Frozen grid conflicts with resumed rehearsal')
         atomic(plan_path, plans)
         self.completed = 0
-        self.total = len(SYSTEMS)*len(SIZES)*3+sum((len(p['rates'])+1)*3 for p in plans)
+        self.total = len(SYSTEMS)*len(SIZES)*2+sum((len(p['rates'])+1)*3 for p in plans)
         self.unloaded('full')
         collected = []
         for plan in plans:

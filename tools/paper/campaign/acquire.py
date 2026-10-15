@@ -46,7 +46,11 @@ def validate_role(root, request, binary_sha):
         raise ValueError('Role binary or CPU placement differs')
     if not set(request['cpus'])<=cpu_set(before['isolated_cpus']):
         raise ValueError('Role used nonisolated CPUs')
-    timestamped=request['role']=='server' and request['mode']=='unloaded'
+    if request['role']=='server':
+        capability=read('manifest.json')['responderTracing'][Path(request['binary']).name]
+        if capability!=(request['instrumentation']=='breakdown'):
+            raise ValueError('Responder compiled instrumentation differs')
+    timestamped=request['role']=='server' and request['mode']=='unloaded' and request['instrumentation']=='breakdown'
     provenance=before['timestamp_provenance']
     if timestamped:
         if not provenance or not provenance['clocks'] or set(provenance['modules'])!={'nicvf','thunder_bgx','cavium_ptp'}:

@@ -16,7 +16,7 @@ import sys
 from .acquire import ROOT, roles, remote_script, validate_role
 from .harness import Harness
 from .import_loaded import digest
-from .import_unloaded import dpdk, lauberhorn
+from .import_unloaded import dpdk, lauberhorn, uninstrumented
 
 
 def atomic(path, data):
@@ -40,7 +40,7 @@ class Acquisition:
         return dict(role=role,system=system,mode='loaded' if loaded else 'unloaded',
             cpus=c['worker_cpus'][:r['workers']] if server else c['generator_cpus'] if loaded else c['generator_cpus'][:1],
             output='/dev/shm/'+label+'-'+role,label=label,transfer_url=c['transfer_url'],
-            binary='/nix/store/lauberhorn-client/bin/'+('nullrpc_dpdk' if server else 'bench_dpdk'),
+            binary='/nix/store/lauberhorn-client/bin/'+(('nullrpc_dpdk' if r.get('instrumentation')=='breakdown' else 'nullrpc_dpdk_uninstrumented') if server else 'bench_dpdk'),
             manifest='/nix/store/lauberhorn-client/manifest.json',ptp_bgx=c['ptp_bgx'],
             endpoint=[source['ip'],destination['ip'],destination['mac'],49152 if server else 12345],
             source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'],
@@ -57,7 +57,7 @@ class Acquisition:
             image_sha=self.config['client_image_sha256'])
         evidence={}
         for role,(_,request) in configs.items():
-            evidence[role]=validate_role(paths[role],request,self.config[role+'_sha256'])
+            evidence[role]=validate_role(paths[role],request,self.config['server_sha256'][self.request.get('instrumentation','off')] if role=='server' else self.config['client_sha256'])
         for role,(machine,request) in configs.items():
             # Only remove this role's temporary RAM files after the complete
             # local archive and every uploaded member have been verified.
@@ -89,8 +89,11 @@ root.with_suffix('.tar.gz').unlink()
         reuse=r['stage']=='loaded' and self.state.get('service_key')==key
         if reuse: return self.state['service']
         # A fresh boot ends the old worker pool; core reclamation is deferred.
-        service=dict(service_root='/dev/shm/'+self.label+'-service',binary_url=c['app_url'],
-            binary_sha256=c['app_sha256'],runtime=c['runtime'],payload_bytes=r['payload_bytes'],
+        variant=c['native_variants'][r.get('instrumentation','off')]
+        service=dict(image=c['client_image_remote'],image_sha256=c['client_image_sha256'],
+            service_root='/dev/shm/'+self.label+'-service',binary_path=variant['app']+'/bin/microbenchmarks',
+            binary_sha256=variant['sha256'],runtime=variant['runtime'],
+            tracing_compiled=r.get('instrumentation')=='breakdown',payload_bytes=r['payload_bytes'],
             workers=r['workers'],mode='loaded' if r['stage']=='loaded' else 'unloaded',
             instrumentation=r.get('instrumentation','off'))
         helper=Path(__file__).with_name('dut.py');url=self.h.stage(helper,self.label+'-dut.py')
@@ -190,7 +193,7 @@ namespace['start']({service!r})
         service=self.ensure_lh() if r['system']=='LH' else None
         atomic(self.state_path,dict(self.state,safe=False,stage=str(self.directory)))
         before=self.h.snapshot(service,self.label+'-before') if service else None
-        frozen=loaded or r['system']=='DPDK'
+        frozen=loaded or r['system']=='DPDK' or r.get('instrumentation')=='off'
         try:
             if frozen: self.h.vio('configure',self.label,self.directory/(self.label+'-freeze.log'))
             paths,evidence=self.execute_roles()
@@ -219,15 +222,21 @@ namespace['start']({service!r})
                     trace_readouts=0,software_profiling=False,fpga_recording=False)
             else:
                 options={k:r[k] for k in ('count','warmup','instrumentation','payload_bytes')}
-                if service:
+                if r['instrumentation']=='off':
+                    cohort=uninstrumented(paths['client']/'samples.csv',system=r['system'],**options)
+                    result.update(trace_readouts=0,software_profiling=False,fpga_recording=False,
+                                  mac_timestamping=False,tracing_compiled=False)
+                elif service:
                     trace=self.capture()
                     cohort=self.import_lh(trace,paths['client']/'samples.csv',after,options)
                     result['jtag_checks']=True
                 else:
                     cohort=dpdk(paths['client']/'samples.csv',paths['server']/'samples.csv',**options)
                     result['timestamp_checks']=True
-                cohort['build_config_sha256']=c['build_config_sha256'][r['system']]
-                result.update(cohort=cohort,mac_pairs=r['count']+r['warmup'],stored_loss=0,xid_pairing=True)
+                cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
+                result.update(cohort=cohort,xid_pairing=True)
+                if r['instrumentation']=='breakdown':
+                    result.update(mac_pairs=r['count']+r['warmup'],stored_loss=0)
             return result
         finally:
             if frozen: self.last_recorder=self.h.vio('preserve',self.label,self.directory/(self.label+'-restore.log'))

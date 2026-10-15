@@ -84,9 +84,11 @@ def run(config):
         if loaded:
             env.update(LH_NULLRPC_SOFTWARE_CONTROL='1',LH_NULLRPC_BATCHED='1',
                        LH_NULLRPC_STOP_FILE=str(root/'stop'))
-        else:
+        elif config['instrumentation']=='breakdown':
             runner+=['--ptp-bgx',str(config['ptp_bgx']),'--manifest',config['manifest']]
-            if config['instrumentation']=='breakdown': env['LH_NULLRPC_PROFILE']='1'
+            env['LH_NULLRPC_PROFILE']='1'
+        else:
+            env['LH_NULLRPC_SOFTWARE_CONTROL']='1'
     elif loaded:
         env.update(LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),

@@ -113,7 +113,7 @@ def finalize(config,h,request,campaign):
     atomic(destination/'acquisition.json',dict(files=provenance,source=str(campaign),
         arrivals='fixed-spacing regular; Poisson deferred to memcached',
         loaded_boundary='call entry to RX-burst observation; 10 ms response deadline',
-        unloaded_boundary='paired MAC timestamps; elapsed breakdown uses its own instrumented cohort'))
+        unloaded_boundary='compiled-uninstrumented client RTT; elapsed breakdown uses its own instrumented MAC/PTP cohort'))
     output=h.directory/'plots'
     for script,source in (('plot_echo.py','loaded.json'),('plot_echo_unloaded.py','unloaded.json')):
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',destination/source,'--output',output],script,timeout=86400)

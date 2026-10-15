@@ -40,6 +40,33 @@ class Hardware(unittest.TestCase):
                 state=json.loads((root/'hardware-state.json').read_text())
                 self.assertEqual(state['safe'],healthy)
 
+    def test_uninstrumented_unloaded_never_reads_trace(self):
+        for system in ('LH','DPDK'):
+            with self.subTest(system=system),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);stage=root/'stage';stage.mkdir()
+                request=dict(stage='unloaded',system=system,workers=1,payload_bytes=8,
+                             instrumentation='off',count=1,warmup=0)
+                (stage/'request.json').write_text(json.dumps(request))
+                config=dict(build_config_sha256={system:{'off':'compiled-out'}})
+                acquisition=Acquisition(config,request,stage,root)
+                acquisition.ensure_lh=Mock(return_value={'fixture':True})
+                acquisition.ensure_dpdk=Mock()
+                acquisition.capture=Mock(side_effect=AssertionError('RTT-only trace acquisition'))
+                acquisition.h=Mock();acquisition.h.snapshot.return_value=root
+                acquisition.h.vio.return_value={'trace_stop':1,'_status':{}}
+                (stage/'health.json').write_text(json.dumps(dict(passed=True)))
+                client=root/'samples.csv'
+                client.write_text('request_id,benchmark,ok,rpc_status,warmup,client_call_enter_ns,client_rx_burst_ns\n1,echo8,1,0,0,100,250\n')
+                acquisition.execute_roles=Mock(return_value=({'client':root},{'client':{'files':{}}}))
+                result=acquisition.run()
+                acquisition.capture.assert_not_called()
+                self.assertEqual(result['cohort']['rows'][0]['rtt_ns'],150)
+                self.assertNotIn('mac_pairs',result)
+                self.assertFalse(result['tracing_compiled'])
+                self.assertFalse(result['mac_timestamping'])
+                self.assertEqual(result['trace_readouts'],0)
+                self.assertEqual([c.args[0] for c in acquisition.h.vio.call_args_list],['configure','preserve'])
+
     def test_baseline_boot_failure_preserves_before_recovery(self):
         for error in (RuntimeError('boot failed'),subprocess.TimeoutExpired('boot',3600)):
             with self.subTest(error=type(error).__name__),tempfile.TemporaryDirectory() as directory:

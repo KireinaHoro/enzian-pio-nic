@@ -39,6 +39,16 @@ def client_rows(path, count, warmup, payload_bytes):
     return client
 
 
+def uninstrumented(client_path, *, system, count, warmup, instrumentation, payload_bytes):
+    if instrumentation!='off': raise ValueError('RTT-only import requires compiled-out tracing')
+    client=client_rows(client_path,count,warmup,payload_bytes)
+    result=[dict(request_id=int(c['request_id']),warmup=int(c['warmup']),
+                 rtt_ns=int(c['client_rx_burst_ns'])-int(c['client_call_enter_ns'])) for c in client]
+    return dict(system=system,instrumentation=instrumentation,count=count,warmup=warmup,
+                payload_bytes=payload_bytes,boundary='client-call-entry-to-rx-burst',
+                correlation='validated wire XID',rows=result,files={str(client_path):digest(client_path)})
+
+
 def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_bytes):
     client=client_rows(client_path,count,warmup,payload_bytes); server=rows(server_path)
     if len(server)!=len(client): raise ValueError('Incomplete DPDK MAC cohort')
@@ -144,18 +154,25 @@ def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
 
 def validate_matched(cohorts):
     """Instrumented components never borrow an uninstrumented total."""
-    expected={(s,n,m) for s in ('LH','DPDK') for n in SIZES for m in ('off','breakdown','probe-off-control')}
+    expected={(s,n,m) for s in ('LH','DPDK') for n in SIZES for m in ('off','breakdown')}
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
     for system in ('LH','DPDK'):
         selected=[c for c in cohorts if c['system']==system]
-        if len({c['build_config_sha256'] for c in selected})!=1:
-            raise ValueError('Instrumentation controls must use the same build/configuration')
+        builds={mode:{c['build_config_sha256'] for c in selected if c['instrumentation']==mode}
+                for mode in ('off','breakdown')}
+        if any(len(v)!=1 for v in builds.values()) or builds['off']==builds['breakdown']:
+            raise ValueError('Expected distinct, consistent compiled tracing variants')
     for c in cohorts:
         if len(c['rows'])!=c['count']+c['warmup']: raise ValueError('Incomplete unloaded observations')
         for i,row in enumerate(c['rows'],1):
-            if row['request_id']!=i or row['warmup']!=int(i<=c['warmup']) or row['mac_ns']<=0 or row['mac_ns']!=row['tx_mac_ns']-row['rx_mac_ns']:
-                raise ValueError('Invalid unloaded identity, warmup or MAC interval')
+            if row['request_id']!=i or row['warmup']!=int(i<=c['warmup']):
+                raise ValueError('Invalid unloaded identity or warmup')
+            if c['instrumentation']=='off':
+                if row.get('rtt_ns',0)<=0 or any(k in row for k in ('mac_ns','rx_mac_ns','tx_mac_ns')):
+                    raise ValueError('RTT-only cohort contains missing RTT or MAC data')
+            elif row['mac_ns']<=0 or row['mac_ns']!=row['tx_mac_ns']-row['rx_mac_ns']:
+                raise ValueError('Invalid instrumented MAC interval')
         if c['instrumentation']=='breakdown':
             for row in c['rows']:
                 if any(v<0 for v in row['components_ns'].values()):

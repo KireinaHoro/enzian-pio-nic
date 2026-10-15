@@ -59,11 +59,12 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
         cohorts=[]
         for system in ('LH','DPDK'):
             for size in controller.SIZES:
-                for mode in ('off','breakdown','probe-off-control'):
+                for mode in ('off','breakdown'):
                     row=dict(request_id=1,warmup=0,rx_mac_ns=1,tx_mac_ns=101,mac_ns=100)
                     if mode=='breakdown': row['components_ns']=partition(100,10,20,30)
+                    else: row=dict(request_id=1,warmup=0,rtt_ns=250)
                     cohorts.append(dict(system=system,payload_bytes=size,instrumentation=mode,count=1,warmup=0,
-                                        build_config_sha256='matched',rows=[row]))
+                                        build_config_sha256=mode,rows=[row]))
         validate_matched(cohorts)
         bad=copy.deepcopy(cohorts);bad[0]['rows'][0]['components_ns']=partition(100,10,20,30)
         with self.assertRaises(ValueError): validate_matched(bad)
