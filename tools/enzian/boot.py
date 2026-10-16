@@ -29,8 +29,8 @@ def main():
     p.add_argument('--machine', default='zuestoll14')
     p.add_argument('--owner', default=getpass.getuser())
     p.add_argument('--logs', type=pathlib.Path, required=True)
-    p.add_argument('--boot-attempts', type=int, default=3,
-                   help='maximum cold-boot attempts after BDK ECI initialization failure (default: 3)')
+    p.add_argument('--boot-attempts', type=int, default=10,
+                   help='maximum cold-boot attempts after BDK ECI initialization failure (default: 10)')
     p.add_argument('--hold-only', action='store_true',
                    help='stop after powering FPGA with CPU held at BDK')
     p.add_argument('--cold-start', action='store_true',

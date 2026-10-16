@@ -81,7 +81,7 @@ def main():
                        '--logs', str(root/'boot'),
                        *(['--cold-start'] if args.cold_start_first and len(results)==1 else []),
                        '--', *case['program']],
-                      root/'boot-output.log', 3300)
+                      root/'boot-output.log', 6600)
             result['boot_exit'] = rc
             boot_summary = root / 'boot' / 'summary.json'
             if boot_summary.exists():

@@ -183,7 +183,7 @@ from a confirmed already-off board; normal comparison trials require full resets
 After releasing BDK, `boot.py` requires CDR lock on QLM8..13 and the complete
 `N0.CCPI Lanes([] is good):[0]...[23]` report before accepting Linux boot.
 Missing or incomplete initialization triggers another full verified cold reset
-and reprogramming, up to three attempts (`--boot-attempts` overrides the limit).
+and reprogramming, up to ten attempts (`--boot-attempts` overrides the limit).
 The first attempt keeps the usual log paths; retries use `retry-02/`, etc., and
 `boot/summary.json` records each outcome. Exhaustion is an infrastructure
 failure; do not load the driver anyway. The explicit `--negative-no-bitstream`
