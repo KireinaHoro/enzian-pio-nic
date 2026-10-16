@@ -293,6 +293,8 @@ class Campaign:
 
 
 def config_check(config):
+    from campaign.wire import require_capture_backend
+    require_capture_backend()
     if config.get('scope', 'rehearsal') not in ('rehearsal', 'full'):
         raise ValueError('Scope must be rehearsal or full')
     if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):

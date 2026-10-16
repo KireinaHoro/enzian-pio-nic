@@ -53,13 +53,25 @@ all three unloaded payload sizes in both compiled instrumentation modes and over
 freezes and collects the full grid. Default to `scope: "rehearsal"`, which
 terminates with a callback after validated rehearsal plots and never starts full
 collection. Use `scope: "full"` only when full acquisition is authorized; a user
-request to stop after rehearsal overrides any earlier full-campaign plan. Uninstrumented unloaded CDF cases use compiled-out software probes with MAC
-collection enabled: complete FPGA MAC capture for LH and NIC PTP for DPDK.
-Instrumented unloaded breakdown cases use enabled software probes and the same
-MAC collection paths, retaining their own totals. Both report MAC-to-MAC latency.
-There is no RTT-only unloaded paper mode or redundant runtime-off control.
-Loaded cases use compiled-out software probes and client RTT; FPGA recording
-is disabled with no trace readout, and DPDK PTP is disabled. Boot/module failures still require
+request to stop after rehearsal overrides any earlier full-campaign plan. The canonical methodology is `docs/research/hot-measurement.md`.
+Unloaded CDF cases have compiled-out probes and Tofino wire-to-wire durations;
+breakdown cases have enabled probes and their own Tofino totals. Neither uses
+mlx5 hardware timestamps. Partition CPU time into queue processing, network
+processing, RPC receive/transmit and handler time, plus explicit remaining CPU
+work. The combined CPU–wire residual is the wire duration minus the CPU duration;
+never infer directional RX/TX residuals without synchronized clocks. RX probes
+must start at valid CQE observation inside the selected receive path; TX ends
+after SQ publication and doorbell. Application burst-call boundaries alone do
+not validate this coverage.
+
+Tofino capture is being developed in a separate project. Use the explicit
+`campaign/wire.py` integration stub for local analysis tests; never fabricate
+wire observations for paper inputs. Long rehearsal and full collection are held
+until that backend and the ConnectX-5 queue instrumentation are integrated and
+validated. Do not resume the NICVF adapter as the new baseline. Caladan-simple
+hot cases wait for its port. Loaded cases retain compiled-out probes and client
+RTT, with no Tofino capture, FPGA readout or NIC PTP.
+Boot/module failures still require
 the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
 JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;

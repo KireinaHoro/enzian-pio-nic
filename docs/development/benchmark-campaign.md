@@ -15,46 +15,18 @@ wait for its port. The existing NICVF campaign adapter does not implement this
 new baseline selection. Collection is stopped; do not resume its old topology
 or relabel NICVF observations as ConnectX-5 results.
 
-ConnectX-5 timestamp feasibility: mlx5 supports RX hardware timestamps, but
-upstream DPDK 24.11 and 25.11 do not register ethdev timesync callbacks in
-[mlx5_dev_ops](https://github.com/DPDK/dpdk/blob/v25.11/drivers/net/mlx5/mlx5.c).
-The current echo responder's timesync-enable/TX-timestamp-read path therefore
-needs replacement for mlx5. The packaged benchmark DPDK currently enables only
-net/thunderx and net/pcap; mlx5 also needs packaging and deployment work.
+## Canonical measurement contract
 
-[mlx5 TX tracing](https://doc.dpdk.org/guides-25.11/nics/mlx5.html#how-to-trace-tx-datapath)
-can expose hardware CQE completion timestamps. These are not established MAC
-egress timestamps: NVIDIA documents port-level TX timestamps, rather than CQE
-creation timestamps, for
-[ConnectX-6 Dx and newer](https://docs.nvidia.com/networking/display/mlnxofedv23103211lts/changes%2Band%2Bnew%2Bfeatures%2Bhistory).
-A ConnectX-5 PMD extension could expose per-request completion timing, but must
-not label it MAC-to-MAC without boundary validation. True wire-boundary
-measurement may instead require external capture. No mlx5 hardware timestamp
-trial has yet been performed for this campaign.
+See [hot measurement methodology](../research/hot-measurement.md) for the
+boundary definitions and queue instrumentation requirements. Unloaded CDF and
+breakdown totals are Tofino wire-to-wire; breakdowns subtract CPU durations to
+obtain one combined CPU–wire residual. No mlx5 hardware timestamping is used.
+Loaded cases retain uninstrumented client RTT with no packet trace capture.
 
-## Implementation and acceptance status
-
-The schema-defined echo responders, open-loop generator, aggregate importer and
-detached controller are implemented. The implemented NICVF adapter measurement contract is:
-
-| Case | Software probes | MAC collection | Latency |
-| --- | --- | --- | --- |
-| Unloaded CDF | Compiled out | LH FPGA capture; DPDK PTP | MAC-to-MAC |
-| Unloaded breakdown | Enabled | LH FPGA capture; DPDK PTP | MAC-to-MAC and elapsed service components |
-| Loaded | Compiled out | LH recording disabled, no readout; DPDK PTP disabled | Client RTT |
-
-Both unloaded modes use single-outstanding schema echo calls at 8/128/1432 bytes.
-Software instrumentation is independent of MAC capture. No runtime-off duplicate
-control or RTT-only unloaded paper mode exists. The uninstrumented native runtime
-excludes probe hooks, trace storage, PMU support and export threads. The
-uninstrumented DPDK responder excludes software probes but supports PTP for
-unloaded calls. Loaded calls use its batched path with PTP disabled.
-
-`echo_hardware.py` connects to the maintained Enzian harness. FPGA MAC events
-retain their internal RPC IDs; single-outstanding order and causal clock bounds
-associate them with XID-validated client observations. No trace-format change is
-needed. A fresh rehearsal must validate this contract before full collection.
-Existing active figures remain until validated replacements are available.
+The current hardware adapter still implements NICVF/FPGA MAC acquisition and
+is not accepted for this contract. Collection stays blocked pending the Tofino
+backend, ConnectX-5 deployment and queue-level software instrumentation. Do not
+interpret a successful legacy adapter fixture as wire-to-wire acceptance.
 
 ## Neighbor preparation
 
@@ -371,15 +343,11 @@ and nonmonotonic goodput, and shows median/P99. Overload plots retain every rate
 and trial, with a 1% line. Confirmed peak plots show median and trial range.
 Current loaded campaigns cover paced batch arrivals; the earlier fixed-spacing
 measurements remain separate. Poisson arrivals are deferred to memcached.
-Unloaded uninstrumented MAC CDF and instrumented MAC service-path components belong to
-separate cohorts; never assign those components to uninstrumented totals or
-claim they independently measure CPU utilization.
-For LH, UDP header dispatch can precede the RX CDC last-payload-beat event.
-The elapsed-time partition assigns this overlap to host/MAC transport and
-starts the remaining RX RPC interval at the later of those two events. The
-RX network interval is zero when header decoding overlaps payload transport;
-this does not imply that network processing performed no work. Each imported
-row retains the original app-clock stages and `rx_streaming_overlap_ns`.
+Unloaded CDF and breakdown use separate cohorts under the
+[wire-to-wire contract](../research/hot-measurement.md). Do not assign
+instrumented components to uninstrumented totals or describe elapsed service
+components as CPU utilization. Legacy MAC importers remain provenance tools;
+they do not satisfy the new wire-duration gates.
 The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
 notification delivery to a file-backed sink. All five plots also passed portable
 synthetic-input rendering, exact PDF dimensions and embedded-font checks. These

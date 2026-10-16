@@ -1,3 +1,10 @@
+# Current hot echo methodology
+
+The active contract is [hot-measurement.md](hot-measurement.md): Tofino
+wire-to-wire unloaded totals, CPU processing components and one combined
+CPU–wire residual; loaded client RTT. The measurements below retain their
+original acquisition boundaries and are not new-baseline acceptance.
+
 # RPC Latency Breakdown
 
 This document describes how the microbenchmarks add latency plot is built from client
