@@ -89,3 +89,18 @@ nix develop -c python3 -m unittest discover -s data/eci/sys_trace/tests -p test_
 Campaign tests additionally enforce no capture calls for loaded or RTT-only
 cohorts. Source changes require a reviewed compatible campaign resume, not a new
 hardware acquisition of every completed cohort.
+
+
+### Vivado crash recovery
+
+All six control operations use one bounded runner: at most three attempts for
+SIGSEGV (exit 139 or signal 11), with a separate retained log per attempt.
+Ordinary Tcl errors, other exit statuses and timeouts remain terminal. A crash
+never counts as success; a subsequent invocation must finish successfully and
+the normal capture integrity checks still apply.
+
+Operations are replayable: freeze/configure atomically save the original VIO
+snapshot before mutation and never replace it on retry; trigger asserts the
+existing control without creating a second rising edge; status and integrity
+reads are read-only; preserve reapplies the original saved controls. No retry
+resets the board or starts a full JTAG dump.

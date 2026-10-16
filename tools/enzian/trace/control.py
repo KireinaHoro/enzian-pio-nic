@@ -9,7 +9,6 @@ import re
 import shlex
 import subprocess
 
-from .trigger import trigger_result
 
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -37,15 +36,6 @@ def campaign_config(c):
         peer_management_ip='192.168.192.7',export_port=18874,
         peer_image=c['client_image_remote'],peer_image_sha256=c['client_image_sha256'],
         transfer_root=c['transfer_root'],transfer_url=c['transfer_url'])
-
-
-def freeze_shutdown_crash(returncode,text):
-    required=(r'^DIAG vio_output \S*/trace_stop 1$',
-              r'Closing hw_target ',r'^# exit 0$',r'Exiting Vivado at ')
-    return (returncode in (139,-11)
-            and all(re.search(pattern,text,re.M) for pattern in required)
-            and not re.search(r'^ERROR:',text,re.M)
-            and text.rfind('Exiting Vivado at ')>text.rfind('DIAG vio_output '))
 
 
 class Control:
@@ -101,34 +91,26 @@ class Control:
     def call(self,mode,output=None,size=0):
         with self.exclusive():return self._call(mode,output,size)
 
-    def _call(self,mode,output=None,size=0,*,retry_status=True):
+    def _call(self,mode,output=None,size=0):
         self.setup();c=self.config
-        logs=list(self.directory.glob('operation-*.log'));log=self.directory/f'operation-{len(logs)+1:03d}-{mode}.log'
         argv=[c['vivado'],'-mode','batch','-nolog','-nojournal','-source',self.remote+'/control.tcl','-tclargs',mode,
               c['hw_server'],c['cable'],c['ltx'],self.remote+'/snapshot.txt',
               ipaddress.IPv4Address(c['peer_ip']).packed.hex(),c['peer_mac'].replace(':',''),
               self.remote+'/dump_trace_hw_axi.tcl',self.remote+'/head.bin',self.remote+'/tail.bin',str(size)]
-        with log.open('x') as f:
-            result=subprocess.run(['ssh',c['programmer'],shlex.join(argv)],stdout=f,stderr=subprocess.STDOUT,timeout=300)
-        text=log.read_text()
-        if output:Path(output).write_text(text)
-        if mode=='trigger':trigger_result(result.returncode,text)
-        elif result.returncode:
-            if mode=='status' and retry_status and freeze_shutdown_crash(result.returncode,text):
-                observed=self._call('status',retry_status=False)
-                atomic(self.directory/'status-shutdown-recovery.json',dict(
-                    original_log=str(log),returncode=result.returncode,readback=observed))
-                return observed
-            if mode!='freeze' or not freeze_shutdown_crash(result.returncode,text):
+        attempts=[]
+        for attempt in range(3):
+            log=self.directory/f'operation-{len(list(self.directory.glob("operation-*.log")))+1:03d}-{mode}.log'
+            with log.open('x') as f:
+                result=subprocess.run(['ssh',c['programmer'],shlex.join(argv)],stdout=f,stderr=subprocess.STDOUT,timeout=300)
+            text=log.read_text()
+            attempts.append(dict(log=str(log),returncode=result.returncode))
+            atomic(self.directory/'last-operation.json',dict(mode=mode,attempts=attempts))
+            if output:Path(output).write_text(text)
+            if result.returncode==0:break
+            # Retry the same idempotent operation, including crashes before
+            # completion. Ordinary Tcl, SSH and timeout failures remain fatal.
+            if result.returncode not in (139,-11) or re.search(r'^ERROR:',text,re.M) or attempt==2:
                 raise RuntimeError(f'Trace {mode} failed ({result.returncode}); evidence: {log}')
-            # Read-only verification, once; never repeat freeze and overwrite
-            # the original restoration snapshot. A failed readback is terminal.
-            observed=self._call('status',retry_status=False)
-            expected={k:int(v,16) for k,v in re.findall(r'^DIAG vio_output \S*/(\w+) ([0-9a-fA-F]+)$',text,re.M)}
-            if {k:v for k,v in observed.items() if k!='_status'}!=expected:
-                raise RuntimeError('Freeze shutdown recovery readback mismatch')
-            atomic(self.directory/'freeze-shutdown-recovery.json',dict(
-                original_log=str(log),returncode=result.returncode,readback=observed))
         values={k:int(v,16) for k,v in re.findall(r'^DIAG vio_output \S*/(\w+) ([0-9a-fA-F]+)$',text,re.M)}
         values['_status']={k:int(v,16) for k,v in re.findall(r'^TRACE_STATUS (\w+) ([0-9a-fA-F]+)$',text,re.M)}
         if mode in ('configure','freeze','preserve') and values.get('trace_stop')!=1:raise ValueError('Recorder did not freeze')

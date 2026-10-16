@@ -1,9 +1,8 @@
-"""A shutdown crash may salvage receiver evidence, never hide a trigger error."""
+"""Shared bounded Vivado retries and replay-safe control operations."""
 import unittest
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]))
-from tools.enzian.trace.trigger import trigger_result
 
 
 class Trigger(unittest.TestCase):
@@ -17,79 +16,80 @@ class Trigger(unittest.TestCase):
         self.assertFalse(frozen_matches(before,dict(current,trace_stop=0)))
         self.assertFalse(frozen_matches(dict(before,trace_sample_lost_1=1),dict(trace_stop=1,_status=before)))
 
-    def test_freeze_shutdown_requires_clean_completed_control(self):
-        from tools.enzian.trace.control import freeze_shutdown_crash
-        log='\n'.join(('DIAG vio_output design/trace_stop 1',
-            'Closing hw_target cable','# exit 0','Exiting Vivado at Thursday','Segmentation fault'))
-        self.assertTrue(freeze_shutdown_crash(139,log))
-        for bad in (log.replace('trace_stop 1','trace_stop 0'),log.replace('# exit 0',''),
-                    log.replace('Exiting Vivado at Thursday',''),log+'\nERROR: failure'):
-            self.assertFalse(freeze_shutdown_crash(139,bad))
-        self.assertFalse(freeze_shutdown_crash(1,log))
 
-    def test_freeze_recovery_requires_independent_successful_readback(self):
+    def test_all_operations_share_bounded_retry(self):
         import tempfile
         from unittest.mock import patch
         from types import SimpleNamespace
         from tools.enzian.trace.control import Control
-        original='\n'.join(('DIAG vio_output design/trace_stop 1',
-            'Closing hw_target cable','# exit 0','Exiting Vivado at Thursday'))
-        for returncode,stop,passes in ((0,1,True),(0,0,False),(139,1,False)):
-            with tempfile.TemporaryDirectory() as directory:
-                control=object.__new__(Control);control.directory=Path(directory)
-                control.remote='/fixture';control.setup=lambda:None;control.command=lambda *a:None
-                control.config=dict(vivado='vivado',hw_server='server',cable='cable',ltx='map',
-                    peer_ip='192.0.2.1',peer_mac='00:00:00:00:00:01',programmer='fixture')
-                calls=[]
-                def run(argv,stdout,**kwargs):
-                    calls.append(argv)
-                    stdout.write(original if len(calls)==1 else original.replace('trace_stop 1',f'trace_stop {stop}'))
-                    return SimpleNamespace(returncode=139 if len(calls)==1 else returncode)
-                with patch('tools.enzian.trace.control.subprocess.run',side_effect=run):
-                    if passes:self.assertEqual(control._call('freeze')['trace_stop'],1)
-                    else:
-                        with self.assertRaises(RuntimeError):control._call('freeze')
-                self.assertEqual(len(calls),2)
-                self.assertIn('status',calls[1][-1])
-                self.assertEqual((Path(directory)/'freeze-shutdown-recovery.json').exists(),passes)
+        for mode in ('configure','freeze','trigger','check','status','preserve'):
+            for codes in ((139,0),(-11,139,0),(139,139,139),(1,),(255,)):
+                with self.subTest(mode=mode,codes=codes), tempfile.TemporaryDirectory() as directory:
+                    c=object.__new__(Control);c.directory=Path(directory)
+                    c.remote='/fixture';c.setup=lambda:None;c.command=lambda *a:None
+                    c.config=dict(vivado='vivado',hw_server='server',cable='cable',ltx='map',
+                        peer_ip='192.0.2.1',peer_mac='00:00:00:00:00:01',programmer='fixture')
+                    calls=[]
+                    def run(argv,stdout,**kwargs):
+                        calls.append(argv)
+                        stdout.write('DIAG vio_output design/trace_stop 1\n')
+                        return SimpleNamespace(returncode=codes[len(calls)-1])
+                    with patch('tools.enzian.trace.control.subprocess.run',side_effect=run):
+                        if codes[-1]==0:self.assertEqual(c._call(mode)['trace_stop'],1)
+                        else:
+                            with self.assertRaises(RuntimeError):c._call(mode)
+                    self.assertEqual(len(calls),len(codes))
+                    self.assertTrue(all(call==calls[0] for call in calls))
+                    self.assertEqual(len(list(Path(directory).glob('operation-*.log'))),len(codes))
 
-    def test_status_shutdown_retry_is_bounded(self):
-        import tempfile
-        from unittest.mock import patch
-        from types import SimpleNamespace
-        from tools.enzian.trace.control import Control
-        original='\n'.join(('DIAG vio_output design/trace_stop 1',
-            'Closing hw_target cable','# exit 0','Exiting Vivado at Thursday'))
-        for returncode,stop,passes in ((0,1,True),(139,1,False),(1,1,False)):
-            with tempfile.TemporaryDirectory() as directory:
-                control=object.__new__(Control);control.directory=Path(directory)
-                control.remote='/fixture';control.setup=lambda:None;control.command=lambda *a:None
-                control.config=dict(vivado='vivado',hw_server='server',cable='cable',ltx='map',
-                    peer_ip='192.0.2.1',peer_mac='00:00:00:00:00:01',programmer='fixture')
-                calls=[]
-                def run(argv,stdout,**kwargs):
-                    calls.append(argv)
-                    stdout.write(original if len(calls)==1 else original.replace('trace_stop 1',f'trace_stop {stop}'))
-                    return SimpleNamespace(returncode=139 if len(calls)==1 else returncode)
-                with patch('tools.enzian.trace.control.subprocess.run',side_effect=run):
-                    if passes:self.assertEqual(control._call('status')['trace_stop'],1)
-                    else:
-                        with self.assertRaises(RuntimeError):control._call('status')
-                self.assertEqual(len(calls),2)
-                self.assertIn('status',calls[1][-1])
-                self.assertEqual((Path(directory)/'status-shutdown-recovery.json').exists(),passes)
-
-    def test_shutdown_crash_requires_completed_trigger_and_frozen_recorder(self):
-        log='\n'.join(('UDP_DUMP_TRIGGERED','TRACE_STATUS trace_dma_error_1 0',
-            'DIAG vio_output design/trace_stop 1','Closing hw_target cable',
-            'Exiting Vivado at Thursday','Segmentation fault'))
-        self.assertTrue(trigger_result(139,log)['shutdown_crash'])
-        self.assertFalse(trigger_result(0,log)['shutdown_crash'])
-        for bad in (log.replace('UDP_DUMP_TRIGGERED',''),log.replace('trace_stop 1','trace_stop 0'),
-                    log.replace('trace_dma_error_1 0','trace_dma_error_1 1'),
-                    log.replace('Exiting Vivado at Thursday',''),log+'\nERROR: trigger failed'):
-            with self.assertRaises(RuntimeError):trigger_result(139,bad)
-        with self.assertRaises(RuntimeError):trigger_result(1,log)
+    def test_tcl_snapshot_and_trigger_replay(self):
+        import tempfile,subprocess
+        source=Path(__file__).resolve().parents[3]/'tools/enzian/trace/control.tcl'
+        with tempfile.TemporaryDirectory() as directory:
+            harness=Path(directory)/'test.tcl'
+            harness.write_text("""
+set values [dict create trace_stop 0 trace_dump_over_network 0 trace_dump_gateway_mac 0 trace_dump_server_ip 0 trace_dump_override_valid 0 x1 0 x2 0 x3 0 x4 0]
+set edges 0
+proc get_hw_probes {args} {
+ global values
+ set filter [lindex $args end]
+ if {[lsearch $args -filter]>=0} {return [lindex [split $filter /] end]}
+ return [dict keys $values]
+}
+proc get_property {property object} {
+ global values
+ switch $property {
+ NAME {return $object}
+ TYPE {return vio_output}
+ OUTPUT_VALUE {return [dict get $values $object]}
+ INPUT_VALUE {return 0}
+ }
+}
+proc set_property {property value object} {
+ global values edges
+ if {$property eq "OUTPUT_VALUE"} {
+  if {$object eq "trace_dump_over_network" && [dict get $values $object]==0 && $value==1} {incr edges}
+  dict set values $object $value
+ }
+}
+foreach name {open_hw_manager connect_hw_server current_hw_target open_hw_target refresh_hw_device refresh_hw_vio commit_hw_vio close_hw_target after} {proc $name {args} {}}
+proc get_hw_targets {args} {return target}
+proc get_hw_devices {args} {return device}
+proc get_hw_vios {args} {return vio}
+""" + source.read_text().split('if {[catch {main}')[0] + """
+set argv [list configure server cable ltx SNAPSHOT ip mac helper head tail 4096]
+main
+set f [open SNAPSHOT r];set original [read $f];close $f
+main
+set f [open SNAPSHOT r];set repeated [read $f];close $f
+if {$original ne $repeated} {error "snapshot replaced"}
+set argv [lreplace $argv 0 0 trigger]
+main
+main
+if {$edges!=1} {error "dump retriggered"}
+""".replace('SNAPSHOT',str(Path(directory)/'snapshot')))
+            result=subprocess.run(['tclsh',str(harness)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
 
 
 if __name__=='__main__':unittest.main()

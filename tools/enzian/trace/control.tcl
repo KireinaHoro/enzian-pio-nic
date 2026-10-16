@@ -24,12 +24,17 @@ proc main {} {
  refresh_hw_vio $v
  if {$mode in {freeze configure}} {
   status $v BEFORE_FREEZE
+  if {![file exists $snapshot]} {
   set saved {}
   foreach p [get_hw_probes -of_objects $v] {
    if {[get_property TYPE $p] eq "vio_output"} {lappend saved [list [get_property NAME $p] [get_property OUTPUT_VALUE $p]]}
   }
   if {[llength $saved]!=9} {error "Unexpected trace VIO layout"}
-  set f [open $snapshot {WRONLY CREAT EXCL}];puts $f $saved;close $f
+  # Commit the original snapshot before any mutation. A retry never replaces it.
+  set temporary "$snapshot.tmp"
+  set f [open $temporary w];puts $f $saved;close $f
+  file rename -force $temporary $snapshot
+  }
   set_property OUTPUT_VALUE 1 [probe $v trace_stop]
   if {$mode eq "configure"} {
    foreach {n value} [list trace_dump_gateway_mac $mac trace_dump_server_ip $ip trace_dump_override_valid 18 trace_dump_over_network 0] {
@@ -49,8 +54,11 @@ proc main {} {
  }
  if {$mode eq "trigger"} {
   set p [probe $v trace_dump_over_network]
-  set_property OUTPUT_VALUE 0 $p;commit_hw_vio $v;after 200
-  set_property OUTPUT_VALUE 1 $p;commit_hw_vio $v
+  # configure establishes zero. Once asserted, a retry must not create
+  # another rising edge and restart an in-flight Ethernet dump.
+  if {[get_property OUTPUT_VALUE $p] ne "1"} {
+   set_property OUTPUT_VALUE 1 $p;commit_hw_vio $v
+  }
   puts "UDP_DUMP_TRIGGERED"
  }
  if {$mode eq "preserve"} {
