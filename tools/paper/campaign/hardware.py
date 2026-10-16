@@ -75,7 +75,7 @@ root.with_suffix('.tar.gz').unlink()
         if self.request['stage']=='loaded':
             raw=Path(paths['client'])/'samples.csv';compressed=raw.with_suffix('.csv.gz')
             with raw.open('rb') as source, compressed.open('xb') as destination:
-                with gzip.GzipFile(filename='',mode='wb',fileobj=destination,mtime=0) as stream:
+                with gzip.GzipFile(filename='',mode='wb',fileobj=destination,mtime=0,compresslevel=1) as stream:
                     shutil.copyfileobj(source,stream,1024*1024)
             evidence['client']['files'][str(compressed.resolve())]=digest(compressed)
             evidence['client']['files'].pop(str(raw.resolve()))
