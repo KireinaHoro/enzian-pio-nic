@@ -104,3 +104,7 @@ snapshot before mutation and never replace it on retry; trigger asserts the
 existing control without creating a second rising edge; status and integrity
 reads are read-only; preserve reapplies the original saved controls. No retry
 resets the board or starts a full JTAG dump.
+
+Nonempty diagnostic traces shorter than 4 KiB are captured in full; both JTAG
+integrity reads cover the complete short trace. Empty recorders are reported
+explicitly rather than represented as successful captures.

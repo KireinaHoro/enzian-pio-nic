@@ -121,12 +121,13 @@ class Control:
 
     def check(self,raw):
         size=Path(raw).stat().st_size
+        sample=min(size,4096)
         self.call('check',size=size)
         for part in ('head','tail'):
             self.command(['rsync',self.config['programmer']+':'+self.remote+'/'+part+'.bin',self.directory/(part+'.bin')],self.directory/(part+'-copy.log'))
         with Path(raw).open('rb') as f:
-            head=f.read(4096);f.seek(size-4096);tail=f.read(4096)
-        result=dict(head_matches=head==(self.directory/'head.bin').read_bytes(),tail_matches=tail==(self.directory/'tail.bin').read_bytes(),sample_bytes=4096)
+            head=f.read(sample);f.seek(size-sample);tail=f.read(sample)
+        result=dict(head_matches=head==(self.directory/'head.bin').read_bytes(),tail_matches=tail==(self.directory/'tail.bin').read_bytes(),sample_bytes=sample)
         atomic(self.directory/'integrity.json',result)
         if not all(result[k] for k in ('head_matches','tail_matches')):raise ValueError('JTAG integrity mismatch')
         return result

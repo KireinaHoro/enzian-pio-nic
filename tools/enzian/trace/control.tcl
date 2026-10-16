@@ -71,10 +71,11 @@ proc main {} {
   commit_hw_vio $v
  }
  if {$mode eq "check"} {
-  if {![string is integer -strict $size] || $size<4096 || $size%64} {error "Invalid capture size"}
+  if {![string is integer -strict $size] || $size<64 || $size%64} {error "Invalid capture size"}
+  set sample [expr {min($size,4096)}]
   source $helper
-  lhtrace::dump -out $head -bytes 4096 -address 0 -use-vio-status 0
-  lhtrace::dump -out $tail -bytes 4096 -address [expr {$size-4096}] -use-vio-status 0
+  lhtrace::dump -out $head -bytes $sample -address 0 -use-vio-status 0
+  lhtrace::dump -out $tail -bytes $sample -address [expr {$size-$sample}] -use-vio-status 0
  }
  status $v TRACE_STATUS
  foreach p [get_hw_probes -of_objects $v] {

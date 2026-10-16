@@ -52,7 +52,7 @@ def _capture(config,directory,recover=False):
                 if end['trace_wrapped_1']:raise ValueError('Wrapped capture needs explicit ring-aware policy; no prefix capture')
                 if end['trace_dma_error_1']:raise ValueError('Trace DMA error')
                 size=end['trace_write_slot_1']*64
-                if size<4096:raise ValueError('Capture too small for independent head/tail validation')
+                if size==0:raise ValueError('Recorder is empty; no trace bytes to capture')
                 state.update(stage='receiving',bytes=size,start=before,end=end,offset=0,bounded_window=True)
                 atomic(directory/'capture.json',state)
                 Transport(control).receive(size)

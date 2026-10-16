@@ -17,6 +17,23 @@ class Trigger(unittest.TestCase):
         self.assertFalse(frozen_matches(dict(before,trace_sample_lost_1=1),dict(trace_stop=1,_status=before)))
 
 
+    def test_integrity_samples_cover_short_and_long_captures(self):
+        import tempfile
+        from tools.enzian.trace.control import Control
+        for size in (64,1280,4096,8192):
+            with tempfile.TemporaryDirectory() as directory:
+                c=object.__new__(Control);c.directory=Path(directory);c.config={'programmer':'fixture'};c.remote='/fixture'
+                data=bytes(range(256))*(size//256)+bytes(range(size%256))
+                raw=Path(directory)/'raw';raw.write_bytes(data)
+                sample=min(size,4096)
+                (Path(directory)/'head.bin').write_bytes(data[:sample])
+                (Path(directory)/'tail.bin').write_bytes(data[-sample:])
+                c.call=lambda mode,**kwargs:None
+                c.command=lambda *args:None
+                result=c.check(raw)
+                self.assertEqual(result['sample_bytes'],sample)
+                self.assertTrue(result['head_matches'] and result['tail_matches'])
+
     def test_all_operations_share_bounded_retry(self):
         import tempfile
         from unittest.mock import patch
