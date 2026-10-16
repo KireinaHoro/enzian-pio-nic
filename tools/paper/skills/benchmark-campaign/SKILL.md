@@ -16,7 +16,10 @@ are relative to the platform repository root. The benchmark adapter
 used for ordinary hardware acceptance; [campaign/harness.py](tools/paper/campaign/harness.py)
 uses [run.py](tools/enzian/run.py) and shared [console.py](tools/enzian/console.py).
 Keep deployment fixes in these shared scripts, never a parallel benchmark boot
-or console workflow. Use `paper-chart` for figure generation and final review.
+or console workflow. Benchmark peer roles and trace receiver/exporter roles share
+`tools/enzian/image.py`: verify the staged Nix image hash, mount it read-only in
+a private namespace, and execute its pinned Python. Host Python only bootstraps
+the verifier; never launch trace code against a private path from the host namespace. Use `paper-chart` for figure generation and final review.
 For trace preservation use the shared
 [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and
 `tools.enzian.trace.session.capture()`. The adapter uses the same session API as
