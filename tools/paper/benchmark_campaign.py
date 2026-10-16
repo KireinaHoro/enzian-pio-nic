@@ -157,15 +157,16 @@ class Campaign:
             if any(cohort[k]!=request[k] for k in ('system','payload_bytes','count','warmup','instrumentation')):
                 raise ValueError('Unloaded cohort differs from requested configuration')
             gates=['xid_pairing','health','restored']
-            if request['instrumentation']=='breakdown':
-                if result.get('mac_pairs')!=request['count']+request['warmup'] or result.get('stored_loss')!=0:
-                    raise ValueError('Incomplete instrumented MAC capture')
-                gates.append('jtag_checks' if request['system']=='LH' else 'timestamp_checks')
-            else:
-                if (result.get('trace_readouts')!=0 or result.get('software_profiling') is not False
-                        or result.get('fpga_recording') is not False or result.get('mac_timestamping') is not False
-                        or result.get('tracing_compiled') is not False):
-                    raise ValueError('Uninstrumented RTT-only contract violated')
+            if result.get('mac_pairs')!=request['count']+request['warmup'] or result.get('stored_loss')!=0:
+                raise ValueError('Incomplete unloaded MAC capture')
+            gates.append('jtag_checks' if request['system']=='LH' else 'timestamp_checks')
+            instrumented=request['instrumentation']=='breakdown'
+            if (result.get('mac_timestamping') is not True
+                    or result.get('software_profiling') is not instrumented
+                    or result.get('tracing_compiled') is not instrumented
+                    or result.get('trace_readouts')!=(1 if request['system']=='LH' else 0)
+                    or result.get('fpga_recording') is not (request['system']=='LH')):
+                raise ValueError('Unloaded software/MAC instrumentation contract violated')
             for gate in gates:
                 if result.get(gate) is not True: raise ValueError('Unloaded gate missing: '+gate)
         if name == 'preflight':

@@ -92,7 +92,7 @@ def run(config):
     if loaded and config['deadline_ms']!=10: raise ValueError('Loaded deadline must be 10 ms')
     env=dict(os.environ)
     for key in list(env):
-        if key.startswith(('LH_BENCH_','LH_NULLRPC_','LAUBERHORN_','ADDER_SERVER_TRACE')):
+        if key.startswith(('LH_BENCH_','LH_ECHO_','LAUBERHORN_','ADDER_SERVER_TRACE')):
             del env[key]
     env['LH_BENCH_FLOWS']=str(config['flows'])
     url=config['transfer_url'].rstrip('/'); label=config['label']
@@ -100,15 +100,13 @@ def run(config):
             '--timeout',str(config['timeout_seconds'])]
     if len(cores)>1: runner+=['--worker-lcores',','.join(map(str,cores[1:]))]
     if server:
-        env['LH_NULLRPC_READY_FILE']=str(root/'ready')
+        env['LH_ECHO_READY_FILE']=str(root/'ready')
         if loaded:
-            env.update(LH_NULLRPC_SOFTWARE_CONTROL='1',LH_NULLRPC_BATCHED='1',
-                       LH_NULLRPC_STOP_FILE=str(root/'stop'))
-        elif config['instrumentation']=='breakdown':
-            runner+=['--ptp-bgx',str(config['ptp_bgx']),'--manifest',config['manifest']]
-            env['LH_NULLRPC_PROFILE']='1'
+            env.update(LH_ECHO_SOFTWARE_CONTROL='1',LH_ECHO_BATCHED='1',
+                       LH_ECHO_STOP_FILE=str(root/'stop'))
         else:
-            env['LH_NULLRPC_SOFTWARE_CONTROL']='1'
+            runner+=['--ptp-bgx',str(config['ptp_bgx']),'--manifest',config['manifest']]
+            if config['instrumentation']=='breakdown': env['LH_ECHO_PROFILE']='1'
     elif loaded:
         env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
                    LH_BENCH_BATCH_TARGET_NS=str(config.get('batch_target_ns',250000)),

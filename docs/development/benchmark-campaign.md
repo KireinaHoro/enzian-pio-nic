@@ -9,53 +9,27 @@ measurements retain their original semantics and provenance.
 
 ## Implementation and acceptance status
 
-The schema, responders, duration-based generator, selection policy, raw loaded
-importer and detached controller are implemented. Local wire, scheduling,
-complete-loss, induced-generator-stall and legacy replay tests have passed.
-Unloaded measurements use two distinct builds: tracing compiled out with client
-RTT only, and tracing enabled with paired MAC/PTP timestamps and a breakdown.
-There is no redundant runtime-off control. The off build excludes trace hooks,
-storage, PMU support and export threads; FPGA recording and DPDK PTP are off. `echo_hardware.py` connects the controller to the maintained
-Enzian harness through `campaign/adapter.py`, `hardware.py`, and the remote role
-helpers. Local transport, cleanup and archive fixtures pass; real preflight
-passed reservations, isolation, budgets, artifact matching, preservation and
-callback delivery. The detached workflow and forced-termination fixture have exercised terminal
-callback delivery and the service failure hook. Twenty-three local policy/import/transport tests pass. Both native runtime
-variants pass RPC/UDP/activation semantic tests, and binary symbol checks reject
-tracing/PMU hooks in the disabled runtime and software/PTP timestamp hooks in
-the disabled DPDK responder. Sixteen schema echo pcap cases pass. The revised
-controller fixture completes 60 synthetic cohorts (12 unloaded), delivers its
-terminal notification and stops before full collection. Revised unloaded plots
-pass synthetic rendering, dimensions and font checks. These are workflow tests, not board results.
-The first native 8-byte rehearsal cohort has 100 valid measured replies and 16
-warmups, complete measured MAC pairing and valid client causal bounds. Its
-133-request whole capture (including preparation) has no stored loss markers.
-Those early cohorts used runtime-disabled probes, not the new compiled-out
-configuration, and remain historical rehearsal evidence. Full rehearsal
-acceptance is still pending. The setup neighbor miss is now
-primed separately. The second attempt's Ethernet receiver completed, but Vivado
-segfaulted on shutdown and the old controller incorrectly entered full JTAG
-fallback. The complete Ethernet file was recovered and hash-verified before
-interrupting that fallback; failures remain in `out/echo-rehearsal-20261015*`.
-LH correlation retains the existing internal RPC IDs, paired within
-each request lifetime; single-outstanding order and causal bounds associate
-those pairs with XID-validated client observations. No trace format or RTL
-change is needed. No complete board rehearsal or full echo campaign has passed.
-The plotting entry point has not yet been validated against a real full echo
-cohort; existing active figures remain in place. Do not launch a controller with
-an invented passing adapter or use the historical add data as echo evidence.
+The schema-defined echo responders, open-loop generator, aggregate importer and
+detached controller are implemented. The active measurement contract is:
 
-The controller defaults to rehearsal-only execution and emits a terminal callback
-before any full acquisition. Full collection requires explicit authorization and
-`scope: "full"` in a new root. The current user has authorized full collection
-after rehearsal passes; targeted aggregate-output validation precedes that launch.
+| Case | Software probes | MAC collection | Latency |
+| --- | --- | --- | --- |
+| Unloaded CDF | Compiled out | LH FPGA capture; DPDK PTP | MAC-to-MAC |
+| Unloaded breakdown | Enabled | LH FPGA capture; DPDK PTP | MAC-to-MAC and elapsed service components |
+| Loaded | Compiled out | LH recording disabled, no readout; DPDK PTP disabled | Client RTT |
 
-Unloaded CDFs and breakdowns use the same 8/128/1432-byte echo bodies as loaded
-cases, with one worker and one outstanding request. Zero-body echo remains a
-wire/dispatch validation case. A null RPC still includes dispatch and protocol
-processing; payload-bearing calls additionally exercise payload decoding and
-reply preparation. The largest body is 1432 bytes: 40-byte RPC call + 8-byte UDP
-+ 20-byte IPv4 headers fill the 1500-byte MTU.
+Both unloaded modes use single-outstanding schema echo calls at 8/128/1432 bytes.
+Software instrumentation is independent of MAC capture. No runtime-off duplicate
+control or RTT-only unloaded paper mode exists. The uninstrumented native runtime
+excludes probe hooks, trace storage, PMU support and export threads. The
+uninstrumented DPDK responder excludes software probes but supports PTP for
+unloaded calls. Loaded calls use its batched path with PTP disabled.
+
+`echo_hardware.py` connects to the maintained Enzian harness. FPGA MAC events
+retain their internal RPC IDs; single-outstanding order and causal clock bounds
+associate them with XID-validated client observations. No trace-format change is
+needed. A fresh rehearsal must validate this contract before full collection.
+Existing active figures remain until validated replacements are available.
 
 ## Neighbor preparation
 
@@ -145,8 +119,8 @@ Loss is `(transmitted - on_time) / transmitted`. Actual offered load and goodput
 use the fixed measured send interval; warmup is excluded. A generator miss in
 either warmup or measurement invalidates the acquisition.
 
-Use `LH_NULLRPC_BATCHED=1`, `LH_NULLRPC_SOFTWARE_CONTROL=1` and a fresh
-`LH_NULLRPC_STOP_FILE` for a loaded DPDK responder. The campaign creates that
+Use `LH_ECHO_BATCHED=1`, `LH_ECHO_SOFTWARE_CONTROL=1` and a fresh
+`LH_ECHO_STOP_FILE` for a loaded DPDK responder. The campaign creates that
 file after client draining, allowing clean counter export without requiring
 all sent requests to arrive. The client publishes a drained marker before CSV
 serialization, so stop delivery never waits for large output files. A 120-second
@@ -248,10 +222,11 @@ that can be set merely because a subprocess exited zero. Loaded stages return
 raw `csv`, `summary`, actual placement/flows and per-worker activity. Unloaded
 stages return `cohort` from `campaign.import_unloaded`, augmented with a
 `build_config_sha256` fingerprint identifying the compiled variant. All runs
-require validated client identity, health and restoration. Instrumented runs
-also require complete MAC pairs, no stored loss, independent JTAG checks for LH
-(or matched PTP module/clock checks for DPDK). Off runs require compiled-out
-tracing, frozen FPGA recording, no PTP and no trace readout.
+require validated client identity, health and restoration. Both unloaded modes
+require complete MAC pairs, no stored loss, independent JTAG checks for LH
+(or matched PTP module/clock checks for DPDK). The CDF requires compiled-out software probes with MAC recording enabled.
+Loaded runs require compiled-out software probes, frozen FPGA recording, no PTP
+and no trace readout.
 `full-unloaded.json` keeps 12 cohorts: both systems, 8/128/1432-byte bodies,
 and two instrumentation modes.
 Internal FPGA RPC IDs pair trace events within request lifetimes; the client validates wire XIDs. Preflight must check reservations, artifact
@@ -371,7 +346,7 @@ and nonmonotonic goodput, and shows median/P99. Overload plots retain every rate
 and trial, with a 1% line. Confirmed peak plots show median and trial range.
 Current loaded campaigns cover paced batch arrivals; the earlier fixed-spacing
 measurements remain separate. Poisson arrivals are deferred to memcached.
-Unloaded client-RTT CDF and instrumented MAC service-path components belong to
+Unloaded uninstrumented MAC CDF and instrumented MAC service-path components belong to
 separate cohorts; never assign those components to uninstrumented totals or
 claim they independently measure CPU utilization.
 For LH, UDP header dispatch can precede the RX CDC last-payload-beat event.
@@ -380,12 +355,6 @@ starts the remaining RX RPC interval at the later of those two events. The
 RX network interval is zero when header decoding overlaps payload transport;
 this does not imply that network processing performed no work. Each imported
 row retains the original app-clock stages and `rx_streaming_overlap_ns`.
-The r4 1432-byte rehearsal exposed a 105 ns overlap in all 116 observations;
-its complete capture passed loss and independent head/tail checks. Offline
-reimport of all three r4 instrumented sizes passes the corrected ordering,
-causal bounds and component conservation checks. The controller failure remains
-preserved; this offline validation does not mark that campaign complete.
-
 The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
 notification delivery to a file-backed sink. All five plots also passed portable
 synthetic-input rendering, exact PDF dimensions and embedded-font checks. These
@@ -393,20 +362,9 @@ fixtures are excluded from paper inputs and are not board acceptance.
 
 ### Generator isolation and placement transitions
 
-The FPGA emits a 24-byte ONC-RPC `SYSTEM_ERR` response when its 16-entry
-reply-context table fills. A targeted 256,292 RPC/s LH echo8/one-worker
-reproduction preserved this response for XID 109 (9.23 us RTT), with passing
-hardware health and restored peer controls, in
-`out/echo-redesign/malformed-reply/reproduction/`. This exposed the former
-success-only validator's overload misclassification. The client now accounts
-for these rejections separately as described above. The diagnostic run is not
-a passing acquisition or capacity result. The corrected client's first targeted
-1 s warmup + 1 s measured trial at the same rate completed all 256,292 measured
-transmissions: 230,970 on-time successes and 25,322 rejection replies (9.88%
-loss), with zero generator misses or malformed replies. Its raw observations,
-imported accounting and health checks are in
-`out/echo-redesign/malformed-reply/rejection-validation/trial-0/`; it remains
-diagnostic evidence, excluded from paper inputs.
+Well-formed ONC-RPC `SYSTEM_ERR` rejections are recorded separately and count
+as unsuccessful requests for the loss threshold. They do not invalidate an
+otherwise healthy overloaded acquisition.
 
 The current generator uses CPUs 16–47, leaving 0–15 for housekeeping. Provision
 boot isolation through EMG (`isolcpus=nohz,domain,managed_irq,16-47`,
@@ -434,14 +392,6 @@ unloaded rehearsal acquisitions, pass `--inherit-unloaded OLD_ROOT
 --inherit-reason REASON` at launch. All twelve receipts and their evidence hashes
 are checked, with original code/configuration retained in
 `inherited-unloaded.json`. Loaded points are reacquired under the new placement.
-
-The October 15 32-core recovery check passed three separate 1 s warmup + 1 s
-measurement trials against the existing one-worker LH 8-byte service at 75,938
-RPC/s: 227,814 measured transmissions and on-time replies, zero generator misses,
-TX admission failures or NIC RX/TX errors. Actual placement was CPUs 16–47;
-isolation restoration and idle-NVMe guards passed each trial. Evidence is in
-`out/echo-redesign/generator32/board-check-3/`; these are diagnostic checks,
-excluded from paper inputs, not a completed loaded rehearsal or capacity claim.
 
 
 ### Reviewed artifact transitions

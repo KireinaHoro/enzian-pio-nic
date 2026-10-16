@@ -7,7 +7,7 @@ stdenv.mkDerivation {
     fileset = lib.fileset.unions [
       ../bench.x ../echo_registry.py
       (lib.fileset.fileFilter (f: builtins.elem f.name [
-        "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h"
+        "bench_dpdk.c" "echo_server.c" "benchmarks.c" "benchmark.h"
         "aggregate.h" "aggregate_test.c" "wire.h" "load.h" "open_loop.h" "open_loop_test.c" "wire_test.c" "schema_test.c" "Makefile"
       ]) ./.)
     ];
@@ -17,8 +17,8 @@ stdenv.mkDerivation {
   buildInputs = [ dpdk libtirpc ];
   makeFlags = [ "PKG_CONFIG=${stdenv.cc.targetPrefix}pkg-config" ];
   postBuild = ''
-    if ${stdenv.cc.targetPrefix}nm -u nullrpc_dpdk_uninstrumented | grep -E 'clock_gettime|rte_eth_timesync|rte_mbuf_dyn_rx_timestamp'; then
-      echo "Software/PTP timestamp hooks survived the uninstrumented responder build" >&2
+    if ${stdenv.cc.targetPrefix}nm -u echo_dpdk_uninstrumented | grep -E 'clock_gettime'; then
+      echo "Software probe hooks survived the uninstrumented responder build" >&2
       exit 1
     fi
   '';
@@ -26,8 +26,8 @@ stdenv.mkDerivation {
   checkPhase = "make check";
   installPhase = ''
     install -Dm755 bench_dpdk $out/bin/bench_dpdk
-    install -Dm755 nullrpc_dpdk_uninstrumented $out/bin/nullrpc_dpdk_uninstrumented
-    install -Dm755 nullrpc_dpdk $out/bin/nullrpc_dpdk
+    install -Dm755 echo_dpdk_uninstrumented $out/bin/echo_dpdk_uninstrumented
+    install -Dm755 echo_dpdk $out/bin/echo_dpdk
   '';
   meta.platforms = lib.platforms.linux;
 }

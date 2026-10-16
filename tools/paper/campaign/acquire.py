@@ -50,7 +50,7 @@ def validate_role(root, request, binary_sha):
         capability=read('manifest.json')['responderTracing'][Path(request['binary']).name]
         if capability!=(request['instrumentation']=='breakdown'):
             raise ValueError('Responder compiled instrumentation differs')
-    timestamped=request['role']=='server' and request['mode']=='unloaded' and request['instrumentation']=='breakdown'
+    timestamped=request['role']=='server' and request['mode']=='unloaded'
     provenance=before['timestamp_provenance']
     if timestamped:
         if not provenance or not provenance['clocks'] or set(provenance['modules'])!={'nicvf','thunder_bgx','cavium_ptp'}:

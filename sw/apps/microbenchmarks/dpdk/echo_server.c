@@ -23,8 +23,8 @@
 #endif
 struct sample {
     uint32_t id; int status;
-#if LH_ENABLE_TRACING
     uint64_t rx, tx;
+#if LH_ENABLE_TRACING
     uint64_t cpu_rx, network_rx_begin, network_rx_end, network_tx_begin, network_tx_end, cpu_tx;
 #endif
 };
@@ -113,12 +113,12 @@ static int serve_queue(void *argument) {
     return 0;
 }
 static int multi_server(char **argv, const struct benchmark *bench) {
-    stop_file=getenv("LH_NULLRPC_STOP_FILE");
+    stop_file=getenv("LH_ECHO_STOP_FILE");
     if(stop_file && !access(stop_file,F_OK)) rte_exit(1,"stale server stop file\n");
     unsigned workers = rte_lcore_count();
     if (workers < 1 || workers > 4 || rte_eth_dev_count_avail() != 1 ||
-        (strncmp(argv[8], "loopback", 8) && (strncmp(argv[8], "echo", 4) || !argv[8][4])) || !getenv("LH_NULLRPC_SOFTWARE_CONTROL") ||
-        getenv("LH_NULLRPC_PROFILE"))
+        (strncmp(argv[8], "loopback", 8) && (strncmp(argv[8], "echo", 4) || !argv[8][4])) || !getenv("LH_ECHO_SOFTWARE_CONTROL") ||
+        getenv("LH_ECHO_PROFILE"))
         rte_exit(1,"batched throughput requires 1-4 CPUs, one port, loopback, software control and no profiling\n");
     unsigned count = number(argv[5], 10000000), warmup = number(argv[6], stop_file ? UINT32_MAX : 1000000);
     if (!count) rte_exit(1,"positive count required\n");
@@ -166,7 +166,7 @@ static int multi_server(char **argv, const struct benchmark *bench) {
     if (!link.link_status) rte_exit(1,"link down\n");
     unsigned q = 1, cpu;
     RTE_LCORE_FOREACH_WORKER(cpu) check(rte_eal_remote_launch(serve_queue, &state[q++], cpu), "launch");
-    const char *ready = getenv("LH_NULLRPC_READY_FILE");
+    const char *ready = getenv("LH_ECHO_READY_FILE");
     if (ready) { FILE *f=fopen(ready,"wx"); if(!f) rte_exit(1,"ready failed\n"); fputs("ready\n",f); fclose(f); }
     serve_queue(&state[0]); rte_eal_mp_wait_lcore();
     uint64_t total_completed=0;
@@ -203,7 +203,7 @@ int main(int argc,char **argv) {
     uint8_t expected_call[1472];
     int loopback = !strncmp(argv[8], "loopback", 8) || (!strncmp(argv[8], "echo", 4) && argv[8][4]);
     if (!bench || (!loopback && strcmp(argv[8], "add"))) rte_exit(1,"unsupported RPC codec\n");
-    if (rte_lcore_count() > 1 || getenv("LH_NULLRPC_BATCHED")) return multi_server(argv, bench);
+    if (rte_lcore_count() > 1 || getenv("LH_ECHO_BATCHED")) return multi_server(argv, bench);
     size_t expected_size = bench->encode(expected_call, sizeof(expected_call), 1);
     if(rte_lcore_count()!=1 || rte_eth_dev_count_avail()!=1) rte_exit(1,"one lcore and port required\n");
     struct endpoint src={.port=12345},peer={0};
@@ -218,14 +218,14 @@ int main(int argc,char **argv) {
     unsigned count=number(argv[5],10000000),warmup=number(argv[6],1000000);
     unsigned timeout_us=number(argv[7],10000000);
     if(!count || !timeout_us) rte_exit(1,"positive count and timeout required\n");
-    const char *delay_env=getenv("LH_NULLRPC_DELAY_NS");
+    const char *delay_env=getenv("LH_ECHO_DELAY_NS");
     unsigned delay=delay_env?number(delay_env,1000000):0;
+    int hardware=getenv("LH_ECHO_SOFTWARE_CONTROL")==NULL;
 #if LH_ENABLE_TRACING
-    int hardware=getenv("LH_NULLRPC_SOFTWARE_CONTROL")==NULL;
-    int profile=getenv("LH_NULLRPC_PROFILE")!=NULL;
+    int profile=getenv("LH_ECHO_PROFILE")!=NULL;
 #else
-    const int hardware=0;
-    if(getenv("LH_NULLRPC_PROFILE")) rte_exit(1,"profiling is compiled out\n");
+
+    if(getenv("LH_ECHO_PROFILE")) rte_exit(1,"profiling is compiled out\n");
 #endif
     FILE *csv=fopen(argv[9],"wx"); if(!csv) rte_exit(1,"CSV: %s\n",strerror(errno));
     struct sample *samples=calloc(count+warmup,sizeof(*samples));
@@ -252,30 +252,30 @@ int main(int argc,char **argv) {
         rte_delay_us_sleep(100000);
     }
     if(!link.link_status) rte_exit(1,"link down\n");
-#if LH_ENABLE_TRACING
     int timestamp_offset=0; uint64_t timestamp_flag=0;
     if(hardware) {
         check(rte_mbuf_dyn_rx_timestamp_register(&timestamp_offset,&timestamp_flag),"timestamp field");
         check(rte_eth_timesync_enable(port),"timesync enable");
     }
-#endif
     uint64_t hz=rte_get_timer_hz(),timeout=(uint64_t)timeout_us*hz/1000000;
     uint64_t delay_ticks=(uint64_t)delay*hz/1000000000;
     fprintf(stderr,"dpdk=%s driver=%s lcore=%u hardware=%d delay_ns=%u link_mbps=%u\n",
         rte_version(),info.driver_name,rte_lcore_id(),hardware,delay,link.link_speed);
-    const char *ready=getenv("LH_NULLRPC_READY_FILE");
+    const char *ready=getenv("LH_ECHO_READY_FILE");
     if(ready) { FILE *f=fopen(ready,"wx"); if(!f) rte_exit(1,"ready file failed\n"); fputs("ready\n",f); fclose(f); }
 #if LH_ENABLE_TRACING
     uint64_t probe_min=UINT64_MAX;
     if(profile) for(unsigned i=0;i<10000;i++) {
         uint64_t a=stamp(), b=stamp(); if(b-a<probe_min) probe_min=b-a;
     }
+#endif
     /* RX and TX timestamp completions share the CQ. Drain RX while awaiting
      * SEND_PTP, retaining every packet in a bounded FIFO for later dispatch. */
     struct rte_mbuf *pending[256];
+#if LH_ENABLE_TRACING
     uint64_t pending_stamp[256];
-    unsigned pending_head=0, pending_tail=0;
 #endif
+    unsigned pending_head=0, pending_tail=0;
     unsigned completed=0,attempted=0; uint64_t unrelated=0;
     int error=0;
     for(unsigned i=0;i<count+warmup;i++) {
@@ -285,13 +285,14 @@ int main(int argc,char **argv) {
         const uint8_t *request_payload = NULL;
         size_t request_size = 0;
         while(!rx) {
-#if LH_ENABLE_TRACING
             if(pending_head != pending_tail) {
                 rx=pending[pending_head % 256];
-                s->cpu_rx=pending_stamp[pending_head++ % 256];
+#if LH_ENABLE_TRACING
+                s->cpu_rx=pending_stamp[pending_head % 256];
+#endif
+                pending_head++;
             }
             else
-#endif
             {
                 rte_eth_rx_burst(port,0,&rx,1);
 #if LH_ENABLE_TRACING
@@ -327,12 +328,10 @@ int main(int argc,char **argv) {
             if(rte_get_timer_cycles()>deadline) { error=1; s->status=-ETIMEDOUT; break; }
         }
         if(error) { if(rx) rte_pktmbuf_free(rx); break; }
-#if LH_ENABLE_TRACING
         if(hardware) {
             if(!(rx->ol_flags&timestamp_flag)) { error=1; s->status=-ENODATA; rte_pktmbuf_free(rx); break; }
             s->rx=*RTE_MBUF_DYNFIELD(rx,timestamp_offset,uint64_t *);
         }
-#endif
         if(delay_ticks) { uint64_t end=rte_get_timer_cycles()+delay_ticks; while(rte_get_timer_cycles()<end) {} }
         uint8_t reply[1472]={0};
         size_t reply_size = 32;
@@ -360,7 +359,6 @@ int main(int argc,char **argv) {
             if(rte_get_timer_cycles()>deadline) { s->status=-ETIMEDOUT; error=1; rte_pktmbuf_free(rx); break; }
         }
         if(error) break;
-#if LH_ENABLE_TRACING
         if(hardware) {
             struct timespec ts;
             for(;;) {
@@ -374,7 +372,10 @@ int main(int argc,char **argv) {
                 struct rte_mbuf *next=NULL;
                 if (rte_eth_rx_burst(port,0,&next,1)) {
                     pending[pending_tail % 256]=next;
-                    pending_stamp[pending_tail++ % 256]=profile?stamp():0;
+#if LH_ENABLE_TRACING
+                    pending_stamp[pending_tail % 256]=profile?stamp():0;
+#endif
+                    pending_tail++;
                 }
                 if(rte_get_timer_cycles()>deadline) { s->status=-ETIMEDOUT; error=1; break; }
             }
@@ -382,13 +383,10 @@ int main(int argc,char **argv) {
                 s->status=-ERANGE; error=1;
             }
         }
-#endif
         if(error) break;
         s->status=1; completed++;
     }
-#if LH_ENABLE_TRACING
     while(pending_head != pending_tail) rte_pktmbuf_free(pending[pending_head++ % 256]);
-#endif
     struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"stats");
     fprintf(csv,"request_id,warmup,status,rx_hw_ns,tx_hw_ns,mac_to_mac_ns,injected_delay_ns,profile,cpu_rx_ns,network_rx_begin_ns,network_rx_end_ns,network_tx_begin_ns,network_tx_end_ns,cpu_tx_ns,probe_min_ns\n");
     for(unsigned i=0;i<attempted;i++) {
@@ -398,7 +396,7 @@ int main(int argc,char **argv) {
             s->tx>=s->rx?s->tx-s->rx:0,delay,profile,
             s->cpu_rx,s->network_rx_begin,s->network_rx_end,s->network_tx_begin,s->network_tx_end,s->cpu_tx,profile?probe_min:0);
 #else
-        fprintf(csv,"%u,%d,%d,0,0,0,%u,0,0,0,0,0,0,0,0\n",s->id,s->id<=warmup,s->status,delay);
+        fprintf(csv,"%u,%d,%d,%"PRIu64",%"PRIu64",%"PRIu64",%u,0,0,0,0,0,0,0,0\n",s->id,s->id<=warmup,s->status,s->rx,s->tx,s->tx>=s->rx?s->tx-s->rx:0,delay);
 #endif
     }
     int io_error=ferror(csv); if(fclose(csv)) io_error=1;

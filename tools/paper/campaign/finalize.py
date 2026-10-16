@@ -126,12 +126,12 @@ def finalize(config,h,request,campaign):
         arrivals=sorted({t.get('arrival_model','fixed-spacing') for r in loaded for p in r['points'] for t in p['trials']}),
         arrival_coverage='Poisson deferred to memcached',
         loaded_boundary='call entry to RX-burst observation; 10 ms response deadline',
-        unloaded_boundary='compiled-uninstrumented client RTT; elapsed breakdown uses its own instrumented MAC/PTP cohort'))
+        unloaded_boundary='compiled-uninstrumented MAC/PTP CDF; elapsed breakdown uses its own instrumented MAC/PTP cohort'))
     output=h.directory/'plots'
     for script,source in (('plot_echo.py','loaded.json'),('plot_echo_unloaded.py','unloaded.json')):
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',destination/source,'--output',output],script,timeout=86400)
-    previews=pdf_checks(output,['echo-latency-goodput','echo-sustained-workers','echo-overload-loss',
-                               'echo-unloaded-cdf','echo-unloaded-breakdown'])
+    previews=pdf_checks(output,['echo-loaded-hot-latency-goodput','echo-loaded-hot-peak-throughput-workers','echo-overload-loss',
+                               'echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'])
     for name in ('echo-statistics.json','echo-trials.json','echo-unloaded-statistics.json','pdf-validation.json'):
         shutil.copyfile(output/name,destination/name)
     atomic(destination/'manifest.json',dict(status='complete',paper_inputs=True,

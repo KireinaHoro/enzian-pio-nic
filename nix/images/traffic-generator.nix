@@ -47,13 +47,13 @@ let
       app = "${variant.app}"; runtime = "${variant.runtime}";
       tracing = variant.runtime.tracing;
     }) nativeVariants;
-    responderTracing = { nullrpc_dpdk = true; nullrpc_dpdk_uninstrumented = false; };
+    responderTracing = { echo_dpdk = true; echo_dpdk_uninstrumented = false; };
     kernelRelease = modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
       value = builtins.hashFile "sha256" (generator.src + "/${name}");
-    }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/nullrpc_server.c"
+    }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/echo_server.c"
          "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
          "dpdk/aggregate.h" "dpdk/open_loop.h" "dpdk/Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];

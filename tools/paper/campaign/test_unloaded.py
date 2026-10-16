@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from .import_unloaded import client_rows, clock_bounds, dpdk, lauberhorn, uninstrumented
+from .import_unloaded import client_rows, clock_bounds, dpdk, lauberhorn
 
 
 class Unloaded(unittest.TestCase):
@@ -37,14 +37,6 @@ class Unloaded(unittest.TestCase):
         self.client[1]['client_call_enter_ns']=11000
         with self.assertRaisesRegex(ValueError,'single-outstanding'):
             client_rows(self.write('client.csv',self.client),2,1,128)
-
-    def test_rtt_only_preserves_client_boundary(self):
-        client=self.write('client.csv',self.client)
-        result=uninstrumented(client,system='LH',count=2,warmup=1,payload_bytes=128,instrumentation='off')
-        self.assertEqual([r['rtt_ns'] for r in result['rows']],[2000]*3)
-        self.assertTrue(all('mac_ns' not in r for r in result['rows']))
-        with self.assertRaisesRegex(ValueError,'RTT-only'):
-            uninstrumented(client,system='LH',count=2,warmup=1,payload_bytes=128,instrumentation='breakdown')
 
     def test_schema_payload_sizes_and_wrong_workload(self):
         for size in (0,8,128,1432):

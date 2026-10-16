@@ -39,16 +39,6 @@ def client_rows(path, count, warmup, payload_bytes):
     return client
 
 
-def uninstrumented(client_path, *, system, count, warmup, instrumentation, payload_bytes):
-    if instrumentation!='off': raise ValueError('RTT-only import requires compiled-out tracing')
-    client=client_rows(client_path,count,warmup,payload_bytes)
-    result=[dict(request_id=int(c['request_id']),warmup=int(c['warmup']),
-                 rtt_ns=int(c['client_rx_burst_ns'])-int(c['client_call_enter_ns'])) for c in client]
-    return dict(system=system,instrumentation=instrumentation,count=count,warmup=warmup,
-                payload_bytes=payload_bytes,boundary='client-call-entry-to-rx-burst',
-                correlation='validated wire XID',rows=result,files={str(client_path):digest(client_path)})
-
-
 def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_bytes):
     client=client_rows(client_path,count,warmup,payload_bytes); server=rows(server_path)
     if len(server)!=len(client): raise ValueError('Incomplete DPDK MAC cohort')
@@ -178,11 +168,8 @@ def validate_matched(cohorts):
         for i,row in enumerate(c['rows'],1):
             if row['request_id']!=i or row['warmup']!=int(i<=c['warmup']):
                 raise ValueError('Invalid unloaded identity or warmup')
-            if c['instrumentation']=='off':
-                if row.get('rtt_ns',0)<=0 or any(k in row for k in ('mac_ns','rx_mac_ns','tx_mac_ns')):
-                    raise ValueError('RTT-only cohort contains missing RTT or MAC data')
-            elif row['mac_ns']<=0 or row['mac_ns']!=row['tx_mac_ns']-row['rx_mac_ns']:
-                raise ValueError('Invalid instrumented MAC interval')
+            if row.get('mac_ns',0)<=0 or row['mac_ns']!=row.get('tx_mac_ns',0)-row.get('rx_mac_ns',0):
+                raise ValueError('Invalid unloaded MAC interval')
         if c['instrumentation']=='breakdown':
             for row in c['rows']:
                 if any(v<0 for v in row['components_ns'].values()):

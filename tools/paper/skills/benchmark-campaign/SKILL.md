@@ -50,11 +50,13 @@ all three unloaded payload sizes in both compiled instrumentation modes and over
 freezes and collects the full grid. Default to `scope: "rehearsal"`, which
 terminates with a callback after validated rehearsal plots and never starts full
 collection. Use `scope: "full"` only when full acquisition is authorized; a user
-request to stop after rehearsal overrides any earlier full-campaign plan. Uninstrumented unloaded cases use compiled-out software tracing and client RTT
-only, with FPGA recording and MAC/PTP timestamping disabled; they perform no
-trace readouts. Instrumented unloaded cases use MAC/PTP timing and their own
-breakdowns. Do not add a redundant runtime-off control. Loaded cases use
-compiled-out software tracing, disable FPGA recording and perform no trace reads. Boot/module failures still require
+request to stop after rehearsal overrides any earlier full-campaign plan. Uninstrumented unloaded CDF cases use compiled-out software probes with MAC
+collection enabled: complete FPGA MAC capture for LH and NIC PTP for DPDK.
+Instrumented unloaded breakdown cases use enabled software probes and the same
+MAC collection paths, retaining their own totals. Both report MAC-to-MAC latency.
+There is no RTT-only unloaded paper mode or redundant runtime-off control.
+Loaded cases use compiled-out software probes and client RTT; FPGA recording
+is disabled with no trace readout, and DPDK PTP is disabled. Boot/module failures still require
 the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
 JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;

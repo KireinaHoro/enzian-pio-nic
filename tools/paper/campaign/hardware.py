@@ -19,7 +19,7 @@ import sys
 from .acquire import ROOT, roles, remote_script, validate_role
 from .harness import Harness
 from .import_loaded import digest
-from .import_unloaded import dpdk, lauberhorn, uninstrumented
+from .import_unloaded import dpdk, lauberhorn
 
 
 def atomic(path, data):
@@ -55,7 +55,7 @@ class Acquisition:
         return dict(role=role,system=system,mode='loaded' if loaded else 'unloaded',
             cpus=c['worker_cpus'][:r['workers']] if server else c['generator_cpus'] if loaded else c['generator_cpus'][:1],
             output='/dev/shm/'+label+'-'+role,label=label,transfer_url=c['transfer_url'],
-            binary='/nix/store/lauberhorn-client/bin/'+(('nullrpc_dpdk' if r.get('instrumentation')=='breakdown' else 'nullrpc_dpdk_uninstrumented') if server else 'bench_dpdk'),
+            binary='/nix/store/lauberhorn-client/bin/'+(('echo_dpdk' if r.get('instrumentation')=='breakdown' else 'echo_dpdk_uninstrumented') if server else 'bench_dpdk'),
             manifest='/nix/store/lauberhorn-client/manifest.json',ptp_bgx=c['ptp_bgx'],
             endpoint=[source['ip'],destination['ip'],destination['mac'],49152 if server else 12345],
             source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'] if loaded else 1,
@@ -236,7 +236,7 @@ namespace['start']({service!r})
         service=self.timed('ensure-lh',self.ensure_lh) if r['system']=='LH' else None
         atomic(self.state_path,dict(self.state,safe=False,stage=str(self.directory)))
         before=self.timed('snapshot-before',self.h.snapshot,service,self.label+'-before') if service else None
-        frozen=loaded or r['system']=='DPDK' or r.get('instrumentation')=='off'
+        frozen=loaded or r['system']=='DPDK'
         try:
             if loaded: self.timed('freeze-loaded',self.freeze_loaded)
             elif frozen: self.h.vio('configure',self.label,self.directory/(self.label+'-freeze.log'))
@@ -269,11 +269,7 @@ namespace['start']({service!r})
                     trace_readouts=0,software_profiling=False,fpga_recording=False)
             else:
                 options={k:r[k] for k in ('count','warmup','instrumentation','payload_bytes')}
-                if r['instrumentation']=='off':
-                    cohort=uninstrumented(paths['client']/'samples.csv',system=r['system'],**options)
-                    result.update(trace_readouts=0,software_profiling=False,fpga_recording=False,
-                                  mac_timestamping=False,tracing_compiled=False)
-                elif service:
+                if service:
                     trace=self.capture()
                     cohort=self.import_lh(trace,paths['client']/'samples.csv',after,options)
                     result['jtag_checks']=True
@@ -282,8 +278,10 @@ namespace['start']({service!r})
                     result['timestamp_checks']=True
                 cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
                 result.update(cohort=cohort,xid_pairing=True)
-                if r['instrumentation']=='breakdown':
-                    result.update(mac_pairs=r['count']+r['warmup'],stored_loss=0)
+                result.update(mac_pairs=r['count']+r['warmup'],stored_loss=0,mac_timestamping=True,
+                              tracing_compiled=r['instrumentation']=='breakdown',
+                              software_profiling=r['instrumentation']=='breakdown',
+                              trace_readouts=1 if service else 0,fpga_recording=bool(service))
             return result
         finally:
             if frozen and not loaded: self.last_recorder=self.h.vio('preserve',self.label,self.directory/(self.label+'-restore.log'))

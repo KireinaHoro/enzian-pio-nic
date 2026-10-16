@@ -176,7 +176,7 @@ def pdf_checks(directory, names):
         if not size or not re.search(r'^Pages:\s+1$',info,re.M): raise ValueError('Invalid PDF geometry')
         width,height=map(float,size.groups());wide=True
         expected=dimensions['text' if wide else 'column']*72
-        expected_height=180 if name in ('echo-sustained-workers','echo-unloaded-cdf','echo-unloaded-breakdown') else 324
+        expected_height=180 if name in ('echo-loaded-hot-peak-throughput-workers','echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown') else 324
         if abs(width-expected)>.02 or abs(height-expected_height)>.02: raise ValueError('PDF dimensions differ from paper canvas')
         font_output=subprocess.check_output(['pdffonts',str(path)],text=True,timeout=30)
         font_rows=font_output.splitlines()[2:]
@@ -234,7 +234,7 @@ def rehearsal(config,h,campaign):
     h.command([sys.executable,ROOT/'tools/paper/plot_echo.py','--input',path,'--output',output,'--rehearsal'],'plot-loaded',timeout=7200)
     h.command([sys.executable,ROOT/'tools/paper/plot_echo_unloaded.py','--input',campaign/'rehearsal-unloaded.json',
         '--output',output,'--rehearsal'],'plot-unloaded',timeout=600)
-    previews=pdf_checks(output,['echo-latency-goodput','echo-overload-loss','echo-unloaded-cdf','echo-unloaded-breakdown'])
+    previews=pdf_checks(output,['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'])
     if read(campaign/'config.json').get('scope','rehearsal')=='rehearsal':
         stop_transfer(config,h)
     return dict(passed=True,previews=previews,unloaded_modes=True,loaded_sizes=True,overload_retained=True,scheduling=True,

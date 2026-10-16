@@ -54,16 +54,16 @@ def main():
             label=f'{size}-{compiled}-'+('server-batched' if batched else 'server' if server else 'client')
             rx=a.output/(label+'.rx.pcap'); tx=a.output/(label+'.tx.pcap')
             pcap(rx,[frame(call) if server else frame(reply,True)])
-            binary=a.bin/(('nullrpc_dpdk' if compiled else 'nullrpc_dpdk_uninstrumented') if server else 'bench_dpdk')
+            binary=a.bin/(('echo_dpdk' if compiled else 'echo_dpdk_uninstrumented') if server else 'bench_dpdk')
             ips=['192.0.2.2','192.0.2.1'] if server else ['192.0.2.1','192.0.2.2']
             cmd=[str(binary.resolve()),'-l',str(core),'--no-huge','--no-pci','--no-shconf','--no-telemetry',
                  '--vdev',f'net_pcap0,rx_pcap={rx.resolve()},tx_pcap={tx.resolve()}','--',*ips,
                  '02:00:00:00:00:01', '49152' if server else '12345','1','0','10000',name,str((a.output/(label+'.csv')).resolve())]
             with (a.output/(label+'.log')).open('w') as log:
-                env={k:v for k,v in os.environ.items() if not k.startswith(('LH_NULLRPC_','LH_BENCH_'))}
-                if compiled: env['LH_NULLRPC_SOFTWARE_CONTROL']='1'
-                env.pop('LH_NULLRPC_BATCHED',None)
-                if batched: env.update(LH_NULLRPC_BATCHED='1',LH_NULLRPC_SOFTWARE_CONTROL='1')
+                env={k:v for k,v in os.environ.items() if not k.startswith(('LH_ECHO_','LH_BENCH_'))}
+                if server: env['LH_ECHO_SOFTWARE_CONTROL']='1'
+                env.pop('LH_ECHO_BATCHED',None)
+                if batched: env.update(LH_ECHO_BATCHED='1',LH_ECHO_SOFTWARE_CONTROL='1')
                 run=subprocess.run(cmd,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=30)
             sent=packets(tx) if tx.exists() else []
             expected=reply if server else call
