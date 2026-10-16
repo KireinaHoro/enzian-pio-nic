@@ -89,32 +89,11 @@ def extract(archive, destination, expected):
 
 
 def remote_script(config_url, script_url, script_sha, image, image_sha):
-    # Hash the image by streaming; full image reads must not consume host RAM.
-    code=f'''import hashlib,subprocess,urllib.request
-from pathlib import Path
-p=Path({image!r})
-with p.open('rb') as stream:
- sha=hashlib.sha256()
- for block in iter(lambda:stream.read(1024*1024),b''): sha.update(block)
- h=sha.hexdigest()
-if h!={image_sha!r}: raise ValueError('Staged client image hash mismatch')
-script=urllib.request.urlopen({script_url!r},timeout=30).read()
-if hashlib.sha256(script).hexdigest()!={script_sha!r}: raise ValueError('Role script hash mismatch')
-request=urllib.request.urlopen({config_url!r},timeout=30).read()
-import json
-config=json.loads(request)
-namespace='''+repr('''set -eu
-mount --make-rprivate /
-if mountpoint -q /nix/store; then umount /nix/store; fi
-mount -o loop,ro "$1" /nix/store
-export PATH=/nix/store/lauberhorn-client/bin:/nix/store/lauberhorn-client/sbin
-unset LD_LIBRARY_PATH PYTHONPATH PYTHONHOME
-exec python3 -c "$2"
-''')+'''
-payload=script.decode().split("if __name__=='__main__':")[0]+'\\nrun('+repr(config)+')\\n'
-subprocess.run(['unshare','-m','bash','-c',namespace,'echo-role',str(p),payload],check=True)
-'''
-    return "python3 - <<'ECHOROLE'\n"+code+"\nECHOROLE\n"
+    if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
+    from tools.enzian.image import downloaded_python
+    suffix=f"import json\nconfig=json.loads(urllib.request.urlopen({config_url!r},timeout=30).read())\n"
+    suffix+="namespace={'__name__':'campaign_role'}\nexec(compile(script,'peer.py','exec'),namespace)\nnamespace['run'](config)\n"
+    return downloaded_python(image,image_sha,script_url,script_sha,suffix)
 
 
 def roles(directory, configs, *, gateway, transfer_root, image, image_sha):

@@ -30,7 +30,7 @@ class Acquisition(unittest.TestCase):
     def test_remote_payload_compiles(self):
         script=remote_script('http://fixture/request','http://fixture/peer','a'*64,
                              '/tmp/image with spaces','b'*64)
-        compile(script.split('\n',1)[1].rsplit('\nECHOROLE',1)[0],'<remote>','exec')
+        compile(script.split('\n',1)[1].rsplit('\nLHIMAGE',1)[0],'<remote>','exec')
 
     def test_archive_keeps_only_regular_cohort_members(self):
         with tempfile.TemporaryDirectory() as directory:

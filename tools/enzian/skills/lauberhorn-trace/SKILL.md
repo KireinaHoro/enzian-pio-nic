@@ -39,7 +39,8 @@ run the workload's matched trace analysis separately.
 Recording-off operation uses `freeze` and `preserve` with the same control-session
 directory and performs no dump. The unattended benchmark adapter uses this same
 control implementation for loaded cohorts. Both unloaded software modes collect
-MAC traces. The receiver uses host Python outside the private benchmark mount
-namespace. Respect campaign
+MAC traces. Receiver and exporter run through `tools/enzian/image.py`, the same hash-verified
+private Nix image launcher used by benchmark roles. Require `peer_image` and
+`peer_image_sha256`; host Python is only the verification bootstrap. Respect campaign
 no-poll behavior and selective resume policy; manual diagnosis does not authorize
 a full dataset or invalidate unrelated completed cohorts.

@@ -26,13 +26,15 @@ transport integrity does not claim those measurements are valid.
 Use a JSON configuration with `gateway`, `programmer`, `dut`, `peer`, `vivado`,
 `hw_server`, `cable`, `ltx`, `remote_artifacts` (remote bitstream/LTX paths mapped
 to SHA256), `trace_map`, `trace_map_sha256`, `pipeline` (provenance), `peer_ip`,
-`peer_mac`, `peer_management_ip`, `export_port`, `peer_python`, `transfer_root`,
+`peer_mac`, `peer_management_ip`, `export_port`, `peer_image`, `peer_image_sha256`, `transfer_root`,
 and `transfer_url`. Select addresses and artifacts for the actual reservation.
 The transfer endpoint must be running and reachable from the peer, with adequate
 space. The existing `tools/paper/transfer_results.py` service supplies this during
-campaigns; do not provision another server on an occupied endpoint. The peer's
-host Python must be available outside benchmark mount namespaces. The campaign
-uses `python3` from the host PATH; never reference a private client-image path.
+campaigns; do not provision another server on an occupied endpoint. `tools/enzian/image.py` verifies the staged Nix image hash and mounts it read-only
+in a private namespace for the receiver and exporter, using the same launcher
+as benchmark roles. Host Python only bootstraps image verification; capture and
+export execute with the image-pinned Python. Downloaded role scripts are hashed
+before execution. The peer image must already be staged through the shared harness.
 Capture does not reconfigure NICs, boot, reset, or change provisioning.
 
 For the existing 519555 benchmark topology, resolve this explicit configuration

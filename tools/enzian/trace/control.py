@@ -35,7 +35,7 @@ def campaign_config(c):
         pipeline=c['pipeline'],trace_map=c['trace_map'],trace_map_sha256=digest(c['trace_map']),
         peer_ip=c['peer_endpoint']['ip'],peer_mac=c['peer_endpoint']['mac'],
         peer_management_ip='192.168.192.7',export_port=18874,
-        peer_python='python3',
+        peer_image=c['client_image_remote'],peer_image_sha256=c['client_image_sha256'],
         transfer_root=c['transfer_root'],transfer_url=c['transfer_url'])
 
 
@@ -79,7 +79,7 @@ class Control:
         sources=[Path(__file__).with_name('control.tcl'),ROOT/'data/eci/sys_trace/dump_trace_hw_axi.tcl']
         self.command(['rsync',*map(str,sources),c['programmer']+':'+self.remote+'/'],self.directory/'stage-source.log')
         evidence=self.directory/'implementation';evidence.mkdir()
-        implementation=[*sorted(Path(__file__).parent.glob('*.py')),*sources,ROOT/'data/eci/sys_trace/dump_trace_udp.py']
+        implementation=[ROOT/'tools/enzian/image.py',*sorted(Path(__file__).parent.glob('*.py')),*sources,ROOT/'data/eci/sys_trace/dump_trace_udp.py']
         for source in implementation:(evidence/source.name).write_bytes(source.read_bytes())
         atomic(self.directory/'sources.json',{str(p):digest(p) for p in sources})
         # Snapshot matching map locally so captures remain interpretable after cleanup.

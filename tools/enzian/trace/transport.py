@@ -9,6 +9,7 @@ import tarfile
 import time
 
 from .control import ROOT, digest
+from tools.enzian.image import downloaded_python, PYTHON
 
 
 def extract(stream,directory,size):
@@ -40,9 +41,11 @@ class Transport:
     def start(self,script,kind,timeout):
         url=self.stage(script);c=self.config
         log=(self.root/(kind+'-run.log')).open('x')
-        code="import urllib.request;exec(compile(urllib.request.urlopen("+repr(url)+",timeout=30).read(),"+repr(script.name)+",'exec'))"
+        launcher=self.root/(kind+'-launch.sh')
+        launcher.write_text(downloaded_python(c['peer_image'],c['peer_image_sha256'],url,digest(script),
+            "exec(compile(script,'trace-role.py','exec'))\n"))
         process=subprocess.Popen([sys.executable,str(ROOT/'tools/enzian/run.py'),'--gateway',c['gateway'],'--machine',c['peer'],
-            '--logs',str(self.root/(kind+'-console')),'--timeout',str(timeout),'--',c['peer_python'],'-c',code],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+            '--logs',str(self.root/(kind+'-console')),'--timeout',str(timeout),'--script',str(launcher)],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         log.close();return process
 
     def receive(self,size):
@@ -58,7 +61,7 @@ data=urllib.request.urlopen({url!r},timeout=30).read()
 assert hashlib.sha256(data).hexdigest()=={digest(reader)!r}
 reader=root/'dump_trace_udp.py';reader.write_bytes(data)
 with (root/'receiver.stdout').open('w') as out,(root/'receiver.stderr').open('w') as err:
- p=subprocess.Popen([{c['peer_python']!r},str(reader),'--bind-ip',{c['peer_ip']!r},'--offset','0','--bytes',{str(size)!r},'--wait-timeout','90','--timeout','1','--retries','5','--chunk-bytes','1408','--ready-file',str(root/'ready'),'--out',str(root/'trace-dram.bin')],stdout=out,stderr=err)
+ p=subprocess.Popen([{PYTHON!r},str(reader),'--bind-ip',{c['peer_ip']!r},'--offset','0','--bytes',{str(size)!r},'--wait-timeout','90','--timeout','1','--retries','5','--chunk-bytes','1408','--ready-file',str(root/'ready'),'--out',str(root/'trace-dram.bin')],stdout=out,stderr=err)
  try:
   deadline=time.monotonic()+30
   while not (root/'ready').exists():
