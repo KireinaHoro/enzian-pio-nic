@@ -101,7 +101,7 @@ class Control:
     def call(self,mode,output=None,size=0):
         with self.exclusive():return self._call(mode,output,size)
 
-    def _call(self,mode,output=None,size=0):
+    def _call(self,mode,output=None,size=0,*,retry_status=True):
         self.setup();c=self.config
         logs=list(self.directory.glob('operation-*.log'));log=self.directory/f'operation-{len(logs)+1:03d}-{mode}.log'
         argv=[c['vivado'],'-mode','batch','-nolog','-nojournal','-source',self.remote+'/control.tcl','-tclargs',mode,
@@ -114,11 +114,16 @@ class Control:
         if output:Path(output).write_text(text)
         if mode=='trigger':trigger_result(result.returncode,text)
         elif result.returncode:
+            if mode=='status' and retry_status and freeze_shutdown_crash(result.returncode,text):
+                observed=self._call('status',retry_status=False)
+                atomic(self.directory/'status-shutdown-recovery.json',dict(
+                    original_log=str(log),returncode=result.returncode,readback=observed))
+                return observed
             if mode!='freeze' or not freeze_shutdown_crash(result.returncode,text):
                 raise RuntimeError(f'Trace {mode} failed ({result.returncode}); evidence: {log}')
             # Read-only verification, once; never repeat freeze and overwrite
             # the original restoration snapshot. A failed readback is terminal.
-            observed=self._call('status')
+            observed=self._call('status',retry_status=False)
             expected={k:int(v,16) for k,v in re.findall(r'^DIAG vio_output \S*/(\w+) ([0-9a-fA-F]+)$',text,re.M)}
             if {k:v for k,v in observed.items() if k!='_status'}!=expected:
                 raise RuntimeError('Freeze shutdown recovery readback mismatch')
