@@ -7,6 +7,16 @@ from tools.enzian.trace.trigger import trigger_result
 
 
 class Trigger(unittest.TestCase):
+    def test_frozen_identity_allows_only_sticky_loss_assertion(self):
+        from tools.enzian.trace.session import frozen_matches
+        before=dict(trace_write_slot_1=100,trace_wrapped_1=0,trace_sample_lost_1=0,trace_dma_error_1=0)
+        current=dict(trace_stop=1,_status=dict(before,trace_sample_lost_1=1))
+        self.assertTrue(frozen_matches(before,current))
+        for key in ('trace_write_slot_1','trace_wrapped_1','trace_dma_error_1'):
+            self.assertFalse(frozen_matches(before,dict(current,_status=dict(current['_status'],**{key:before[key]+1}))))
+        self.assertFalse(frozen_matches(before,dict(current,trace_stop=0)))
+        self.assertFalse(frozen_matches(dict(before,trace_sample_lost_1=1),dict(trace_stop=1,_status=before)))
+
     def test_freeze_shutdown_requires_clean_completed_control(self):
         from tools.enzian.trace.control import freeze_shutdown_crash
         log='\n'.join(('DIAG vio_output design/trace_stop 1',

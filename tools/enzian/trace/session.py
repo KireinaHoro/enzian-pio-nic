@@ -9,6 +9,16 @@ from .control import Control, atomic, digest
 from .transport import Transport
 
 
+def frozen_matches(before, current):
+    """A sticky loss flag may rise while frozen; DDR identity must not change."""
+    after=current.get('_status',{})
+    loss='trace_sample_lost_1'
+    return (current.get('trace_stop')==1 and set(before)==set(after)
+            and before.get(loss) in (0,1) and after.get(loss) in (0,1)
+            and after[loss]>=before[loss]
+            and all(after[k]==v for k,v in before.items() if k!=loss))
+
+
 def capture(config,directory):
     directory=Path(directory).resolve()
     directory.mkdir(parents=True,exist_ok=False)
@@ -34,7 +44,7 @@ def _capture(config,directory,recover=False):
         try:
             if recover:
                 current=control.call('status')
-                if current.get('trace_stop')!=1 or current['_status']!=state['end']:raise ValueError('Frozen recorder changed')
+                if not frozen_matches(state['end'],current):raise ValueError('Frozen recorder changed')
             else:
                 values=control.call('configure',directory/'freeze.log');end=values['_status']
                 import re
@@ -52,7 +62,8 @@ def _capture(config,directory,recover=False):
             state.update(stage='validating',sha256=digest(raw));atomic(directory/'capture.json',state)
             state['integrity']=control.check(raw)
             current=control.call('status')
-            if current.get('trace_stop')!=1 or current['_status']!=state['end']:raise ValueError('Recorder changed during capture')
+            state['post_capture_status']=current
+            if not frozen_matches(state['end'],current):raise ValueError('Recorder changed during capture')
             state.update(stage='validated',pipeline=config.get('pipeline'),raw=str(raw))
         except BaseException as error:
             failure=error;state.update(failed_stage=state['stage'],stage='failed',error=str(error))
