@@ -7,10 +7,35 @@ size and codec registration from the same schema. The ONC-RPC XID identifies cli
 requests, including size zero; existing internal RPC IDs pair FPGA events. Adder acceptance and legacy loopback
 measurements retain their original semantics and provenance.
 
+## Baseline selection and collection hold
+
+The selected hot-case systems are Lauberhorn, DPDK on the ConnectX-5 in
+zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
+wait for its port. The existing NICVF campaign adapter does not implement this
+new baseline selection. Collection is stopped; do not resume its old topology
+or relabel NICVF observations as ConnectX-5 results.
+
+ConnectX-5 timestamp feasibility: mlx5 supports RX hardware timestamps, but
+upstream DPDK 24.11 and 25.11 do not register ethdev timesync callbacks in
+[mlx5_dev_ops](https://github.com/DPDK/dpdk/blob/v25.11/drivers/net/mlx5/mlx5.c).
+The current echo responder's timesync-enable/TX-timestamp-read path therefore
+needs replacement for mlx5. The packaged benchmark DPDK currently enables only
+net/thunderx and net/pcap; mlx5 also needs packaging and deployment work.
+
+[mlx5 TX tracing](https://doc.dpdk.org/guides-25.11/nics/mlx5.html#how-to-trace-tx-datapath)
+can expose hardware CQE completion timestamps. These are not established MAC
+egress timestamps: NVIDIA documents port-level TX timestamps, rather than CQE
+creation timestamps, for
+[ConnectX-6 Dx and newer](https://docs.nvidia.com/networking/display/mlnxofedv23103211lts/changes%2Band%2Bnew%2Bfeatures%2Bhistory).
+A ConnectX-5 PMD extension could expose per-request completion timing, but must
+not label it MAC-to-MAC without boundary validation. True wire-boundary
+measurement may instead require external capture. No mlx5 hardware timestamp
+trial has yet been performed for this campaign.
+
 ## Implementation and acceptance status
 
 The schema-defined echo responders, open-loop generator, aggregate importer and
-detached controller are implemented. The active measurement contract is:
+detached controller are implemented. The implemented NICVF adapter measurement contract is:
 
 | Case | Software probes | MAC collection | Latency |
 | --- | --- | --- | --- |
