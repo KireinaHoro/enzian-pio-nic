@@ -198,6 +198,22 @@ aggregate-mode observations. Preserve older detailed acquisitions unchanged.
 Changing observation mode requires the existing explicit compatibility review;
 compare representative loaded cohorts before merging their scientific results.
 
+Targeted board validation passed nine 1-second-warmup/1-second-measured cohorts
+(seven DPDK, two LH), with no generator misses, admission failures, malformed
+replies or health/restoration failures. At 6,568,491 RPC/s, the fresh detailed
+control took 358 seconds including import and retained 411 MB; two aggregate
+trials took about 85 seconds and retained 20 KB each. All requests were on time.
+Detailed median/P99 were 72.58/122.55 microseconds; aggregate medians were
+73.25–73.55 and P99s 123.55–125.25 microseconds. These short comparisons establish
+similar behavior and export savings, not statistical equivalence or sustained
+peak capacity. The LH overload check accounted for all 256,292 transmissions as
+176,487 successes plus 79,805 explicit rejections, with a 78.55 microsecond P99,
+matching the earlier detailed P99. Original raw evidence and artifact identities
+remain in `out/echo-redesign/histogram-resolution/`; `comparison-summary.json`
+records the diagnostic scope and the final maximum-XID stride correction.
+Historical detailed rehearsal cohorts remain eligible for explicit reviewed
+reuse; full paper acquisition will use fresh aggregate observations.
+
 ## Controller and adapter boundary
 
 `tools/paper/benchmark_campaign.py` owns preflight, build, rehearsal, frozen
