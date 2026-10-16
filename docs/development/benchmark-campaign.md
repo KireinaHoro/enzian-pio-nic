@@ -214,6 +214,18 @@ records the diagnostic scope and the final maximum-XID stride correction.
 Historical detailed rehearsal cohorts remain eligible for explicit reviewed
 reuse; full paper acquisition will use fresh aggregate observations.
 
+Loaded orchestration reuses its verified frozen recorder state only within the
+same systemd service invocation and exact hardware configuration. The receipt is
+hash checked; boot paths discard it, service restarts re-freeze, and failed stages
+remain unsafe. Loaded roles never change FPGA controls, so they do not run a
+redundant final `preserve` session. Unloaded capture/restoration is unchanged.
+After all role archives pass local validation, server and client temporary-file
+cleanup runs concurrently through separate canonical console sessions. Failures
+from either cleanup still fail the cohort. `timings.json` records elapsed stage
+times (including nested roles and roles-plus-cleanup) for subsequent comparisons.
+These orchestration changes do not change the generator, send schedule, latency
+boundaries or per-trial NIC restoration.
+
 ## Controller and adapter boundary
 
 `tools/paper/benchmark_campaign.py` owns preflight, build, rehearsal, frozen

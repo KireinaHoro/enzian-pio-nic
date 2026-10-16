@@ -8,6 +8,9 @@ import csv
 import hashlib
 import gzip
 import json
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import shlex
 import shutil
@@ -26,10 +29,22 @@ def atomic(path, data):
 class Acquisition:
     def __init__(self, config, request, directory, campaign):
         self.config=config;self.request=request;self.directory=Path(directory);self.campaign=Path(campaign)
+        self.timings=[]
         self.h=Harness(config,directory)
         self.label='echo-'+hashlib.sha256(str(self.campaign).encode()).hexdigest()[:8]+'-'+digest(self.directory/'request.json')[:12]+'-'+self.directory.name
         self.state_path=self.campaign/'hardware-state.json'
         self.state=json.loads(self.state_path.read_text()) if self.state_path.exists() else {}
+
+    def timed(self, stage, function, *args, **kwargs):
+        started=time.monotonic()
+        passed=False
+        try:
+            result=function(*args,**kwargs)
+            passed=True
+            return result
+        finally:
+            self.timings.append(dict(stage=stage,seconds=time.monotonic()-started,passed=passed))
+            atomic(self.directory/'timings.json',self.timings)
 
     def role(self, role, *, setup=False):
         r=self.request;c=self.config;loaded=r['stage']=='loaded' and not setup
@@ -53,13 +68,16 @@ class Acquisition:
     def execute_roles(self):
         configs={'client':(self.config['peer'],self.role('client'))}
         if self.request['system']=='DPDK': configs={'server':(self.config['dut'],self.role('server')),**configs}
-        paths=roles(self.directory/'roles',configs,gateway=self.config['gateway'],
+        paths=self.timed('roles',roles,self.directory/'roles',configs,gateway=self.config['gateway'],
             transfer_root=self.config['transfer_root'],image=self.config['client_image_remote'],
             image_sha=self.config['client_image_sha256'])
         evidence={}
         for role,(_,request) in configs.items():
             evidence[role]=validate_role(paths[role],request,self.config['server_sha256'][self.request.get('instrumentation','off')] if role=='server' else self.config['client_sha256'])
-        for role,(machine,request) in configs.items():
+        def cleanup(item):
+            role,(machine,request)=item
+            harness=Harness(self.config,self.directory/('cleanup-'+role))
+            harness.directory.mkdir()
             # Only remove this role's temporary RAM files after the complete
             # local archive and every uploaded member have been verified.
             root=request['output']
@@ -70,8 +88,16 @@ if root.parent!=Path('/dev/shm') or not root.name.startswith('echo-'):raise Valu
 shutil.rmtree(root)
 root.with_suffix('.tar.gz').unlink()
 '''
-            self.h.python(machine,code,'cleanup-'+role)
-            self.h.gateway(['rm','--',self.config['transfer_root']+'/'+Path(root).name+'.tar.gz'],'cleanup-upload-'+role)
+            harness.python(machine,code,'cleanup-'+role)
+            harness.gateway(['rm','--',self.config['transfer_root']+'/'+Path(root).name+'.tar.gz'],'cleanup-upload-'+role)
+        # Separate hosts and harness directories; wait for every cleanup, including failures.
+        with ThreadPoolExecutor(max_workers=len(configs)) as pool:
+            futures=[pool.submit(cleanup,item) for item in configs.items()]
+            errors=[]
+            for future in futures:
+                try: future.result()
+                except Exception as error: errors.append(error)
+            if errors: raise RuntimeError('Role cleanup failed: '+ '; '.join(map(str,errors)))
         if self.request['stage']=='loaded':
             raw=Path(paths['client'])/'samples.csv';compressed=raw.with_suffix('.csv.gz')
             with raw.open('rb') as source, compressed.open('xb') as destination:
@@ -181,18 +207,41 @@ namespace['start']({service!r})
         self.last_recorder=result['restored_recorder']
         return Path(result['raw'])
 
+    def freeze_loaded(self):
+        """Reuse a verified freeze only within the same detached service invocation.
+
+        Boot paths replace self.state. Failed runs remain unsafe. A service restart,
+        reviewed inheritance or configuration change therefore rechecks the hardware.
+        """
+        identity=dict(invocation=os.environ.get('INVOCATION_ID'),
+                      config=hashlib.sha256(json.dumps(self.config,sort_keys=True).encode()).hexdigest())
+        saved=self.state.get('loaded_freeze',{})
+        receipt=Path(saved.get('receipt','/nonexistent'))
+        if (identity['invocation'] and saved.get('identity')==identity
+                and receipt.is_file() and digest(receipt)==saved.get('sha256')):
+            values=json.loads(receipt.read_text())
+            if values.get('trace_stop')!=1: raise ValueError('Invalid frozen recorder receipt')
+            self.last_recorder=values
+            atomic(self.directory/'freeze-reused.json',saved)
+            return
+        self.last_recorder=self.h.vio('configure',self.label,self.directory/(self.label+'-freeze.log'))
+        receipt=self.directory/'loaded-freeze.json'
+        atomic(receipt,self.last_recorder)
+        self.state['loaded_freeze']=dict(identity=identity,receipt=str(receipt.resolve()),sha256=digest(receipt))
+
     def run(self):
         r=self.request;c=self.config;loaded=r['stage']=='loaded'
         if self.state.get('safe') is False: raise RuntimeError('Hardware state needs explicit failure recovery')
-        if r['system']=='DPDK': self.ensure_dpdk()
-        service=self.ensure_lh() if r['system']=='LH' else None
+        if r['system']=='DPDK': self.timed('ensure-dpdk',self.ensure_dpdk)
+        service=self.timed('ensure-lh',self.ensure_lh) if r['system']=='LH' else None
         atomic(self.state_path,dict(self.state,safe=False,stage=str(self.directory)))
-        before=self.h.snapshot(service,self.label+'-before') if service else None
+        before=self.timed('snapshot-before',self.h.snapshot,service,self.label+'-before') if service else None
         frozen=loaded or r['system']=='DPDK' or r.get('instrumentation')=='off'
         try:
-            if frozen: self.h.vio('configure',self.label,self.directory/(self.label+'-freeze.log'))
-            paths,evidence=self.execute_roles()
-            after=self.h.snapshot(service,self.label+'-after',export=r.get('instrumentation')=='breakdown') if service else None
+            if loaded: self.timed('freeze-loaded',self.freeze_loaded)
+            elif frozen: self.h.vio('configure',self.label,self.directory/(self.label+'-freeze.log'))
+            paths,evidence=self.timed('roles-and-cleanup',self.execute_roles)
+            after=self.timed('snapshot-after',self.h.snapshot,service,self.label+'-after',export=r.get('instrumentation')=='breakdown') if service else None
             if service:
                 self.h.command([sys.executable,ROOT/'tools/enzian/assess_tad.py',
                     '--before',before/'tad.txt','--after',after/'tad.txt',
@@ -237,7 +286,7 @@ namespace['start']({service!r})
                     result.update(mac_pairs=r['count']+r['warmup'],stored_loss=0)
             return result
         finally:
-            if frozen: self.last_recorder=self.h.vio('preserve',self.label,self.directory/(self.label+'-restore.log'))
+            if frozen and not loaded: self.last_recorder=self.h.vio('preserve',self.label,self.directory/(self.label+'-restore.log'))
             if 'result' in locals() and result.get('passed'):
                 # Result creation alone is not success: retain unsafe state if
                 # any later validation raised before the return above.

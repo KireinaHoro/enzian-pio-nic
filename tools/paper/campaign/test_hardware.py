@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import subprocess
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -75,9 +76,59 @@ class Hardware(unittest.TestCase):
                 else:
                     with self.assertRaisesRegex(ValueError,'health'):acquisition.run()
                 acquisition.capture.assert_not_called()
-                self.assertEqual([call.args[0] for call in acquisition.h.vio.call_args_list],['configure','preserve'])
+                self.assertEqual([call.args[0] for call in acquisition.h.vio.call_args_list],['configure'])
                 state=json.loads((root/'hardware-state.json').read_text())
                 self.assertEqual(state['safe'],healthy)
+
+    def test_parallel_cleanup_waits_for_both_and_propagates_failure(self):
+        for fail in (False,True):
+            with self.subTest(fail=fail),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                (root/'request.json').write_text('{}')
+                config=dict(peer='peer',dut='dut',gateway='gateway',transfer_root='/transfer',
+                            client_image_remote='/image',client_image_sha256='image-sha',
+                            client_sha256='client-sha',server_sha256={'off':'server-sha'})
+                acquisition=Acquisition(config,dict(system='DPDK',stage='unloaded'),root,root)
+                acquisition.role=lambda role:dict(output='/dev/shm/echo-'+role)
+                barrier=threading.Barrier(2,timeout=5)
+                finished=[]
+                def cpu(harness,machine,code,name):
+                    barrier.wait()
+                    finished.append(machine)
+                    if fail and machine=='peer': raise RuntimeError('cleanup fixture')
+                with patch('campaign.hardware.roles',return_value={'client':root,'server':root}),patch('campaign.hardware.validate_role',return_value={'files':{}}),patch('campaign.hardware.Harness.python',cpu),patch('campaign.hardware.Harness.gateway'):
+                    if fail:
+                        with self.assertRaisesRegex(RuntimeError,'cleanup fixture'):acquisition.execute_roles()
+                    else:acquisition.execute_roles()
+                self.assertCountEqual(finished,['peer','dut'])
+
+    def test_loaded_freeze_reuse_requires_same_invocation_and_intact_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'request.json').write_text('{}')
+            acquisition=Acquisition({}, {}, root,root)
+            acquisition.h=Mock()
+            acquisition.h.vio.return_value={'trace_stop':1}
+            with patch.dict('os.environ',{'INVOCATION_ID':'service-one'}):
+                acquisition.freeze_loaded()
+                acquisition.freeze_loaded()
+                self.assertEqual(acquisition.h.vio.call_count,1)
+                (root/'loaded-freeze.json').write_text('{}')
+                acquisition.freeze_loaded()
+                self.assertEqual(acquisition.h.vio.call_count,2)
+            with patch.dict('os.environ',{'INVOCATION_ID':'service-two'}):
+                acquisition.freeze_loaded()
+                self.assertEqual(acquisition.h.vio.call_count,3)
+                acquisition.config={'changed':True}
+                acquisition.freeze_loaded()
+                self.assertEqual(acquisition.h.vio.call_count,4)
+                acquisition.state={}
+                acquisition.freeze_loaded()
+                self.assertEqual(acquisition.h.vio.call_count,5)
+            with patch.dict('os.environ',{},clear=True):
+                acquisition.freeze_loaded()
+                acquisition.freeze_loaded()
+                self.assertEqual(acquisition.h.vio.call_count,7)
 
     def test_uninstrumented_unloaded_never_reads_trace(self):
         for system in ('LH','DPDK'):
