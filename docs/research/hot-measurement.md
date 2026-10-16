@@ -41,10 +41,12 @@ clock conversion and probe overhead. Cover CQ pointer updates, replenishment,
 mbuf construction and TX reclamation wherever actually executed. Attribute
 batched/deferred work explicitly; do not omit it or claim a per-packet duration
 by dividing a batch without identifying that convention. The unloaded queue
-path must be exercised by acceptance tests before collection.
+path must be exercised by acceptance tests before collection. See the
+[mlx5 implementation and readiness workflow](../development/mlx5-readiness.md).
 
-For Lauberhorn use CPU receive return through TX doorbell return as the outer
-interval; retain RPC/handler boundaries and the doorbell read/return interval.
+For Lauberhorn use CPU receive return through transport return as the outer
+interval; retain RPC/handler boundaries and the exact doorbell read/return interval.
+Post-doorbell transport cleanup is other CPU work.
 Any unclassified CPU gap must be explicit, not silently assigned to the wire.
 For each instrumented request, residual = wire duration − CPU duration.
 Reject unexplained negative residuals; do not clamp. Report clock-rate and

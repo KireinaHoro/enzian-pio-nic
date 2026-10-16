@@ -140,7 +140,22 @@ let
       breakdown = { app = applications.microbenchmarks; inherit runtime; };
       off = { app = microbenchmarksUninstrumented; runtime = runtimeUninstrumented; };
     };
-    inherit (thunderx) dpdk modules;
+    dpdk = mlx5Dpdk;
+    probeDpdk = mlx5ProbeDpdk;
+    mlx5 = true;
+    inherit (thunderx) modules;
+    identity = { inherit (identity) revision; };
+  };
+  mlx5Dpdk = target.callPackage ./software/mlx5 {
+    nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch";
+  };
+  mlx5ProbeDpdk = mlx5Dpdk.override { tracing = true; };
+  mlx5Deployment = import ./images/traffic-generator.nix {
+    inherit pkgs;
+    dpdk = mlx5Dpdk;
+    probeDpdk = mlx5ProbeDpdk;
+    mlx5 = true;
+    inherit (thunderx) modules;
     identity = { inherit (identity) revision; };
   };
   trafficGeneratorDeployment = import ./images/traffic-generator.nix {
@@ -205,6 +220,13 @@ in
     };
     trafficGeneratorImage = trafficGeneratorDeployment.image;
     echoCampaignImage = echoCampaignDeployment.image;
+    mlx5BenchmarkImage = mlx5Deployment.image;
+  };
+  mlx5Benchmark = mlx5Deployment.generator;
+  mlx5BenchmarkNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {
+    dpdk = pkgs.callPackage ./software/mlx5 { nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
+    probeDpdk = pkgs.callPackage ./software/mlx5 { tracing = true; nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
+    mlx5 = true;
   };
   trafficGenerator = trafficGeneratorDeployment.generator;
   trafficGeneratorNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {

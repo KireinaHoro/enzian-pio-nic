@@ -68,6 +68,7 @@ else:
         """Read-only host state, uploaded through the dedicated campaign endpoint."""
         remote=name+'.json';url=self.config['transfer_url'].rstrip('/')+'/'+remote
         image=self.config['deploy_image'] if machine==self.config['dut'] else None
+        interface=self.config.get('dut_interface','enP5p144s0np0') if machine==self.config.get('dpdk_dut') else 'cpu40g1'
         code=f'''import json,os,subprocess,urllib.request,hashlib
 from pathlib import Path
 mem={{k:int(v.split()[0])*1024 for k,v in (line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())}}
@@ -79,7 +80,9 @@ result=dict(kernel=subprocess.check_output(['uname','-r'],text=True).strip(),
  mem_available=mem['MemAvailable'],shm=stat('/dev/shm'),
  command_line=Path('/proc/cmdline').read_text().strip(),
  management_route=subprocess.check_output(['ip','route','get','192.168.255.254'],text=True),
- nic=json.loads(subprocess.check_output(['ip','-j','addr','show','dev','cpu40g1'])),
+ nic=json.loads(subprocess.check_output(['ip','-j','addr','show','dev',{interface!r}])),
+ nic_driver=(Path('/sys/class/net')/{interface!r}/'device/driver').resolve().name,
+ nic_pci=(Path('/sys/class/net')/{interface!r}/'device').resolve().name,
  root=stat('/'))
 image={image!r}
 if image:

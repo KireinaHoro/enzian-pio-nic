@@ -100,11 +100,11 @@ def preflight(config, h, campaign):
     c=config
     if not os.environ.get('ENZIAN_BMC_PASSWORD'):
         raise ValueError('Unattended boot requires ENZIAN_BMC_PASSWORD in the service environment')
-    if (c['dut'],c['peer'],c['pipeline'])!=('zuestoll14','zuestoll07',519555):
-        raise ValueError('This adapter requires the validated 519555 capture topology')
+    if c['dpdk_dut']!='zuestoll07' or len({c['dut'],c['peer'],c['dpdk_dut']})!=3:
+        raise ValueError('Use separate LH, ConnectX-5 and generator hosts')
     reservations=subprocess.check_output(['ssh',c['gateway'],'emg list-machines'],text=True,timeout=30)
     (h.directory/'reservations.txt').write_text(reservations)
-    for machine in (c['dut'],c['peer']):
+    for machine in (c['dut'],c['peer'],c['dpdk_dut']):
         if not re.search(r'^\s*\d+\s+'+re.escape(machine)+r'\s+'+re.escape(c['owner'])+r'\s+true\b',reservations,re.M):
             raise ValueError('Current reservation missing: '+machine)
     for path,sha in c['local_artifacts'].items():
@@ -116,7 +116,7 @@ def preflight(config, h, campaign):
         raise ValueError('Insufficient local campaign archive budget')
     state=read(campaign/'hardware-state.json') if (campaign/'hardware-state.json').exists() else None
     if state and state.get('safe') is not True: raise ValueError('Hardware recovery required before resume')
-    if state:
+    if state and state.get('system')=='LH':
         current=h.vio('status','echo-resume-preflight',h.directory/'resume-vio.log')
         if current!=state.get('recorder'):
             raise ValueError('Live recorder differs from last successful cohort')
@@ -130,7 +130,10 @@ def preflight(config, h, campaign):
     dut=h.probe(c['dut'],'dut-preflight-'+h.directory.parent.name+'-'+h.directory.name)
     if dut['deployment_sha256']!=c['deploy_image_sha256']:
         raise ValueError('DUT deployment image differs from matched artifact')
-    for role,host,cores in (('peer',peer,c['generator_cpus']),('DUT',dut,c['worker_cpus'])):
+    baseline=h.probe(c['dpdk_dut'],'dpdk-preflight-'+h.directory.parent.name+'-'+h.directory.name)
+    if baseline['nic_driver']!='mlx5_core' or baseline['nic_pci']!='0005:90:00.0':
+        raise ValueError('ConnectX-5 device identity differs')
+    for role,host,cores in (('peer',peer,c['generator_cpus']),('DUT',dut,c['worker_cpus']),('DPDK',baseline,c['worker_cpus'])):
         if (not set(cores)<=cpu_set(host['isolated']) or
                 not set(cores)<=cpu_set(host['nohz_full']) or 'dev cpu40g0' not in host['management_route']):
             raise ValueError(role+' isolation or management routing mismatch')
@@ -161,7 +164,7 @@ def build(config,h):
         if digest(path)!=sha: raise ValueError('Built artifact differs from frozen configuration')
     if h.stage(config['client_image_local'],'client.img')!=config['client_image_url']:
         raise ValueError('Image URL differs from transfer endpoint')
-    for machine in (config['peer'],config['dut']):
+    for machine in (config['peer'],config['dut'],config['dpdk_dut']):
         h.python(machine,h.image_code(),'stage-image-'+machine,timeout=600)
     return dict(passed=True)
 

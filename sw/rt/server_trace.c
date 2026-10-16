@@ -237,7 +237,7 @@ static void write_header(void) {
           "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
           "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns", output);
     fputs(",pmu_mode,pmu_mask",output);
-    fputs(",server_entry_enter_ns,server_entry_exit_ns,server_tx_doorbell_ns",output);
+    fputs(",server_entry_enter_ns,server_entry_exit_ns,server_tx_doorbell_ns,server_tx_doorbell_return_ns",output);
 #define PMU_HEADER(name) for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",pmu_" #name "_%u",i);
     SERVER_TRACE_TIMES(PMU_HEADER)
 #undef PMU_HEADER
@@ -341,7 +341,7 @@ static void write_row(const struct server_trace_row *r) {
             r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
     fprintf(output,",%u,%u",r->pmu_mode,r->pmu_mask);
     fprintf(output,",%" PRIu64 ",%" PRIu64,r->entry_enter_ns,r->entry_exit_ns);
-    fprintf(output,",%" PRIu64,r->tx_doorbell_ns);
+    fprintf(output,",%" PRIu64 ",%" PRIu64,r->tx_doorbell_ns,r->tx_doorbell_return_ns);
     for (unsigned j=0;j<LH_PMU_STAGES;j++)
         for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",%"PRIu64,r->pmu[j].value[i]);
     fputc('\n',output);

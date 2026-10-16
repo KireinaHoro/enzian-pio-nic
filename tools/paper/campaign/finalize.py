@@ -126,7 +126,7 @@ def finalize(config,h,request,campaign):
         arrivals=sorted({t.get('arrival_model','fixed-spacing') for r in loaded for p in r['points'] for t in p['trials']}),
         arrival_coverage='Poisson deferred to memcached',
         loaded_boundary='call entry to RX-burst observation; 10 ms response deadline',
-        unloaded_boundary='compiled-uninstrumented MAC/PTP CDF; elapsed breakdown uses its own instrumented MAC/PTP cohort'))
+        unloaded_boundary='Tofino wire-to-wire CDF; CPU queue/protocol/handler breakdown with combined CPU-wire residual uses its own instrumented cohort'))
     output=h.directory/'plots'
     for script,source in (('plot_echo.py','loaded.json'),('plot_echo_unloaded.py','unloaded.json')):
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',destination/source,'--output',output],script,timeout=86400)

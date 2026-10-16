@@ -68,7 +68,11 @@ Tofino capture is being developed in a separate project. Use the explicit
 `campaign/wire.py` integration stub for local analysis tests; never fabricate
 wire observations for paper inputs. Long rehearsal and full collection are held
 until that backend and the ConnectX-5 queue instrumentation are integrated and
-validated. Do not resume the NICVF adapter as the new baseline. Caladan-simple
+validated. For bounded software-only board acceptance use
+`docs/development/mlx5-readiness.md`, the shared NIC runner and
+`tools/paper/campaign/mlx5_readiness.py`; validate its archive with
+`tools/paper/validate_mlx5_readiness.py`. Missing wire durations stay null and
+readiness outputs are excluded from paper inputs. Do not resume the NICVF adapter as the new baseline. Caladan-simple
 hot cases wait for its port. Loaded cases retain compiled-out probes and client
 RTT, with no Tofino capture, FPGA readout or NIC PTP.
 Boot/module failures still require

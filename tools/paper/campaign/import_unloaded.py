@@ -1,27 +1,18 @@
-"""Validate single-outstanding schema-defined echo cohorts without relabeling historical add data.
+"""Unloaded software intervals and external wire-duration integration.
 
-LH input is the complete MAC-pair table from import_nullrpc_mac.correlate;
-its single-outstanding association is independently checked with causal clock
-bounds. DPDK timestamps and client replies correlate directly on wire XID.
+No FPGA MAC extraction or NIC hardware timestamp path is used here. Missing
+wire durations are explicit readiness-only results, rejected by paper validators.
 """
 import csv
 import gzip
 import json
-from pathlib import Path
 from .import_loaded import digest
 from .policy import SIZES
-
+from .wire import COMPONENTS, METHOD, join_durations
 
 def rows(path):
     opener=gzip.open if str(path).endswith('.gz') else open
     with opener(path,'rt') as stream: return list(csv.DictReader(stream))
-
-
-def partition(total, handler, rpc, network):
-    values=dict(handler=handler,rpc=rpc,network=network,host_mac=total-handler-rpc-network)
-    if total<=0 or any(v<0 for v in values.values()):
-        raise ValueError('Invalid service-path elapsed-time partition')
-    return values
 
 
 def client_rows(path, count, warmup, payload_bytes):
@@ -39,37 +30,8 @@ def client_rows(path, count, warmup, payload_bytes):
     return client
 
 
-def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_bytes):
-    client=client_rows(client_path,count,warmup,payload_bytes); server=rows(server_path)
-    if len(server)!=len(client): raise ValueError('Incomplete DPDK MAC cohort')
-    by_id={int(r['request_id']):r for r in server}
-    if len(by_id)!=len(server): raise ValueError('Duplicate DPDK XID')
-    if set(by_id)!={int(r['request_id']) for r in client}:
-        raise ValueError('DPDK/client XID sets differ')
-    result=[]
-    for cl in client:
-        xid=int(cl['request_id']); sw=by_id[xid]
-        if (sw['status']!='1' or sw['warmup']!=cl['warmup'] or
-                int(sw['profile'])!=int(instrumentation=='breakdown') or int(sw['injected_delay_ns'])):
-            raise ValueError('Invalid DPDK instrumentation/status')
-        rx,tx=int(sw['rx_hw_ns']),int(sw['tx_hw_ns']); total=tx-rx
-        if not 0<total<=int(cl['client_rx_burst_ns'])-int(cl['client_call_enter_ns']):
-            raise ValueError('Invalid DPDK MAC interval')
-        record=dict(request_id=xid,warmup=int(cl['warmup']),rx_mac_ns=rx,tx_mac_ns=tx,mac_ns=total)
-        if instrumentation=='breakdown':
-            times=[int(sw[k]) for k in ('cpu_rx_ns','network_rx_begin_ns','network_rx_end_ns',
-                'network_tx_begin_ns','network_tx_end_ns','cpu_tx_ns')]
-            if times!=sorted(times) or not times[0]: raise ValueError('Invalid DPDK service stages')
-            a,b,c,d,e,f=times
-            record['components_ns']=partition(total,d-c,(b-a)+(f-e),(c-b)+(e-d))
-        result.append(record)
-    return dict(system='DPDK',instrumentation=instrumentation,count=count,warmup=warmup,payload_bytes=payload_bytes,
-                correlation='wire XID',rows=result,
-                files={str(p):digest(p) for p in (client_path,server_path)})
-
-
 def clock_bounds(bounds):
-    # Fit only a feasibility bound; never transform the measured MAC intervals.
+    # Fit only a feasibility bound; never transform the measured CPU intervals.
     import numpy as np
     from scipy.optimize import linprog
     values=np.asarray(bounds,dtype=float)
@@ -87,94 +49,120 @@ def clock_bounds(bounds):
     if not fit.success: raise ValueError('Single-outstanding association violates causal clock bounds')
     return dict(offset_us=float(fit.x[0]),rate_ppm=float(fit.x[1]),applied_to_measurements=False)
 
-def lauberhorn(client_path, mac_pairs, *, count, warmup, setup_count,
-               instrumentation, payload_bytes, server_path=None, app_events=None, priming_count=0):
-    client=client_rows(client_path,count,warmup,payload_bytes)
-    if len(mac_pairs)!=setup_count+len(client): raise ValueError('Incomplete whole-capture RPC accounting')
-    calls=mac_pairs[setup_count:]
-    if priming_count not in (0,1) or priming_count>setup_count:
-        raise ValueError('Invalid neighbor priming boundary')
-    direct=mac_pairs[priming_count:]
-    if any(r['tx_mac_ns'] is None for r in direct): raise ValueError('Unpaired MAC event')
-    if any(int(r['tx_mac_ns'])<=int(r['rx_mac_ns']) for r in direct):
-        raise ValueError('Invalid whole-capture MAC interval')
-    if any(int(a['tx_mac_ns'])>int(b['rx_mac_ns']) for a,b in zip(direct,direct[1:])):
-        raise ValueError('Overlapping whole-capture unloaded requests')
-    bounds=[]; runtime_bounds=[]; result=[]
-    server=rows(server_path) if server_path else []
-    if instrumentation=='breakdown' and (len(server)!=len(mac_pairs) or not app_events):
-        raise ValueError('Breakdown needs the matched runtime rows and app-clock events')
-    for i,(cl,mac) in enumerate(zip(client,calls)):
-        rx,tx=int(mac['rx_mac_ns']),int(mac['tx_mac_ns']); total=tx-rx
-        enter,leave=int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])
-        if not 0<total<=leave-enter: raise ValueError('Invalid LH MAC interval')
-        if i and calls[i-1]['tx_mac_ns']>rx: raise ValueError('Overlapping unloaded MAC requests')
-        bounds.append((rx,tx,enter,leave))
-        record=dict(request_id=int(cl['request_id']),warmup=int(cl['warmup']),rx_mac_ns=rx,tx_mac_ns=tx,mac_ns=total)
-        if instrumentation=='breakdown':
-            import bisect
-            stages=[]
-            for eid in (3,4,9,44,45,2,5,6):
-                events=app_events[eid]
-                selected=events[bisect.bisect_left(events,rx):bisect.bisect_right(events,tx)]
-                if len(selected)!=1: raise ValueError('Nonunique/missing hardware service stage')
-                stages.append(selected[0])
-            _,after_rx,udp_rx,to_host,from_host,udp_tx,before_tx,_=stages
-            # RX CDC traces the last payload beat; UDP traces header dispatch.
-            # A streaming decoder can dispatch before that last beat arrives.
-            if (stages[0]!=rx or stages[-1]!=tx
-                    or not rx<=udp_rx<=to_host<=from_host<=udp_tx<=before_tx<=tx
-                    or not rx<=after_rx<=to_host):
-                raise ValueError('Invalid app-clock stage ordering')
-            sw=server[setup_count+i]
-            if sw['ok']!='1': raise ValueError('Runtime reply failed')
-            a,b,c,d=[int(sw[k]) for k in ('server_rx_exit_ns','server_handler_enter_ns',
-                                         'server_handler_exit_ns','server_tx_enter_ns')]
-            if not a<=b<=c<=d: raise ValueError('Invalid runtime service stages')
-            runtime_bounds.append((a,d,to_host,from_host))
-            # Partition elapsed time, assigning the overlapping RX interval to
-            # host/MAC transport. Keep its extent and original events explicit;
-            # these components do not measure independent hardware work.
-            rpc_rx_begin=max(after_rx,udp_rx)
-            record['rx_streaming_overlap_ns']=max(0,after_rx-udp_rx)
-            record['app_stages_ns']=dict(zip((3,4,9,44,45,2,5,6),stages))
-            record['components_ns']=partition(total,c-b,d-a-(c-b)+to_host-rpc_rx_begin+udp_tx-from_host,
-                                              max(0,udp_rx-after_rx)+before_tx-udp_tx)
-        result.append(record)
-    causal=dict(client_mac=clock_bounds(bounds))
-    if runtime_bounds: causal['runtime_mac']=clock_bounds(runtime_bounds)
+
+def cpu_partition(start, end, intervals):
+    ordered=sorted(intervals.values())
+    if start<=0 or end<=start or any(not start<=a<=b<=end for a,b in ordered):
+        raise ValueError('Invalid CPU stage boundaries')
+    if any(b>c for (_,b),(c,_) in zip(ordered,ordered[1:])):
+        raise ValueError('Overlapping CPU components')
+    parts=dict.fromkeys(COMPONENTS,0)
+    parts.update({k:b-a for k,(a,b) in intervals.items()})
+    parts['cpu_other']=end-start-sum(parts.values())
+    return dict(cpu_duration_ns=end-start,components_ns=parts)
+
+
+def finish(client_path, client, software, *, system, count, warmup, instrumentation,
+           payload_bytes, wire_path=None, server_path=None, correlation='wire XID'):
+    keys=[dict(flow_id=0,request_id=int(r['request_id']),rtt_ns=int(r['client_rx_burst_ns'])-int(r['client_call_enter_ns'])) for r in client]
     files={str(client_path):digest(client_path)}
     if server_path: files[str(server_path)]=digest(server_path)
-    return dict(system='LH',instrumentation=instrumentation,count=count,warmup=warmup,payload_bytes=payload_bytes,
-                correlation='XID-validated single-outstanding order plus causal bounds',
-                rows=result,files=files,causal=causal,
-                preparation=dict(priming_count=priming_count,setup_count=setup_count,
-                                 excluded_from_observations=True,mac_pairs=mac_pairs[:setup_count]))
+    if wire_path:
+        raw=json.loads(open(wire_path).read())
+        if raw.get('methodology')!=METHOD or raw.get('fixture') is not False:
+            raise ValueError('Wire capture is not validated acquisition evidence')
+        observations=join_durations(keys,raw['rows'],software)
+        files[str(wire_path)]=digest(wire_path)
+    else:
+        observations=[dict(flow_id=r['flow_id'],request_id=r['request_id'],wire_ns=None) for r in keys]
+        if software:
+            for row,sw in zip(observations,software): row.update({k:sw[k] for k in ('cpu_duration_ns','components_ns')})
+    for row,cl in zip(observations,client): row['warmup']=int(cl['warmup'])
+    return dict(system=system,methodology=METHOD,wire_available=wire_path is not None,
+                paper_inputs=wire_path is not None,instrumentation=instrumentation,
+                count=count,warmup=warmup,payload_bytes=payload_bytes,correlation=correlation,
+                rows=observations,files=files)
+
+
+def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_bytes, wire_path=None):
+    client=client_rows(client_path,count,warmup,payload_bytes);server=rows(server_path)
+    by_id={int(r['request_id']):r for r in server}
+    if len(by_id)!=len(server) or set(by_id)!={int(r['request_id']) for r in client}:
+        raise ValueError('Duplicate or mismatched DPDK XID sets')
+    software=[]
+    for cl in client:
+        sw=by_id[int(cl['request_id'])]
+        if sw['status']!='1' or sw['warmup']!=cl['warmup'] or int(sw['profile'])!=int(instrumentation=='breakdown'):
+            raise ValueError('Invalid DPDK status/instrumentation')
+        if instrumentation=='breakdown':
+            t=lambda k:int(sw[k+'_ns'])
+            stages=['rx_poll_enter','rx_cqe','rx_return','network_rx_begin','network_rx_end',
+                    'rpc_rx_end','handler_end','rpc_tx_end','network_tx_begin','network_tx_end',
+                    'tx_submit_begin','tx_pmd_enter','tx_doorbell','tx_return']
+            times=[t(k) for k in stages]
+            if not times[0] or times!=sorted(times): raise ValueError('Invalid queue/software stages')
+            part=cpu_partition(t('rx_cqe'),t('tx_return'),{
+                'rx_queue':(t('rx_cqe'),t('rx_return')),
+                'rx_network':(t('network_rx_begin'),t('network_rx_end')),
+                'rpc_receive':(t('network_rx_end'),t('rpc_rx_end')),
+                'handler':(t('rpc_rx_end'),t('handler_end')),
+                'rpc_transmit':(t('handler_end'),t('rpc_tx_end')),
+                'tx_network':(t('network_tx_begin'),t('network_tx_end')),
+                'tx_submission':(t('network_tx_end'),t('tx_doorbell'))})
+            part.update(flow_id=0,request_id=int(cl['request_id']))
+            software.append(part)
+    result=finish(client_path,client,software if instrumentation=='breakdown' else None,
+        system='DPDK',count=count,warmup=warmup,instrumentation=instrumentation,
+        payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path)
+    if software:
+        result['rx_preparation_ns']=[int(by_id[int(c['request_id'])]['rx_cqe_ns'])-int(by_id[int(c['request_id'])]['rx_poll_enter_ns']) for c in client]
+        result['rx_preparation_scope']='Successful poll before CQE observation; outside CPU critical interval'
+    return result
+
+
+def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
+               payload_bytes, server_path=None, wire_path=None, priming_count=0):
+    client=client_rows(client_path,count,warmup,payload_bytes);software=[];bounds=[]
+    if instrumentation=='breakdown':
+        server=rows(server_path)
+        if len(server)!=setup_count+len(client): raise ValueError('Incomplete runtime cohort')
+        previous=0
+        for cl,sw in zip(client,server[setup_count:]):
+            t=lambda k:int(sw['server_'+k+'_ns'])
+            if sw['ok']!='1' or t('rx_exit')<previous: raise ValueError('Invalid runtime reply/order')
+            previous=t('tx_exit')
+            part=cpu_partition(t('rx_exit'),t('tx_exit'),{
+                'rpc_receive':(t('unmarshal_enter'),t('handler_enter')),
+                'handler':(t('handler_enter'),t('handler_exit')),
+                'rpc_transmit':(t('marshal_enter'),t('marshal_exit')),
+                'tx_submission':(t('tx_doorbell'),t('tx_doorbell_return'))})
+            part.update(flow_id=0,request_id=int(cl['request_id']));software.append(part)
+            bounds.append((t('rx_exit'),t('tx_exit'),int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])))
+    result=finish(client_path,client,software if instrumentation=='breakdown' else None,
+        system='LH',count=count,warmup=warmup,instrumentation=instrumentation,
+        payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path,
+        correlation='Exact single-outstanding runtime order; client wire XID validation')
+    if bounds: result['causal_cpu_client']=clock_bounds(bounds)
+    return result
 
 
 def validate_matched(cohorts):
-    """Instrumented components never borrow an uninstrumented total."""
     expected={(s,n,m) for s in ('LH','DPDK') for n in SIZES for m in ('off','breakdown')}
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
     for system in ('LH','DPDK'):
-        selected=[c for c in cohorts if c['system']==system]
-        builds={mode:{c['build_config_sha256'] for c in selected if c['instrumentation']==mode}
-                for mode in ('off','breakdown')}
+        builds={m:{c['build_config_sha256'] for c in cohorts if c['system']==system and c['instrumentation']==m} for m in ('off','breakdown')}
         if any(len(v)!=1 for v in builds.values()) or builds['off']==builds['breakdown']:
             raise ValueError('Expected distinct, consistent compiled tracing variants')
     for c in cohorts:
+        if c.get('methodology')!=METHOD or c.get('wire_available') is not True or c.get('paper_inputs') is not True:
+            raise ValueError('Missing Tofino wire durations; readiness results are not paper inputs')
         if len(c['rows'])!=c['count']+c['warmup']: raise ValueError('Incomplete unloaded observations')
         for i,row in enumerate(c['rows'],1):
-            if row['request_id']!=i or row['warmup']!=int(i<=c['warmup']):
-                raise ValueError('Invalid unloaded identity or warmup')
-            if row.get('mac_ns',0)<=0 or row['mac_ns']!=row.get('tx_mac_ns',0)-row.get('rx_mac_ns',0):
-                raise ValueError('Invalid unloaded MAC interval')
-        if c['instrumentation']=='breakdown':
-            for row in c['rows']:
-                if any(v<0 for v in row['components_ns'].values()):
-                    raise ValueError('Negative service-path component')
-                if sum(row['components_ns'].values())!=row['mac_ns']:
-                    raise ValueError('Instrumented components do not conserve their own total')
-        elif any('components_ns' in row for row in c['rows']):
-            raise ValueError('Components attached to an uninstrumented cohort')
+            if row['request_id']!=i or row['warmup']!=int(i<=c['warmup']) or not row.get('wire_ns',0)>0:
+                raise ValueError('Invalid unloaded identity, warmup or wire duration')
+            if c['instrumentation']=='breakdown':
+                parts=row['components_ns']
+                if set(parts)!=set(COMPONENTS)|{'cpu_wire'} or any(v<0 for v in parts.values()) or sum(parts.values())!=row['wire_ns']:
+                    raise ValueError('Invalid conserved wire/CPU partition')
+            elif 'components_ns' in row: raise ValueError('Components attached to uninstrumented cohort')

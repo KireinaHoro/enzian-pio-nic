@@ -129,7 +129,7 @@ class Campaign:
         if name == 'loaded':
             if result.get('health') is not True or result.get('restored') is not True:
                 raise ValueError('Loaded hardware health/restoration gate failed')
-            if result.get('trace_readouts') != 0 or result.get('software_profiling') is not False or result.get('fpga_recording') is not False:
+            if result.get('trace_readouts') != 0 or result.get('software_profiling') is not False or result.get('fpga_recording') is not False or result.get('nic_timestamping') is not False:
                 raise ValueError('Loaded case instrumentation contract violated')
             if result.get('generator_cpus') != self.config['generator_cpus'] or result.get('flows') != self.config['flows']:
                 raise ValueError('Generator placement/flow mismatch')
@@ -156,18 +156,15 @@ class Campaign:
             cohort=result['cohort']
             if any(cohort[k]!=request[k] for k in ('system','payload_bytes','count','warmup','instrumentation')):
                 raise ValueError('Unloaded cohort differs from requested configuration')
-            gates=['xid_pairing','health','restored']
-            if result.get('mac_pairs')!=request['count']+request['warmup'] or result.get('stored_loss')!=0:
-                raise ValueError('Incomplete unloaded MAC capture')
-            gates.append('jtag_checks' if request['system']=='LH' else 'timestamp_checks')
             instrumented=request['instrumentation']=='breakdown'
-            if (result.get('mac_timestamping') is not True
+            if (result.get('wire_available') is not True
                     or result.get('software_profiling') is not instrumented
                     or result.get('tracing_compiled') is not instrumented
-                    or result.get('trace_readouts')!=(1 if request['system']=='LH' else 0)
-                    or result.get('fpga_recording') is not (request['system']=='LH')):
-                raise ValueError('Unloaded software/MAC instrumentation contract violated')
-            for gate in gates:
+                    or result.get('trace_readouts')!=0
+                    or result.get('fpga_recording') is not False
+                    or result.get('nic_timestamping') is not False):
+                raise ValueError('Unloaded wire/software instrumentation contract violated')
+            for gate in ('xid_pairing','health','restored'):
                 if result.get(gate) is not True: raise ValueError('Unloaded gate missing: '+gate)
         if name == 'preflight':
             for gate in ('reservations', 'matching_artifacts', 'storage_budget', 'ram_budget',
@@ -315,7 +312,7 @@ def implementation(config):
     paths=[SELF,*sorted((SELF.parent/'campaign').glob('*.py')),
            SELF.parent/'paper_chart.py', SELF.parent/'plot_echo.py',
            SELF.parent/'plot_echo_unloaded.py',
-           *(SELF.parent/name for name in ('check_nullrpc_capture.py','import_nullrpc_mac.py','transfer_results.py')),
+           *(SELF.parent/name for name in ('transfer_results.py',)),
            *sorted((ROOT/'tools/enzian').glob('*.py')),
            *sorted((ROOT/'tools/enzian/trace').glob('*.py')),
            ROOT/'tools/enzian/trace/control.tcl', ROOT/'data/eci/sys_trace/dump_trace_udp.py',

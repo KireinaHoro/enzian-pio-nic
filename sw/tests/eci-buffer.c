@@ -58,10 +58,10 @@ int main(void) {
                 memset(data,0x73,capacity);
                 lauberhorn_pkt_desc_t desc={.type=TY_NATIVE_UDP_TX,
                     .payload_len=length,.udp={.endpoint=17,.dport=11211,.trace_ref=0x803f}};
-                uint64_t stamp = 0;
+                uint64_t stamp = 0, returned = 0;
                 unsigned before = probes;
-                assert(core_eci_tx_commit_traced(base,&state,&desc,&stamp,before_doorbell)==CORE_TX_ACCEPTED);
-                assert(stamp == 123456 && probes == before + 1);
+                assert(core_eci_tx_commit_traced_full(base,&state,&desc,&stamp,&returned,before_doorbell)==CORE_TX_ACCEPTED);
+                assert(stamp == 123456 && returned == 123456 && probes == before + 2);
                 assert(!state.tx_reserved && tx==!parity);
                 assert(lauberhorn_eci_host_tx_placement_inline_payload_extract(ctrl)==inline_payload);
                 assert(lauberhorn_eci_host_ctrl_info_native_udp_tx_len_extract(ctrl)==length);

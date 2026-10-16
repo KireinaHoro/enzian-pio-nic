@@ -11,9 +11,9 @@ measurements retain their original semantics and provenance.
 
 The selected hot-case systems are Lauberhorn, DPDK on the ConnectX-5 in
 zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
-wait for its port. The existing NICVF campaign adapter does not implement this
-new baseline selection. Collection is stopped; do not resume its old topology
-or relabel NICVF observations as ConnectX-5 results.
+wait for its port. DPDK uses a dedicated `dpdk_dut` on zuestoll07; LH and the generator occupy
+separate hosts in full campaigns. Never relabel NICVF observations as
+ConnectX-5 results. Long collection remains on hold.
 
 ## Canonical measurement contract
 
@@ -23,10 +23,11 @@ breakdown totals are Tofino wire-to-wire; breakdowns subtract CPU durations to
 obtain one combined CPU–wire residual. No mlx5 hardware timestamping is used.
 Loaded cases retain uninstrumented client RTT with no packet trace capture.
 
-The current hardware adapter still implements NICVF/FPGA MAC acquisition and
-is not accepted for this contract. Collection stays blocked pending the Tofino
-backend, ConnectX-5 deployment and queue-level software instrumentation. Do not
-interpret a successful legacy adapter fixture as wire-to-wire acceptance.
+The active adapter no longer collects FPGA MAC or NIC PTP timestamps.
+The [mlx5 readiness workflow](mlx5-readiness.md) exercises software stages and
+loaded RTT before the external wire backend exists. Readiness-only unloaded
+outputs cannot enter paper plots. Collection stays blocked pending Tofino
+integration and validated acceptance of the selected baselines.
 
 ## Neighbor preparation
 
@@ -36,8 +37,8 @@ priming call has a bounded one-second deadline and its own validated archive;
 it precedes 16 setup calls at the ordinary 10 ms deadline, all warmups, and all
 measured requests. Priming is not a benchmark observation. Its possible Linux
 bypass reply is preserved as preparation provenance, never assigned a fabricated
-MAC pair. Every later setup/warmup/measured reply requires complete native MAC
-pairing for unloaded cohorts. Loaded runs retain the 10 ms deadline and no trace
+MAC pair. Every later setup/warmup/measured reply requires validated XID/payload
+accounting; external capture must provide its own complete pairing. Loaded runs retain the 10 ms deadline and no trace
 readouts. The DPDK client already addresses the responder using its explicit MAC.
 
 ## Generator contract
@@ -189,7 +190,8 @@ Loaded orchestration reuses its verified frozen recorder state only within the
 same systemd service invocation and exact hardware configuration. The receipt is
 hash checked; boot paths discard it, service restarts re-freeze, and failed stages
 remain unsafe. Loaded roles never change FPGA controls, so they do not run a
-redundant final `preserve` session. Unloaded capture/restoration is unchanged.
+redundant final `preserve` session. Both unloaded modes also keep FPGA recording
+frozen and perform no normal trace readout.
 After all role archives pass local validation, server and client temporary-file
 cleanup runs concurrently through separate canonical console sessions. Failures
 from either cleanup still fail the cohort. `timings.json` records elapsed stage
@@ -220,13 +222,15 @@ raw `csv`, `summary`, actual placement/flows and per-worker activity. Unloaded
 stages return `cohort` from `campaign.import_unloaded`, augmented with a
 `build_config_sha256` fingerprint identifying the compiled variant. All runs
 require validated client identity, health and restoration. Both unloaded modes
-require complete MAC pairs, no stored loss, independent JTAG checks for LH
-(or matched PTP module/clock checks for DPDK). The CDF requires compiled-out software probes with MAC recording enabled.
-Loaded runs require compiled-out software probes, frozen FPGA recording, no PTP
-and no trace readout.
-`full-unloaded.json` keeps 12 cohorts: both systems, 8/128/1432-byte bodies,
-and two instrumentation modes.
-Internal FPGA RPC IDs pair trace events within request lifetimes; the client validates wire XIDs. Preflight must check reservations, artifact
+require complete external wire-duration pairs and compiled instrumentation
+provenance. CDF probes are compiled out; breakdown probes include queue, network,
+RPC and handler intervals. Both disable NIC timestamping and FPGA recording.
+Loaded runs require compiled-out software probes and no trace readout.
+`full-unloaded.json` keeps 12 cohorts: LH/DPDK, 8/128/1432-byte bodies,
+and two instrumentation modes. Caladan joins after its port is accepted.
+The client validates wire XIDs; LH CPU rows use exact single-outstanding order
+and causal duration bounds, without modifying the hardware trace format.
+Preflight must check reservations, artifact
 matching, budgets, isolated CPUs, prior-state preservation and actual callback
 delivery. The final stage must archive raw observations and provenance, validate
 all cohorts, generate figures, validate dimensions/fonts and supply previews.
@@ -241,27 +245,18 @@ gate. All grid points are retained. Candidate ranking uses goodput within the
 contiguous prefix before the first rate where any repetition exceeds 1% loss;
 failed sustained confirmations step down through that candidate order.
 
-All trace lifecycle operations now use the canonical
-[Lauberhorn trace infrastructure](../../tools/enzian/trace/README.md).
-`Harness.capture` calls the same session API as the manual CLI; `Harness.vio`
-uses its recording-only snapshot/freeze/restore controls. The existing CMAC
-receiver and JTAG reader remain the only low-level dump implementations. The
-paper-specific dump/check wrappers and remote-only VIO script dependency are
-retired. Manual validation on the already-frozen 519555 recovery buffer preserved
-975,586,752 bytes with matching SHA256 and independent 4 KiB head/tail checks;
-controls were restored with recording frozen. This is transport validation, not
-a passing benchmark cohort or a claim of loss-free workload traces. Evidence is
-`out/echo-redesign/canonical-trace-validation/summary.json`. Acquisition hashes include the shared Python/Tcl and receiver sources.
-
+Exceptional Lauberhorn boot/module failure preservation uses the canonical
+[trace infrastructure](../../tools/enzian/trace/README.md). Normal measurements
+only freeze recording; neither unloaded nor loaded cases dump FPGA traces.
 The hardware adapter argv is `python3 tools/paper/echo_hardware.py HARDWARE.json`.
 Its manifest names immutable build products, artifact hashes, the matched boot
 case and trace map, reservations/endpoints, RAM/storage budgets, and a dedicated
 transfer directory. Build commands realize the frozen products; source-defined
 Nix builds establish them before configuration is frozen. The adapter stages
 images with streaming SHA256 verification. DPDK receives a fresh harness boot
-without native workers. Native loaded cohorts reuse a resident pool only while
+on the ConnectX-5 host without FPGA programming or native workers. Native loaded cohorts reuse a resident pool only while
 size and worker count match; configuration changes use a verified cold boot.
-Normal loaded runs never dump traces. Ethernet capture failures retain partial evidence and return failure without
+Normal runs never dump traces. Exceptional Ethernet capture failures retain partial evidence and return failure without
 a full JTAG fallback or a hardware reset. Independent 4 KiB JTAG head/tail
 checks validate successful Ethernet captures. A recognized Vivado shutdown
 segfault after a completed trigger permits receiver validation; it never

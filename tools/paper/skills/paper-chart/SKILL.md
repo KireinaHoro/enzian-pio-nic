@@ -43,8 +43,11 @@ already included. When replacing or retiring charts, delete superseded scripts
 and PDFs, including obsolete previews. Keep shared scripts still used by active
 charts and preserve measurement/provenance inputs. Do not keep alternate stale
 plot implementations. Update the inventory in the same iteration.
-Use the requested latency boundary: MAC-to-MAC values must come from paired
-hardware MAC events, never from relabeled client RTT or subtraction of a median.
+Use the canonical hot echo boundary in `docs/research/hot-measurement.md`:
+unloaded totals are paired Tofino wire durations; loaded latency is client RTT.
+Software-only readiness data with null wire durations cannot produce a paper CDF
+or CPU–wire residual. Keep historical observations under their original boundary;
+never relabel MAC intervals or RTT as wire-to-wire.
 When requested, annotate median, P99 and max with their numeric values and units;
 retain the default line weight unless thicker lines are explicitly requested.
 Inspect its instructions and existing modifications first. Do not commit others'

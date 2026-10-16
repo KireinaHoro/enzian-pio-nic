@@ -1,8 +1,8 @@
 # Runtime-only Enzian client image: all executables are cross-built on the host.
-{ pkgs, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {} }:
+{ pkgs, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {}, probeDpdk ? dpdk, mlx5 ? false }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
-  generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk; };
+  generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk probeDpdk mlx5; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
     lh-dpdk-run = "tools/enzian/dpdk_run.py";
@@ -39,8 +39,9 @@ let
     inherit identity;
     system = target.stdenv.hostPlatform.config;
     dpdkVersion = dpdk.version;
+    queueInstrumentation = if mlx5 then "mlx5-scalar-cpu-v1" else null;
     packages = {
-      generator = "${generator}"; dpdk = "${dpdk}";
+      generator = "${generator}"; dpdk = "${dpdk}"; probeDpdk = "${probeDpdk}";
       thunderxPtpModules = "${modules}";
     };
     nativeVariants = pkgs.lib.mapAttrs (_: variant: {

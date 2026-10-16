@@ -42,7 +42,7 @@ class Hardware(unittest.TestCase):
         endpoint=dict(ip='192.0.2.1',mac='02:00:00:00:00:01',prefix=24)
         config=dict(worker_cpus=[44],generator_cpus=list(range(6,14)),flows=64,
                     dut_endpoint=endpoint,peer_endpoint=endpoint,fpga_endpoint=endpoint,
-                    transfer_url='http://fixture',ptp_bgx=4,tracking_mib=1024)
+                    transfer_url='http://fixture',tracking_mib=1024)
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             for stage,flows in (('unloaded',1),('loaded',64)):
@@ -85,7 +85,7 @@ class Hardware(unittest.TestCase):
             with self.subTest(fail=fail),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory)
                 (root/'request.json').write_text('{}')
-                config=dict(peer='peer',dut='dut',gateway='gateway',transfer_root='/transfer',
+                config=dict(peer='peer',dut='dut',dpdk_dut='dut',gateway='gateway',transfer_root='/transfer',
                             client_image_remote='/image',client_image_sha256='image-sha',
                             client_sha256='client-sha',server_sha256={'off':'server-sha'})
                 acquisition=Acquisition(config,dict(system='DPDK',stage='unloaded'),root,root)
@@ -130,7 +130,7 @@ class Hardware(unittest.TestCase):
                 acquisition.freeze_loaded()
                 self.assertEqual(acquisition.h.vio.call_count,7)
 
-    def test_unloaded_mac_capture_in_both_software_modes(self):
+    def test_unloaded_never_reads_fpga_or_nic_timestamps(self):
         for system in ('LH','DPDK'):
             for mode in ('off','breakdown'):
                 with self.subTest(system=system,mode=mode),tempfile.TemporaryDirectory() as directory:
@@ -143,28 +143,29 @@ class Hardware(unittest.TestCase):
                     acquisition.h.vio.return_value={'trace_stop':1}
                     (root/'health.json').write_text('{"passed":true}')
                     acquisition.capture=Mock(return_value=root/'capture');acquisition.last_recorder={'trace_stop':1}
-                    acquisition.import_lh=Mock(return_value={})
+                    acquisition.state['setup_count']=16
                     acquisition.execute_roles=Mock(return_value=({'client':root,'server':root},{'client':{'files':{}}}))
-                    with patch('campaign.hardware.dpdk',return_value={}): result=acquisition.run()
-                    self.assertTrue(result['mac_timestamping'])
+                    with patch('campaign.hardware.dpdk',return_value={}), patch('campaign.hardware.lauberhorn',return_value={}): result=acquisition.run()
+                    self.assertFalse(result['nic_timestamping'])
+                    self.assertFalse(result['wire_available'])
                     self.assertEqual(result['tracing_compiled'],mode=='breakdown')
-                    self.assertEqual(result['mac_pairs'],1)
-                    self.assertEqual(acquisition.capture.call_count,int(system=='LH'))
-                    self.assertEqual(acquisition.h.vio.call_count,0 if system=='LH' else 2)
+                    self.assertEqual(result['trace_readouts'],0)
+                    acquisition.capture.assert_not_called()
+                    self.assertEqual(acquisition.h.vio.call_count,int(system=='LH'))
 
-    def test_baseline_boot_failure_preserves_before_recovery(self):
+    def test_cpu_baseline_boot_failure_retains_logs_without_fpga_capture(self):
         for error in (RuntimeError('boot failed'),subprocess.TimeoutExpired('boot',3600)):
             with self.subTest(error=type(error).__name__),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory);stage=root/'stage';stage.mkdir()
                 request=dict(stage='unloaded',system='DPDK',payload_bytes=8)
                 (stage/'request.json').write_text(json.dumps(request))
                 case=root/'case.json';case.write_text(json.dumps([dict(program=['fixture'])]))
-                config=dict(boot_case=str(case),gateway='fixture',dut='fixture',owner='fixture')
+                config=dict(boot_case=str(case),gateway='fixture',dut='fixture',owner='fixture',dpdk_dut='zuestoll07',dut_interface='enP5p144s0np0')
                 acquisition=Acquisition(config,request,stage,root)
                 acquisition.h=Mock();acquisition.h.command.side_effect=error
                 acquisition.capture=Mock()
                 with self.assertRaises(type(error)): acquisition.ensure_dpdk()
-                acquisition.capture.assert_called_once_with(exceptional=True)
+                acquisition.capture.assert_not_called()
                 acquisition.h.cpu.assert_not_called()
                 self.assertFalse(json.loads((root/'hardware-state.json').read_text())['safe'])
 

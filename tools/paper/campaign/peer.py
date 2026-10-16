@@ -99,13 +99,14 @@ def run(config):
     runner=['lh-dpdk-run','--logs',str(root/'runner'),'--lcore',str(cores[0]),'--no-iommu',
             '--timeout',str(config['timeout_seconds'])]
     if len(cores)>1: runner+=['--worker-lcores',','.join(map(str,cores[1:]))]
+    interface=config.get('interface','cpu40g1')
+    runner+=['--interface',interface]
     if server:
         env['LH_ECHO_READY_FILE']=str(root/'ready')
         if loaded:
             env.update(LH_ECHO_SOFTWARE_CONTROL='1',LH_ECHO_BATCHED='1',
                        LH_ECHO_STOP_FILE=str(root/'stop'))
         else:
-            runner+=['--ptp-bgx',str(config['ptp_bgx']),'--manifest',config['manifest']]
             if config['instrumentation']=='breakdown': env['LH_ECHO_PROFILE']='1'
     elif loaded:
         env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
@@ -120,10 +121,10 @@ def run(config):
     original=None; process=None; failure=None; code=None
     try:
         if server:
-            original=json.loads(subprocess.check_output(['ip','-j','addr','show','dev','cpu40g1']))[0]
+            original=json.loads(subprocess.check_output(['ip','-j','addr','show','dev',interface]))[0]
             if not server_nic_prepared(original,config['source_cidr']):
-                subprocess.run(['ip','addr','add',config['source_cidr'],'dev','cpu40g1','noprefixroute'],check=True)
-                subprocess.run(['ip','link','set','cpu40g1','up'],check=True)
+                subprocess.run(['ip','addr','add',config['source_cidr'],'dev',interface,'noprefixroute'],check=True)
+                subprocess.run(['ip','link','set',interface,'up'],check=True)
         elif config['system']=='DPDK':
             deadline=time.monotonic()+120
             while not present(url+'/'+label+'-ready'):
@@ -166,12 +167,12 @@ def run(config):
                 process.kill(); process.wait(); failure=f'{failure or ""}; forced wrapper termination'
         if original is not None and not original['addr_info'] and 'UP' not in original['flags']:
             # Driver rebinding may already have removed the temporary address.
-            current=json.loads(subprocess.check_output(['ip','-j','addr','show','dev','cpu40g1']))[0]
+            current=json.loads(subprocess.check_output(['ip','-j','addr','show','dev',interface]))[0]
             commands=[]
             if any(a.get('local')+'/'+str(a.get('prefixlen'))==config['source_cidr']
                    for a in current['addr_info'] if a.get('local')):
-                commands.append(['ip','addr','del',config['source_cidr'],'dev','cpu40g1'])
-            commands.append(['ip','link','set','cpu40g1','down'])
+                commands.append(['ip','addr','del',config['source_cidr'],'dev',interface])
+            commands.append(['ip','link','set',interface,'down'])
             for command in commands:
                 if subprocess.run(command).returncode: failure=f'{failure or ""}; NIC restoration failed'
         (root/'result.json').write_text(json.dumps(dict(returncode=code,error=failure),indent=2)+'\n')

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Run the generator on a reserved Enzian's cpu40g1 VF and restore its state.
+"""Run a benchmark on a reserved Enzian data NIC and restore its state.
+
+mlx5 stays bound to mlx5_core/mlx5_ib (bifurcated PMD); NICVF uses VFIO.
 
 Execute on the client as root, after checking its emg reservation externally.
 Management/root storage must stay on cpu40g0. This wrapper never changes the PF.
@@ -14,7 +16,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
-from cpu_isolation import Isolation
+from cpu_isolation import Isolation, cpus
 
 
 def command(*args):
@@ -33,9 +35,7 @@ def main():
     p.add_argument('--hugepages-mb', type=int, default=512)
     p.add_argument('--timeout', type=int, default=120)
     p.add_argument('--no-iommu', action='store_true')
-    p.add_argument('--ptp-bgx', type=int, choices=range(8))
-    p.add_argument('--manifest', type=Path,
-                   help='deployment manifest; required for hardware timestamp runs')
+    p.add_argument('--interface', default='cpu40g1')
     p.add_argument('binary', type=Path)
     p.add_argument('arguments', nargs=argparse.REMAINDER)
     args = p.parse_args()
@@ -47,8 +47,6 @@ def main():
         p.error('worker-lcores must be comma-separated CPU numbers')
     if min(lcores) < 0 or len(set(lcores)) != len(lcores):
         p.error('lcores must be distinct nonnegative CPU numbers')
-    if args.ptp_bgx is not None and len(lcores) != 1:
-        p.error('PTP timestamping supports one polling CPU only')
     # A login shell can inherit a mask excluding isolated CPUs. Expand this
     # process's mask explicitly; the kernel still enforces its cpuset cgroup.
     try:
@@ -64,14 +62,15 @@ def main():
         p.error('provide the generator arguments after binary --')
     if not args.binary.is_file() or not os.access(args.binary, os.X_OK):
         p.error('generator must be an existing executable')
-    interface = 'cpu40g1'
+    interface = args.interface
     dev = Path('/sys/class/net') / interface / 'device'
     if not dev.exists():
         p.error('cpu40g1 must initially be bound to its kernel driver')
     dev = dev.resolve()
     bdf, original_driver = dev.name, (dev / 'driver').resolve().name
-    if original_driver != 'nicvf':
+    if original_driver not in ('nicvf','mlx5_core'):
         p.error(f'unexpected ThunderX kernel driver {original_driver}')
+    mlx5=original_driver=='mlx5_core'
     original_override = (dev/'driver_override').read_text().strip()
     if original_override == '(null)':
         original_override = ''
@@ -82,38 +81,9 @@ def main():
     if 'dev cpu40g0' not in command('ip', 'route', 'get', '192.168.255.254'):
         p.error('management gateway must use cpu40g0')
     addresses = json.loads(command('ip', '-j', 'addr', 'show', 'dev', interface))[0]
-    if not any(a['local'] == app_args[0] for a in addresses['addr_info']):
+    if not mlx5 and not any(a['local'] == app_args[0] for a in addresses['addr_info']):
         p.error('source address must belong to cpu40g1 before binding')
     provenance = None
-    if args.ptp_bgx is not None:
-        if args.manifest is None:
-            p.error('--ptp-bgx requires the matching deployment --manifest')
-        manifest = json.loads(args.manifest.read_text())
-        release = manifest['kernelRelease']
-        if command('uname', '-r') != release:
-            p.error('running kernel differs from the deployment manifest')
-        generator = Path(manifest['packages']['generator']) / 'bin'
-        if args.binary.resolve().parent != generator:
-            p.error('binary is not from the manifest generator package')
-        modules = Path(manifest['packages']['thunderxPtpModules']) / 'lib/modules' / release / 'extra'
-        provenance = dict(manifest=manifest, modules={})
-        for name in ('cavium_ptp', 'nicvf', 'thunder_bgx'):
-            expected = modules / (name + '.ko')
-            installed = Path(command('modinfo', '-n', name))
-            source = command('modinfo', '-F', 'srcversion', str(expected))
-            loaded = Path('/sys/module') / name / 'srcversion'
-            if not source or not loaded.exists() or loaded.read_text().strip() != source:
-                p.error(f'{name}: loaded module differs from the packaged source')
-            digest = hashlib.sha256(expected.read_bytes()).hexdigest()
-            if hashlib.sha256(installed.read_bytes()).hexdigest() != digest:
-                p.error(f'{name}: installed module differs from the package')
-            if not command('modinfo', '-F', 'vermagic', str(expected)).startswith(release + ' '):
-                p.error(f'{name}: module ABI differs from the manifest')
-            provenance['modules'][name] = dict(sha256=digest, srcversion=source)
-        clocks = list(Path('/sys/class/ptp').glob('ptp*/clock_name'))
-        if not clocks:
-            p.error('hardware timestamp run requires an active PTP clock')
-        provenance['clocks'] = {str(path): path.read_text().strip() for path in clocks}
     args.logs.mkdir(parents=True, exist_ok=False)
     snapshot = dict(timestamp_provenance=provenance, driver_override=original_override, neighbors=neighbors, pci=bdf, driver=original_driver, addresses=addresses, routes=routes,
                     kernel=command('uname','-r'), no_iommu=args.no_iommu, lcore=args.lcore, lcores=lcores,
@@ -122,10 +92,10 @@ def main():
                     isolated_cpus=Path('/sys/devices/system/cpu/isolated').read_text().strip(),
                     nohz_full_cpus=Path('/sys/devices/system/cpu/nohz_full').read_text().strip())
     (args.logs/'before.json').write_text(json.dumps(snapshot,indent=2)+'\n')
-    command('modprobe','vfio-pci')
+    command('modprobe','mlx5_ib' if mlx5 else 'vfio-pci')
     mode = Path('/sys/module/vfio/parameters/enable_unsafe_noiommu_mode')
-    old_mode = mode.read_text().strip()
-    if not (dev/'iommu_group').exists() and not args.no_iommu:
+    old_mode = None if mlx5 else mode.read_text().strip()
+    if not mlx5 and not (dev/'iommu_group').exists() and not args.no_iommu:
         p.error('no IOMMU group; explicit --no-iommu is required on a dedicated client')
     pages_file = Path('/proc/sys/vm/nr_hugepages')
     old_pages = int(pages_file.read_text())
@@ -136,7 +106,7 @@ def main():
     changed_driver = False
     proc = None
     summary = dict(status='failed', returncode=None, restored=False)
-    isolation=Isolation(lcores,args.logs/'isolation-before.json')
+    isolation=Isolation(set(lcores)|cpus(snapshot['isolated_cpus']),args.logs/'isolation-before.json')
     def interrupted(_signum, _frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
@@ -147,19 +117,21 @@ def main():
         if not mounted:
             Path('/dev/hugepages').mkdir(exist_ok=True)
             command('mount','-t','hugetlbfs','nodev','/dev/hugepages')
-        if args.no_iommu:
-            write(mode, 'Y')
-        command('ip','link','set',interface,'down')
-        changed_driver = True
-        write(dev/'driver_override','vfio-pci')
-        write(dev/'driver'/'unbind',bdf)
-        write('/sys/bus/pci/drivers_probe',bdf)
-        if (dev/'driver').resolve().name != 'vfio-pci':
-            raise RuntimeError('VFIO binding did not succeed')
+        if mlx5:
+            command('ip','link','set',interface,'up')
+        else:
+            if args.no_iommu: write(mode, 'Y')
+            command('ip','link','set',interface,'down')
+            changed_driver = True
+            write(dev/'driver_override','vfio-pci')
+            write(dev/'driver'/'unbind',bdf)
+            write('/sys/bus/pci/drivers_probe',bdf)
+            if (dev/'driver').resolve().name != 'vfio-pci':
+                raise RuntimeError('VFIO binding did not succeed')
         summary['isolation']=isolation.apply()
-        device_arg = bdf + (f',ptp_bgx={args.ptp_bgx}' if args.ptp_bgx is not None else '')
+        device_arg = bdf + (',rx_vec_en=0,mprq_en=0,rxq_cqe_comp_en=0,txq_mpw_en=0' if mlx5 else '')
         argv = [str(args.binary.resolve()), '-l', ','.join(map(str, lcores)), '-a', device_arg,
-                '--file-prefix=lh-bench-'+str(os.getpid()), '--iova-mode=pa',
+                '--file-prefix=lh-bench-'+str(os.getpid()), '--iova-mode='+('va' if mlx5 else 'pa'),
                 '--no-telemetry', '--legacy-mem', '-m', str(args.hugepages_mb), '--', *app_args]
         summary['argv'] = argv
         with (args.logs/'client.log').open('w') as log:
@@ -184,16 +156,18 @@ def main():
         try:
             if changed_driver and (dev/'driver').exists():
                 write(dev/'driver'/'unbind',bdf)
-            write(mode,old_mode)
+            if not mlx5: write(mode,old_mode)
             if not mounted:
                 command('umount','/dev/hugepages')
             write(pages_file,old_pages)
-            if int(pages_file.read_text()) != old_pages or mode.read_text().strip() != old_mode:
+            if int(pages_file.read_text()) != old_pages or (not mlx5 and mode.read_text().strip() != old_mode):
                 raise RuntimeError('hugepage/VFIO settings did not restore')
         except Exception as exc:
             summary['resource_restore_error'] = str(exc)
             summary['status'] = 'failed'
         try:
+            if mlx5:
+                command('ip','link','set',interface,'up' if 'UP' in addresses['flags'] else 'down')
             if changed_driver:
                 write(dev/'driver_override',original_driver)
                 write('/sys/bus/pci/drivers_probe',bdf)

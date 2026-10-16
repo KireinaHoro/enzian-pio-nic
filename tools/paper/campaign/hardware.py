@@ -1,8 +1,8 @@
 """Matched Enzian acquisition for the echo campaign controller.
 
 All CPU access and cold boots use the repository harness. Loaded acquisition
-only freezes recording; full trace preservation belongs to unloaded cohorts
-and exceptional boot/module failures.
+freezes recording; full trace preservation is only for exceptional boot/module
+failures. Unloaded totals await external Tofino integration.
 """
 import csv
 import hashlib
@@ -56,7 +56,8 @@ class Acquisition:
             cpus=c['worker_cpus'][:r['workers']] if server else c['generator_cpus'] if loaded else c['generator_cpus'][:1],
             output='/dev/shm/'+label+'-'+role,label=label,transfer_url=c['transfer_url'],
             binary='/nix/store/lauberhorn-client/bin/'+(('echo_dpdk' if r.get('instrumentation')=='breakdown' else 'echo_dpdk_uninstrumented') if server else 'bench_dpdk'),
-            manifest='/nix/store/lauberhorn-client/manifest.json',ptp_bgx=c['ptp_bgx'],
+            manifest='/nix/store/lauberhorn-client/manifest.json',
+            interface=c.get('dut_interface','enP5p144s0np0') if server else c.get('peer_interface','cpu40g1'),
             endpoint=[source['ip'],destination['ip'],destination['mac'],49152 if server else 12345],
             source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'] if loaded else 1,
             payload_bytes=r['payload_bytes'],count=16 if setup else r.get('count',1),warmup=0 if setup else r.get('warmup',0),
@@ -67,7 +68,7 @@ class Acquisition:
 
     def execute_roles(self):
         configs={'client':(self.config['peer'],self.role('client'))}
-        if self.request['system']=='DPDK': configs={'server':(self.config['dut'],self.role('server')),**configs}
+        if self.request['system']=='DPDK': configs={'server':(self.config['dpdk_dut'],self.role('server')),**configs}
         paths=self.timed('roles',roles,self.directory/'roles',configs,gateway=self.config['gateway'],
             transfer_root=self.config['transfer_root'],image=self.config['client_image_remote'],
             image_sha=self.config['client_image_sha256'])
@@ -180,25 +181,22 @@ namespace['start']({service!r})
         return service
 
     def ensure_dpdk(self):
+        c=self.config
+        machine=c['dpdk_dut']
+        if machine!='zuestoll07' or c['dut_interface']!='enP5p144s0np0':
+            raise ValueError('ConnectX-5 baseline requires the verified zuestoll07 interface')
         if self.state.get('system')=='DPDK': return
-        c=self.config;case=json.loads(Path(c['boot_case']).read_text())[0]
-        program=[str(x).replace('program-hot-uninstrumented.log','program-'+self.label+'.log') for x in case['program']]
         atomic(self.state_path,dict(safe=False,stage=str(self.directory),system='DPDK'))
-        try:
-            self.h.command([sys.executable,ROOT/'tools/enzian/boot.py','--gateway',c['gateway'],
-                '--machine',c['dut'],'--owner',c['owner'],'--logs',self.directory/'dpdk-boot','--',*program],
-                'dpdk-boot',timeout=3600)
-        except Exception:
-            self.capture(exceptional=True)
-            raise
-        # Booting ends the native worker pool. No Lauberhorn application or
-        # module is started for the CPU-NIC baseline; boot.py validates ECI.
-        body='set -eu\nip link set cpu40g1 down\n'
-        body+='mountpoint -q /sys/kernel/tracing || mount -t tracefs tracefs /sys/kernel/tracing\n'
-        body+="printf '0\\n' > /sys/kernel/tracing/tracing_on\n"
+        # CPU-NIC baseline needs no FPGA programming, module or trace capture.
+        self.h.command([sys.executable,ROOT/'tools/enzian/boot.py','--gateway',c['gateway'],
+            '--machine',machine,'--owner',c['owner'],'--logs',self.directory/'dpdk-boot',
+            '--negative-no-bitstream'],'dpdk-boot',timeout=3600)
+        body='set -eu\n'
+        body+='test "$(basename "$(readlink -f /sys/class/net/'+c['dut_interface']+'/device/driver)")" = mlx5_core\n'
         body+="python3 - <<'ECHOIMAGE'\n"+self.h.image_code()+"\nECHOIMAGE\n"
-        self.h.cpu(c['dut'],body,'dpdk-prepare',timeout=600)
+        self.h.cpu(machine,body,'dpdk-prepare',timeout=600)
         self.state=dict(safe=True,system='DPDK',boot=str(self.directory/'dpdk-boot/summary.json'))
+        self.last_recorder=None
         atomic(self.state_path,self.state)
 
     def capture(self, exceptional=False):
@@ -236,10 +234,10 @@ namespace['start']({service!r})
         service=self.timed('ensure-lh',self.ensure_lh) if r['system']=='LH' else None
         atomic(self.state_path,dict(self.state,safe=False,stage=str(self.directory)))
         before=self.timed('snapshot-before',self.h.snapshot,service,self.label+'-before') if service else None
-        frozen=loaded or r['system']=='DPDK'
+        self.last_recorder=None
+        frozen=service is not None
         try:
-            if loaded: self.timed('freeze-loaded',self.freeze_loaded)
-            elif frozen: self.h.vio('configure',self.label,self.directory/(self.label+'-freeze.log'))
+            if frozen: self.timed('freeze-recording',self.freeze_loaded)
             paths,evidence=self.timed('roles-and-cleanup',self.execute_roles)
             after=self.timed('snapshot-after',self.h.snapshot,service,self.label+'-after',export=r.get('instrumentation')=='breakdown') if service else None
             if service:
@@ -249,7 +247,7 @@ namespace['start']({service!r})
                     '--output',self.directory/'health.json'],'health')
                 if not json.loads((self.directory/'health.json').read_text())['passed']:
                     raise ValueError('DUT hardware health failed')
-            result=dict(passed=True,health=True,restored=True,files={})
+            result=dict(passed=True,health=True,restored=True,files={},nic_timestamping=False)
             for role in evidence: result['files'].update(evidence[role]['files'])
             if loaded:
                 if service:
@@ -270,50 +268,22 @@ namespace['start']({service!r})
             else:
                 options={k:r[k] for k in ('count','warmup','instrumentation','payload_bytes')}
                 if service:
-                    trace=self.capture()
-                    cohort=self.import_lh(trace,paths['client']/'samples.csv',after,options)
-                    result['jtag_checks']=True
+                    cohort=lauberhorn(paths['client']/'samples.csv',
+                        setup_count=self.state['setup_count'],
+                        server_path=after/'server.csv' if r['instrumentation']=='breakdown' else None,
+                        **options)
                 else:
                     cohort=dpdk(paths['client']/'samples.csv',paths['server']/'samples.csv',**options)
-                    result['timestamp_checks']=True
                 cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
-                result.update(cohort=cohort,xid_pairing=True)
-                result.update(mac_pairs=r['count']+r['warmup'],stored_loss=0,mac_timestamping=True,
+                result.update(cohort=cohort,xid_pairing=True,wire_available=False,
                               tracing_compiled=r['instrumentation']=='breakdown',
                               software_profiling=r['instrumentation']=='breakdown',
-                              trace_readouts=1 if service else 0,fpga_recording=bool(service))
+                              trace_readouts=0,fpga_recording=False,nic_timestamping=False)
             return result
         finally:
-            if frozen and not loaded: self.last_recorder=self.h.vio('preserve',self.label,self.directory/(self.label+'-restore.log'))
             if 'result' in locals() and result.get('passed'):
                 # Result creation alone is not success: retain unsafe state if
                 # any later validation raised before the return above.
                 if sys.exc_info()[0] is None:
                     atomic(self.state_path,dict(self.state,safe=True,recorder=self.last_recorder,
                                                last_result=str(self.directory/'result.json')))
-
-    def import_lh(self, trace, client, server, options):
-        import import_nullrpc_mac as mac
-        import numpy as np
-        c=self.config;data=self.directory/'import';(data/'acquisition').mkdir(parents=True)
-        check=data/'acquisition'/f'{self.label}-trace-check.json'
-        self.h.command([sys.executable,ROOT/'tools/paper/check_nullrpc_capture.py',trace,'--map',c['trace_map'],
-            '--expected-rpcs',self.state['setup_count']+options['count']+options['warmup'],'--output',check],'trace-check')
-        stages={3,4,9,44,45,2,5,6}
-        mac.extract(trace,Path(c['trace_map']),data=data,campaign=self.label,events=mac.EVENTS|stages)
-        pairs=mac.correlate(data=data,campaign=self.label)
-        mapping=json.loads(Path(c['trace_map']).read_text());sources={s['source']:s for s in mapping['sources']}
-        events={k:[] for k in stages}
-        with gzip.open(data/(self.label+'-mac-events.bin.gz'),'rb') as stream:
-            raw=np.frombuffer(stream.read(),dtype='<u8').reshape(-1,2)
-        for low,high in raw:
-            low,high=int(low),int(high);eid=low&63;source=sources[(high>>11)&127]
-            if eid in events: events[eid].append(((high>>18)-source['pipeline_stages'])*5)
-        for values in events.values(): values.sort()
-        cohort=lauberhorn(client,pairs,setup_count=self.state['setup_count'],
-            priming_count=self.state.get('priming_count',0),
-            server_path=server/'server.csv' if options['instrumentation']=='breakdown' else None,
-            app_events=events,**options)
-        cohort['files'].update({str(p):digest(p) for p in data.rglob('*') if p.is_file()})
-        cohort['files'][str(trace)]=digest(trace)
-        return cohort

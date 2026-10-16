@@ -49,10 +49,11 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
 #if LH_ENABLE_TRACING
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
     trace->tx_enter_ns = server_trace_stage(trace, LH_PMU_tx_enter);
-    int result = core_eci_tx_commit_traced(w->dp_base, &w->dp, &desc,
+    int result = core_eci_tx_commit_traced_full(w->dp_base, &w->dp, &desc,
         trace->enabled ? &trace->tx_doorbell_ns : NULL,
+        trace->enabled ? &trace->tx_doorbell_return_ns : NULL,
         trace->enabled ? server_trace_clock : NULL);
-    if (trace->enabled && trace->tx_doorbell_ns) trace->timestamp_calls++;
+    if (trace->enabled && trace->tx_doorbell_ns) trace->timestamp_calls+=2;
     trace->tx_exit_ns = server_trace_stage(trace, LH_PMU_tx_exit);
     trace->tx_worker_id = w->worker_id;
     trace->response_bytes = len;

@@ -70,19 +70,20 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
             with self.assertRaises(ValueError): c.stage('build',{})
 
     def test_instrumented_cohort_separation(self):
-        from .import_unloaded import validate_matched, partition
+        from .import_unloaded import validate_matched
+        from .wire import COMPONENTS, METHOD
         cohorts=[]
         for system in ('LH','DPDK'):
             for size in controller.SIZES:
                 for mode in ('off','breakdown'):
-                    row=dict(request_id=1,warmup=0,rx_mac_ns=1,tx_mac_ns=101,mac_ns=100)
-                    if mode=='breakdown': row['components_ns']=partition(100,10,20,30)
+                    row=dict(request_id=1,warmup=0,wire_ns=100)
+                    if mode=='breakdown': row['components_ns']=dict(dict.fromkeys(COMPONENTS,10),cpu_wire=20)
                     cohorts.append(dict(system=system,payload_bytes=size,instrumentation=mode,count=1,warmup=0,
-                                        build_config_sha256=mode,rows=[row]))
+                                        build_config_sha256=mode,rows=[row],methodology=METHOD,wire_available=True,paper_inputs=True))
         validate_matched(cohorts)
-        bad=copy.deepcopy(cohorts);bad[0]['rows'][0]['components_ns']=partition(100,10,20,30)
+        bad=copy.deepcopy(cohorts);bad[0]['rows'][0]['components_ns']=dict(dict.fromkeys(COMPONENTS,10),cpu_wire=20)
         with self.assertRaises(ValueError): validate_matched(bad)
-        bad=copy.deepcopy(cohorts);bad[1]['rows'][0]['mac_ns']=200
+        bad=copy.deepcopy(cohorts);bad[1]['rows'][0]['wire_ns']=200
         with self.assertRaises(ValueError): validate_matched(bad)
         bad=copy.deepcopy(cohorts);bad[2]['build_config_sha256']='different'
         with self.assertRaises(ValueError): validate_matched(bad)

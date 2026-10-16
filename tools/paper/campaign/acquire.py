@@ -50,13 +50,8 @@ def validate_role(root, request, binary_sha):
         capability=read('manifest.json')['responderTracing'][Path(request['binary']).name]
         if capability!=(request['instrumentation']=='breakdown'):
             raise ValueError('Responder compiled instrumentation differs')
-    timestamped=request['role']=='server' and request['mode']=='unloaded'
-    provenance=before['timestamp_provenance']
-    if timestamped:
-        if not provenance or not provenance['clocks'] or set(provenance['modules'])!={'nicvf','thunder_bgx','cavium_ptp'}:
-            raise ValueError('Incomplete hardware timestamp provenance')
-    elif provenance is not None:
-        raise ValueError('Unexpected hardware timestamp instrumentation')
+    if before['timestamp_provenance'] is not None:
+        raise ValueError('Unexpected NIC hardware timestamping')
     result=dict(files={str(p.resolve()):digest(p) for p in root.rglob('*') if p.is_file()})
     if request['role']=='server' and request['mode']=='loaded':
         with (root/'samples.csv').open() as stream: workers=list(csv.DictReader(stream))
