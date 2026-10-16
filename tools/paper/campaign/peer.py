@@ -74,6 +74,13 @@ def run(config):
         slots=config['rate']*(config['warmup_ms']+config['duration_ms'])//1000
         # ThunderX cache-line alignment makes each tracking record 128 bytes.
         tracking=slots*128;output=slots*256
+        if config.get('aggregate',False):
+            cores=len(config['cpus'])
+            batch=max(1,min(config['batch_max'],config['rate']*config['batch_target_ns']//(cores*1_000_000_000)))
+            window=(config['rate']*50_000_000+cores*1_000_000_000-1)//(cores*1_000_000_000)+2*batch
+            stride=((slots+cores-1)//cores+63)//64*64
+            tracking=cores*(stride+window*128+100001*8)
+            output=4*1024*1024
         mem=dict(line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())
         available=int(mem['MemAvailable'].split()[0])*1024
         space=os.statvfs(root);free=space.f_bavail*space.f_frsize
@@ -103,7 +110,7 @@ def run(config):
         else:
             env['LH_NULLRPC_SOFTWARE_CONTROL']='1'
     elif loaded:
-        env.update(LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
+        env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
                    LH_BENCH_BATCH_TARGET_NS=str(config.get('batch_target_ns',250000)),
                    LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),

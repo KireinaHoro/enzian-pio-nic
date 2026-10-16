@@ -35,7 +35,8 @@ def verify_loaded(records, plans):
             sustained=point in record['confirmations']
             if len(point['trials'])!=3: raise ValueError('Missing repetition')
             for trial in point['trials']:
-                if trial.get('schema')!=2 or trial['warmup_ns']!=2_000_000_000:
+                if (trial.get('schema') not in (2,3) or trial['warmup_ns']!=2_000_000_000
+                        or trial.get('benchmark')!='echo'+str(record['size'])):
                     raise ValueError('Missing full-run schedule boundary provenance')
                 if trial['duration_ns']!=(60 if sustained else 10)*1_000_000_000:
                     raise ValueError('Wrong measured duration')
@@ -122,7 +123,8 @@ def finalize(config,h,request,campaign):
         source=campaign/name
         if source.exists(): shutil.copyfile(source,destination/name)
     atomic(destination/'acquisition.json',dict(files=provenance,source=str(campaign),
-        arrivals='fixed-spacing regular; Poisson deferred to memcached',
+        arrivals=sorted({t.get('arrival_model','fixed-spacing') for r in loaded for p in r['points'] for t in p['trials']}),
+        arrival_coverage='Poisson deferred to memcached',
         loaded_boundary='call entry to RX-burst observation; 10 ms response deadline',
         unloaded_boundary='compiled-uninstrumented client RTT; elapsed breakdown uses its own instrumented MAC/PTP cohort'))
     output=h.directory/'plots'

@@ -18,6 +18,10 @@ def digest(path):
 def load(csv_path, summary_path, *, collect_latencies=True):
     csv_path, summary_path = Path(csv_path), Path(summary_path)
     summary = validate_trial(json.loads(summary_path.read_text()))
+    if summary.get('schema') == 3:
+        from .histogram import validate_aggregate
+        values = validate_aggregate(summary)
+        return dict(summary, files={str(csv_path): digest(csv_path), str(summary_path): digest(summary_path)}), values if collect_latencies else []
     counts = dict(transmitted=0, on_time=0, late=0, duplicates=0,
                   generator_misses=0, tx_admission_failures=0, malformed=0, server_rejections=0)
     latencies = []

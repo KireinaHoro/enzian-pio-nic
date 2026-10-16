@@ -55,7 +55,7 @@ let
       value = builtins.hashFile "sha256" (generator.src + "/${name}");
     }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/nullrpc_server.c"
          "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
-         "dpdk/open_loop.h" "dpdk/Makefile" ]);
+         "dpdk/aggregate.h" "dpdk/open_loop.h" "dpdk/Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });
   environment = pkgs.buildEnv {

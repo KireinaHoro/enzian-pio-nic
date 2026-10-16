@@ -59,8 +59,8 @@ the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
 JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;
 record well-formed ONC-RPC `SYSTEM_ERR` rejections separately and include requests
-without an on-time successful reply in the 1% loss condition. Retain per-request
-and per-trial rejection counts for later plots; do not count duplicate rejection
+without an on-time successful reply in the 1% loss condition. Retain per-trial rejection counts for later plots (and per-request counts in
+detailed diagnostic mode); do not count duplicate rejection
 replies as additional lost requests. Generator misses, admission failure, corruption and resource exhaustion invalidate
 a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
 not invalidation conditions; enforce the requested absolute send schedule in
@@ -71,6 +71,16 @@ size and arrival model; describe this as bursty paced traffic. Use identical
 batch policy for both systems, and do not merge earlier fixed-spacing loaded
 cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse.
 Keep failed attempts and exact rates.
+
+Loaded collection supports `aggregate: true`: online validation, exact counters,
+100 ns mergeable RTT histograms and bounded diagnostic samples. Prefer it after
+targeted comparison gates pass. Keep detailed CSV mode for diagnosis and preserve
+historical raw data. Pool histogram counts before computing percentiles; never
+average trial percentiles or expand counts into synthetic request rows. A mode or
+binary transition requires the compatibility review below. See the compact loaded
+observations contract in `docs/development/benchmark-campaign.md` for retention,
+resource limits, forwarding bounds and quantization.
+
 
 Launch using the documented detached user-service command. After launch, return
 the campaign root and service identifier without intermediate polling. Inspect

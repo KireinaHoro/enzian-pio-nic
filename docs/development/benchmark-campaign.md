@@ -45,12 +45,10 @@ The plotting entry point has not yet been validated against a real full echo
 cohort; existing active figures remain in place. Do not launch a controller with
 an invented passing adapter or use the historical add data as echo evidence.
 
-The currently authorized execution stops after the unattended rehearsal passes.
-It emits `rehearsal-complete` and four validated plot previews; it never freezes
-a full grid or acquires full cohorts. A later full campaign requires an explicit
-`scope: "full"` configuration and a new campaign root. An omitted scope also
-stops at rehearsal. Completed rehearsal callbacks and failure hooks are terminal
-without accidentally restarting acquisition.
+The controller defaults to rehearsal-only execution and emits a terminal callback
+before any full acquisition. Full collection requires explicit authorization and
+`scope: "full"` in a new root. The current user has authorized full collection
+after rehearsal passes; targeted aggregate-output validation precedes that launch.
 
 Unloaded CDFs and breakdowns use the same 8/128/1432-byte echo bodies as loaded
 cases, with one worker and one outstanding request. Zero-body echo remains a
@@ -111,8 +109,9 @@ unobserved losses, not fabricated late replies.
 
 Tracking is allocated and prefaulted before NIC setup, with a default 4 GiB
 limit and no XID wrap. `LH_BENCH_TRACKING_MIB` sets the explicit preflight-checked
-budget (at most 256 GiB); sustained trials must budget their full schedule. Output space is reserved before acquisition at 256 bytes per scheduled
-request. File or tracking exhaustion is terminal. Missing replies do not stall
+budget (at most 256 GiB). Detailed mode budgets a timestamp record for every
+scheduled request and reserves output at 256 bytes per request; aggregate mode
+uses the bounded-window budget described below. File or tracking exhaustion is terminal. Missing replies do not stall
 the schedule. `samples.csv.open.json` records on-time replies, observed late
 replies, duplicate replies, server rejection replies, missed sends, failed admissions, malformed replies,
 actual generator CPUs and NIC counters. Schema 2 also records workload, warmup,
@@ -165,6 +164,39 @@ configuration records `native_variants` (app/runtime store paths and executable
 hashes), per-mode `server_sha256`, and per-system/per-mode build fingerprints.
 Snapshots check the running executable, runtime mapping and image manifest.
 The general `trafficGeneratorImage` remains independent of native runtime builds.
+
+## Compact loaded observations
+
+Set `aggregate: true` in both launch and hardware manifests to select
+`LH_BENCH_AGGREGATE=1`. This requires paced batches and exports schema 3.
+The send schedule, full payload validation, RX-burst RTT endpoint and 10 ms
+response deadline are unchanged. Unloaded measurements retain detailed rows.
+Detailed loaded CSV mode remains available with `aggregate: false` for diagnosis.
+
+Each generator retains timestamps for 30 ms, with capacity for 50 ms of sends
+plus two batches. It validates phase, schedule, admission and return boundaries
+online before retiring records. RX-to-owner forwarding exceeding 10 ms invalidates
+the point: this bound ensures a reply processed after timestamp retirement cannot
+have been on time. A one-byte status ledger per scheduled XID retains exact late,
+duplicate and rejection accounting after retirement. Exhaustion is terminal and
+never throttles offered traffic. All storage is allocated and prefaulted first.
+The resource budget includes this ledger, bounded timestamps and histograms;
+it no longer reserves a full timestamp record and CSV row per request.
+
+Warmup and measurement counters remain separate. The measured on-time RTT
+histogram uses 100 ns buckets through the deadline, 100,001 64-bit counters per
+core (25.6 MB across 32 cores), merged after draining. Only occupied buckets are
+exported. Percentiles use bucket midpoints (clamped at the deadline), with at most
+50 ns quantization error; trial pooling sums counts before weighted linear
+percentile calculation, without expanding synthetic request rows. The client
+also exports start-lag count/sum/max and at most three diagnostic rows per core
+(first measured, largest lag, largest on-time RTT), which can repeat an XID.
+These rows are diagnostic examples, not a representative latency sample.
+
+The summary, diagnostic rows, build hashes and acquisition evidence are the raw
+aggregate-mode observations. Preserve older detailed acquisitions unchanged.
+Changing observation mode requires the existing explicit compatibility review;
+compare representative loaded cohorts before merging their scientific results.
 
 ## Controller and adapter boundary
 
@@ -300,7 +332,7 @@ nix develop -c python3 sw/apps/microbenchmarks/dpdk/echo_replay_test.py out/echo
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
-PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_acquire campaign.test_hardware campaign.test_trace_capture campaign.test_recovery -v
+PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_histogram campaign.test_acquire campaign.test_hardware campaign.test_trace_capture campaign.test_recovery -v
 nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
 nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```

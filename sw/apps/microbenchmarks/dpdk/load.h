@@ -108,7 +108,7 @@ struct parallel_load {
 struct parallel_worker {
     struct parallel_load *load;
     struct rte_ring *inbox;
-    unsigned index, count, sent, done;
+    unsigned index, count, sent, done, retired;
     uint64_t unrelated;
 } __rte_cache_aligned;
 
@@ -116,12 +116,90 @@ static void parallel_fail(struct parallel_load *load, const char *reason) {
     if(!atomic_exchange(&load->failed,1)) fprintf(stderr,"load_error=%s\n",reason);
 }
 
+static struct sample *parallel_sample(struct parallel_load *load,unsigned id) {
+    size_t slot=id-1;
+    if(open_aggregate) slot=(slot%load->cores)*aggregate_slots+(slot/load->cores)%aggregate_slots;
+    return &load->samples[slot];
+}
+static struct sample *parallel_prepare(struct parallel_worker *worker,unsigned id) {
+    struct sample *s=parallel_sample(worker->load,id);
+    if(open_aggregate) {
+        if(s->xid) { parallel_fail(worker->load,"aggregate timestamp window exhaustion");return NULL; }
+        memset(s,0,sizeof(*s));s->xid=id;
+    }
+    return s;
+}
+static uint64_t parallel_batch_due(struct parallel_load *load,unsigned id);
+static void parallel_retire(struct parallel_worker *worker,bool final) {
+    struct parallel_load *load=worker->load;
+    uint64_t clock=now();unsigned budget=final?UINT32_MAX:128;
+    while(worker->retired<worker->sent && budget--) {
+        unsigned id=worker->index+worker->retired*load->cores+1;
+        struct sample *s=parallel_sample(load,id);
+        if(s->xid!=id) { parallel_fail(load,"aggregate timestamp identity mismatch");return; }
+        uint64_t base=s->enter?s->enter:s->scheduled;
+        if(!final && clock<base+AGG_RETAIN_NS) break;
+        if(!s->status) { s->status=OL_EXPIRED;s->exit=clock; }
+        bool measured=id>open_warmup*open_rate/1000000000;
+        struct aggregate_counts *counts=&aggregate_counts[worker->index][measured];
+        uint64_t warm=open_warmup*open_rate/1000000000;
+        uint64_t phase_end=load->start+open_warmup+(measured?open_duration:0);
+        uint64_t due=parallel_batch_due(load,id);
+        uint64_t expires=due+ol_batch_period(open_rate,load->cores,open_batch,measured?load->count-warm:warm);
+        bool violation=s->scheduled!=due || (s->submitted &&
+            !(due<=s->enter && s->enter<=s->ready && s->ready<=s->admitted && s->admitted<phase_end &&
+              s->admitted<=s->submitted && s->submitted<expires));
+        if(violation) {counts->schedule_violations++;parallel_fail(load,"aggregate send schedule violation");}
+        aggregate_add(counts,s);
+        if(measured && s->enter) {
+            struct sample *d=aggregate_diagnostics[worker->index];
+            if(!d[0].xid)d[0]=*s;
+            if(!d[1].xid || s->enter-s->scheduled>d[1].enter-d[1].scheduled)d[1]=*s;
+            if(s->status==OL_ONTIME && (!d[2].xid || s->received-s->enter>d[2].received-d[2].enter))d[2]=*s;
+        }
+        if(measured && s->status==OL_ONTIME) {
+            uint64_t rtt=s->received-s->enter;
+            if(s->received<s->enter || rtt>load->timeout) parallel_fail(load,"aggregate RTT boundary violation");
+            else aggregate_histograms[(size_t)worker->index*AGG_BINS+rtt/AGG_BIN_NS]++;
+        }
+        aggregate_history[aggregate_index(id,load->cores)]=s->status;s->xid=0;worker->retired++;
+    }
+}
+static void parallel_retired_reply(struct parallel_worker *worker,const struct parallel_rx *meta,const uint8_t *payload) {
+    struct parallel_load *load=worker->load;
+    int previous=aggregate_history[aggregate_index(meta->id,load->cores)];
+    bool measured=meta->id>open_warmup*open_rate/1000000000;
+    struct aggregate_counts *c=&aggregate_counts[worker->index][measured];
+    int validation=load->bench->validate(payload,meta->length,meta->id);
+    if(previous==OL_MISSED || previous==OL_TX_FAILED) { parallel_fail(load,"reply for retired unsent request");return; }
+    if(validation!=1 && validation!=2) { c->malformed++;parallel_fail(load,"malformed retired reply");return; }
+    if(previous==OL_ONTIME || previous==OL_LATE || previous==OL_REJECTED)c->duplicates++;
+    if(validation==2) {
+        c->rejections++;
+        if(previous==OL_EXPIRED)aggregate_history[aggregate_index(meta->id,load->cores)]=OL_REJECTED;
+    } else if(previous==OL_EXPIRED || previous==OL_REJECTED) {
+        c->late++;aggregate_history[aggregate_index(meta->id,load->cores)]=OL_LATE;
+    }
+}
+
 static void parallel_reply(struct parallel_worker *worker, struct rte_mbuf *packet) {
     struct parallel_load *load=worker->load;
     struct parallel_rx *meta=rte_mbuf_to_priv(packet);
     unsigned slot=(meta->id-load->first-1)/load->cores;
-    struct sample *s=&load->samples[meta->id-1];
+    struct sample *s=parallel_sample(load,meta->id);
     const uint8_t *payload=rte_pktmbuf_mtod_offset(packet,const uint8_t *,meta->offset);
+    if(open_aggregate) {
+        uint64_t clock=now();
+        if(clock<meta->received || clock-meta->received>AGG_FORWARD_NS) {
+            parallel_fail(load,"aggregate RX forwarding exceeded retention contract");rte_pktmbuf_free(packet);return;
+        }
+        if(aggregate_history[aggregate_index(meta->id,load->cores)]) {
+            parallel_retired_reply(worker,meta,payload);rte_pktmbuf_free(packet);return;
+        }
+        if(s->xid!=meta->id) {
+            parallel_fail(load,"aggregate RX identity mismatch");rte_pktmbuf_free(packet);return;
+        }
+    }
     if(open_rate) {
         if(slot>=worker->sent || !s->submitted || s->status==OL_TX_FAILED || s->status==OL_MISSED) {
             parallel_fail(load,"reply for unsent request");
@@ -186,9 +264,10 @@ static void parallel_batch_send(struct parallel_worker *worker) {
                                  measured?load->count-warm:warm);
     uint64_t expires=due+ol_batch_period(open_rate,load->cores,open_batch,measured?load->count-warm:warm);
     struct rte_mbuf *packets[64];
+    for(unsigned i=0;i<count;i++) if(!parallel_prepare(worker,id+i*load->cores))return;
     if(clock>=phase_end || clock>=expires) {
         for(unsigned i=0;i<count;i++) {
-            struct sample *s=&load->samples[id-1+i*load->cores];
+            struct sample *s=parallel_sample(load,id+i*load->cores);
             s->scheduled=due;s->status=OL_MISSED;
         }
         worker->sent+=count;
@@ -199,7 +278,7 @@ static void parallel_batch_send(struct parallel_worker *worker) {
     }
     for(unsigned i=0;i<count;i++) {
         unsigned xid=id+i*load->cores;
-        struct sample *s=&load->samples[xid-1];s->scheduled=due;s->enter=now();
+        struct sample *s=parallel_sample(load,xid);s->scheduled=due;s->enter=now();
         uint8_t payload[1472];
         size_t size=load->bench->encode(payload,sizeof(payload),xid);
         uint8_t *bytes=(uint8_t *)rte_pktmbuf_append(packets[i],42+size);
@@ -214,7 +293,7 @@ static void parallel_batch_send(struct parallel_worker *worker) {
         rte_spinlock_unlock(&load->tx_locks[queue]);
         for(unsigned i=0;i<count;i++) {
             rte_pktmbuf_free(packets[i]);
-            struct sample *s=&load->samples[id-1+i*load->cores];
+            struct sample *s=parallel_sample(load,id+i*load->cores);
             s->status=OL_MISSED;s->exit=admitted;
         }
         worker->sent+=count;return;
@@ -223,7 +302,7 @@ static void parallel_batch_send(struct parallel_worker *worker) {
     uint64_t returned=now();
     rte_spinlock_unlock(&load->tx_locks[queue]);
     for(unsigned i=0;i<count;i++) {
-        struct sample *s=&load->samples[id-1+i*load->cores];
+        struct sample *s=parallel_sample(load,id+i*load->cores);
         s->admitted=admitted;s->submitted=returned;
         if(i>=accepted) { rte_pktmbuf_free(packets[i]);s->status=OL_TX_FAILED;s->exit=returned; }
     }
@@ -246,6 +325,7 @@ static int parallel_poll(void *argument) {
     unsigned oldest=0; int announced=0;
     while(!atomic_load_explicit(&load->failed,memory_order_relaxed) &&
           atomic_load_explicit(&load->finished,memory_order_relaxed)<load->cores) {
+        if(open_aggregate) parallel_retire(worker,false);
         if(open_rate && open_batch_max>1) parallel_batch_send(worker);
         uint64_t clock=now(); unsigned budget=8;
         while(!(open_rate && open_batch_max>1) && worker->sent<worker->count && (open_rate || worker->sent-worker->done<limit) &&
@@ -339,7 +419,7 @@ static int parallel_poll(void *argument) {
         void *objects[32];
         unsigned n=rte_ring_dequeue_burst(worker->inbox,objects,32,NULL);
         for(unsigned j=0;j<n;j++) parallel_reply(worker,objects[j]);
-        while(oldest<worker->sent && load->samples[load->first+worker->index+oldest*load->cores].status) oldest++;
+        while(!open_aggregate && oldest<worker->sent && load->samples[load->first+worker->index+oldest*load->cores].status) oldest++;
         if(!open_rate && oldest<worker->sent && now()-load->samples[load->first+worker->index+oldest*load->cores].enter>=load->timeout)
             atomic_store(&load->failed,1);
         if(!announced && ((!open_rate && worker->done==worker->count) ||
@@ -347,7 +427,8 @@ static int parallel_poll(void *argument) {
             atomic_fetch_add(&load->finished,1); announced=1;
         }
     }
-    if(open_rate || atomic_load(&load->failed)) {
+    if(open_aggregate) parallel_retire(worker,true);
+    else if(open_rate || atomic_load(&load->failed)) {
         uint64_t end=now();
         for(unsigned i=0;i<worker->sent;i++) {
             struct sample *s=&load->samples[load->first+worker->index+i*load->cores];

@@ -231,7 +231,7 @@ def rehearsal(config,h,campaign):
         records.append(dict(system=system,size=size,workers=workers,points=values))
     path=h.directory/'rehearsal-loaded.json';atomic(path,records)
     output=h.directory/'plots'
-    h.command([sys.executable,ROOT/'tools/paper/plot_echo.py','--input',path,'--output',output,'--rehearsal'],'plot-loaded',timeout=600)
+    h.command([sys.executable,ROOT/'tools/paper/plot_echo.py','--input',path,'--output',output,'--rehearsal'],'plot-loaded',timeout=7200)
     h.command([sys.executable,ROOT/'tools/paper/plot_echo_unloaded.py','--input',campaign/'rehearsal-unloaded.json',
         '--output',output,'--rehearsal'],'plot-unloaded',timeout=600)
     previews=pdf_checks(output,['echo-latency-goodput','echo-overload-loss','echo-unloaded-cdf','echo-unloaded-breakdown'])

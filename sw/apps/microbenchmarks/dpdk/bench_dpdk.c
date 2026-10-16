@@ -17,7 +17,7 @@
 #include <rte_version.h>
 #include "wire.h"
 #include "benchmark.h"
-struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled, admitted; uint32_t duplicates, rejections; int status; } __rte_cache_aligned;
+struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled, admitted; uint32_t duplicates, rejections, xid; int status; } __rte_cache_aligned;
 static uint64_t now(void) {
     struct timespec t;
     if(clock_gettime(CLOCK_MONOTONIC_RAW,&t)) rte_exit(1,"clock_gettime failed\n");
@@ -32,6 +32,7 @@ static void check(int rc, const char *what) {
     if(rc<0) rte_exit(1,"%s: %s\n",what,strerror(-rc));
 }
 #include "open_loop.h"
+#include "aggregate.h"
 static unsigned open_rate;
 static unsigned open_batch=1, open_batch_max=1;
 static uint64_t open_batch_target=250000;
@@ -128,12 +129,18 @@ int main(int argc, char **argv) {
         if(!duration || !warming || argc!=10) rte_exit(1,"open loop requires duration and warmup milliseconds\n");
         open_duration=(uint64_t)number(duration,60000)*1000000;
         open_warmup=strcmp(warming,"0")?(uint64_t)number(warming,60000)*1000000:0;
+        open_aggregate=getenv("LH_BENCH_AGGREGATE") && !strcmp(getenv("LH_BENCH_AGGREGATE"),"1");
+        if(open_aggregate && open_batch_max==1) rte_exit(1,"aggregate mode requires paced batches\n");
         uint64_t total=(open_duration+open_warmup)*open_rate/1000000000;
         const char *budget=getenv("LH_BENCH_TRACKING_MIB");
         uint64_t tracking_limit=(uint64_t)(budget?number(budget,262144):4096)*1024*1024;
-        if(!total || total>UINT32_MAX || total*sizeof(struct sample)>tracking_limit)
+        uint64_t cores=rte_lcore_count();
+        aggregate_slots=(open_rate*50000000ULL+cores*1000000000ULL-1)/(cores*1000000000ULL)+2*open_batch;
+        aggregate_history_stride=((total+cores-1)/cores+63)/64*64;
+        uint64_t tracking_bytes=open_aggregate ? cores*aggregate_history_stride+cores*aggregate_slots*sizeof(struct sample)+cores*AGG_BINS*sizeof(uint64_t) : total*sizeof(struct sample);
+        if(!total || total>UINT32_MAX || tracking_bytes>tracking_limit)
             rte_exit(1,"open-loop tracking requires %"PRIu64" bytes (limit %"PRIu64"); slots %"PRIu64" must fit XID space\n",
-                     total*sizeof(struct sample),tracking_limit,total);
+                     tracking_bytes,tracking_limit,total);
         warmup=open_warmup*open_rate/1000000000;
         count=total-warmup;
         if((open_warmup*open_rate)%1000000000 || (open_duration*open_rate)%1000000000)
@@ -150,15 +157,23 @@ int main(int argc, char **argv) {
     if(!bench) rte_exit(1,"unknown benchmark: %s\n",argv[8]);
     FILE *csv=fopen(argv[9],"wx");
     if(!csv) rte_exit(1,"cannot create CSV: %s\n",strerror(errno));
-    if(open_rate) {
+    if(open_rate && !open_aggregate) {
         int allocation=posix_fallocate(fileno(csv),0,(off_t)(count+warmup)*256);
         if(allocation) rte_exit(1,"cannot reserve observation output: %s\n",strerror(allocation));
     }
-    struct sample *samples=aligned_alloc(RTE_CACHE_LINE_SIZE,(count+warmup)*sizeof(*samples));
+    size_t sample_slots=open_aggregate?(size_t)aggregate_slots*rte_lcore_count():count+warmup;
+    struct sample *samples=aligned_alloc(RTE_CACHE_LINE_SIZE,sample_slots*sizeof(*samples));
+    if(open_aggregate) {
+        aggregate_history=calloc((size_t)rte_lcore_count()*aggregate_history_stride,1);
+        aggregate_histograms=calloc((size_t)rte_lcore_count()*AGG_BINS,sizeof(uint64_t));
+        if(!aggregate_history || !aggregate_histograms) rte_exit(1,"aggregate resource allocation failed\n");
+        for(size_t i=0;i<(size_t)rte_lcore_count()*aggregate_history_stride;i+=4096) ((volatile uint8_t *)aggregate_history)[i]=0;
+        for(size_t i=0;i<(size_t)rte_lcore_count()*AGG_BINS;i+=512) ((volatile uint64_t *)aggregate_histograms)[i]=0;
+    }
     if(!samples) rte_exit(1,"sample allocation failed\n");
-    memset(samples,0,(count+warmup)*sizeof(*samples));
+    memset(samples,0,sample_slots*sizeof(*samples));
     /* Fault in each result page before measuring. */
-    for(unsigned i=0;i<count+warmup;i++) ((volatile struct sample *)samples)[i].status=0;
+    for(size_t i=0;i<sample_slots;i++) ((volatile struct sample *)samples)[i].status=0;
     uint16_t port; RTE_ETH_FOREACH_DEV(port) { break; }
     struct rte_eth_dev_info info;
     check(rte_eth_dev_info_get(port,&info),"device info");
@@ -320,13 +335,15 @@ int main(int argc, char **argv) {
     observation_end=now();
     }
     fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport,scheduled_ns,start_lag_ns,duplicates,server_rejections,client_tx_admit_enter_ns\n");
-    for(unsigned i=0;i<((generators>1 || open_rate)?count+warmup:completed);i++) {
-        struct sample *s=&samples[i];
+    for(unsigned i=0;i<(open_aggregate?generators*3:((generators>1 || open_rate)?count+warmup:completed));i++) {
+        struct sample *s=open_aggregate?&aggregate_diagnostics[i/3][i%3]:&samples[i];
+        if(open_aggregate && !s->xid)continue;
+        unsigned id=open_aggregate?s->xid:i+1;
         if(!open_rate && generators>1 && !s->enter) continue;
         int ok=s->status==1;
         fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk,%"PRIu64",%"PRIu64",%u,%u,%"PRIu64"\n",
-            i+1,ok?0:s->status,ok,bench->name,
-            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates,s->rejections,s->admitted);
+            id,ok?0:s->status,ok,bench->name,
+            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,id<=warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates,s->rejections,s->admitted);
     }
     int io_error=ferror(csv);
     if(open_rate) {
@@ -347,21 +364,29 @@ int main(int argc, char **argv) {
         free(path);
     }
     if(open_rate) {
-        for(unsigned i=0;i<warmup;i++)
+        if(open_aggregate) aggregate_merge(generators);
+        for(unsigned i=0;!open_aggregate && i<warmup;i++)
             failed |= samples[i].status==OL_MISSED || samples[i].status==OL_TX_FAILED || samples[i].status==OL_MALFORMED;
         uint64_t transmitted=0, ontime=0, late=0, duplicates=0, misses=0, admission=0, malformed=0, rejections=0;
-        for(unsigned i=warmup;i<count+warmup;i++) {
+        for(unsigned i=warmup;!open_aggregate && i<count+warmup;i++) {
             struct sample *s=&samples[i];
             transmitted+=s->submitted && s->status!=OL_TX_FAILED;
             ontime+=s->status==OL_ONTIME; late+=s->status==OL_LATE;
             misses+=s->status==OL_MISSED; admission+=s->status==OL_TX_FAILED;
             malformed+=s->status==OL_MALFORMED; duplicates+=s->duplicates; rejections+=s->rejections;
         }
+        if(open_aggregate) {
+            struct aggregate_counts *c=&aggregate_total[1],*w=&aggregate_total[0];
+            transmitted=c->transmitted;ontime=c->ontime;late=c->late;duplicates=c->duplicates;
+            misses=c->misses;admission=c->admission;malformed=c->malformed;rejections=c->rejections;
+            failed|=w->schedule_violations || c->schedule_violations || w->misses || w->admission || w->malformed || w->attempted!=warmup || c->attempted!=count;
+        }
         struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"open-loop NIC stats");
         char path[4096]; snprintf(path,sizeof(path),"%s.open.json",argv[9]);
         FILE *f=fopen(path,"wx"); if(!f) rte_exit(1,"open-loop summary output failed\n");
-        fprintf(f,"{\"schema\":2,\"tx_phase_boundary\":\"admission-entry\",\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
-                bench->name,open_warmup,observation_start,observation_end);
+        fprintf(f,"{\"schema\":%u,\"tx_phase_boundary\":\"admission-entry\",\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
+                open_aggregate?3:2,bench->name,open_warmup,observation_start,observation_end);
+        if(open_aggregate) aggregate_write(f);
         fprintf(f,"\"arrival_model\":\"%s\",\"batch_size\":%u,\"batch_max\":%u,\"batch_target_ns\":%"PRIu64",",
                 open_batch_max>1?"paced-batch":"fixed-spacing",open_batch,open_batch_max,open_batch_target);
         fprintf(f,"\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","

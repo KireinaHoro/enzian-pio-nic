@@ -8,7 +8,7 @@ stdenv.mkDerivation {
       ../bench.x ../echo_registry.py
       (lib.fileset.fileFilter (f: builtins.elem f.name [
         "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h"
-        "wire.h" "load.h" "open_loop.h" "open_loop_test.c" "wire_test.c" "schema_test.c" "Makefile"
+        "aggregate.h" "aggregate_test.c" "wire.h" "load.h" "open_loop.h" "open_loop_test.c" "wire_test.c" "schema_test.c" "Makefile"
       ]) ./.)
     ];
   };

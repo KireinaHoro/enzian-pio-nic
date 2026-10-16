@@ -136,7 +136,7 @@ class Campaign:
             from campaign.policy import validate_activity
             validate_activity(result.get('worker_activity', []),request['workers'])
             trial, _ = load(result['csv'], result['summary'], collect_latencies=False)
-            if (trial.get('schema')!=2 or trial['benchmark']!='echo'+str(request['payload_bytes'])
+            if (trial.get('schema')!=(3 if self.config.get('aggregate',False) else 2) or trial['benchmark']!='echo'+str(request['payload_bytes'])
                     or trial['warmup_ns']!=request['warmup_ms']*1_000_000):
                 raise ValueError('Workload/warmup boundary provenance differs from plan')
             if trial['generator_cpus'] != self.config['generator_cpus']:
@@ -298,6 +298,8 @@ def config_check(config):
         raise ValueError('Between one and 32 distinct isolated generator CPUs required')
     if not 1<=config.get('batch_max',1)<=64 or not 0<config.get('batch_target_ns',250000)<=1_000_000:
         raise ValueError('Invalid batching configuration')
+    if type(config.get('aggregate',False)) is not bool or (config.get('aggregate',False) and config.get('batch_max',1)==1):
+        raise ValueError('Aggregate observations require paced batches and a boolean flag')
     if config['flows'] < len(config['generator_cpus']) or config['initial_rate'] < 1 or not 1 <= config['max_extensions'] <= 30:
         raise ValueError('Invalid flow/rate/extension budget')
     if not config.get('thread') or not config.get('adapter'):
