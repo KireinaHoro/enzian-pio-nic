@@ -38,6 +38,8 @@ run the workload's matched trace analysis separately.
 
 Recording-off operation uses `freeze` and `preserve` with the same control-session
 directory and performs no dump. The unattended benchmark adapter uses this same
-control implementation for loaded and uninstrumented cohorts. Respect campaign
+control implementation for loaded cohorts. Both unloaded software modes collect
+MAC traces. The receiver uses host Python outside the private benchmark mount
+namespace. Respect campaign
 no-poll behavior and selective resume policy; manual diagnosis does not authorize
 a full dataset or invalidate unrelated completed cohorts.

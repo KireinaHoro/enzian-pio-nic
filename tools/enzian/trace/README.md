@@ -31,7 +31,8 @@ and `transfer_url`. Select addresses and artifacts for the actual reservation.
 The transfer endpoint must be running and reachable from the peer, with adequate
 space. The existing `tools/paper/transfer_results.py` service supplies this during
 campaigns; do not provision another server on an occupied endpoint. The peer's
-Python environment must already be deployed through the shared Enzian workflow.
+host Python must be available outside benchmark mount namespaces. The campaign
+uses `python3` from the host PATH; never reference a private client-image path.
 Capture does not reconfigure NICs, boot, reset, or change provisioning.
 
 For the existing 519555 benchmark topology, resolve this explicit configuration

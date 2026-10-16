@@ -35,7 +35,7 @@ def campaign_config(c):
         pipeline=c['pipeline'],trace_map=c['trace_map'],trace_map_sha256=digest(c['trace_map']),
         peer_ip=c['peer_endpoint']['ip'],peer_mac=c['peer_endpoint']['mac'],
         peer_management_ip='192.168.192.7',export_port=18874,
-        peer_python='/nix/store/lauberhorn-client/bin/python3',
+        peer_python='python3',
         transfer_root=c['transfer_root'],transfer_url=c['transfer_url'])
 
 
