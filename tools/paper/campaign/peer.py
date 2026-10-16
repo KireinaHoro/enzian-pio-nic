@@ -42,7 +42,9 @@ def upload(root, url):
         hashes[str(path.relative_to(root))]=sha.hexdigest()
     (root/'files.json').write_text(json.dumps(hashes,sort_keys=True)+'\n')
     archive=root.with_suffix('.tar.gz')
-    with tarfile.open(archive,'w:gz') as stream: stream.add(root,arcname=root.name)
+    # Level 9's CPU cost can exceed the entire role deadline on large CSVs.
+    # Acquisition is over; retain lossless bytes while favoring export speed.
+    with tarfile.open(archive,'x:gz',compresslevel=1) as stream: stream.add(root,arcname=root.name)
     with archive.open('rb') as stream:
         request=urllib.request.Request(url+'/'+archive.name,data=stream,method='PUT',
             headers={'Content-Length':str(archive.stat().st_size)})

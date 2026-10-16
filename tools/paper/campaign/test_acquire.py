@@ -9,6 +9,24 @@ from .acquire import extract, remote_script
 
 
 class Acquisition(unittest.TestCase):
+    def test_upload_roundtrip_and_existing_archive_preservation(self):
+        import hashlib,json
+        from unittest.mock import patch
+        from .peer import upload
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)/'cohort';root.mkdir()
+            data=b'request,latency\n1,123\n'*10000
+            (root/'samples.csv').write_bytes(data)
+            with patch('urllib.request.urlopen') as remote:
+                upload(root,'http://fixture')
+                self.assertEqual(remote.call_count,1)
+            saved=(root.with_suffix('.tar.gz')).read_bytes()
+            extracted=extract(root.with_suffix('.tar.gz'),Path(directory)/'extracted','cohort')
+            self.assertEqual((extracted/'samples.csv').read_bytes(),data)
+            self.assertEqual(json.loads((extracted/'files.json').read_text())['samples.csv'],hashlib.sha256(data).hexdigest())
+            with self.assertRaises(FileExistsError):upload(root,'http://fixture')
+            self.assertEqual(root.with_suffix('.tar.gz').read_bytes(),saved)
+
     def test_remote_payload_compiles(self):
         script=remote_script('http://fixture/request','http://fixture/peer','a'*64,
                              '/tmp/image with spaces','b'*64)

@@ -236,7 +236,9 @@ segfault after a completed trigger permits receiver validation; it never
 substitutes for a successful receiver, exact length, and matching SHA256.
 
 Remote role outputs are removed only after their local archive and member hashes
-are verified. Loaded CSVs are compressed after acquisition. The final archive uses
+are verified. Loaded CSVs are compressed after acquisition. Peer archives use lossless gzip
+level 1 to keep multi-gigabyte exports within the role deadline; existing archives
+are never silently overwritten. Compression is outside the measurement interval. The final archive uses
 relative paths and lossless raw observations; echo compressed data uses Git LFS.
 Presentation PDFs stay in the campaign directory until visual review, leaving
 existing active figures intact. A failed finalization gets a fresh attempt
