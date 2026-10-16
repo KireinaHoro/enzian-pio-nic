@@ -1,18 +1,17 @@
 # Reusable polling traffic generator
 
-`bench_dpdk` owns the DPDK port, one RX/TX queue, one pinned EAL lcore,
-closed-loop request timing, warmup, bounded timeout, validation and buffered CSV.
-`wire.h` owns Ethernet/IPv4/UDP framing and checksum/length validation.
-`benchmark.h` defines the codec interface; `benchmarks.c` supplies `add`, `mul`
-and transport-only `echo`. A new UDP microbenchmark adds encode/validate
-callbacks and a registry entry; it does not copy the DPDK loop. Callbacks must
-not allocate, perform I/O, or retain packet buffers. They receive a request ID
-unique within the run, including warmup. Variable payloads up to 1472 bytes are
-supported by the transport; fragmented IP and VLAN-tagged frames are unsupported.
+`bench_dpdk` generates schema-defined echo requests. The active paper workload
+uses 8/128/1432-byte echo bodies for loaded and unloaded cases; use the
+[canonical campaign](../../../../docs/development/benchmark-campaign.md) for
+acquisition and measurement contracts. Loaded operation uses 32 generator CPUs,
+response-independent paced batches and aggregate RTT observations. Unloaded
+operation is single-outstanding and uses server MAC timestamps.
 
-This is a single-outstanding, closed-loop latency generator. It does not measure
-open-loop queueing latency, saturation throughput or avoid coordinated omission
-under offered load. Do not use its latency distribution as a loaded-server claim.
+`echo_dpdk` includes software stage probes; `echo_dpdk_uninstrumented` compiles
+them out. Both support PTP for unloaded MAC measurements. Loaded responder
+operation uses the uninstrumented batched path with PTP disabled. `wire.h` owns
+Ethernet/IPv4/UDP framing and validation; `bench.x` defines the echo payloads.
+The independent add/mul codecs remain available for infrastructure tests.
 
 ## Build and functional checks
 
@@ -192,7 +191,7 @@ calibration the client creates READY exclusively, then waits up to 300 seconds
 for START. Arm tracing after READY and create START to release the workload.
 Existing markers are rejected; no filesystem checks occur inside timed RPCs.
 
-## Bounded concurrent load for paper curves
+## Bounded concurrent diagnostic load
 
 Set `LH_BENCH_WINDOW=1..256` to enable a closed-loop concurrent window. Warmup
 requests drain before the measured observation window begins. Every sent request
@@ -224,9 +223,9 @@ A physical pilot is still required: pcap timing is never paper performance data.
 Configure the DUT's static neighbor for the peer before taking its VF from the
 kernel, because this client deliberately does not answer ARP.
 
-## CPU-NIC null-RPC responder
+## CPU-NIC echo responder
 
-The same package builds `nullrpc_dpdk`, a single-worker polling responder for
+The same package builds `echo_dpdk`, a single-worker polling responder for
 exactly the generator's `add` wire format. It buffers paired hardware RX/TX
 samples and writes the CSV after the run. `mac_to_mac_ns` is TX minus RX from
 the NIC's common PTP counter, not client RTT. Only one timestamped TX operation
@@ -240,11 +239,11 @@ private mount namespace if another deployment already occupies that path).
 On a reserved DUT with its data NIC configured, start:
 
 ```sh
-LH_NULLRPC_READY_FILE=/dev/shm/NEW-ready \
+LH_ECHO_READY_FILE=/dev/shm/NEW-ready \
 /nix/store/lauberhorn-client/bin/lh-dpdk-run \
   --logs /dev/shm/NEW-server --lcore 45 --no-iommu --ptp-bgx 4 \
   --manifest /nix/store/lauberhorn-client/manifest.json \
-  /nix/store/lauberhorn-client/bin/nullrpc_dpdk -- \
+  /nix/store/lauberhorn-client/bin/echo_dpdk -- \
   DUT_IP CLIENT_IP CLIENT_MAC 49152 2000 32 2000000 add /dev/shm/NEW-server.csv
 ```
 
@@ -253,13 +252,13 @@ the same count/warmup, DUT destination port 12345, and the reversed endpoints.
 Both runner summaries must pass and report restoration. The timestamp runner
 refuses an unmatched kernel, benchmark package or loaded/installed module set.
 Save the image manifest and both CSVs with any dataset used in the paper.
-`LH_NULLRPC_DELAY_NS=20000` inserts a deliberate 20 µs service delay for a
-clock/interval control. `LH_NULLRPC_SOFTWARE_CONTROL=1` disables timestamps for
+`LH_ECHO_DELAY_NS=20000` inserts a deliberate 20 µs service delay for a
+clock/interval control. `LH_ECHO_SOFTWARE_CONTROL=1` disables timestamps for
 a packet-path control; its zero timestamp columns are not MAC measurements.
 
 ### Optional CPU-stage profiling
 
-Set `LH_NULLRPC_PROFILE=1` on the responder to buffer six
+Set `LH_ECHO_PROFILE=1` on the responder to buffer six
 `CLOCK_MONOTONIC_RAW` boundaries alongside each paired MAC timestamp: first
 successful RX-burst observation (including a packet held while draining the
 preceding TX timestamp), network parse start/end, network framing start/end,
