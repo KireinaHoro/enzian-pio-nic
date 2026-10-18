@@ -64,7 +64,8 @@ class Acquisition:
             aggregate=c.get('aggregate',False),batch_max=c.get('batch_max',1),batch_target_ns=c.get('batch_target_ns',250000),
             rate=r.get('rate',0),duration_ms=r.get('duration_ms',0),warmup_ms=r.get('warmup_ms',0),
             instrumentation='off' if setup else r.get('instrumentation','off'),
-            tracking_mib=c['tracking_mib'],timeout_seconds=900)
+            tracking_mib=c['tracking_mib'],timeout_seconds=900,
+            gap_ns=0 if setup or loaded else c.get('tofino',{}).get('gap_ns',0))
 
     def execute_roles(self):
         configs={'client':(self.config['peer'],self.role('client'))}
@@ -229,6 +230,11 @@ namespace['start']({service!r})
 
     def run(self):
         r=self.request;c=self.config;loaded=r['stage']=='loaded'
+        if not loaded and c.get('tofino'):
+            from .tofino import check_backend
+            check_backend(c['tofino'])
+            if r['count']+r['warmup']>1024:
+                raise ValueError('Unloaded Tofino rehearsal must fit one capture chunk')
         if self.state.get('safe') is False: raise RuntimeError('Hardware state needs explicit failure recovery')
         if r['system']=='DPDK': self.timed('ensure-dpdk',self.ensure_dpdk)
         service=self.timed('ensure-lh',self.ensure_lh) if r['system']=='LH' else None
@@ -236,9 +242,32 @@ namespace['start']({service!r})
         before=self.timed('snapshot-before',self.h.snapshot,service,self.label+'-before') if service else None
         self.last_recorder=None
         frozen=service is not None
+        capture=None
         try:
             if frozen: self.timed('freeze-recording',self.freeze_loaded)
-            paths,evidence=self.timed('roles-and-cleanup',self.execute_roles)
+            if not loaded and c.get('tofino'):
+                from .tofino import Batch
+                backend=c['tofino']
+                if r['count']+r['warmup']>1024:
+                    raise ValueError('Unloaded Tofino rehearsal must fit one capture chunk')
+                endpoint=c['dut_endpoint'] if r['system']=='DPDK' else c['fpga_endpoint']
+                selector=backend['rpc_selectors'][str(r['payload_bytes'])]
+                capture=Batch(backend,dict(session_id=self.label,dev_port=backend['ports'][r['system']],
+                    client_ip=c['peer_endpoint']['ip'],server_ip=endpoint['ip'],
+                    client_udp_port=49152,server_udp_port=12345,**selector,
+                    expected_count=r['count']+r['warmup'],timeout_s=600,
+                    pacing_gap_ns=backend['gap_ns'],exclusive_tx_fifo_ack=backend['exclusive_tx_fifo_ack'],
+                    expected_artifact_sha256=backend['expected_artifact_sha256']),
+                    self.directory/'tofino')
+                self.timed('tofino-arm',capture.start)
+            try:
+                paths,evidence=self.timed('roles-and-cleanup',self.execute_roles)
+            finally:
+                if capture:
+                    self.timed('tofino-finish',capture.finish,sys.exc_info()[0] is None)
+            if capture:
+                paired=capture.pair(paths['client']/'samples.csv',
+                    **{k:r[k] for k in ('count','warmup','payload_bytes')})
             after=self.timed('snapshot-after',self.h.snapshot,service,self.label+'-after',export=r.get('instrumentation')=='breakdown') if service else None
             if service:
                 self.h.command([sys.executable,ROOT/'tools/enzian/assess_tad.py',
@@ -274,6 +303,17 @@ namespace['start']({service!r})
                         **options)
                 else:
                     cohort=dpdk(paths['client']/'samples.csv',paths['server']/'samples.csv',**options)
+                if capture:
+                    # The backend currently exports unqualified MAC ticks. Keep
+                    # them alongside CPU durations; never fabricate ns/residuals.
+                    cohort['raw_capture']=dict(path=str(capture.output/'pairs.json'),
+                        sha256=digest(capture.output/'pairs.json'),
+                        units=paired['units'],hardware_timing_validated=paired['hardware_timing_validated'])
+                    for row,raw in zip(cohort['rows'],paired['pairs']):
+                        if row['request_id']!=raw['xid'] or bool(row['warmup'])!=raw['warmup']:
+                            raise ValueError('Capture/software XID or warmup mismatch')
+                        row['switch_delta_raw']=raw['delta_raw']
+                    result['files'].update({str(p):digest(p) for p in capture.output.iterdir() if p.is_file()})
                 cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
                 result.update(cohort=cohort,xid_pairing=True,wire_available=False,
                               tracing_compiled=r['instrumentation']=='breakdown',
@@ -281,6 +321,8 @@ namespace['start']({service!r})
                               trace_readouts=0,fpga_recording=False,nic_timestamping=False)
             return result
         finally:
+            if capture and not capture.closed:
+                capture.finish(False)
             if 'result' in locals() and result.get('passed'):
                 # Result creation alone is not success: retain unsafe state if
                 # any later validation raised before the return above.

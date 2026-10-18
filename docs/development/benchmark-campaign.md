@@ -11,8 +11,9 @@ measurements retain their original semantics and provenance.
 
 The selected hot-case systems are Lauberhorn, DPDK on the ConnectX-5 in
 zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
-wait for its port. DPDK uses a dedicated `dpdk_dut` on zuestoll07; LH and the generator occupy
-separate hosts in full campaigns. Never relabel NICVF observations as
+wait for its port. LH and DPDK use zuestoll07 sequentially (`dut` and `dpdk_dut` both name
+zuestoll07); zuestoll14 is the separate traffic generator. Both DUT links are
+measured at their server-facing leaf0 ports. Never relabel NICVF observations as
 ConnectX-5 results. Long collection remains on hold.
 
 ## Canonical measurement contract
@@ -25,9 +26,51 @@ Loaded cases retain uninstrumented client RTT with no packet trace capture.
 
 The active adapter no longer collects FPGA MAC or NIC PTP timestamps.
 The [mlx5 readiness workflow](mlx5-readiness.md) exercises software stages and
-loaded RTT before the external wire backend exists. Readiness-only unloaded
-outputs cannot enter paper plots. Collection stays blocked pending Tofino
-integration and validated acceptance of the selected baselines.
+loaded RTT independently of switch capture. The unloaded adapter now uses
+[campaign/tofino.py](../../tools/paper/campaign/tofino.py) to bridge the sibling
+`tofino-hw-timestamping` batch collector. Readiness-only or unqualified raw-tick
+outputs cannot enter paper plots. Long collection stays blocked pending clock
+qualification and real-workload capture acceptance.
+
+### Bounded unloaded capture integration
+
+The hardware manifest's optional `tofino` object supplies `repository`, `host`,
+`control_socket`, `expected_artifact_sha256`, `expected_controller_sha256`,
+`ports` keyed by `LH`/`DPDK`, `rpc_selectors` keyed by payload size, `gap_ns`,
+and an explicit `exclusive_tx_fifo_ack: true` after checking for competing readers.
+Obtain selectors from the current `bench.x` schema, and verify both server-facing
+ports on leaf0. Pin actual installed controller hashes, not only the container
+image tag. Use the `tofino-capture` skill for access and qualification evidence.
+An absent authenticated SSH control socket is a preflight failure.
+
+For an explicitly requested short unloaded rehearsal, the existing
+`echo_hardware.py HARDWARE unloaded REQUEST RESULT` stage supports one capture
+chunk per cohort, at most 1,024 requests including warmups. Use one resident
+worker, 128 warmups and a recorded fixed gap (the backend's synthetic acceptance
+used 10 ms). The ordinary hardware adapter still owns boot, software roles,
+health checks, archival and restoration. It arms capture before the client runs,
+writes finish after traffic stops, exports through the maintained collector,
+and calls that project's pairer with the actual client ledger. No synthetic
+responder or FPGA/NIC timestamp path is involved. Loaded roles never arm capture.
+Full multi-chunk campaign orchestration remains pending.
+
+Every accepted raw chunk requires exact counts, full XIDs, single-outstanding
+client order, complete capture/export/cleanup, matching artifact/controller
+identity and journal digest. The adapter retains `switch_delta_raw` alongside
+CPU observations, with `wire_ns: null`, `wire_available: false` and
+`paper_inputs: false` until a qualified conversion is integrated. Do not subtract
+CPU nanoseconds from raw ticks or label them as wire nanoseconds. On capture or
+cleanup failure preserve the session and recover through the Tofino project;
+never signal syncd or reset the switch to clear a capture.
+
+October 18 role-swap verification: both named roots were released and reacquired
+exclusively through EMG, without cloning or deleting them. zuestoll07 boots
+`lauberhorn-linux-6.8` with CPUs 44–47 isolated; zuestoll14 boots
+`echo-generator32-20261015` with CPUs 16–47 isolated. Both booted kernel
+6.8.0-146 through the shared harness. The initial 07 boot is CPU-only for CX-5;
+Lauberhorn still requires matched FPGA programming and normal ECI acceptance.
+The swap and live command-line evidence are in `out/tofino-unloaded-20261018/`.
+No switch capture is implied by this boot verification.
 
 ## Neighbor preparation
 

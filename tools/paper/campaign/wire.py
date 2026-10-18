@@ -1,7 +1,7 @@
-"""Tofino integration boundary. No switch backend is implemented yet.
+"""Qualified wire-duration boundary. Raw capture is in campaign/tofino.py.
 
 Fixtures may exercise analysis, but cannot authorize acquisition. Durations are
-supplied per flow/XID by the future MAC timestamp capture project.
+supplied per flow/XID only after switch clock/reference qualification.
 """
 METHOD = 'tofino-wire-v1'
 COMPONENTS = ('rx_queue', 'rx_network', 'rpc_receive', 'handler',

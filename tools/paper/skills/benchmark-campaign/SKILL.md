@@ -64,7 +64,15 @@ must start at valid CQE observation inside the selected receive path; TX ends
 after SQ publication and doorbell. Application burst-call boundaries alone do
 not validate this coverage.
 
-Tofino capture is being developed in a separate project. Use the explicit
+Use zuestoll07 sequentially for both LH and ConnectX-5, and zuestoll14 as the
+separate generator. Check both server-facing leaf0 ports before capture.
+The `tofino-capture` skill owns switch access, batch completeness and recovery.
+The unloaded adapter's `campaign/tofino.py` bridge reuses that project's collector
+and pairer with real client ledgers. Bounded raw-tick rehearsals are separate
+from qualified paper acquisition: require a working authenticated control socket,
+pin controller/artifact hashes, and retain raw units until clock/reference
+qualification. See the campaign document for the manifest and one-chunk limit.
+Use the explicit
 `campaign/wire.py` integration stub for local analysis tests; never fabricate
 wire observations for paper inputs. Long rehearsal and full collection are held
 until that backend and the ConnectX-5 queue instrumentation are integrated and

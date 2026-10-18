@@ -100,11 +100,11 @@ def preflight(config, h, campaign):
     c=config
     if not os.environ.get('ENZIAN_BMC_PASSWORD'):
         raise ValueError('Unattended boot requires ENZIAN_BMC_PASSWORD in the service environment')
-    if c['dpdk_dut']!='zuestoll07' or len({c['dut'],c['peer'],c['dpdk_dut']})!=3:
-        raise ValueError('Use separate LH, ConnectX-5 and generator hosts')
+    if c['dut'] != 'zuestoll07' or c['dpdk_dut'] != c['dut'] or c['peer'] != 'zuestoll14':
+        raise ValueError('Use zuestoll07 for LH/ConnectX-5 and zuestoll14 for the generator')
     reservations=subprocess.check_output(['ssh',c['gateway'],'emg list-machines'],text=True,timeout=30)
     (h.directory/'reservations.txt').write_text(reservations)
-    for machine in (c['dut'],c['peer'],c['dpdk_dut']):
+    for machine in dict.fromkeys((c['dut'],c['peer'],c['dpdk_dut'])):
         if not re.search(r'^\s*\d+\s+'+re.escape(machine)+r'\s+'+re.escape(c['owner'])+r'\s+true\b',reservations,re.M):
             raise ValueError('Current reservation missing: '+machine)
     for path,sha in c['local_artifacts'].items():
@@ -164,7 +164,7 @@ def build(config,h):
         if digest(path)!=sha: raise ValueError('Built artifact differs from frozen configuration')
     if h.stage(config['client_image_local'],'client.img')!=config['client_image_url']:
         raise ValueError('Image URL differs from transfer endpoint')
-    for machine in (config['peer'],config['dut'],config['dpdk_dut']):
+    for machine in dict.fromkeys((config['peer'],config['dut'],config['dpdk_dut'])):
         h.python(machine,h.image_code(),'stage-image-'+machine,timeout=600)
     return dict(passed=True)
 

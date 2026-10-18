@@ -114,6 +114,9 @@ def run(config):
                    LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),
                    LH_BENCH_TRACKING_MIB=str(config['tracking_mib']),LH_BENCH_DRAINED_FILE=str(root/'drained'))
+    if not loaded and not server:
+        env['LH_BENCH_WINDOW']='1'
+        env['LH_BENCH_GAP_NS']=str(config.get('gap_ns',0))
     count=config.get('count',1)
     warmup=config['rate']*config['warmup_ms']//1000 if loaded and server else config.get('warmup',0)
     args=runner+[config['binary'],'--',*map(str,config['endpoint']),str(count),str(warmup),
