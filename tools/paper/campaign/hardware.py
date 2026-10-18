@@ -148,8 +148,8 @@ root.with_suffix('.tar.gz').unlink()
         # A fresh boot ends the old worker pool; core reclamation is deferred.
         variant=c['native_variants'][r.get('instrumentation','off')]
         service=dict(image=c['client_image_remote'],image_sha256=c['client_image_sha256'],
-            service_root='/dev/shm/'+self.label+'-service',binary_path=variant['app']+'/bin/microbenchmarks',
-            binary_sha256=variant['sha256'],runtime=variant['runtime'],
+            service_root='/dev/shm/'+self.label+'-service',binary_path=variant['binary_path'],
+            binary_sha256=variant['binary_sha256'],runtime=variant['runtime'],
             tracing_compiled=r.get('instrumentation')=='breakdown',payload_bytes=r['payload_bytes'],
             workers=r['workers'],mode='loaded' if r['stage']=='loaded' else 'unloaded',
             instrumentation=r.get('instrumentation','off'))

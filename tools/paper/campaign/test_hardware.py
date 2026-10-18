@@ -15,6 +15,28 @@ from .import_loaded import digest
 
 
 class Hardware(unittest.TestCase):
+    def test_native_service_uses_manifest_binary_identity(self):
+        # Stop at staging: service construction must accept the public manifest
+        # before any boot or hardware-state mutation occurs.
+        for mode in ('off','breakdown'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);(root/'request.json').write_text('{}')
+                variant=dict(binary_path='/nix/store/app/bin/microbenchmarks',
+                             binary_sha256='binary-sha',runtime='/nix/store/runtime',
+                             tracing_compiled=mode=='breakdown')
+                config=dict(native_variants={mode:variant},client_image_remote='/image',
+                            client_image_sha256='image-sha',boot_case=str(root/'case.json'))
+                (root/'case.json').write_text('[{"program":[]}]')
+                request=dict(stage='unloaded',system='LH',payload_bytes=8,workers=1,
+                             instrumentation=mode)
+                acquisition=Acquisition(config,request,root,root)
+                acquisition.h=Mock()
+                acquisition.h.stage.side_effect=RuntimeError('staging reached')
+                with self.assertRaisesRegex(RuntimeError,'staging reached'):
+                    acquisition.ensure_lh()
+                acquisition.h.stage.assert_called_once()
+                self.assertFalse((root/'hardware-state.json').exists())
+
     def test_networkd_restored_server_nic(self):
         address=dict(family='inet',local='192.0.2.1',prefixlen=24)
         self.assertFalse(server_nic_prepared(dict(flags=[],addr_info=[]),'192.0.2.1/24'))
