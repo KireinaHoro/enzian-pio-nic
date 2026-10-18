@@ -31,7 +31,7 @@ class Acquisition:
         self.config=config;self.request=request;self.directory=Path(directory);self.campaign=Path(campaign)
         self.timings=[]
         self.h=Harness(config,directory)
-        self.label='echo-'+hashlib.sha256(str(self.campaign).encode()).hexdigest()[:8]+'-'+digest(self.directory/'request.json')[:12]+'-'+self.directory.name
+        self.label='echo-'+hashlib.sha256(str(self.campaign).encode()).hexdigest()[:8]+'-'+digest(self.directory/'request.json')[:12]+'-'+hashlib.sha256(str(self.directory.resolve()).encode()).hexdigest()[:16]
         self.state_path=self.campaign/'hardware-state.json'
         self.state=json.loads(self.state_path.read_text()) if self.state_path.exists() else {}
 

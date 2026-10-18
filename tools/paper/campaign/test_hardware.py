@@ -15,6 +15,18 @@ from .import_loaded import digest
 
 
 class Hardware(unittest.TestCase):
+    def test_nested_capture_identity_is_unique_across_parent_attempts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);labels=[]
+            for attempt in (1,2):
+                for chunk in (0,1):
+                    path=root/f'attempt-{attempt}'/f'chunk-{chunk:03d}'
+                    path.mkdir(parents=True);(path/'request.json').write_text('{"count":896}')
+                    label=Acquisition({}, {}, path,root).label
+                    self.assertEqual(label,Acquisition({}, {}, path,root).label)
+                    labels.append(label)
+            self.assertEqual(len(set(labels)),4)
+
     def test_native_service_uses_manifest_binary_identity(self):
         # Stop at staging: service construction must accept the public manifest
         # before any boot or hardware-state mutation occurs.
