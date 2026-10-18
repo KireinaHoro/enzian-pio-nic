@@ -67,11 +67,16 @@ not validate this coverage.
 Use zuestoll07 sequentially for both LH and ConnectX-5, and zuestoll14 as the
 separate generator. Check both server-facing leaf0 ports before capture.
 The `tofino-capture` skill owns switch access, batch completeness and recovery.
-The unloaded adapter's `campaign/tofino.py` bridge reuses that project's collector
-and pairer with real client ledgers. Bounded raw-tick rehearsals are separate
-from qualified paper acquisition: require a working authenticated control socket,
-pin controller/artifact hashes, and retain raw units until clock/reference
-qualification. See the campaign document for the manifest and one-chunk limit.
+The unloaded adapter delegates lifecycle to `tools/capture-session.py run` in
+that project and supplies the real client ledger. Require an authenticated
+control socket and pinned controller/artifact hashes. Accept schema-3 pairer
+output with `latency_accepted: true`, `units: "ns"`, `ns_per_tick: 1`;
+`hardware_timing_validated: false` and `absolute_wire_calibrated: false` are
+calibration metadata, not latency vetoes. Preserve raw timestamps and use the
+maintained clock-rate qualification helper before/after campaigns and after
+clock/reboot changes. Bounded integration trials remain outside paper inputs;
+real-workload validation still gates long collection. See the campaign document
+for the manifest and one-chunk limit.
 Use the explicit
 `campaign/wire.py` integration stub for local analysis tests; never fabricate
 wire observations for paper inputs. Long rehearsal and full collection are held

@@ -35,9 +35,9 @@ through a local generator adapter using `WIRE_CONFIG`, `WIRE_LEDGER` and
 `WIRE_SESSION_ID`. The DPDK responder is ready before the session starts;
 Lauberhorn uses its resident worker. Failed sessions retain the helper's
 `export.json`, `run-status.json` and logs. Recovery is an explicit operation
-through the same helper after confirming the sender stopped. Readiness-only or unqualified raw-tick
-outputs cannot enter paper plots. Long collection stays blocked pending clock
-qualification and real-workload capture acceptance.
+through the same helper after confirming the sender stopped. The maintained pairer supplies accepted nominal-ns MAC intervals. Absolute
+calibration is metadata, not a latency veto. Long collection stays blocked
+pending real-workload capture acceptance.
 
 ### Bounded unloaded capture integration
 
@@ -60,13 +60,16 @@ writes finish after traffic stops, exports and pairs with the actual client ledg
 responder or FPGA/NIC timestamp path is involved. Loaded roles never arm capture.
 Full multi-chunk campaign orchestration remains pending.
 
-Every accepted raw chunk requires exact counts, full XIDs, single-outstanding
+Every accepted chunk requires exact counts, full XIDs, single-outstanding
 client order, complete capture/export/cleanup, matching artifact/controller
-identity and journal digest. The adapter retains `switch_delta_raw` alongside
-CPU observations, with `wire_ns: null`, `wire_available: false` and
-`paper_inputs: false` until a qualified conversion is integrated. Do not subtract
-CPU nanoseconds from raw ticks or label them as wire nanoseconds. On capture or
-cleanup failure preserve the session and recover through the Tofino project;
+identity and journal digest. The adapter accepts schema-3 pairs with
+`latency_accepted: true`, `units: "ns"` and `ns_per_tick: 1`, and retains raw
+observations and calibration metadata. It imports `wire_ns` through the normal
+flow/XID join and computes the combined CPU–wire residual for instrumented runs.
+`hardware_timing_validated: false` and `absolute_wire_calibrated: false` describe
+external calibration status; they do not reject the accepted switch interval.
+Bounded integration trials remain `paper_inputs: false`. On capture or cleanup
+failure preserve the session and recover through the maintained session CLI;
 never signal syncd or reset the switch to clear a capture.
 
 October 18 role-swap verification: both named roots were released and reacquired

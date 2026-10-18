@@ -1,8 +1,8 @@
 """Unloaded-only adapter for the sibling project's maintained batch collector.
 
 The collector and pairer own hardware access and association. This adapter owns
-benchmark lifecycle and the real client ledger. Raw ticks never become wire_ns
-without separate clock/reference qualification.
+benchmark lifecycle and the real client ledger. The maintained pairer supplies
+accepted nominal-ns MAC intervals; absolute calibration remains metadata.
 """
 import json
 import os
@@ -52,6 +52,32 @@ def ledger(config, client_path, *, count, warmup, payload_bytes):
         raise ValueError('XID low bits collide within capture chunk')
     return dict(session_id=config['session_id'], single_outstanding=True,
                 **{k: config[k] for k in FIELDS}, requests=requests)
+
+
+def wire_observations(paired, session_id, count):
+    """Accept the maintained pairer's explicit latency contract, not raw exports."""
+    from .wire import METHOD
+    if (paired.get('schema') != 3 or paired.get('session_id') != session_id or
+            paired.get('pairing_complete') is not True or
+            paired.get('latency_accepted') is not True or paired.get('units') != 'ns' or
+            paired.get('ns_per_tick') != 1 or
+            paired.get('measurement') != 'request_tx_to_reply_rx_mac'):
+        raise ValueError('Missing accepted nominal-ns Tofino latency contract')
+    pairs=paired['pairs']
+    if len(pairs)!=count or len({p['xid'] for p in pairs})!=count:
+        raise ValueError('Incomplete or duplicate Tofino pairs')
+    rows=[]
+    for i,pair in enumerate(pairs):
+        if (pair['sequence']!=i or type(pair['warmup']) is not bool or
+                type(pair['wire_ns']) is not int or pair['wire_ns']<=0 or
+                pair['wire_ns']!=pair['delta_raw']):
+            raise ValueError('Invalid nominal-ns Tofino observation')
+        rows.append(dict(flow_id=0,request_id=pair['xid'],wire_ns=pair['wire_ns']))
+    return dict(methodology=METHOD,fixture=False,session_id=session_id,rows=rows,
+                latency_accepted=True,units='ns',ns_per_tick=1,
+                measurement=paired['measurement'],
+                hardware_timing_validated=paired['hardware_timing_validated'],
+                absolute_wire_calibrated=paired['absolute_wire_calibrated'])
 
 
 class Batch:

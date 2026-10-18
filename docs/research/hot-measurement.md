@@ -11,7 +11,11 @@ and one outstanding request. Tofino measures request departure at the
 server-facing egress MAC and reply arrival at the server-facing ingress MAC.
 Both timestamps use the same switch clock. The resulting wire-to-wire interval
 includes both switch–server link delays; retain these rather than silently
-subtracting a cable estimate. Timestamp units do not establish accuracy.
+subtracting a cable estimate. The accepted convention uses the switch-provided
+MAC interval at nominal 1 ns per tick, without external offset correction.
+The Tofino project's global-clock rate checks establish these units; retain
+`absolute_wire_calibrated: false` as metadata, not a latency veto. This does not
+claim analyzer-calibrated physical wire boundaries.
 Do not substitute an egress-pipeline timestamp or collector observation time.
 
 Unloaded breakdowns use separate instrumented acquisitions and their own
@@ -71,10 +75,11 @@ Use a locked session with bounded snapshot, arm, drain, export and restore
 operations. Snapshot before mutation and restore after failure as well as
 success. Fail closed if noninteractive access, MAC departure export or restoration
 is unavailable. Never install a replacement forwarding pipeline blindly on a
-shared leaf. The integration stub is `tools/paper/campaign/wire.py`. Tofino capture is
-being explored in a separate project; no switch backend is implemented here.
-The controller blocks launches before hardware changes. Local duration-join
-fixtures remain usable but cannot authorize long rehearsal or collection.
+shared leaf. The adapter uses the sibling project's maintained `tools/capture-session.py`
+automation and accepted nominal-ns pair output. Bounded unloaded integration
+trials use the ordinary hardware adapter. `tools/paper/campaign/wire.py` keeps
+long rehearsal and full collection gated until real-workload integration is
+validated; synthetic captures and local fixtures cannot satisfy that gate.
 
 A fresh rehearsal must verify all three payloads and both instrumentation modes,
 exact pairing, boundary semantics, CPU queue coverage, wrap/loss failure paths,

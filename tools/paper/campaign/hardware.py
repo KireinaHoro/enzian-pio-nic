@@ -317,6 +317,12 @@ namespace['start']({service!r})
                     trace_readouts=0,software_profiling=False,fpga_recording=False)
             else:
                 options={k:r[k] for k in ('count','warmup','instrumentation','payload_bytes')}
+                if capture:
+                    from .tofino import wire_observations
+                    wire_path=capture.output/'wire.json'
+                    atomic(wire_path,wire_observations(paired,self.label,r['count']+r['warmup']))
+                    options['wire_path']=wire_path
+
                 if service:
                     cohort=lauberhorn(paths['client']/'samples.csv',
                         setup_count=self.state['setup_count'],
@@ -325,18 +331,21 @@ namespace['start']({service!r})
                 else:
                     cohort=dpdk(paths['client']/'samples.csv',paths['server']/'samples.csv',**options)
                 if capture:
-                    # The backend currently exports unqualified MAC ticks. Keep
-                    # them alongside CPU durations; never fabricate ns/residuals.
+                    # Keep original switch observations and calibration metadata.
                     cohort['raw_capture']=dict(path=str(capture.output/'pairs.json'),
                         sha256=digest(capture.output/'pairs.json'),
-                        units=paired['units'],hardware_timing_validated=paired['hardware_timing_validated'])
+                        units=paired['units'],hardware_timing_validated=paired['hardware_timing_validated'],
+                        absolute_wire_calibrated=paired['absolute_wire_calibrated'],
+                        latency_accepted=paired['latency_accepted'],ns_per_tick=paired['ns_per_tick'])
                     for row,raw in zip(cohort['rows'],paired['pairs']):
                         if row['request_id']!=raw['xid'] or bool(row['warmup'])!=raw['warmup']:
                             raise ValueError('Capture/software XID or warmup mismatch')
                         row['switch_delta_raw']=raw['delta_raw']
                     result['files'].update({str(p):digest(p) for p in capture.output.iterdir() if p.is_file()})
                 cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
-                result.update(cohort=cohort,xid_pairing=True,wire_available=False,
+                # Bounded integration trials remain outside paper inputs.
+                cohort['paper_inputs']=False
+                result.update(cohort=cohort,xid_pairing=True,wire_available=capture is not None,
                               tracing_compiled=r['instrumentation']=='breakdown',
                               software_profiling=r['instrumentation']=='breakdown',
                               trace_readouts=0,fpga_recording=False,nic_timestamping=False)

@@ -1,7 +1,9 @@
-"""Qualified wire-duration boundary. Raw capture is in campaign/tofino.py.
+"""Accepted nominal-ns MAC-duration boundary. Capture is in campaign/tofino.py.
 
 Fixtures may exercise analysis, but cannot authorize acquisition. Durations are
-supplied per flow/XID only after switch clock/reference qualification.
+supplied per flow/XID by the maintained pairer. Absolute calibration metadata
+does not veto the accepted nominal-ns interval. Real-workload integration
+acceptance remains required before long collection.
 """
 METHOD = 'tofino-wire-v1'
 COMPONENTS = ('rx_queue', 'rx_network', 'rpc_receive', 'handler',

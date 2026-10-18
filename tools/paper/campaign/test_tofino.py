@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from .tofino import Batch, FIELDS, ledger, generate
+from .tofino import Batch, FIELDS, ledger, generate, wire_observations
 
 
 class Tofino(unittest.TestCase):
@@ -98,3 +98,22 @@ class Tofino(unittest.TestCase):
             self.assertEqual(len(json.loads((self.root/'ledger.json').read_text())['requests']),3)
             with patch.dict(os.environ,{'WIRE_SESSION_ID':'wrong'}):
                 with self.assertRaisesRegex(ValueError,'identity'): generate(spec)
+
+    def test_nominal_ns_acceptance_is_separate_from_calibration(self):
+        paired=dict(schema=3,session_id='fixture',pairing_complete=True,
+                    latency_accepted=True,units='ns',ns_per_tick=1,
+                    measurement='request_tx_to_reply_rx_mac',
+                    hardware_timing_validated=False,absolute_wire_calibrated=False,
+                    pairs=[dict(sequence=0,xid=1,warmup=False,wire_ns=100,delta_raw=100)])
+        value=wire_observations(paired,'fixture',1)
+        self.assertEqual(value['rows'][0]['wire_ns'],100)
+        self.assertFalse(value['hardware_timing_validated'])
+        from .wire import COMPONENTS, join_durations
+        cpu=dict(flow_id=0,request_id=1,cpu_duration_ns=80,components_ns=dict.fromkeys(COMPONENTS,10))
+        joined=join_durations([dict(flow_id=0,request_id=1,rtt_ns=150)],value['rows'],[cpu])
+        self.assertEqual(joined[0]['components_ns']['cpu_wire'],20)
+        for changes in ({'latency_accepted':False},{'units':'unqualified_mac_ticks'},
+                        {'schema':2},{'session_id':'wrong'},{'ns_per_tick':.8},
+                        {'pairs':[]},{'pairs':paired['pairs']*2}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):
+                wire_observations(dict(paired,**changes),'fixture',1)
