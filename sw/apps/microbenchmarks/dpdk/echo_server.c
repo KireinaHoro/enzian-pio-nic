@@ -224,7 +224,11 @@ int main(int argc,char **argv) {
     unsigned flows=flows_env?number(flows_env,1024):1;
     if(!flows || peer_port+flows>65536) rte_exit(1,"invalid flow count\n");
     unsigned count=number(argv[5],10000000),warmup=number(argv[6],1000000);
-    unsigned timeout_us=number(argv[7],10000000);
+    unsigned timeout_us=number(argv[7],120000000);
+    const char *chunk_env=getenv("LH_ECHO_CHUNK_REQUESTS");
+    unsigned chunk_requests=chunk_env?number(chunk_env,1024):0;
+    if(chunk_env && (!chunk_requests || flows!=1 || chunk_requests<=warmup))
+        rte_exit(1,"invalid resident capture chunk size\n");
     if(!count || !timeout_us) rte_exit(1,"positive count and timeout required\n");
     const char *delay_env=getenv("LH_ECHO_DELAY_NS");
     unsigned delay=delay_env?number(delay_env,1000000):0;
@@ -286,6 +290,7 @@ int main(int argc,char **argv) {
     int error=0;
     for(unsigned i=0;i<count+warmup;i++) {
         struct sample *s=&samples[i]; attempted=i+1;
+        if(chunk_requests && i%chunk_requests==0) memset(seen,0,count+warmup);
         uint64_t deadline=rte_get_timer_cycles()+(i?timeout:120*hz);
         struct rte_mbuf *rx=NULL;
         const uint8_t *request_payload = NULL;
@@ -312,7 +317,8 @@ int main(int argc,char **argv) {
                 if(valid==0) { unrelated++; rte_pktmbuf_free(rx); rx=NULL; }
                 else {
                     unsigned id=size>=4?get32(payload):0;
-                    if (valid < 0 || size != expected_size || !id || id>count+warmup || seen[id-1] ||
+                    if (valid < 0 || size != expected_size || !id || id>count+warmup ||
+                        (chunk_requests && id!=i%chunk_requests+1) || seen[id-1] ||
                         peer.port!=peer_port+(id-1)%flows ||
                         memcmp(payload + 4, expected_call + 4, 36) ||
                         (!loopback && (get32(payload + 40) != id ||

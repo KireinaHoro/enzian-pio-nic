@@ -7,14 +7,15 @@ size and codec registration from the same schema. The ONC-RPC XID identifies cli
 requests, including size zero; existing internal RPC IDs pair FPGA events. Adder acceptance and legacy loopback
 measurements retain their original semantics and provenance.
 
-## Baseline selection and collection hold
+## Baseline selection and launch gates
 
 The selected hot-case systems are Lauberhorn, DPDK on the ConnectX-5 in
 zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
 wait for its port. LH and DPDK use zuestoll07 sequentially (`dut` and `dpdk_dut` both name
 zuestoll07); zuestoll14 is the separate traffic generator. Both DUT links are
 measured at their server-facing leaf0 ports. Never relabel NICVF observations as
-ConnectX-5 results. Long collection remains on hold.
+ConnectX-5 results. Long collection requires the validated integration and rehearsal
+gates below.
 
 ## Canonical measurement contract
 
@@ -75,7 +76,16 @@ used 10 ms). The ordinary hardware adapter still owns boot, software roles,
 health checks, archival and restoration. The session CLI arms capture before the client runs,
 writes finish after traffic stops, exports and pairs with the actual client ledger. No synthetic
 responder or FPGA/NIC timestamp path is involved. Loaded roles never arm capture.
-Full multi-chunk campaign orchestration remains pending.
+Full unloaded cohorts use `campaign/chunked.py`: eleven chunks of 896 measured
+requests and one of 144, each preceded by 128 warmups. The server stays resident
+through switch export/rearm; DPDK accepts a new consecutive XID sequence only at
+an explicit 1,024-request boundary. Raw chunk observations retain local wire
+XIDs; merged rows carry both chunk identity and a chronological observation ID.
+Warmups remain archived and are excluded individually from plots. Full launch
+requires hash-bound `wire_acceptance` from a passing unloaded rehearsal. Before
+capacity bracketing, both systems must pass a two-chunk instrumented acquisition.
+The loaded rehearsal then gates the full grid and sustained trials. Use reviewed
+inheritance to carry compatible unloaded cohorts into the new full campaign root.
 
 Every accepted chunk requires exact counts, full XIDs, single-outstanding
 client order, complete capture/export/cleanup, matching artifact/controller

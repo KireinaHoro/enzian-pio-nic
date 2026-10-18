@@ -81,12 +81,13 @@ calibration metadata, not latency vetoes. Preserve raw timestamps and use the
 maintained clock-rate qualification helper before/after campaigns and after
 clock/reboot changes. Bounded integration trials remain outside paper inputs;
 real-workload validation still gates long collection. See the campaign document
-for the manifest and one-chunk limit.
-Use the explicit
-`campaign/wire.py` integration stub for local analysis tests; never fabricate
-wire observations for paper inputs. Long rehearsal and full collection are held
-until that backend and the ConnectX-5 queue instrumentation are integrated and
-validated. For bounded software-only board acceptance use
+for the manifest and per-chunk limit. `campaign/wire.py` requires hashed real
+unloaded rehearsal acceptance before long collection; fixtures never authorize
+capture. Full collection uses resident-worker chunks with 128 warmups after each
+rearm. The controller first requires two-chunk instrumented checks on both systems,
+then loaded validation/capacity bracketing before collecting the full grid.
+A user-authorized full campaign can inherit compatible unloaded rehearsal receipts
+through the explicit review path; preserve original acquisition identities. For bounded software-only board acceptance use
 `docs/development/mlx5-readiness.md`, the shared NIC runner and
 `tools/paper/campaign/mlx5_readiness.py`; validate its archive with
 `tools/paper/validate_mlx5_readiness.py`. Missing wire durations stay null and

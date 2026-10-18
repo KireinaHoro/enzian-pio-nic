@@ -230,6 +230,14 @@ class Campaign:
         # Before bracketing, total is the finite maximum cohort budget.
         self.total = len(SYSTEMS)*len(SIZES)*2 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
         self.unloaded('rehearsal')
+        # Exercise actual rearm with a resident responder before long capture.
+        if self.config.get('scope')=='full':
+            self.total+=len(SYSTEMS)
+            for system in SYSTEMS:
+                self.stage('unloaded',dict(system=system,payload_bytes=8,workers=1,
+                    outstanding=1,count=900,warmup=128,instrumentation='breakdown',phase='chunk-check'))
+                self.completed+=1
+                self.status('acquisition')
         boundaries = {}
         for system in SYSTEMS:
             for size in SIZES:
@@ -305,7 +313,7 @@ class Campaign:
 
 def config_check(config):
     from campaign.wire import require_capture_backend
-    if config.get('scope') != 'unloaded-rehearsal': require_capture_backend()
+    if config.get('scope') != 'unloaded-rehearsal': require_capture_backend(config)
     if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal'):
         raise ValueError('Scope must be unloaded-rehearsal, rehearsal or full')
     if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):

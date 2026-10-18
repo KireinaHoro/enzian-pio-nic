@@ -158,8 +158,21 @@ def validate_matched(cohorts, *, rehearsal=False):
         if c.get('methodology')!=METHOD or c.get('wire_available') is not True or (not rehearsal and c.get('paper_inputs') is not True):
             raise ValueError('Missing Tofino wire durations; readiness results are not paper inputs')
         if len(c['rows'])!=c['count']+c['warmup']: raise ValueError('Incomplete unloaded observations')
+        expected_warmups=[int(i<c['warmup']) for i in range(len(c['rows']))]
+        if c.get('chunks'):
+            expected_warmups=[]
+            if sum(x['count'] for x in c['chunks'])!=c['count'] or c['warmup']!=128*len(c['chunks']):
+                raise ValueError('Invalid chunk totals')
+            offset=0
+            for index,chunk in enumerate(c['chunks']):
+                if chunk['index']!=index or chunk['warmup']!=128 or not 0<chunk['count']<=896:
+                    raise ValueError('Invalid capture chunk')
+                for xid in range(1,chunk['count']+129):
+                    row=c['rows'][offset];offset+=1
+                    if row['chunk']!=index or row['wire_xid']!=xid:raise ValueError('Invalid chunk wire identity')
+                    expected_warmups.append(int(xid<=128))
         for i,row in enumerate(c['rows'],1):
-            if row['request_id']!=i or row['warmup']!=int(i<=c['warmup']) or not row.get('wire_ns',0)>0:
+            if row['request_id']!=i or row['warmup']!=expected_warmups[i-1] or not row.get('wire_ns',0)>0:
                 raise ValueError('Invalid unloaded identity, warmup or wire duration')
             if c['instrumentation']=='breakdown':
                 parts=row['components_ns']

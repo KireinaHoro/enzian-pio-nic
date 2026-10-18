@@ -84,10 +84,15 @@ class Archive:
 
 def finalize(config,h,request,campaign):
     from .adapter import pdf_checks
+    if config.get('tofino'):
+        backend=config['tofino']
+        h.command([sys.executable,Path(backend['repository'])/'tools/qualify-clock.py',
+            '--switch-control',backend['control_socket'],'--output',h.directory/'clock-after'],
+            'clock-after',timeout=180)
     loaded=json.loads(Path(request['loaded']).read_text());plans=json.loads(Path(request['grid']).read_text())
     unloaded=json.loads(Path(request['unloaded']).read_text())
     verify_loaded(loaded,plans);validate_matched(unloaded)
-    if any(c['count']!=10000 or c['warmup']!=128 for c in unloaded): raise ValueError('Wrong full unloaded sample count')
+    if any(c['count']!=10000 or c['warmup']!=128*len(c.get('chunks',[None])) for c in unloaded): raise ValueError('Wrong full unloaded sample count')
     destination=Path(config['archive_directory']).resolve()/h.directory.name
     archive=Archive(destination)
     atomic(destination/'loaded.json',archive.records(loaded))

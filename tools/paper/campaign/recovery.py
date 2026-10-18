@@ -139,7 +139,7 @@ def inherit_reviewed(source, destination, config, code, review, atomic):
         for key in ('source','old_config','old_code','new_config','new_code'):
             if review.get(key)!=expected[key]:raise ValueError('Stale inheritance review: '+key)
         if expected['old_config']['scope']!=config['scope']:
-            if not (expected['old_config']['scope']=='rehearsal' and config['scope']=='full'
+            if not (expected['old_config']['scope'] in ('rehearsal','unloaded-rehearsal') and config['scope']=='full'
                     and status=='rehearsal-complete'):
                 raise ValueError('Scope promotion requires a completed rehearsal')
             # Acquisition requests retain their rehearsal phase and sample counts.
@@ -170,7 +170,15 @@ def inherit_reviewed(source, destination, config, code, review, atomic):
                 target=destination/name
                 if target.exists():raise ValueError('Cannot overwrite inherited receipt')
                 selected.append((target,saved))
+        state_path=source/'hardware-state.json'
+        state=None
+        if review.get('hardware_state_sha256'):
+            if digest(state_path)!=review['hardware_state_sha256']:
+                raise ValueError('Reviewed hardware state changed')
+            state=json.loads(state_path.read_text())
+            if state.get('safe') is not True:raise ValueError('Inherited hardware needs recovery')
         # Validate everything before writing. Original observations/code stay intact.
         atomic(destination/'inheritance-review.json',review)
+        if state is not None:atomic(destination/'hardware-state.json',state)
         for target,saved in selected:
             target.parent.mkdir(parents=True,exist_ok=True);atomic(target,saved)

@@ -108,6 +108,7 @@ def run(config):
                        LH_ECHO_STOP_FILE=str(root/'stop'))
         else:
             if config['instrumentation']=='breakdown': env['LH_ECHO_PROFILE']='1'
+            if config.get('chunk_requests'):env['LH_ECHO_CHUNK_REQUESTS']=str(config['chunk_requests'])
     elif loaded:
         env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
                    LH_BENCH_BATCH_TARGET_NS=str(config.get('batch_target_ns',250000)),
@@ -131,7 +132,7 @@ def run(config):
                 subprocess.run(['ip','link','set',interface,'up'],check=True)
         elif config['system']=='DPDK':
             deadline=time.monotonic()+120
-            while not present(url+'/'+label+'-ready'):
+            while not present(url+'/'+config.get('resident_label',label)+'-ready'):
                 if time.monotonic()>deadline: raise TimeoutError('Server readiness')
                 time.sleep(.1)
         with (root/'process.log').open('w') as log:
@@ -142,7 +143,7 @@ def run(config):
                     if time.monotonic()>deadline: raise TimeoutError('Local server readiness')
                     time.sleep(.05)
                 if not (root/'ready').exists(): raise RuntimeError('Server exited before readiness')
-                put(url+'/'+label+'-ready',b'ready\n')
+                put(url+'/'+config.get('resident_label',label)+'-ready',b'ready\n')
                 if loaded:
                     while process.poll() is None and not present(url+'/'+label+'-stop'):
                         if time.monotonic()>deadline: raise TimeoutError('Campaign stop control')

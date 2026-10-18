@@ -24,12 +24,12 @@ class Wire(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'conserve'):
             join_durations(self.client, self.wire, self.cpu)
 
-    def test_backend_stub_never_authorizes_capture(self):
-        with self.assertRaisesRegex(RuntimeError, 'held'):
+    def test_backend_requires_real_acceptance(self):
+        with self.assertRaisesRegex(RuntimeError, 'Validated unloaded'):
             require_capture_backend()
 
     def test_long_campaign_launch_is_held(self):
         from .test_campaign import controller
         for scope in ('rehearsal', 'full'):
-            with self.assertRaisesRegex(RuntimeError, 'not integrated'):
+            with self.assertRaisesRegex(RuntimeError, 'Validated unloaded'):
                 controller.config_check({'scope': scope})

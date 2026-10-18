@@ -52,7 +52,7 @@ class Acquisition:
         source=c['dut_endpoint'] if server else c['peer_endpoint']
         destination=c['peer_endpoint'] if server else c['dut_endpoint'] if system=='DPDK' else c['fpga_endpoint']
         label=self.label+('-setup' if setup else '')
-        return dict(role=role,system=system,mode='loaded' if loaded else 'unloaded',
+        result=dict(role=role,system=system,mode='loaded' if loaded else 'unloaded',
             cpus=c['worker_cpus'][:r['workers']] if server else c['generator_cpus'] if loaded else c['generator_cpus'][:1],
             output='/dev/shm/'+label+'-'+role,label=label,transfer_url=c['transfer_url'],
             binary='/nix/store/lauberhorn-client/bin/'+(('echo_dpdk' if r.get('instrumentation')=='breakdown' else 'echo_dpdk_uninstrumented') if server else 'bench_dpdk'),
@@ -67,10 +67,12 @@ class Acquisition:
             instrumentation='off' if setup else r.get('instrumentation','off'),
             tracking_mib=c['tracking_mib'],timeout_seconds=900,
             gap_ns=0 if setup or loaded else c.get('tofino',{}).get('gap_ns',0))
+        result.update(getattr(self,'role_overrides',{}).get(role,{}))
+        return result
 
-    def execute_roles(self, capture=None):
+    def execute_roles(self, capture=None, external_server=False):
         configs={'client':(self.config['peer'],self.role('client'))}
-        if self.request['system']=='DPDK': configs={'server':(self.config['dpdk_dut'],self.role('server')),**configs}
+        if self.request['system']=='DPDK' and not external_server: configs={'server':(self.config['dpdk_dut'],self.role('server')),**configs}
         common=dict(gateway=self.config['gateway'], transfer_root=self.config['transfer_root'],
                     image=self.config['client_image_remote'], image_sha=self.config['client_image_sha256'])
         if capture is None:
@@ -104,25 +106,9 @@ class Acquisition:
         evidence={}
         for role,(_,request) in configs.items():
             evidence[role]=validate_role(paths[role],request,self.config['server_sha256'][self.request.get('instrumentation','off')] if role=='server' else self.config['client_sha256'])
-        def cleanup(item):
-            role,(machine,request)=item
-            harness=Harness(self.config,self.directory/('cleanup-'+role))
-            harness.directory.mkdir()
-            # Only remove this role's temporary RAM files after the complete
-            # local archive and every uploaded member have been verified.
-            root=request['output']
-            code=f'''from pathlib import Path
-import shutil
-root=Path({root!r})
-if root.parent!=Path('/dev/shm') or not root.name.startswith('echo-'):raise ValueError('Unexpected cleanup root')
-shutil.rmtree(root)
-root.with_suffix('.tar.gz').unlink()
-'''
-            harness.python(machine,code,'cleanup-'+role)
-            harness.gateway(['rm','--',self.config['transfer_root']+'/'+Path(root).name+'.tar.gz'],'cleanup-upload-'+role)
         # Separate hosts and harness directories; wait for every cleanup, including failures.
         with ThreadPoolExecutor(max_workers=len(configs)) as pool:
-            futures=[pool.submit(cleanup,item) for item in configs.items()]
+            futures=[pool.submit(self.cleanup_role,item) for item in configs.items()]
             errors=[]
             for future in futures:
                 try: future.result()
@@ -137,6 +123,23 @@ root.with_suffix('.tar.gz').unlink()
             evidence['client']['files'].pop(str(raw.resolve()))
             raw.unlink()
         return {k:Path(v) for k,v in paths.items()},evidence
+
+    def cleanup_role(self,item):
+        role,(machine,request)=item
+        harness=Harness(self.config,self.directory/('cleanup-'+role))
+        harness.directory.mkdir()
+        # Only remove this role's temporary RAM files after the complete
+        # local archive and every uploaded member have been verified.
+        root=request['output']
+        code=f'''from pathlib import Path
+import shutil
+root=Path({root!r})
+if root.parent!=Path('/dev/shm') or not root.name.startswith('echo-'):raise ValueError('Unexpected cleanup root')
+shutil.rmtree(root)
+root.with_suffix('.tar.gz').unlink()
+'''
+        harness.python(machine,code,'cleanup-'+role)
+        harness.gateway(['rm','--',self.config['transfer_root']+'/'+Path(root).name+'.tar.gz'],'cleanup-upload-'+role)
 
     def ensure_lh(self):
         r=self.request;c=self.config
@@ -257,6 +260,9 @@ namespace['start']({service!r})
         self.state['loaded_freeze']=dict(identity=identity,receipt=str(receipt.resolve()),sha256=digest(receipt))
 
     def run(self):
+        if self.request['stage']=='unloaded' and self.request['count']+self.request['warmup']>1024:
+            from .chunked import run
+            return run(self)
         r=self.request;c=self.config;loaded=r['stage']=='loaded'
         if not loaded and c.get('tofino'):
             from .tofino import check_backend

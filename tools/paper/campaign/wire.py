@@ -10,8 +10,28 @@ COMPONENTS = ('rx_queue', 'rx_network', 'rpc_receive', 'handler',
               'rpc_transmit', 'tx_network', 'tx_submission', 'cpu_other')
 
 
-def require_capture_backend():
-    raise RuntimeError('Tofino MAC timestamp backend is not integrated; long rehearsal/full collection is held')
+def require_capture_backend(config=None):
+    import json
+    from pathlib import Path
+    from .import_loaded import digest
+    from .import_unloaded import validate_matched
+    proof=(config or {}).get('wire_acceptance',{})
+    if not proof:raise RuntimeError('Validated unloaded switch rehearsal required before long collection')
+    root=Path(proof['root'])
+    if digest(root/'rehearsal-unloaded.json')!=proof['cohorts_sha256']:
+        raise ValueError('Wire acceptance evidence changed')
+    cohorts=json.loads((root/'rehearsal-unloaded.json').read_text())
+    validate_matched(cohorts,rehearsal=True)
+    receipt=Path(proof['validation_receipt'])
+    if digest(receipt)!=proof['validation_sha256']:raise ValueError('Wire validation receipt changed')
+    saved=json.loads(receipt.read_text())
+    if not saved['result'].get('passed') or not saved['result'].get('unloaded_only'):
+        raise ValueError('Unloaded integration validation did not pass')
+    for path,sha in saved['hashes'].items():
+        if digest(path)!=sha:raise ValueError('Wire validation artifact changed')
+    for cohort in cohorts:
+        for path,sha in cohort['files'].items():
+            if digest(path)!=sha:raise ValueError('Wire rehearsal input changed')
 
 
 def join_durations(client, wire, software=None):

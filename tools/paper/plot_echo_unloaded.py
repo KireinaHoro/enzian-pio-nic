@@ -17,7 +17,7 @@ def render(source,output, *, rehearsal=False):
     for cohort in cohorts:
         cohort['files']={str((source.parent/Path(p)).resolve()):sha for p,sha in cohort['files'].items()}
     for c in cohorts:
-        if c['count']!=count or c['warmup']!=warmup: raise ValueError('Not a full unloaded paper cohort')
+        if c['count']!=count or c['warmup']!=warmup*len(c.get('chunks',[None])): raise ValueError('Not a full unloaded paper cohort')
         if not c['files'] or any(digest(p)!=sha for p,sha in c['files'].items()):
             raise ValueError('Unloaded raw evidence hash mismatch')
     output=Path(output)
