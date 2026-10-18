@@ -197,4 +197,13 @@ class Hardware(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'changed'):archive.file(bad,'0'*64)
 
 
+    def test_fresh_deployment_has_no_inherited_recorder(self):
+        from .adapter import initial_recorder
+        harness=Mock()
+        self.assertEqual(initial_recorder({'initial_state':'fresh'},harness,None),'fresh')
+        harness.vio.assert_not_called()
+        with self.assertRaisesRegex(ValueError,'cannot inherit'):
+            initial_recorder({'initial_state':'fresh','previous_capture':'old-board'},harness,None)
+        self.assertEqual(initial_recorder({'initial_state':'fresh'},harness,{'safe':True}),'resume')
+
 if __name__=='__main__':unittest.main()

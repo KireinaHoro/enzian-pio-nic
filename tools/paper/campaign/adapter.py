@@ -96,7 +96,25 @@ def verify_callback(config, directory):
     atomic(cache,dict(identity=identity,evidence=str(evidence),sha256=digest(evidence)))
 
 
-def preflight(config, h, campaign):
+def initial_recorder(config, h, state):
+    """A fresh deployment has no inherited recorder to compare with the DUT."""
+    if state:
+        return 'resume'
+    if config.get('initial_state') == 'fresh':
+        if config.get('previous_capture') or config.get('previous_capture_summary'):
+            raise ValueError('Fresh deployment cannot inherit a previous recorder')
+        return 'fresh'
+    prior=read(config['previous_capture_summary'])
+    status=h.directory/'prior-vio.log';outputs=h.vio('status','echo-preflight',status)
+    observed={k:int(v,16) for k,v in re.findall(r'^TRACE_STATUS (\w+) ([0-9a-fA-F]+)$',status.read_text(),re.M)}
+    if outputs.get('trace_stop')!=1 or observed!=prior['end']:
+        raise ValueError('Live recorder differs from preserved previous state')
+    if digest(config['previous_capture'])!=prior['sha256']:
+        raise ValueError('Previous capture preservation hash mismatch')
+    return 'preserved'
+
+
+def preflight(config, h, campaign, *, callback_required=True):
     c=config
     if not os.environ.get('ENZIAN_BMC_PASSWORD'):
         raise ValueError('Unattended boot requires ENZIAN_BMC_PASSWORD in the service environment')
@@ -140,17 +158,10 @@ def preflight(config, h, campaign):
         if host['kernel']!=c['kernel']: raise ValueError(role+' kernel mismatch')
     if peer['mem_available']<c['peer_ram_reserve_bytes'] or peer['shm']['available']<c['peer_output_reserve_bytes']:
         raise ValueError('Insufficient peer RAM/output budget')
-    prior=read(c['previous_capture_summary'])
-    if not state:
-        status=h.directory/'prior-vio.log';outputs=h.vio('status','echo-preflight',status)
-        observed={k:int(v,16) for k,v in re.findall(r'^TRACE_STATUS (\w+) ([0-9a-fA-F]+)$',status.read_text(),re.M)}
-        if outputs.get('trace_stop')!=1 or observed!=prior['end']:
-            raise ValueError('Live recorder differs from preserved previous state')
-        if digest(c['previous_capture'])!=prior['sha256']:
-            raise ValueError('Previous capture preservation hash mismatch')
-    verify_callback(c,h.directory)
+    initial=initial_recorder(c,h,state)
+    if callback_required: verify_callback(c,h.directory)
     return dict(passed=True,reservations=True,matching_artifacts=True,storage_budget=True,
-        ram_budget=True,restoration=True,callback_delivery=True,isolated_cpus=True,preserved_previous_state=True)
+        ram_budget=True,restoration=True,callback_delivery=True if callback_required else None,callback_required=callback_required,isolated_cpus=True,initial_state=initial,preserved_previous_state=initial!='fresh')
 
 
 def shlex_join(argv):

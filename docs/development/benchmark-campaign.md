@@ -50,6 +50,15 @@ ports on leaf0. Pin actual installed controller hashes, not only the container
 image tag. Use the `tofino-capture` skill for access and qualification evidence.
 An absent authenticated SSH control socket is a preflight failure.
 
+For an explicitly authorized fresh deployment, set `initial_state: "fresh"`
+and omit `previous_capture` and `previous_capture_summary`. This starts with
+new hardware acquisition instead of comparing another board's archived recorder
+against the DUT. Preserve any existing failure before selecting this mode.
+Resume still checks the campaign's recorded hardware state; fresh mode never
+clears an unsafe resume state. Existing preserved-recorder launches retain
+their live VIO and archive-hash checks.
+
+
 For an explicitly requested short unloaded rehearsal, the existing
 `echo_hardware.py HARDWARE unloaded REQUEST RESULT` stage supports one capture
 chunk per cohort, at most 1,024 requests including warmups. Use one resident
