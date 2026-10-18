@@ -59,7 +59,8 @@ class Acquisition:
             manifest='/nix/store/lauberhorn-client/manifest.json',
             interface=c.get('dut_interface','enP5p144s0np0') if server else c.get('peer_interface','cpu40g1'),
             endpoint=[source['ip'],destination['ip'],destination['mac'],49152 if server else 12345],
-            source_cidr=source['ip']+'/'+str(source['prefix']),deadline_ms=10,flows=c['flows'] if loaded else 1,
+            source_cidr=source['ip']+'/'+str(source['prefix']),
+            deadline_ms=1000 if server and not loaded and c.get('tofino') else 10,flows=c['flows'] if loaded else 1,
             payload_bytes=r['payload_bytes'],count=16 if setup else r.get('count',1),warmup=0 if setup else r.get('warmup',0),
             aggregate=c.get('aggregate',False),batch_max=c.get('batch_max',1),batch_target_ns=c.get('batch_target_ns',250000),
             rate=r.get('rate',0),duration_ms=r.get('duration_ms',0),warmup_ms=r.get('warmup_ms',0),
@@ -67,12 +68,39 @@ class Acquisition:
             tracking_mib=c['tracking_mib'],timeout_seconds=900,
             gap_ns=0 if setup or loaded else c.get('tofino',{}).get('gap_ns',0))
 
-    def execute_roles(self):
+    def execute_roles(self, capture=None):
         configs={'client':(self.config['peer'],self.role('client'))}
         if self.request['system']=='DPDK': configs={'server':(self.config['dpdk_dut'],self.role('server')),**configs}
-        paths=self.timed('roles',roles,self.directory/'roles',configs,gateway=self.config['gateway'],
-            transfer_root=self.config['transfer_root'],image=self.config['client_image_remote'],
-            image_sha=self.config['client_image_sha256'])
+        common=dict(gateway=self.config['gateway'], transfer_root=self.config['transfer_root'],
+                    image=self.config['client_image_remote'], image_sha=self.config['client_image_sha256'])
+        if capture is None:
+            paths=self.timed('roles',roles,self.directory/'roles',configs,**common)
+        else:
+            # Start the ordinary responder first; only the client belongs inside
+            # the switch session's readiness/finish window.
+            client_spec=self.directory/'tofino-generator.json'
+            client_result=self.directory/'tofino-generator-result.json'
+            client_config=configs['client'][1]
+            client_config['timeout_seconds']=120
+            atomic(client_spec,dict(roles=dict(directory=str((self.directory/'client-roles').resolve()),
+                configs={'client':configs['client']},**common),
+                ledger={k:self.request[k] for k in ('count','warmup','payload_bytes')},
+                result=str(client_result.resolve())))
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                server=None
+                if 'server' in configs:
+                    server=pool.submit(roles,self.directory/'server-roles',{'server':configs['server']},**common)
+                    ready=self.config['transfer_root']+'/'+self.label+'-ready'
+                    wait_code=("import pathlib,time\np=pathlib.Path("+repr(ready)+")\n"
+                        "end=time.monotonic()+120\n"
+                        "while not p.exists():\n"
+                        " if time.monotonic()>end:raise TimeoutError('Responder readiness')\n"
+                        " time.sleep(.1)\n")
+                    self.h.gateway(['python3','-c',wait_code],'resident-responder-ready',timeout=150)
+                self.paired=self.timed('tofino-session',capture.run,
+                    [sys.executable,'-m','tools.paper.campaign.tofino',str(client_spec.resolve())])
+                paths=json.loads(client_result.read_text())
+                if server is not None: paths.update(server.result())
         evidence={}
         for role,(_,request) in configs.items():
             evidence[role]=validate_role(paths[role],request,self.config['server_sha256'][self.request.get('instrumentation','off')] if role=='server' else self.config['client_sha256'])
@@ -259,15 +287,8 @@ namespace['start']({service!r})
                     pacing_gap_ns=backend['gap_ns'],exclusive_tx_fifo_ack=backend['exclusive_tx_fifo_ack'],
                     expected_artifact_sha256=backend['expected_artifact_sha256']),
                     self.directory/'tofino')
-                self.timed('tofino-arm',capture.start)
-            try:
-                paths,evidence=self.timed('roles-and-cleanup',self.execute_roles)
-            finally:
-                if capture:
-                    self.timed('tofino-finish',capture.finish,sys.exc_info()[0] is None)
-            if capture:
-                paired=capture.pair(paths['client']/'samples.csv',
-                    **{k:r[k] for k in ('count','warmup','payload_bytes')})
+            paths,evidence=self.timed('roles-and-cleanup',self.execute_roles,capture)
+            if capture: paired=self.paired
             after=self.timed('snapshot-after',self.h.snapshot,service,self.label+'-after',export=r.get('instrumentation')=='breakdown') if service else None
             if service:
                 self.h.command([sys.executable,ROOT/'tools/enzian/assess_tad.py',
@@ -321,8 +342,6 @@ namespace['start']({service!r})
                               trace_readouts=0,fpga_recording=False,nic_timestamping=False)
             return result
         finally:
-            if capture and not capture.closed:
-                capture.finish(False)
             if 'result' in locals() and result.get('passed'):
                 # Result creation alone is not success: retain unsafe state if
                 # any later validation raised before the return above.

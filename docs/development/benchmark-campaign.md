@@ -28,7 +28,14 @@ The active adapter no longer collects FPGA MAC or NIC PTP timestamps.
 The [mlx5 readiness workflow](mlx5-readiness.md) exercises software stages and
 loaded RTT independently of switch capture. The unloaded adapter now uses
 [campaign/tofino.py](../../tools/paper/campaign/tofino.py) to bridge the sibling
-`tofino-hw-timestamping` batch collector. Readiness-only or unqualified raw-tick
+`tofino-hw-timestamping/tools/capture-session.py run` automation. That CLI owns
+staging, arming, readiness, finish, export and pairing; the platform adapter
+must not reproduce its remote commands. It invokes the ordinary client role
+through a local generator adapter using `WIRE_CONFIG`, `WIRE_LEDGER` and
+`WIRE_SESSION_ID`. The DPDK responder is ready before the session starts;
+Lauberhorn uses its resident worker. Failed sessions retain the helper's
+`export.json`, `run-status.json` and logs. Recovery is an explicit operation
+through the same helper after confirming the sender stopped. Readiness-only or unqualified raw-tick
 outputs cannot enter paper plots. Long collection stays blocked pending clock
 qualification and real-workload capture acceptance.
 
@@ -48,9 +55,8 @@ For an explicitly requested short unloaded rehearsal, the existing
 chunk per cohort, at most 1,024 requests including warmups. Use one resident
 worker, 128 warmups and a recorded fixed gap (the backend's synthetic acceptance
 used 10 ms). The ordinary hardware adapter still owns boot, software roles,
-health checks, archival and restoration. It arms capture before the client runs,
-writes finish after traffic stops, exports through the maintained collector,
-and calls that project's pairer with the actual client ledger. No synthetic
+health checks, archival and restoration. The session CLI arms capture before the client runs,
+writes finish after traffic stops, exports and pairs with the actual client ledger. No synthetic
 responder or FPGA/NIC timestamp path is involved. Loaded roles never arm capture.
 Full multi-chunk campaign orchestration remains pending.
 
