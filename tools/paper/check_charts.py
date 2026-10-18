@@ -9,9 +9,16 @@ PAPER = ROOT.parent / 'paper'
 
 
 def main():
-    charts = json.loads((ROOT / 'tools/paper/charts.json').read_text())['charts']
+    inventory = json.loads((ROOT / 'tools/paper/charts.json').read_text())
+    charts = inventory['charts']
+    planned = inventory.get('planned_charts', [])
+    for chart in planned:
+        if chart['status'] != 'awaiting_measurements' or not (ROOT / chart['manifest']).is_file():
+            raise ValueError('Invalid planned chart')
+        if (ROOT / chart['output']).exists():
+            raise ValueError('Rendered chart must be promoted to the active inventory')
     outputs = {(ROOT / c['output']).resolve() for c in charts}
-    scripts = {(ROOT / c['script']).resolve() for c in charts}
+    scripts = {(ROOT / c['script']).resolve() for c in charts + planned}
     if len(outputs) != len(charts):
         raise ValueError('Duplicate chart output')
     actual = set((PAPER / 'plots').glob('*.pdf'))

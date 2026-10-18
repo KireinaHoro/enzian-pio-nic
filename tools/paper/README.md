@@ -18,10 +18,10 @@ Use the [canonical campaign workflow](../../docs/development/benchmark-campaign.
 and [benchmark-campaign skill](skills/benchmark-campaign/SKILL.md). Both loaded
 and unloaded workloads are schema-defined 8/128/1432-byte echo RPCs.
 
-| Figure | Software probes | MAC collection | Boundary |
+| Figure | Software probes | Capture | Boundary |
 | --- | --- | --- | --- |
-| Unloaded CDF | Compiled out | LH trace / DPDK PTP enabled | MAC-to-MAC |
-| Unloaded breakdown | Enabled | LH trace / DPDK PTP enabled | MAC-to-MAC |
+| Unloaded CDF | Compiled out | Tofino | Switch request-TX to reply-RX MAC interval |
+| Unloaded breakdown | Enabled | Tofino | Switch request-TX to reply-RX MAC interval |
 | Loaded latency/goodput | Compiled out | Disabled; no FPGA trace readout | Client RTT |
 
 From the platform root:

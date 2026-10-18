@@ -428,7 +428,7 @@ They have local simulation/elaboration coverage and board validation. Pipeline
 ARP replies and a mid-packet TKEEP gap. The first and last four KiB matched
 independent frozen JTAG reads. External link operation is still intermittent;
 FPGA RX alignment alone does not establish a usable link. Check leaf1's
-Ethernet108 / ZS14-FPGA4 status through `python3 tools/enzian/leaf1.py` before
+Ethernet108 / ZS14-FPGA4 status through `python3 ../tofino-hw-timestamping/tools/leaf.py leaf1` before
 capture. See [the CMAC diagnosis](cmac-trace-diagnosis.md#framing-fix-image-udp-capture-validated-link-intermittent).
 Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
 when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
