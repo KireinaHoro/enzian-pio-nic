@@ -57,6 +57,8 @@ def mac_values(entry, manifest):
 
 
 def dpdk_mac_values(entry):
+    if entry.get("software_profiling") is not False or entry.get("hardware_timestamping") is not True:
+        raise ValueError("Hot DPDK CDF requires PTP timestamps without software profiling")
     if entry["unit"] != "ns" or entry["interval"] != "ThunderX RX MAC -> TX MAC":
         raise ValueError("Unexpected DPDK timestamp boundary or units")
     inputs = {}
@@ -71,6 +73,8 @@ def dpdk_mac_values(entry):
     values = []
     previous_rx = 0
     for index, (server, client) in enumerate(zip(inputs["file"], inputs["client_file"]), 1):
+        if server.get("profile", "0") != "0":
+            raise ValueError("Profiled DPDK samples cannot enter the uninstrumented CDF")
         warmup = str(int(index <= entry["warmup_count"]))
         if (int(server["request_id"]) != index or int(client["request_id"]) != index
                 or server["warmup"] != warmup or client["warmup"] != warmup
@@ -109,11 +113,12 @@ def cdf(manifest, output):
                             np.r_[0, np.arange(1, len(values)+1)/len(values)],
                             where="post", label=label)
             quantiles = np.percentile(values, [50, 99, 100])
-            # Compact two-line labels fit between the hot curves. Put the
-            # adjacent hot tail labels at different heights below the line.
+            # Keep compact labels near their markers and below the tail line.
             placements = ((4, 0, "left", "center"), (4, -6, "left", "top"),
-                          (-4, -28 if condition == "hot" and label == "LH" else -6,
-                           "right", "top"))
+                          (-4, -6, "right", "top"))
+            if condition == "hot" and label == "DPDK":
+                placements = ((-4, 0, "right", "center"), (-12, -6, "right", "top"),
+                              (-4, -6, "right", "top"))
             for name, value, fraction, placement in zip(
                     ("P50", "P99", "P100"), quantiles, (.5, .99, 1), placements):
                 dx, dy, horizontal, vertical = placement
@@ -125,7 +130,16 @@ def cdf(manifest, output):
             statistics[condition][label] = {"count": len(values), "mac_us": dict(zip(
                 ("p50", "p99", "max"), quantiles.tolist()))}
         ax.set(xlabel=r"MAC-to-MAC latency ($\mu$s)", ylabel="CDF", ylim=(0, 1.05), yticks=np.linspace(0, 1, 6))
-        ax.set_xlim(left=0)
+        if condition == "hot":
+            # Keep the complete tail visible without compressing the hot modes.
+            ax.set_xscale("log", base=2)
+            low = int(np.floor(np.log2(min(float(v.min()) for _, v in series))))
+            high = int(np.ceil(np.log2(max(float(v.max()) for _, v in series))))
+            ticks = 2.0 ** np.arange(low, high + 1)
+            ax.set_xlim(ticks[0], ticks[-1])
+            ax.set_xticks(ticks, labels=[f"{v:g}" for v in ticks])
+        else:
+            ax.set_xlim(left=0)
         ax.legend(loc="lower right")
         paper_chart.save(fig, output / f"nullrpc-{condition}-latency-cdf.pdf")
     return statistics

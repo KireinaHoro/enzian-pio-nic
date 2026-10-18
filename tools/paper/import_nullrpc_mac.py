@@ -63,7 +63,7 @@ def extract(trace, map_path, *, data=None, campaign=None, events=EVENTS):
     (data / f'{campaign}-trace-map.json').write_bytes(map_path.read_bytes())
 
 
-def correlate(*, data=None, campaign=None):
+def correlate(*, data=None, campaign=None, include_workers=False):
     data = DATA if data is None else Path(data)
     campaign = CAMPAIGN if campaign is None else campaign
     m = json.loads((data / f'{campaign}-trace-map.json').read_text())
@@ -111,7 +111,7 @@ def correlate(*, data=None, campaign=None):
                 raise ValueError(f'MAC/Ethernet ordering failed: {delta} ns')
     def marker(eid, timestamp):
         return markers[eid][timestamp]
-    calls = []; pending = {}; replies = {}
+    calls = []; pending = {}; replies = {}; queued = {}
     for t, eid, f in events:
         if eid == 0:
             rid = f['RpcID']
@@ -122,6 +122,15 @@ def correlate(*, data=None, campaign=None):
                 raise ValueError('Missing ingress Ethernet event')
             record = dict(ordinal=len(calls), rx_mac_ns=marker(3, a[i]), tx_mac_ns=None)
             calls.append(record); pending[rid] = record
+        elif include_workers and eid == 44:
+            if f['PacketDropped'] or f['RpcID'] not in pending or f['HostMsgID'] in queued:
+                raise ValueError('Invalid RPC worker enqueue lifetime')
+            queued[f['HostMsgID']] = pending[f['RpcID']]
+        elif include_workers and eid == 42:
+            record = queued.pop(f['HostMsgID'], None)
+            if record is None or f['CoreID'] == 0:
+                raise ValueError('Unmatched application worker dispatch')
+            record['worker'] = f['CoreID'] - 1
         elif eid == 51:
             rid = f['RpcID']
             if rid not in pending or rid in replies:
@@ -140,6 +149,8 @@ def correlate(*, data=None, campaign=None):
     expected = json.loads((data / f'acquisition/{campaign}-trace-check.json').read_text())['expected_rpcs']
     if len(calls) != expected or pending or replies:
         raise ValueError('Incomplete whole-capture RPC accounting')
+    if include_workers and (queued or any("worker" not in c for c in calls)):
+        raise ValueError("Incomplete worker dispatch evidence")
     return calls
 
 
@@ -224,7 +235,7 @@ def main():
         manifest['mac_latency'] = evidence
     else:
         labels = {run['label'] for run in plan['runs']}
-        for entry in manifest['load_runs']:
+        for entry in [*manifest['load_runs'], *manifest['latency'].values()]:
             if entry['label'] in labels:
                 entry['mac_latency'] = evidence
     manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
