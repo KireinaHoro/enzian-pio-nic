@@ -116,3 +116,27 @@ class Tofino(unittest.TestCase):
                         {'pairs':[]},{'pairs':paired['pairs']*2}):
             with self.subTest(changes=changes),self.assertRaises(ValueError):
                 wire_observations(dict(paired,**changes),'fixture',1)
+
+    def test_unloaded_role_uses_continuously_paced_single_request_path(self):
+        from . import peer
+        manifest=self.root/'manifest.json';manifest.write_text('{}')
+        config=dict(output=str(self.root/'role'),manifest=str(manifest),role='client',
+                    mode='unloaded',system='LH',cpus=[16],deadline_ms=10,flows=1,
+                    transfer_url='http://fixture',label='fixture',timeout_seconds=120,
+                    binary='bench_dpdk',endpoint=['source','dest','mac',12345],
+                    count=2,warmup=1,payload_bytes=8,gap_ns=10000000)
+        process=Mock();process.wait.return_value=0;process.poll.return_value=0
+        with patch.dict(os.environ,{'LH_BENCH_WINDOW':'64'}), \
+             patch.object(peer.subprocess,'Popen',return_value=process) as launch, \
+             patch.object(peer,'upload'):
+            peer.run(config)
+        env=launch.call_args.kwargs['env']
+        self.assertNotIn('LH_BENCH_WINDOW',env)
+        self.assertEqual(env['LH_BENCH_GAP_NS'],'10000000')
+
+    def test_warmup_boundary_must_keep_capture_pacing(self):
+        self.config['pacing_gap_ns']=10000
+        self.rows[1]['client_call_enter_ns']=11500
+        self.rows[1]['client_rx_burst_ns']=12500
+        with self.assertRaisesRegex(ValueError,'pacing gap'):
+            ledger(self.config,self.client(),count=2,warmup=1,payload_bytes=8)
