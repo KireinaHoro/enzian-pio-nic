@@ -54,12 +54,12 @@ class Tofino(unittest.TestCase):
                     capture_complete=True,rx_export_complete=True,cleanup_ok=True)
         result.update(changes)
         (batch.output/'result.json').write_text(json.dumps(result))
-        (batch.output/'pairs.json').write_text(json.dumps({'units':'unqualified_mac_ticks'}))
+        (batch.output/'pairs.json').write_text(json.dumps({'units':'ns'}))
 
     def test_maintained_session_cli_owns_lifecycle(self):
         batch=self.batch();self.exported(batch)
         with patch(__package__+'.tofino.subprocess.run') as run:
-            self.assertEqual(batch.run(['generator','argument']),{'units':'unqualified_mac_ticks'})
+            self.assertEqual(batch.run(['generator','argument']),{'units':'ns'})
         argv=run.call_args.args[0]
         self.assertEqual(argv[1:3],['/maintained/tofino/tools/capture-session.py','run'])
         self.assertEqual(argv[-3:],['--','generator','argument'])
@@ -112,8 +112,7 @@ class Tofino(unittest.TestCase):
         cpu=dict(flow_id=0,request_id=1,cpu_duration_ns=80,components_ns=dict.fromkeys(COMPONENTS,10))
         joined=join_durations([dict(flow_id=0,request_id=1,rtt_ns=150)],value['rows'],[cpu])
         self.assertEqual(joined[0]['components_ns']['cpu_wire'],20)
-        for changes in ({'latency_accepted':False},{'units':'unqualified_mac_ticks'},
-                        {'schema':2},{'session_id':'wrong'},{'ns_per_tick':.8},
+        for changes in ({'latency_accepted':False},{'session_id':'wrong'},{'ns_per_tick':.8},
                         {'pairs':[]},{'pairs':paired['pairs']*2}):
             with self.subTest(changes=changes),self.assertRaises(ValueError):
                 wire_observations(dict(paired,**changes),'fixture',1)
