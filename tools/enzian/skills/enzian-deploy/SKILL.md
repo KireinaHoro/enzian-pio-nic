@@ -31,6 +31,25 @@ exports directly. Stage matching bitstream, generated headers, module, runtime
 and application artifacts with hashes. Use Nix and source-defined build targets.
 Dated board notes are provenance, not current reservations or current state.
 
+## Fresh reservations and root-volume names
+
+For a new test machine, derive a fresh root volume from an explicitly selected
+available golden image (`emg acquire MACHINE -g DATE -n NEW_NAME ...`). Inspect
+`emg list-machines` and `emg list-images` immediately before acquisition; confirm
+the machine is unreserved and NEW_NAME is absent from the user's existing volumes.
+Use a purpose/machine/date-specific name. EMG does not reject an existing name:
+`-n` reuses that volume, so `-g` alone does not guarantee a fresh golden-image clone.
+Do not reuse a golden image's name or another experiment's root-volume name.
+If the name exists, choose another and recheck; do not delete or overwrite it.
+
+Named volumes persist after release. Their iSCSI export is shared by user and
+volume name, not reservation; using the same name on two boards can couple their
+root disks, and releasing either reservation can disrupt the other. Never share
+an active root-volume name. Keep user-designated busy boards and their volumes
+untouched. Confirm acquisition with both inventory commands and retain the board,
+new volume name, golden-image date, boot bundle and kernel arguments in run
+provenance. Reservation is not evidence of boot or hardware acceptance.
+
 Use `tools/enzian/test.py CASES.json --logs NEW_DIR --repeats N` for the shared
 reset/program/boot/module/RPC acceptance flow. Require verified rails off before
 programming, BDK QLM8–13 CDR lock and all CCPI lanes 0–23 before module loading,

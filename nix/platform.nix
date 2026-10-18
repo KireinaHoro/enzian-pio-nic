@@ -200,6 +200,9 @@ in
     kernelRelease
     ;
   inherit (deployment) mkDeploymentEnvironment mkApplicationImage;
+  mkCaladan = args: import ./benchmarks/caladan ({
+    inherit pkgs target kernelBuildTree kernelRelease identity;
+  } // args);
   images = import ./images {
     inherit
       bootFiles
