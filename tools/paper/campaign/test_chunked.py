@@ -4,7 +4,7 @@ import unittest
 import tempfile
 from pathlib import Path
 from .chunked import plan,merge
-from .import_unloaded import validate_matched
+from .import_unloaded import validate_matched,validate_request
 from .wire import COMPONENTS
 
 
@@ -37,6 +37,19 @@ class Chunked(unittest.TestCase):
         return dict(system=system,payload_bytes=size,instrumentation=mode,build_config_sha256=mode,
                     rows=observations,files={},count=count,warmup=128,raw_capture={'path':'fixture'},
                     paper_inputs=True,wire_available=True,methodology='tofino-wire-v1')
+
+    def test_requested_warmups_are_per_chunk(self):
+        for count in (100,900,10000):
+            c=merge([self.chunk(n) for n in plan(count)]) if count>896 else self.chunk(count)
+            request=dict(system='DPDK',payload_bytes=8,instrumentation='off',count=count,warmup=128)
+            validate_request(c,request)
+            invalid=copy.deepcopy(c);invalid['warmup']+=128
+            with self.assertRaises(ValueError):validate_request(invalid,request)
+            if count>896:
+                invalid=copy.deepcopy(c);invalid['chunks'][0]['count']-=1
+                with self.assertRaises(ValueError):validate_request(invalid,request)
+                invalid=copy.deepcopy(c);del invalid['chunks']
+                with self.assertRaises(ValueError):validate_request(invalid,request)
 
     def test_merge_preserves_rearm_warmups(self):
         result=merge([self.chunk(896),self.chunk(4)])

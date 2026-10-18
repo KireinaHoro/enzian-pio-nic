@@ -154,8 +154,8 @@ class Campaign:
             result['trial'] = trial
         if name == 'unloaded':
             cohort=result['cohort']
-            if any(cohort[k]!=request[k] for k in ('system','payload_bytes','count','warmup','instrumentation')):
-                raise ValueError('Unloaded cohort differs from requested configuration')
+            from campaign.import_unloaded import validate_request
+            validate_request(cohort,request)
             instrumented=request['instrumentation']=='breakdown'
             if (result.get('wire_available') is not True
                     or result.get('software_profiling') is not instrumented

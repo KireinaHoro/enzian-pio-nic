@@ -179,3 +179,23 @@ def validate_matched(cohorts, *, rehearsal=False):
                 if set(parts)!=set(COMPONENTS)|{'cpu_wire'} or any(v<0 for v in parts.values()) or sum(parts.values())!=row['wire_ns']:
                     raise ValueError('Invalid conserved wire/CPU partition')
             elif 'components_ns' in row: raise ValueError('Components attached to uninstrumented cohort')
+
+
+def validate_request(cohort, request):
+    """Request warmup is per rearm; cohort warmup counts all archived warmups."""
+    if any(cohort[k]!=request[k] for k in ('system','payload_bytes','count','instrumentation')):
+        raise ValueError('Unloaded cohort differs from requested configuration')
+    chunks=cohort.get('chunks')
+    if chunks:
+        from .chunked import plan
+        expected=plan(request['count'],request['warmup'])
+        if ([c['count'] for c in chunks]!=expected or
+                any(c['index']!=i or c['warmup']!=request['warmup'] for i,c in enumerate(chunks))):
+            raise ValueError('Unloaded chunks differ from requested capture plan')
+        warmup=request['warmup']*len(expected)
+    else:
+        if request['count']+request['warmup']>1024:
+            raise ValueError('Missing unloaded capture chunks')
+        warmup=request['warmup']
+    if cohort['warmup']!=warmup:
+        raise ValueError('Unloaded warmup total differs from requested capture plan')
