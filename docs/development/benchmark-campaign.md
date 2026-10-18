@@ -95,6 +95,11 @@ exclusively through EMG, without cloning or deleting them. zuestoll07 boots
 `echo-generator32-20261015` with CPUs 16–47 isolated. Both booted kernel
 6.8.0-146 through the shared harness. The initial 07 boot is CPU-only for CX-5;
 Lauberhorn still requires matched FPGA programming and normal ECI acceptance.
+The adapter stages `vivado/eci/program_fpga.tcl` from the frozen repository
+revision under a content-hashed filename and passes the configured DUT cable.
+It does not execute programming wrappers embedded in old boot-case manifests.
+Fresh programming initializes the recorder armed; shared trace controls handle
+subsequent freeze and diagnostic preservation.
 The swap and live command-line evidence are in `out/tofino-unloaded-20261018/`.
 No switch capture is implied by this boot verification.
 

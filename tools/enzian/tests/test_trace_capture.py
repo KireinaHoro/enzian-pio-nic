@@ -1,5 +1,6 @@
 """Canonical capture lifecycle, preservation and archive trust boundaries."""
 import io
+import subprocess
 import json
 from pathlib import Path
 import sys
@@ -48,6 +49,20 @@ class Capture(unittest.TestCase):
                 self.assertTrue((root/'manifest.json').exists())
                 with self.assertRaises(FileExistsError):session.capture({},root)
 
+    def test_cable_selector_normalizes_vendor_once(self):
+        source=Path(session.__file__).with_name('control.tcl')
+        for cable in ('ABC123','Digilent/ABC123'):
+            script='\n'.join([
+                'proc open_hw_manager {} {}',
+                'proc connect_hw_server {args} {}',
+                'proc get_hw_targets {pattern} {puts "SELECTOR=$pattern"; error "fixture stop"}',
+                'set argv {status server '+cable+'}',
+                'source {'+str(source)+'}'])
+            result=subprocess.run(['tclsh'],input=script,text=True,capture_output=True)
+            self.assertEqual(result.returncode,1)
+            self.assertIn('SELECTOR=*/xilinx_tcf/Digilent/ABC123',result.stdout)
+            self.assertNotIn('Digilent/Digilent/',result.stdout)
+
     def test_success(self):self.run_capture()
     def test_ethernet_failure_preserves_and_restores(self):self.run_capture(RuntimeError('receiver failed'))
     def test_cleanup_does_not_mask_primary_failure(self):self.run_capture(RuntimeError('receiver failed'),True)
@@ -69,7 +84,8 @@ class Capture(unittest.TestCase):
 
     def test_export_recovery_never_retriggers_receiver(self):
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d);end={'trace_write_slot_1':64}
+            root=Path(d);end=dict(trace_write_slot_1=64,trace_sample_lost_1=0,
+                                  trace_wrapped_1=0,trace_dma_error_1=0)
             (root/'capture.json').write_text(json.dumps(dict(stage='failed',failed_stage='exporting',receiver_complete=True,bytes=4096,end=end)))
             control=Mock();control.remote='/fixture';control.exclusive.side_effect=contextlib.nullcontext
             control.call.return_value=dict(trace_stop=1,_status=end)

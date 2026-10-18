@@ -37,6 +37,19 @@ class Hardware(unittest.TestCase):
                 acquisition.h.stage.assert_called_once()
                 self.assertFalse((root/'hardware-state.json').exists())
 
+    def test_programmer_is_source_owned_and_targets_configured_board(self):
+        from .harness import Harness
+        with tempfile.TemporaryDirectory() as directory:
+            config=dict(programmer='programmer',vivado='/vivado',fpga_directory='/fpga',
+                        gateway='gateway',cable='Digilent/NEWBOARD')
+            harness=Harness(config,Path(directory));harness.command=Mock()
+            argv=harness.program_command()
+            self.assertEqual(argv[-4:],['gateway:3121','Digilent/NEWBOARD',
+                                      '/fpga/shell_lauberhorn-eci.bit','/fpga/shell_lauberhorn-eci.ltx'])
+            source=Path(directory)/'programmer-source.tcl'
+            self.assertEqual(argv[argv.index('-source')+1],'/fpga/program-'+digest(source)+'.tcl')
+            self.assertEqual(harness.command.call_count,1)
+
     def test_networkd_restored_server_nic(self):
         address=dict(family='inet',local='192.0.2.1',prefixlen=24)
         self.assertFalse(server_nic_prepared(dict(flags=[],addr_info=[]),'192.0.2.1/24'))

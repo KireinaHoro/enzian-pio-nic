@@ -156,7 +156,7 @@ root.with_suffix('.tar.gz').unlink()
         helper=Path(__file__).with_name('dut.py');url=self.h.stage(helper,self.label+'-dut.py')
         case=json.loads(Path(c['boot_case']).read_text())[0]
         case['name']=self.label
-        case['program']=[str(x).replace('program-hot-uninstrumented.log','program-'+self.label+'.log') for x in case['program']]
+        case['program']=self.h.program_command()
         endpoint=c['fpga_endpoint'];peer=c['peer_endpoint']
         code=f'''import hashlib,urllib.request
 data=urllib.request.urlopen({url!r},timeout=30).read()

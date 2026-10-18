@@ -23,6 +23,20 @@ class Harness:
             raise RuntimeError(f'{name} exited {result.returncode}; preserved at {path}')
         return result.returncode
 
+    def program_command(self):
+        """Stage the canonical programmer; never execute remote-only wrappers."""
+        c=self.config
+        source=ROOT/'vivado/eci/program_fpga.tcl'
+        sha=digest(source)
+        remote=c['fpga_directory']+'/program-'+sha+'.tcl'
+        self.command(['rsync',source,c['programmer']+':'+remote],'stage-programmer')
+        (self.directory/'programmer-source.tcl').write_bytes(source.read_bytes())
+        return ['ssh',c['programmer'],c['vivado'],'-mode','batch','-nojournal',
+                '-log',c['fpga_directory']+'/program-'+self.directory.parent.name+'-'+self.directory.name+'.log',
+                '-source',remote,'-tclargs',c['gateway']+':3121',c['cable'],
+                c['fpga_directory']+'/shell_lauberhorn-eci.bit',
+                c['fpga_directory']+'/shell_lauberhorn-eci.ltx']
+
     def gateway(self, argv, name, **kwargs):
         return self.command(['ssh',self.config['gateway'],shlex.join(list(map(str,argv)))],name,**kwargs)
 

@@ -13,6 +13,8 @@ proc status {v prefix} {
 proc main {} {
  lassign $::argv mode server cable ltx snapshot ip mac helper head tail size
  if {$mode ni {status freeze configure trigger preserve check}} {error "Unknown control operation"}
+ if {[string match "Digilent/*" $cable]} {set cable [string range $cable 9 end]}
+ if {![regexp {^[A-Za-z0-9]+$} $cable]} {error "Invalid Digilent cable serial"}
  open_hw_manager
  connect_hw_server -url $server
  current_hw_target [one [get_hw_targets "*/xilinx_tcf/Digilent/$cable"] target]
