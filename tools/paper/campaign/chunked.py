@@ -128,7 +128,8 @@ def run(a):
         atomic(child.directory/'cohort.json',cohort);cohorts.append(cohort)
     cohort=merge(cohorts);cohort['paper_inputs']=r['phase']=='full'
     # Retain all raw roles, resident runtime exports and per-chunk provenance.
-    files.update({str(p):digest(p) for p in a.directory.rglob('*') if p.is_file()})
+    from .adapter import files as evidence_files
+    files.update(evidence_files(a.directory))
     cohort['files'].update(files)
     result=dict(passed=True,health=True,restored=True,files=files,cohort=cohort,xid_pairing=True,
                 wire_available=True,tracing_compiled=r['instrumentation']=='breakdown',

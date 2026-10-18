@@ -1,12 +1,26 @@
 """Chunk boundaries retain warmups, wire identities and conserved durations."""
 import copy
 import unittest
+import tempfile
+from pathlib import Path
 from .chunked import plan,merge
 from .import_unloaded import validate_matched
 from .wire import COMPONENTS
 
 
 class Chunked(unittest.TestCase):
+    def test_evidence_excludes_live_adapter_output(self):
+        from .adapter import files
+        from .import_loaded import digest
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'log.txt').write_text('')
+            (root/'result.json').write_text('{}')
+            raw=root/'observations.csv';raw.write_text('retained observations')
+            saved=files(root)
+            (root/'log.txt').write_text('adapter completed')
+            self.assertEqual(saved,{str(raw):digest(raw)})
+
     def test_plan(self):
         self.assertEqual(plan(10000),[896]*11+[144])
         self.assertEqual(plan(900),[896,4])
