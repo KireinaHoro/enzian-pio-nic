@@ -219,7 +219,19 @@ if path.exists():
 def rehearsal(config,h,campaign):
     from .policy import validate_activity_coverage
     activities={}
-    cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts)
+    cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts,rehearsal=True)
+    if read(campaign/'config.json').get('scope')=='unloaded-rehearsal':
+        output=h.directory/'plots'
+        h.command([sys.executable,ROOT/'tools/paper/plot_echo_unloaded.py','--input',campaign/'rehearsal-unloaded.json',
+            '--output',output,'--rehearsal'],'plot-unloaded',timeout=600)
+        previews=pdf_checks(output,['echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'])
+        backend=config['tofino']
+        h.command([sys.executable,Path(backend['repository'])/'tools/qualify-clock.py',
+            '--switch-control',backend['control_socket'],'--output',h.directory/'clock-after'],
+            'clock-after',timeout=180)
+        stop_transfer(config,h)
+        return dict(passed=True,previews=previews,unloaded_only=True,cohorts=len(cohorts),
+                    unloaded_modes=True,cleanup=True,**{'import':True,'plots':True})
     points={}
     for receipt in sorted((campaign/'stages').glob('*/receipt.json')):
         if invalidated(campaign,receipt): continue

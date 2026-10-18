@@ -19,6 +19,27 @@ def trial(on_time=100, transmitted=100):
 
 
 class Policy(unittest.TestCase):
+    def test_unloaded_scope_never_starts_loaded_collection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign=controller.Campaign(Path(directory),dict(scope='unloaded-rehearsal'))
+            requests=[]
+            def stage(name, request):
+                requests.append((name,request))
+                if name=='unloaded':return {'cohort':request}
+                if name=='rehearsal-validation':return {'previews':['cdf','breakdown'],'files':{'cdf':'hash','breakdown':'hash'}}
+                return {}
+            campaign.stage=stage
+            with patch.object(controller,'validate_matched'):
+                campaign.run()
+            cohorts=[r for n,r in requests if n=='unloaded']
+            self.assertEqual(len(cohorts),12)
+            self.assertTrue(all(r['warmup']==128 and r['count']==100 for r in cohorts))
+            self.assertEqual(cohorts[0]['system'],'DPDK')
+            self.assertFalse(any(n in ('loaded','finalize') for n,_ in requests))
+            state=controller.read(Path(directory)/'status.json')
+            self.assertEqual(state['stage'],'rehearsal-complete')
+            self.assertFalse(state['full_collection_started'])
+
     def test_prefix_and_nonmonotonic(self):
         points=[dict(rate=r,trials=[trial(n,t)]*3) for r,n,t in [(10,100,100),(20,90,90),(30,197,200),(40,300,300)]]
         self.assertEqual([p['rate'] for p in qualifying(points)],[10,20])

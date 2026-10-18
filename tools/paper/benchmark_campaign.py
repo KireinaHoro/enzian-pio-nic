@@ -168,11 +168,14 @@ class Campaign:
                 if result.get(gate) is not True: raise ValueError('Unloaded gate missing: '+gate)
         if name == 'preflight':
             for gate in ('reservations', 'matching_artifacts', 'storage_budget', 'ram_budget',
-                         'restoration', 'callback_delivery', 'isolated_cpus', 'preserved_previous_state'):
+                         'restoration', 'callback_delivery', 'isolated_cpus'):
                 if result.get(gate) is not True:
                     raise ValueError('Preflight gate missing: '+gate)
+            if result.get('initial_state')!='fresh' and result.get('preserved_previous_state') is not True:
+                raise ValueError('Initial recorder preservation gate missing')
         if name == 'rehearsal-validation':
-            for gate in ('unloaded_modes', 'loaded_sizes', 'overload_retained', 'scheduling', 'no_loaded_trace_reads', 'cleanup', 'import', 'plots'):
+            gates=('unloaded_modes','cleanup','import','plots') if self.config.get('scope')=='unloaded-rehearsal' else ('unloaded_modes', 'loaded_sizes', 'overload_retained', 'scheduling', 'no_loaded_trace_reads', 'cleanup', 'import', 'plots')
+            for gate in gates:
                 if result.get(gate) is not True:
                     raise ValueError('Rehearsal gate missing: '+gate)
         hashes = dict(files, **{str(request_path): digest(request_path), str(result_path): digest(result_path)})
@@ -197,22 +200,33 @@ class Campaign:
 
     def unloaded(self, phase):
         cohorts=[]
-        for system in SYSTEMS:
+        systems=('DPDK','LH') if self.config.get('scope')=='unloaded-rehearsal' else SYSTEMS
+        for system in systems:
             for size in SIZES:
                 for instrumentation in ('off', 'breakdown'):
                     result=self.stage('unloaded', dict(system=system, payload_bytes=size, workers=1,
                         outstanding=1, count=100 if phase=='rehearsal' else 10000,
-                        warmup=16 if phase=='rehearsal' else 128,
+                        warmup=128,
                         instrumentation=instrumentation, phase=phase))
                     cohorts.append(result['cohort'])
                     self.completed+=1
                     self.status('acquisition')
-        validate_matched(cohorts)
+        validate_matched(cohorts, rehearsal=phase=='rehearsal')
         atomic(self.root/(phase+'-unloaded.json'),cohorts)
 
     def run(self):
         self.stage('preflight', {'checked_at': time.time_ns()})
         self.stage('build', {})
+        if self.config.get('scope') == 'unloaded-rehearsal':
+            self.total=len(SYSTEMS)*len(SIZES)*2
+            self.unloaded('rehearsal')
+            result=self.stage('rehearsal-validation',dict(unloaded_only=True))
+            previews=result.get('previews',[])
+            if len(previews)!=2 or any(p not in result['files'] for p in previews):
+                raise ValueError('Unloaded rehearsal requires two hashed plot previews')
+            self.status('rehearsal-complete',previews=previews,
+                        scope='unloaded-rehearsal',full_collection_started=False)
+            return
         # Before bracketing, total is the finite maximum cohort budget.
         self.total = len(SYSTEMS)*len(SIZES)*2 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
         self.unloaded('rehearsal')
@@ -291,9 +305,9 @@ class Campaign:
 
 def config_check(config):
     from campaign.wire import require_capture_backend
-    require_capture_backend()
-    if config.get('scope', 'rehearsal') not in ('rehearsal', 'full'):
-        raise ValueError('Scope must be rehearsal or full')
+    if config.get('scope') != 'unloaded-rehearsal': require_capture_backend()
+    if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal'):
+        raise ValueError('Scope must be unloaded-rehearsal, rehearsal or full')
     if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):
         raise ValueError('Between one and 32 distinct isolated generator CPUs required')
     if not 1<=config.get('batch_max',1)<=64 or not 0<config.get('batch_target_ns',250000)<=1_000_000:

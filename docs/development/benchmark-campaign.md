@@ -59,6 +59,14 @@ clears an unsafe resume state. Existing preserved-recorder launches retain
 their live VIO and archive-hash checks.
 
 
+Use controller `scope: "unloaded-rehearsal"` for the bounded switch integration:
+12 cohorts (DPDK then LH, all three sizes, off/breakdown), each with 128 warmups
+and 100 measured requests. It uses the same locks, stage receipts, resume,
+deadlines and terminal callbacks as other campaigns. Validation produces the
+unloaded CDF and breakdown, checks PDF dimensions/fonts, repeats the switch clock
+rate check and stops; no loaded cases or full collection follow. Rehearsal data
+is excluded from paper inputs. Chart presentation remains uncommitted.
+
 For an explicitly requested short unloaded rehearsal, the existing
 `echo_hardware.py HARDWARE unloaded REQUEST RESULT` stage supports one capture
 chunk per cohort, at most 1,024 requests including warmups. Use one resident

@@ -146,7 +146,7 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
     return result
 
 
-def validate_matched(cohorts):
+def validate_matched(cohorts, *, rehearsal=False):
     expected={(s,n,m) for s in ('LH','DPDK') for n in SIZES for m in ('off','breakdown')}
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
@@ -155,7 +155,7 @@ def validate_matched(cohorts):
         if any(len(v)!=1 for v in builds.values()) or builds['off']==builds['breakdown']:
             raise ValueError('Expected distinct, consistent compiled tracing variants')
     for c in cohorts:
-        if c.get('methodology')!=METHOD or c.get('wire_available') is not True or c.get('paper_inputs') is not True:
+        if c.get('methodology')!=METHOD or c.get('wire_available') is not True or (not rehearsal and c.get('paper_inputs') is not True):
             raise ValueError('Missing Tofino wire durations; readiness results are not paper inputs')
         if len(c['rows'])!=c['count']+c['warmup']: raise ValueError('Incomplete unloaded observations')
         for i,row in enumerate(c['rows'],1):

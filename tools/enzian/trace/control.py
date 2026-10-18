@@ -25,15 +25,15 @@ def atomic(path,value):
 
 
 def campaign_config(c):
-    """Adapt the established 519555 topology; persist every resolved value."""
+    """Adapt explicit campaign endpoints; persist every resolved value."""
     if c['pipeline']!=519555:raise ValueError('Supply an explicit trace config for a different topology')
     artifacts={a['path']:a['sha256'] for a in c['remote_artifacts'] if a['host']==c['programmer'] and a['path'].endswith(('.bit','.ltx'))}
     return dict(gateway=c['gateway'],programmer=c['programmer'],dut=c['dut'],peer=c['peer'],
-        vivado=c['vivado'],hw_server=c['gateway']+':3121',cable='210357B4B301A',
+        vivado=c['vivado'],hw_server=c['gateway']+':3121',cable=c['cable'],
         ltx=c['fpga_directory']+'/shell_lauberhorn-eci.ltx',remote_artifacts=artifacts,
         pipeline=c['pipeline'],trace_map=c['trace_map'],trace_map_sha256=digest(c['trace_map']),
         peer_ip=c['peer_endpoint']['ip'],peer_mac=c['peer_endpoint']['mac'],
-        peer_management_ip='192.168.192.7',export_port=18874,
+        peer_management_ip=c['peer_management_ip'],export_port=18874,
         peer_image=c['client_image_remote'],peer_image_sha256=c['client_image_sha256'],
         transfer_root=c['transfer_root'],transfer_url=c['transfer_url'])
 

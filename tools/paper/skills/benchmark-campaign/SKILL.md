@@ -48,6 +48,11 @@ before resetting. Provision through EMG and use the repository hardware harness.
 Never promote a fixture, an unvalidated adapter, or historical measurements into
 passing rehearsal evidence.
 
+For the authorized bounded switch integration, use `scope: "unloaded-rehearsal"`:
+12 unloaded cohorts, 128 warmups and 100 measured requests each, ending after
+validated CDF/breakdown previews and a terminal callback. It never starts loaded
+or full collection. The same maintained controller owns locking and resume.
+
 Run local gates first. The controller must pass the small rehearsal, including
 all three unloaded payload sizes in both compiled instrumentation modes and overloaded loaded cases, before it
 freezes and collects the full grid. Default to `scope: "rehearsal"`, which
