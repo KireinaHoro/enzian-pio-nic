@@ -39,7 +39,7 @@ command, authentication or service-environment change, or an observed delivery
 failure. Record and reuse delivery evidence in maintained preflight tooling so
 manual and detached preflights do not each notify the user. If existing tooling
 still probes unconditionally, fix that before the next launch rather than adding
-a manual probe; do not modify a running campaign's frozen implementation.
+a manual probe. Restart the controller only when its in-memory logic must change.
 A probe receipt is not an acquisition result and does not call for progress
 polling or a repetitive acknowledgement. Terminal success/failure callbacks and
 delivery retries remain required.
