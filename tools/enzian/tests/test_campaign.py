@@ -13,8 +13,9 @@ spec.loader.exec_module(campaign)
 
 
 class CampaignTests(unittest.TestCase):
-    def run_cases(self, failed_stage):
+    def run_cases(self, failed_stage, cold_start=False):
         calls = []
+        boot_flags = []
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest = root/'cases.json'
@@ -22,11 +23,13 @@ class CampaignTests(unittest.TestCase):
             def step(command, log, timeout):
                 stage = 'boot' if 'boot-output' in log.name else 'cpu' if 'cpu-output' in log.name else 'client'
                 calls.append(stage)
+                if stage == 'boot': boot_flags.append('--cold-start' in command)
                 log.write_text('')
                 return 1 if stage == failed_stage else 0
-            with patch('sys.argv', ['test.py', str(manifest), '--logs', str(root/'logs'), '--repeats', '2']), patch.object(campaign, 'run_step', step), contextlib.redirect_stdout(io.StringIO()):
+            with patch('sys.argv', ['test.py', str(manifest), '--logs', str(root/'logs'), '--repeats', '2'] + (['--cold-start-first'] if cold_start else [])), patch.object(campaign, 'run_step', step), contextlib.redirect_stdout(io.StringIO()):
                 result = campaign.main()
             summary = json.loads((root/'logs/summary.json').read_text())
+        self.assertEqual(boot_flags, [cold_start] + [False]*(len(boot_flags)-1))
         return result, calls, summary
 
     def test_cpu_failure_stops_before_any_next_reset(self):
@@ -41,6 +44,11 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertEqual(calls, ['boot', 'cpu', 'client'])
         self.assertEqual(len(summary), 1)
+
+    def test_cold_start_only_applies_to_first_boot(self):
+        result, calls, summary = self.run_cases(None, cold_start=True)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(summary), 4)
 
     def test_successful_trials_still_repeat(self):
         result, calls, summary = self.run_cases(None)

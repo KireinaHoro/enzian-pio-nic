@@ -266,10 +266,10 @@ next discriminating check; these cumulative switch counters alone do not
 explain the absent FPGA receive frames. No switch configuration or counters
 were changed or cleared.
 
-Use `python3 tools/enzian/leaf1.py` for an interactive leaf1 shell. The helper
+Use `python3 ../tofino-hw-timestamping/tools/leaf.py leaf1` for an interactive leaf1 shell. The helper
 constructs the gateway → agg0 → leaf1 SSH chain and leaves password prompts
 and host-key verification to SSH. It does not store credentials. For one command:
-`python3 tools/enzian/leaf1.py -- show interfaces status`.
+`python3 ../tofino-hw-timestamping/tools/leaf.py leaf1 -- show interfaces status`.
 `--print-command` displays the quoted chain without connecting.
 
 ## Correlated switch probes and framing fixes, September 25

@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+#include <sched.h>
+#include <fcntl.h>
 /* Closed-loop latency generator. No allocation or file I/O in the timed loop. */
 #include <arpa/inet.h>
 #include <errno.h>
@@ -14,7 +17,7 @@
 #include <rte_version.h>
 #include "wire.h"
 #include "benchmark.h"
-struct sample { uint64_t enter, ready, submitted, received, exit; int status; };
+struct sample { uint64_t enter, ready, submitted, received, exit; uint64_t scheduled, admitted; uint32_t duplicates, rejections, xid; int status; } __rte_cache_aligned;
 static uint64_t now(void) {
     struct timespec t;
     if(clock_gettime(CLOCK_MONOTONIC_RAW,&t)) rte_exit(1,"clock_gettime failed\n");
@@ -28,6 +31,13 @@ static unsigned number(const char *s, unsigned limit) {
 static void check(int rc, const char *what) {
     if(rc<0) rte_exit(1,"%s: %s\n",what,strerror(-rc));
 }
+#include "open_loop.h"
+#include "aggregate.h"
+static unsigned open_rate;
+static unsigned open_batch=1, open_batch_max=1;
+static uint64_t open_batch_target=250000;
+static unsigned open_cpus[32];
+static uint64_t open_duration, open_warmup;
 #include "load.h"
 /* Preparation traffic is outside the measured RPC. Preserve every reply and
  * fail the run if eviction preparation times out; state is verified by traces. */
@@ -93,9 +103,11 @@ int main(int argc, char **argv) {
     argc-=consumed; argv+=consumed;
     if(argc!=10 && argc!=11) rte_exit(1,
         "EAL options -- SRC_IP DST_IP DST_MAC DST_PORT COUNT WARMUP TIMEOUT_US BENCHMARK OUTPUT.csv [loopback|flush:N[:ROUNDS]]\n"
-        "Use exactly one EAL lcore and one allowlisted port (cpu40g1 VF). WARMUP may be zero.\n");
-    if(rte_lcore_count()!=1 || rte_eth_dev_count_avail()!=1)
-        rte_exit(1,"require exactly one lcore and one port\n");
+        "Use 1-32 EAL lcores and one allowlisted port (cpu40g1 VF). WARMUP may be zero.\n");
+    unsigned generators=rte_lcore_count();
+    unsigned queues=generators>8?8:generators;
+    if(generators>32 || rte_eth_dev_count_avail()!=1)
+        rte_exit(1,"require 1-32 generator cores and one port\n");
     struct endpoint src={.port=49152}, dst={0};
     if(inet_pton(AF_INET,argv[1],src.ip)!=1 || inet_pton(AF_INET,argv[2],dst.ip)!=1)
         rte_exit(1,"invalid IPv4 address\n");
@@ -103,20 +115,65 @@ int main(int argc, char **argv) {
     if(rte_ether_unformat_addr(argv[3],&dmac)) rte_exit(1,"invalid destination MAC\n");
     memcpy(dst.mac,dmac.addr_bytes,6); dst.port=number(argv[4],65535);
     unsigned count=number(argv[5],10000000), warmup=0;
+    const char *rate_env=getenv("LH_BENCH_RATE");
+    if(rate_env) {
+        open_rate=number(rate_env,100000000);
+        const char *batch=getenv("LH_BENCH_BATCH_MAX");
+        const char *period=getenv("LH_BENCH_BATCH_TARGET_NS");
+        open_batch_max=batch?number(batch,64):1;
+        if(period) open_batch_target=number(period,1000000);
+        uint64_t desired=(uint64_t)open_rate*open_batch_target/(1000000000ULL*rte_lcore_count());
+        open_batch=desired<1?1:desired>open_batch_max?open_batch_max:desired;
+        const char *duration=getenv("LH_BENCH_DURATION_MS");
+        const char *warming=getenv("LH_BENCH_WARMUP_MS");
+        if(!duration || !warming || argc!=10) rte_exit(1,"open loop requires duration and warmup milliseconds\n");
+        open_duration=(uint64_t)number(duration,60000)*1000000;
+        open_warmup=strcmp(warming,"0")?(uint64_t)number(warming,60000)*1000000:0;
+        open_aggregate=getenv("LH_BENCH_AGGREGATE") && !strcmp(getenv("LH_BENCH_AGGREGATE"),"1");
+        if(open_aggregate && open_batch_max==1) rte_exit(1,"aggregate mode requires paced batches\n");
+        uint64_t total=(open_duration+open_warmup)*open_rate/1000000000;
+        const char *budget=getenv("LH_BENCH_TRACKING_MIB");
+        uint64_t tracking_limit=(uint64_t)(budget?number(budget,262144):4096)*1024*1024;
+        uint64_t cores=rte_lcore_count();
+        aggregate_slots=(open_rate*50000000ULL+cores*1000000000ULL-1)/(cores*1000000000ULL)+2*open_batch;
+        aggregate_history_stride=((total+cores-1)/cores+63)/64*64;
+        uint64_t tracking_bytes=open_aggregate ? cores*aggregate_history_stride+cores*aggregate_slots*sizeof(struct sample)+cores*AGG_BINS*sizeof(uint64_t) : total*sizeof(struct sample);
+        if(!total || total>UINT32_MAX || tracking_bytes>tracking_limit)
+            rte_exit(1,"open-loop tracking requires %"PRIu64" bytes (limit %"PRIu64"); slots %"PRIu64" must fit XID space\n",
+                     tracking_bytes,tracking_limit,total);
+        warmup=open_warmup*open_rate/1000000000;
+        count=total-warmup;
+        if((open_warmup*open_rate)%1000000000 || (open_duration*open_rate)%1000000000)
+            rte_exit(1,"duration must contain an integral number of schedule slots\n");
+    }
     const char *window_env=getenv("LH_BENCH_WINDOW");
     const char *gap_env=getenv("LH_BENCH_GAP_NS");
     unsigned window=window_env?number(window_env,256):1;
     uint64_t gap=gap_env && strcmp(gap_env,"0")?number(gap_env,1000000000):0;
-    if(strcmp(argv[6],"0")) warmup=number(argv[6],1000000);
+    if(!open_rate && strcmp(argv[6],"0")) warmup=number(argv[6],1000000);
     uint64_t timeout_ns=(uint64_t)number(argv[7],10000000)*1000;
+    if(open_rate && timeout_ns!=10000000) rte_exit(1,"open-loop deadline must be 10 ms\n");
     const struct benchmark *bench=benchmark_find(argv[8]);
     if(!bench) rte_exit(1,"unknown benchmark: %s\n",argv[8]);
     FILE *csv=fopen(argv[9],"wx");
     if(!csv) rte_exit(1,"cannot create CSV: %s\n",strerror(errno));
-    struct sample *samples=calloc(count+warmup,sizeof(*samples));
+    if(open_rate && !open_aggregate) {
+        int allocation=posix_fallocate(fileno(csv),0,(off_t)(count+warmup)*256);
+        if(allocation) rte_exit(1,"cannot reserve observation output: %s\n",strerror(allocation));
+    }
+    size_t sample_slots=open_aggregate?(size_t)aggregate_slots*rte_lcore_count():count+warmup;
+    struct sample *samples=aligned_alloc(RTE_CACHE_LINE_SIZE,sample_slots*sizeof(*samples));
+    if(open_aggregate) {
+        aggregate_history=calloc((size_t)rte_lcore_count()*aggregate_history_stride,1);
+        aggregate_histograms=calloc((size_t)rte_lcore_count()*AGG_BINS,sizeof(uint64_t));
+        if(!aggregate_history || !aggregate_histograms) rte_exit(1,"aggregate resource allocation failed\n");
+        for(size_t i=0;i<(size_t)rte_lcore_count()*aggregate_history_stride;i+=4096) ((volatile uint8_t *)aggregate_history)[i]=0;
+        for(size_t i=0;i<(size_t)rte_lcore_count()*AGG_BINS;i+=512) ((volatile uint64_t *)aggregate_histograms)[i]=0;
+    }
     if(!samples) rte_exit(1,"sample allocation failed\n");
+    memset(samples,0,sample_slots*sizeof(*samples));
     /* Fault in each result page before measuring. */
-    for(unsigned i=0;i<count+warmup;i++) ((volatile struct sample *)samples)[i].status=0;
+    for(size_t i=0;i<sample_slots;i++) ((volatile struct sample *)samples)[i].status=0;
     uint16_t port; RTE_ETH_FOREACH_DEV(port) { break; }
     struct rte_eth_dev_info info;
     check(rte_eth_dev_info_get(port,&info),"device info");
@@ -140,15 +197,25 @@ int main(int argc, char **argv) {
             rte_exit(1,"loopback requires echo with identical IP/port endpoints\n");
         config.lpbk_mode=1;
     }
-    check(rte_eth_dev_configure(port,1,1,&config),"configure");
+    if(generators>1) {
+        if(argc!=10 || (!window_env && !open_rate) || !(info.flow_type_rss_offloads&RTE_ETH_RSS_NONFRAG_IPV4_UDP))
+            rte_exit(1,"parallel generation requires bounded load and UDP RSS\n");
+        config.rxmode.mq_mode=RTE_ETH_MQ_RX_RSS;
+        config.rx_adv_conf.rss_conf.rss_hf=RTE_ETH_RSS_NONFRAG_IPV4_UDP;
+    }
+    check(rte_eth_dev_configure(port,queues,queues,&config),"configure");
     uint16_t nrx=256,ntx=256;
     check(rte_eth_dev_adjust_nb_rx_tx_desc(port,&nrx,&ntx),"descriptors");
     int socket=rte_eth_dev_socket_id(port); if(socket<0) socket=0;
-    struct rte_mempool *pool=rte_pktmbuf_pool_create("bench",8191,128,0,
+    /* ThunderX RBDR buffers require 128-byte alignment. Private forwarding
+     * metadata must preserve that alignment, beyond DPDK's generic minimum. */
+    struct rte_mempool *pool=rte_pktmbuf_pool_create("bench",generators>1?16383:4095,128,RTE_ALIGN_CEIL(sizeof(struct parallel_rx),128),
         RTE_MBUF_DEFAULT_BUF_SIZE,socket);
     if(!pool) rte_exit(1,"mempool failed\n");
-    check(rte_eth_rx_queue_setup(port,0,nrx,socket,&info.default_rxconf,pool),"RX queue");
-    check(rte_eth_tx_queue_setup(port,0,ntx,socket,&info.default_txconf),"TX queue");
+    for(unsigned q=0;q<queues;q++) {
+        check(rte_eth_rx_queue_setup(port,q,nrx,socket,&info.default_rxconf,pool),"RX queue");
+        check(rte_eth_tx_queue_setup(port,q,ntx,socket,&info.default_txconf),"TX queue");
+    }
     check(rte_eth_dev_start(port),"start");
     struct rte_ether_addr mac;
     check(rte_eth_macaddr_get(port,&mac),"MAC"); memcpy(src.mac,mac.addr_bytes,6);
@@ -190,7 +257,25 @@ int main(int argc, char **argv) {
     }
     unsigned prepared=0;
     uint64_t observation_start=0, observation_end=0, next_send=0;
-    if(window_env && !flush_every) {
+    if(open_rate) {
+        int load_failed=0;
+        completed=parallel_phase(port,pool,src,dst,bench,samples,0,count+warmup,window,gap,timeout_ns,&unrelated,&load_failed,&observation_start,&observation_end);
+        observation_start+=open_warmup;
+        observation_end=observation_start+open_duration;
+        failed=load_failed;
+        /* Campaign stop control must not wait for potentially large CSV output.
+         * The bounded receive drain has finished and the send interval is fixed. */
+        const char *drained=getenv("LH_BENCH_DRAINED_FILE");
+        if(drained) {
+            FILE *signal=fopen(drained,"wx");
+            if(!signal || fclose(signal)) rte_exit(1,"cannot publish drained marker\n");
+        }
+    } else if(generators>1) {
+        int load_failed=0;uint64_t warm_start=0,warm_end=0;
+        completed=parallel_phase(port,pool,src,dst,bench,samples,0,warmup,window,gap,timeout_ns,&unrelated,&load_failed,&warm_start,&warm_end);
+        if(!load_failed) completed+=parallel_phase(port,pool,src,dst,bench,samples,warmup,count,window,gap,timeout_ns,&unrelated,&load_failed,&observation_start,&observation_end);
+        failed=load_failed;
+    } else if(window_env && !flush_every) {
         int load_failed=0;
         completed=load_phase(port,pool,src,dst,bench,samples,0,warmup,window,gap,timeout_ns,&unrelated,&load_failed);
         if(!load_failed) {
@@ -249,14 +334,22 @@ int main(int argc, char **argv) {
     }
     observation_end=now();
     }
-    fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport\n");
-    for(unsigned i=0;i<completed;i++) {
-        struct sample *s=&samples[i]; int ok=s->status==1;
-        fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk\n",
-            i+1,ok?0:s->status,ok,bench->name,
-            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,i<warmup);
+    fprintf(csv,"request_id,rpc_status,ok,benchmark,client_call_enter_ns,client_call_exit_ns,timestamp_overhead_ns,client_tx_ready_ns,client_tx_submit_ns,client_rx_burst_ns,warmup,transport,scheduled_ns,start_lag_ns,duplicates,server_rejections,client_tx_admit_enter_ns\n");
+    for(unsigned i=0;i<(open_aggregate?generators*3:((generators>1 || open_rate)?count+warmup:completed));i++) {
+        struct sample *s=open_aggregate?&aggregate_diagnostics[i/3][i%3]:&samples[i];
+        if(open_aggregate && !s->xid)continue;
+        unsigned id=open_aggregate?s->xid:i+1;
+        if(!open_rate && generators>1 && !s->enter) continue;
+        int ok=s->status==1;
+        fprintf(csv,"%u,%d,%d,%s,%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%"PRIu64",%d,dpdk,%"PRIu64",%"PRIu64",%u,%u,%"PRIu64"\n",
+            id,ok?0:s->status,ok,bench->name,
+            s->enter,s->exit,overhead,s->ready,s->submitted,s->received,id<=warmup,s->scheduled,s->enter>=s->scheduled?s->enter-s->scheduled:0,s->duplicates,s->rejections,s->admitted);
     }
-    int io_error=ferror(csv); if(fclose(csv)) io_error=1;
+    int io_error=ferror(csv);
+    if(open_rate) {
+        if(fflush(csv) || ftruncate(fileno(csv),ftello(csv))) io_error=1;
+    }
+    if(fclose(csv)) io_error=1;
     {
         size_t size=strlen(argv[9])+32;
         char *path=malloc(size);
@@ -264,11 +357,49 @@ int main(int argc, char **argv) {
         snprintf(path,size,"%s.load.json",argv[9]);
         FILE *f=fopen(path,"wx");
         if(!f) rte_exit(1,"cannot create load summary\n");
-        fprintf(f,"{\"window\":%u,\"gap_ns\":%"PRIu64",\"observation_start_ns\":%"PRIu64",\"observation_end_ns\":%"PRIu64",\"expected_measured\":%u,\"attempted_including_warmup\":%u,\"warmup\":%u,\"failed\":%"PRIu64",\"flush_every\":%u,\"flush_rounds\":%u}\n",
-                window,gap,observation_start,observation_end,count,completed,warmup,failed,flush_every,flush_rounds);
+        fprintf(f,"{\"generator_cores\":%u,\"window\":%u,\"gap_ns\":%"PRIu64",\"observation_start_ns\":%"PRIu64",\"observation_end_ns\":%"PRIu64",\"expected_measured\":%u,\"attempted_including_warmup\":%u,\"warmup\":%u,\"failed\":%"PRIu64",\"flush_every\":%u,\"flush_rounds\":%u}\n",
+                generators,window,gap,observation_start,observation_end,count,completed,warmup,failed,flush_every,flush_rounds);
         if(ferror(f)) io_error=1;
         if(fclose(f)) io_error=1;
         free(path);
+    }
+    if(open_rate) {
+        if(open_aggregate) aggregate_merge(generators);
+        for(unsigned i=0;!open_aggregate && i<warmup;i++)
+            failed |= samples[i].status==OL_MISSED || samples[i].status==OL_TX_FAILED || samples[i].status==OL_MALFORMED;
+        uint64_t transmitted=0, ontime=0, late=0, duplicates=0, misses=0, admission=0, malformed=0, rejections=0;
+        for(unsigned i=warmup;!open_aggregate && i<count+warmup;i++) {
+            struct sample *s=&samples[i];
+            transmitted+=s->submitted && s->status!=OL_TX_FAILED;
+            ontime+=s->status==OL_ONTIME; late+=s->status==OL_LATE;
+            misses+=s->status==OL_MISSED; admission+=s->status==OL_TX_FAILED;
+            malformed+=s->status==OL_MALFORMED; duplicates+=s->duplicates; rejections+=s->rejections;
+        }
+        if(open_aggregate) {
+            struct aggregate_counts *c=&aggregate_total[1],*w=&aggregate_total[0];
+            transmitted=c->transmitted;ontime=c->ontime;late=c->late;duplicates=c->duplicates;
+            misses=c->misses;admission=c->admission;malformed=c->malformed;rejections=c->rejections;
+            failed|=w->schedule_violations || c->schedule_violations || w->misses || w->admission || w->malformed || w->attempted!=warmup || c->attempted!=count;
+        }
+        struct rte_eth_stats stats={0}; check(rte_eth_stats_get(port,&stats),"open-loop NIC stats");
+        char path[4096]; snprintf(path,sizeof(path),"%s.open.json",argv[9]);
+        FILE *f=fopen(path,"wx"); if(!f) rte_exit(1,"open-loop summary output failed\n");
+        fprintf(f,"{\"schema\":%u,\"tx_phase_boundary\":\"admission-entry\",\"benchmark\":\"%s\",\"warmup_ns\":%"PRIu64",\"send_start_ns\":%"PRIu64",\"send_end_ns\":%"PRIu64",",
+                open_aggregate?3:2,bench->name,open_warmup,observation_start,observation_end);
+        if(open_aggregate) aggregate_write(f);
+        fprintf(f,"\"arrival_model\":\"%s\",\"batch_size\":%u,\"batch_max\":%u,\"batch_target_ns\":%"PRIu64",",
+                open_batch_max>1?"paced-batch":"fixed-spacing",open_batch,open_batch_max,open_batch_target);
+        fprintf(f,"\"rate\":%u,\"duration_ns\":%"PRIu64",\"deadline_ns\":%"PRIu64","
+          "\"transmitted\":%"PRIu64",\"on_time\":%"PRIu64",\"late\":%"PRIu64",\"duplicates\":%"PRIu64","
+          "\"generator_misses\":%"PRIu64",\"tx_admission_failures\":%"PRIu64",\"malformed\":%"PRIu64",\"server_rejections\":%"PRIu64","
+          "\"nic_rx_no_buffer\":%"PRIu64",\"nic_rx_missed\":%"PRIu64",\"nic_rx_errors\":%"PRIu64",\"nic_tx_errors\":%"PRIu64","
+          "\"valid\":%s,\"generator_cpus\":[",open_rate,open_duration,timeout_ns,transmitted,ontime,late,duplicates,misses,admission,malformed,rejections,
+          stats.rx_nombuf,stats.imissed,stats.ierrors,stats.oerrors,(!failed&&!misses&&!admission&&!malformed&&!stats.ierrors&&!stats.oerrors&&!stats.imissed&&!stats.rx_nombuf)?"true":"false");
+        for(unsigned i=0;i<generators;i++) fprintf(f,"%s%u",i?",":"",open_cpus[i]);
+        fputs("]}\n",f);
+        if(ferror(f)) io_error=1;
+        if(fclose(f)) io_error=1;
+        failed |= misses || admission || malformed || stats.ierrors || stats.oerrors || stats.imissed || stats.rx_nombuf;
     }
     if(flush_every) {
         size_t size=strlen(argv[9])+32;

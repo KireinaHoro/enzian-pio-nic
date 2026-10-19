@@ -12,56 +12,28 @@ This is a single-boot validation; routed timing remains open.
 
 ## Default agent capture pipeline
 
-Use the dedicated **F_MAC1 CMAC/UDP path by default** for full trace captures,
-including `probe_versions` failure preservation. JTAG remains the fallback when
-Ethernet is unavailable and an independent content spot-check mechanism. A
-working Linux driver on the DUT is not required for the hardware trace responder.
-Do not reset the board to fix the capture link before preserving failure evidence.
+Use the [lauberhorn-trace skill](../../tools/enzian/skills/lauberhorn-trace/SKILL.md)
+and [canonical capture workflow](../../tools/enzian/trace/README.md). Manual and
+unattended benchmark capture share `tools/enzian/trace_capture.py` and its session
+API. They reuse the existing CMAC receiver and JTAG reader rather than maintaining
+separate paper-specific capture scripts or per-run Tcl.
 
-1. Check board/peer reservations and record the programmed revision, bitstream,
-   LTX, software and generated trace map. Keep tracing active through module load
-   and the workload; arm the static ECI edge ILA before boot when investigating
-   version-register failures. Do not substitute artifacts from current master
-   for those belonging to the image actually programmed.
-2. Record pre-freeze VIO loss/error status, assert `trace_stop`, and wait for a
-   stable `writeSlot`. Save the pointer, wrap flag, DMA error and sticky loss flag.
-   A loss bit first asserted after freeze does not prove pre-freeze loss.
-3. Use a reserved peer on the FPGA VLAN. For the tested zuestoll14 deployment:
-   trace F_MAC1 is `192.168.129.204`, MAC `0c:53:31:03:01:cc`, UDP 55555,
-   leaf1 Ethernet100 / front-panel 26/0 at 100G with RS-FEC. The capture peer
-   zuestoll12 uses `cpu40g1`, `192.168.129.129`, MAC `0c:53:31:03:01:81`.
-   Main RPC F_MAC0 remains `.200` / `0c:53:31:03:01:c8`. These are board-specific
-   defaults, not addresses to reuse blindly on another board. Check routing and
-   actual link/FEC counters; keep management/storage on `cpu40g0`.
-4. Save VIO outputs before any temporary override. Configure the capture server
-   IP and next-hop MAC if required; the FPGA does not ARP for its next hop. Start
-   the receiver on the peer **before** toggling `trace_dump_over_network` 0→1:
+Full capture uses F_MAC1 CMAC/UDP. JTAG is restricted to independent bounded
+head/tail checks after successful Ethernet capture; Ethernet failure preserves
+partial evidence and stops without reset or full JTAG fallback. Capture checks
+current reservations and matching bitstream/LTX/map hashes, saves original VIO
+controls, freezes to a stable write pointer, starts the receiver before triggering,
+persists exact bytes/hash and integrity evidence, and restores controls while
+leaving recording frozen. A working DUT driver is not needed for the hardware
+trace responder. Keep tracing active through module load when investigating
+`probe_versions` failures, and preserve static ILA evidence separately when armed.
 
-   ```sh
-   python3 data/eci/sys_trace/dump_trace_udp.py \
-     --bind-ip 192.168.129.129 --wait-timeout 90 \
-     --timeout 1 --retries 5 --chunk-bytes 1408 --out NEW_RUN/trace-dram.bin
-   ```
-
-   Create `NEW_RUN` first. For an unwrapped buffer, omit `--bytes` to capture
-   the entire valid range. For a wrapped buffer, supply its actual configured
-   capacity and preserve the write pointer for chronological reconstruction.
-   Do not present a prefix or the example's historical fixed-size read as a
-   complete capture. The receiver's metadata wait and data retries are bounded;
-   preserve partial output and diagnostics on failure, then fall back to JTAG.
-5. Verify exit status and exact expected byte count (`writeSlot * 64` when
-   unwrapped), save a SHA-256 hash, and inspect trace loss markers with the
-   matching map. Sequence/length checks do not supply payload integrity; use
-   JTAG head/tail checks or a repeated frozen-buffer read when validating a new
-   image/link. The CLI does not report individual retransmissions: instrument
-   or record packets if a retry count is needed. Separate recorder socket drops
-   from missing UDP responses. RAM-backed packet recording avoided local drops
-   in the board test; raw packet capture requires root, ordinary UDP does not.
-6. Save a compact summary and retain captures, map, provenance, VIO status and
-   link counters under an ignored output directory. For `probe_versions`
-   failures, also preserve the armed static ILA and investigate the captured
-   ECI traffic before reset. Restore temporary controls only after preservation;
-   record whether tracing remains frozen or has resumed.
+`summary.json` certifies transport and restoration, not workload event counts or
+clock joins. Retain the raw buffer and matched map and run the relevant analysis.
+Wrapped buffers currently fail explicitly; never relabel a prefix as a full dump.
+See the canonical workflow for transfer prerequisites, recording-only controls,
+partial failure evidence and export-only recovery. Historical address examples
+below describe particular board experiments, not implicit defaults for new runs.
 
 Measured payload throughput was **6.9 MiB/s** with the current single-outstanding
 1408-byte Python reader, versus roughly 0.01–0.02 MiB/s for the observed
@@ -456,7 +428,7 @@ They have local simulation/elaboration coverage and board validation. Pipeline
 ARP replies and a mid-packet TKEEP gap. The first and last four KiB matched
 independent frozen JTAG reads. External link operation is still intermittent;
 FPGA RX alignment alone does not establish a usable link. Check leaf1's
-Ethernet108 / ZS14-FPGA4 status through `python3 tools/enzian/leaf1.py` before
+Ethernet108 / ZS14-FPGA4 status through `python3 ../tofino-hw-timestamping/tools/leaf.py leaf1` before
 capture. See [the CMAC diagnosis](cmac-trace-diagnosis.md#framing-fix-image-udp-capture-validated-link-intermittent).
 Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
 when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
@@ -651,3 +623,13 @@ avoid the global batch-queue bias. New hardware validation is required before
 claiming corrected measurements; historical fine hardware intervals, including
 nullrpc comparisons, retain this newly identified limitation until reassessed.
 CPU-only intervals and client RTTs are unaffected by the recorder correction.
+
+### Vivado freeze shutdown recovery
+
+The shared trace controller handles the known Vivado exit-139 shutdown crash
+only for a completed `freeze`: the log must show `trace_stop=1`, target closure,
+`exit 0`, and Vivado shutdown without Tcl errors. It then performs one independent
+read-only status operation, requiring a successful exit and identical VIO outputs.
+A failed or mismatched readback remains terminal. The original freeze snapshot
+and crash log are preserved; freeze is not repeated, so restoration state is not
+overwritten. This does not relax Ethernet dump validation or enable JTAG fallback.

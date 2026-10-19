@@ -1,7 +1,7 @@
 /* Add a codec to benchmarks[]; transport, timestamps, timeouts and CSV stay shared.
  * Callbacks never retain buffers. IDs are unique across warmup/measurement.
  * encode returns UDP payload size or zero on error; validate: 0 unrelated,
- * -1 invalid matching reply, +1 correct reply. No allocation/I/O in callbacks. */
+ * -1 invalid matching reply, +1 correct reply, +2 valid SYSTEM_ERR rejection. No allocation/I/O in callbacks. */
 #ifndef BENCHMARK_H
 #define BENCHMARK_H
 #include <stddef.h>

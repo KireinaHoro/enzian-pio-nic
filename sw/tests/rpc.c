@@ -48,7 +48,7 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, bool inline
 #define core_eci_tx_cancel core_eci_tx_finish
 #define core_eci_tx_get_buffer test_tx_get
 #define core_eci_tx_commit test_tx
-#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
+#define core_eci_tx_commit_traced_full(base, state, desc, stamp, after, clock) test_tx(base, state, desc)
 #define ioctl test_ioctl
 #include "../rt/rpc.c"
 #undef ioctl
@@ -293,6 +293,7 @@ int main(void) {
     assert(!worker.execution_active && !worker.execution_pending);
     ctx._watchdog_enabled = false;
 
+#if LH_ENABLE_TRACING
     /* Trace ownership survives deferred scheduling and forwarded completions.
      * Reusing the worker RX scratch must not overwrite either parent's row. */
     char path[] = "/tmp/lauberhorn-trace-XXXXXX";
@@ -359,5 +360,13 @@ int main(void) {
     fclose(events); unlink(event_path);
     snprintf(event_path,sizeof(event_path),"%s.events.status.json",path);
     unlink(event_path);
+
+#else
+    int evaluated=0;
+    lauberhorn_trace_request_id(++evaluated);
+    lauberhorn_trace_result(++evaluated);
+    lauberhorn_trace_event(LH_TRACE_APP_ENTRY,++evaluated,++evaluated);
+    assert(!evaluated && !lauberhorn_trace_events_enabled() && !lauberhorn_trace_new_id());
+#endif
 
 }

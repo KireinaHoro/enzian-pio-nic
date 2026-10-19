@@ -73,7 +73,9 @@ struct pending_call {
         lauberhorn_pkt_desc_t parent;
     } completion;
 
+#if LH_ENABLE_TRACING
     struct server_trace_row parent_trace;
+#endif
     rpc_codec_t *codec;
 
     // filled by runtime

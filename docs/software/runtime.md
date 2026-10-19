@@ -45,6 +45,16 @@ Applications use the installed runtime Nix package. PCIe remains unfinished;
 backend-neutral naming does not establish support there. Device headers and
 configuration are regenerated from the matching hardware, not edited by hand.
 
+## Shared synchronous echo path
+
+`rpc_request.h`, `rpc_call.h` and `rpc_reply.h` hold the existing request ownership,
+decode/dispatch and synchronous reply implementation. They are included by the
+ECI runtime and the DPDK echo transport backend. DPDK uses the same `oncrpc.c`
+codec adapter and generated XDR functions; no memcpy-only echo shortcut exists.
+The DPDK backend supports synchronous reply/failure for these benchmarks, not
+ECI's nested, deferred or cooperative scheduling mechanisms. The shared echo
+handler retains borrowed argument ownership until encoding and cleanup finish.
+
 ## Request and transport ownership
 
 The core RX API is `core_eci_rx_acquire[_traced]` / `core_eci_rx_release`.
@@ -169,6 +179,15 @@ includes process-global tables and counters. Keep registration externally
 serialized and follow the endpoint lifetime rules.
 
 ## Optional per-request latency tracing
+
+`nix/software/runtime.nix` accepts `tracing = false` (`LH_ENABLE_TRACING=0`).
+This build excludes server tracing and PMU objects, request/fiber trace storage,
+probe calls and export threads. Its pkg-config Cflags propagate the same define
+into applications, whose public annotation macros do not evaluate arguments.
+Runtime and applications must use the same compiled variant. Environment variables
+cannot enable tracing in this build. The default build retains optional tracing
+for existing applications and acceptance tests. `runtimeUninstrumented` and
+`microbenchmarksUninstrumented` expose the disabled variant through Nix.
 
 `LAUBERHORN_SERVER_TRACE_CSV` enables runtime-owned receive/decode/handler/encode/TX
 probes. Application code supplies its correlation ID through

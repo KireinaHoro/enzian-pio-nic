@@ -34,7 +34,9 @@ struct lauberhorn_worker {
 
     void *dp_base;
     pthread_t thread;
+#if LH_ENABLE_TRACING
     struct server_trace_row rx_trace;
+#endif
     bool execution_active;
     uint8_t execution_pending;
 };

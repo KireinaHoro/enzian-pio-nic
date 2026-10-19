@@ -10,20 +10,26 @@ from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 import re
+import time
 
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--root',type=Path,required=True)
 p.add_argument('--bind',required=True)
 p.add_argument('--port',type=int,default=18843)
+p.add_argument('--max-upload-bytes',type=int,default=128*1024*1024,
+               help='Per-file bound; reserve campaign storage before increasing it')
+p.add_argument('--lifetime-seconds',type=int,default=86400,help='Bound temporary service lifetime')
 a=p.parse_args();root=a.root.resolve()
 if not root.is_dir():p.error('Create a dedicated campaign directory first')
+if a.max_upload_bytes<1:p.error('Upload bound must be positive')
+if not 1<=a.lifetime_seconds<=7*86400:p.error('Service lifetime must be at most seven days')
 
 class Handler(SimpleHTTPRequestHandler):
     def do_PUT(self):
         name=self.path.removeprefix('/')
         try: size=int(self.headers.get('Content-Length','0'))
         except ValueError: size=0
-        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*',name) or not 0<size<=128*1024*1024:
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*',name) or not 0<size<=a.max_upload_bytes:
             self.send_error(400);return
         try:
             with (root/name).open('xb') as out:
@@ -38,4 +44,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(500,'Upload failed; partial evidence retained');return
         self.send_response(201);self.end_headers()
 
-HTTPServer((a.bind,a.port),partial(Handler,directory=str(root))).serve_forever()
+server=HTTPServer((a.bind,a.port),partial(Handler,directory=str(root)))
+server.timeout=1
+deadline=time.monotonic()+a.lifetime_seconds
+try:
+    while time.monotonic()<deadline: server.handle_request()
+finally: server.server_close()

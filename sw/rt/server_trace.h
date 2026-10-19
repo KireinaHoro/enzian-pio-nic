@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "lauberhorn/trace.h"
+#if LH_ENABLE_TRACING
+#define LH_TRACE_PTR(value) (value)
 #include "pmu.h"
 #define SERVER_TRACE_TIMES(X) \
     X(rx_enter) X(rx_unblock) X(rx_exit) \
@@ -30,6 +33,7 @@ struct server_trace_row {
 #undef TRACE_FIELD
     uint64_t defer_enqueue_ns, forward_submit_ns, forward_complete_ns;
     uint64_t entry_enter_ns, entry_exit_ns;
+    uint64_t tx_doorbell_return_ns; /* immediately after commit CL read */
     uint64_t tx_doorbell_ns; /* immediately before the commit CL read */
     uint64_t handler_active_ns, run_start_ns;
 };
@@ -48,4 +52,8 @@ void server_trace_run_begin(struct server_trace_row *row);
 void server_trace_run_end(struct server_trace_row *row);
 void server_trace_event(struct server_trace_row *row, unsigned event,
                         uint64_t arg0, uint64_t arg1);
+#else
+#define LH_TRACE_PTR(value) NULL
+struct server_trace_row;
+#endif /* LH_ENABLE_TRACING */
 #endif

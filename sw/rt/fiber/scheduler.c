@@ -77,9 +77,13 @@ static void sched_trampoline() {
 static void run_fiber(struct fiber *f) {
     vstate_set(&f->vstate, FIBER_RUNNING);
     if (execution_begin) execution_begin();
+#if LH_ENABLE_TRACING
     server_trace_run_begin(f->trace);
+#endif
     switch_to(f);
+#if LH_ENABLE_TRACING
     server_trace_run_end(f->trace);
+#endif
     if (execution_end) execution_end();
 
     // check return state of fiber after it yields back
@@ -124,7 +128,9 @@ void fiber_sched_run_ready() {
 }
 
 void fiber_prepare(struct fiber* f, void(*on_start)(void *ctx), void(*on_done)(void* ctx), void *ctx) {
+#if LH_ENABLE_TRACING
 	f->trace = NULL;
+#endif
 	getcontext(&f->ctx);
 	f->args = ctx; 
 	f->on_start = on_start;

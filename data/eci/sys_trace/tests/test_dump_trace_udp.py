@@ -26,13 +26,15 @@ class CaptureTest(unittest.TestCase):
                 reserve.bind(("127.0.0.1", 0))
                 port = reserve.getsockname()[1]
             output = pathlib.Path(directory) / "raw.bin"
+            ready = pathlib.Path(directory) / "ready"
             proc = subprocess.Popen(
                 [sys.executable, str(SCRIPT), "--bind-ip", "127.0.0.1",
                  "--port", str(port), "--wait-timeout", "5", "--timeout", "0.1",
-                 "--out", str(output), *extra],
+                 "--out", str(output), "--ready-file", str(ready), *extra],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             try:
                 self.assertIn("waiting for FPGA", proc.stderr.readline())
+                self.assertEqual(ready.read_text(), "bound\n")
                 fpga.sendto(response(0, 0), ("127.0.0.1", port))
                 expected = 4096 - (64 if "--offset" in extra else 0)
                 received = 0

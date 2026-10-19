@@ -11,7 +11,9 @@
       "series": [
         "LH",
         "DPDK"
-      ]
+      ],
+      "measurement": "Software tracing disabled for LH and DPDK; paired hardware MAC timestamps retained; all measured samples; log latency axis",
+      "provenance": "data/paper/nullrpc/lh-hot-uninstrumented/README.md"
     },
     {
       "id": "nullrpc-cold-latency-cdf",
@@ -19,8 +21,8 @@
       "script": "tools/paper/plot_nullrpc.py",
       "manifest": "data/paper/nullrpc/manifest.json",
       "command": "nix develop -c python3 tools/paper/plot_nullrpc.py --charts cdf",
-      "status": "included",
-      "tex": "evaluation.tex"
+      "status": "archived",
+      "tex": null
     },
     {
       "id": "nullrpc-hot-throughput-latency",
@@ -48,6 +50,53 @@
       "command": "nix develop -c python3 tools/paper/plot_nullrpc_breakdown.py",
       "status": "included",
       "tex": "evaluation.tex"
+    }
+  ],
+  "planned_charts": [
+    {
+      "id": "echo-loaded-hot-latency-goodput",
+      "output": "../paper/plots/echo-loaded-hot-latency-goodput.pdf",
+      "script": "tools/paper/plot_echo.py",
+      "manifest": "out/echo-full-20261019/loaded-plots.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
+      "status": "partial_collection_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
+    },
+    {
+      "id": "echo-loaded-hot-peak-throughput-workers",
+      "output": "../paper/plots/echo-loaded-hot-peak-throughput-workers.pdf",
+      "script": "tools/paper/plot_echo.py",
+      "manifest": "out/echo-full-20261019/loaded-plots.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
+      "status": "partial_collection_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
+    },
+    {
+      "id": "echo-overload-loss",
+      "output": "../paper/plots/echo-overload-loss.pdf",
+      "script": "tools/paper/plot_echo.py",
+      "manifest": "out/echo-full-20261019/loaded-plots.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
+      "status": "partial_collection_pending_inclusion",
+      "tex": null
+    },
+    {
+      "id": "echo-unloaded-hot-latency-cdf",
+      "output": "../paper/plots/echo-unloaded-hot-latency-cdf.pdf",
+      "script": "tools/paper/plot_echo_unloaded.py",
+      "manifest": "out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "status": "rendered_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
+    },
+    {
+      "id": "echo-unloaded-hot-latency-breakdown",
+      "output": "../paper/plots/echo-unloaded-hot-latency-breakdown.pdf",
+      "script": "tools/paper/plot_echo_unloaded.py",
+      "manifest": "out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "status": "rendered_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
     }
   ]
 }

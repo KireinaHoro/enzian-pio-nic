@@ -1,11 +1,12 @@
 # Runtime-only Enzian client image: all executables are cross-built on the host.
-{ pkgs, dpdk, modules, identity ? { revision = null; } }:
+{ pkgs, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {}, probeDpdk ? dpdk, mlx5 ? false }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
-  generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk; };
+  generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk probeDpdk mlx5; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
     lh-dpdk-run = "tools/enzian/dpdk_run.py";
+    lh-cpu-isolation = "tools/enzian/cpu_isolation.py";
     lh-benchmark-summary = "tools/enzian/benchmark_summary.py";
     lh-trace-dump = "data/eci/sys_trace/dump_trace_udp.py";
     lh-dpdk-replay = "sw/apps/microbenchmarks/dpdk/replay_test.py";
@@ -38,16 +39,29 @@ let
     inherit identity;
     system = target.stdenv.hostPlatform.config;
     dpdkVersion = dpdk.version;
+    queueInstrumentation = if mlx5 then "mlx5-scalar-cpu-v1" else null;
     packages = {
-      generator = "${generator}"; dpdk = "${dpdk}";
+      generator = "${generator}"; dpdk = "${dpdk}"; probeDpdk = "${probeDpdk}";
       thunderxPtpModules = "${modules}";
     };
+    nativeVariants = pkgs.lib.mapAttrs (_: variant: {
+      app = "${variant.app}"; runtime = "${variant.runtime}";
+      tracing = variant.runtime.tracing;
+    }) nativeVariants;
+    rpcImplementation = "shared-xdr-runtime-v1";
+    runtimeSourceHashes = builtins.listToAttrs (map (name: {
+      inherit name;
+      value = builtins.hashFile "sha256" (generator.src + "/rt/${name}");
+    }) [ "oncrpc.c" "rpc_request.h" "rpc_call.h" "rpc_reply.h" ]);
+    responderTracing = { echo_dpdk = true; echo_dpdk_uninstrumented = false; };
     kernelRelease = modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
-      value = builtins.hashFile "sha256" (generator.src + "/${name}");
-    }) [ "bench_dpdk.c" "nullrpc_server.c" "benchmarks.c" "benchmark.h" "wire.h" "load.h" "Makefile" ]);
+      value = builtins.hashFile "sha256" (generator.src + "/apps/microbenchmarks/${name}");
+    }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/echo_server.c"
+         "echo_handler.h" "echo_handler.c" "dpdk/rpc_backend.h" "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
+         "dpdk/aggregate.h" "dpdk/open_loop.h" "dpdk/Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });
   environment = pkgs.buildEnv {

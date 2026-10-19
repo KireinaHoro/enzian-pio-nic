@@ -22,9 +22,7 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 ## Planned applications and baseline
 
-**October 15 baseline selection:** the [Caladan Enzian port design and progress](caladan-enzian.md) establishes a minimal AArch64 port for hot latency/throughput and breakdown, core reclamation, and multi-instance memcached. Enzian correctness and measurement validation precede baseline use; optional comparable x86/DPDK runs relate paper, x86 and Enzian results. Implementation and measurements are pending. Caladan replaces Demikernel as the primary baseline because its runtime-managed core allocation and networking are a closer match.
-
-**Caladan is the selected primary baseline, labeled SH-A64 for the AArch64 port in charts alongside DPDK and LH.** Follow the [minimal Enzian port and calibration plan](caladan-enzian.md): centralized NICVF DPDK networking, the simple scheduler, and bounded hot, core-reclamation and memcached experiments. Pin the implementation, application versions and resource budget; the ARM port and measurement acceptance remain pending. Comparable x86/DPDK calibration is optional, and full Caladan interference-control claims are outside scope. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and client/load generation comparable; disclose CPU/NIC differences where identical hardware is infeasible.
+**Caladan is the selected primary baseline, labeled SH-A64 for the AArch64 port alongside DPDK and LH.** Follow the [current Enzian port plan](caladan-enzian.md): ConnectX-5 networking, the simple scheduler, and bounded hot, core-reclamation and memcached experiments. Pin implementation, application versions and resource budgets; ARM port and measurement acceptance remain pending. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and load generation comparable. Full Caladan interference-control claims are outside scope.
 
 | Planned application | Purpose in the evaluation / integration starting point |
 | --- | --- |

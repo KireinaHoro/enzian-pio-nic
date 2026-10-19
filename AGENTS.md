@@ -12,8 +12,8 @@ relevant source and subsequent changes before relying on implementation details.
 - Linux scheduling/preemption: [scheduler](docs/software/scheduler.md).
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md), [Nix-to-Vivado CI handoff](docs/development/ci.md).
-- Real Enzian hardware / adder E2E: [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
-- Trace capture: use the [CMAC-first agent procedure](docs/development/tracing.md#default-agent-capture-pipeline) on F_MAC1; JTAG is the fallback for unavailable Ethernet and independent spot checks.
+- Real Enzian hardware / adder E2E: use the [enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md), then [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
+- Trace capture: use the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and [canonical workflow](tools/enzian/trace/README.md). Manual and campaign capture share the same scripts; CMAC for full dumps, JTAG only for bounded integrity checks. Failed Ethernet capture stops without reset or full JTAG fallback.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
 - Go runtime / HOST_WORK / future etcd: [design and dispatch matrix](docs/research/etcd.md); documentation only, no implementation authorized by this handoff.
@@ -31,31 +31,17 @@ validation, Go native null-RPC including nested calls, then Go Raft and etcd.
 Keep worker-core–endpoint affinity. Historical HOST_WAKE holds and evidence
 below retain their dated scope; no runtime/RTL change or new board result is implied.
 
-October 14 paper iteration replaces the hot throughput curve with an 18-point
-paced grid on matched 519555 (`0e58f058`): 180,000 measured RPCs, complete runtime
-and MAC joins, zero stored trace loss, independent JTAG head/tail matches and
-clean hardware health. Cold throughput–latency is retired; see the
-[current chart inventory](tools/paper/charts.json) and
-[measurement provenance](data/paper/nullrpc/README.md#october-14-paced-hot-grid-pipeline-519555).
-The preceding firmware retry/gateway ARP failure (zero RPC admissions) is
-preserved and excluded. DUT state now supersedes October 13: one-worker 519555
-service alive, tracing frozen, full capture saved, runtime export consumed;
-peer/capture controls restored. Recheck live reservations/state before reuse.
-Chart iterations must remain uncommitted and unpushed until explicitly requested.
-
-The separate October 13 [paper microbenchmark campaign](data/paper/nullrpc/README.md)
-completed all five null-RPC charts on matched 518922 hardware/runtime. Four cold
-boots passed 185,000 measured RPCs, 2,304 warmups and 400 setup calls, plus 160,000
-eviction-preparation RPCs. All four complete captures have exact request/reply
-counts and zero stored loss markers. Worker scaling exercised 1–4 resident
-workers, with median trial throughput 156.135/311.762/466.850/624.687 kRPC/s.
-These are bounded closed-loop results; cold throughput includes preparation.
-That campaign initially used a common client RX-observation boundary; current
-latency figures use paired MAC events. The reusable library, `paper-chart` skill, tracked inputs
-and reproduction commands are in [tools/paper](tools/paper/README.md); PDFs are
-tracked in `../paper/plots/`. That campaign left a preserved four-worker capture; the October 14 state above
-supersedes its live-state handoff. No server runtime, kernel, RTL or timing
-optimization was changed; the DPDK client gained bounded concurrent load.
+The active paper microbenchmarks use schema-defined echo RPCs at 8/128/1432
+application bytes for both loaded and unloaded measurements. The canonical
+contract and controller are in [benchmark campaigns](docs/development/benchmark-campaign.md)
+and the [benchmark-campaign skill](tools/paper/skills/benchmark-campaign/SKILL.md).
+Unloaded CDF: software probes compiled out, MAC tracing/PTP enabled, MAC-to-MAC.
+Unloaded breakdown: software probes enabled, MAC tracing/PTP enabled, MAC-to-MAC.
+Loaded: software probes compiled out, LH recording disabled with no trace readout,
+DPDK PTP disabled, client RTT. Keep instrumentation and MAC collection distinct.
+Use the paper's commented echo filenames for replacements; retain active PDFs
+until validated replacements exist. Presentation changes remain uncommitted.
+Recheck actual reservations and preserved hardware state before board access.
 
 Timing optimization is paused at the maintainer's request. Platform master
 adopts TX placement/refinement plus high-VC RX staging; selected CI revision
@@ -232,7 +218,7 @@ priority. Fully offloaded gRPC is a potential follow-on paper.
   dump trace DDR over the dedicated F_MAC1 CMAC with the matching trace map
   and bitstream provenance; follow the [capture procedure](docs/development/tracing.md#default-agent-capture-pipeline).
   If Ethernet is unavailable or a bounded dump fails, preserve the partial output
-  and use JTAG before reset. Never reset merely to recover the capture link.
+  and stop without a full JTAG fallback or reset. Never reset merely to recover the capture link.
   Investigate the captured ECI traffic to pinpoint the failure; this recurring,
   hard-to-catch issue warrants capture without asking again. Keep tracing active
   through module load. If it was already stopped or the window was lost, record

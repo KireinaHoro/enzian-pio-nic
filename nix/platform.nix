@@ -81,6 +81,10 @@ let
       "sw/kmod/ioctl.h"
     ];
   };
+  runtimeUninstrumented = runtime.override { tracing = false; };
+  microbenchmarksUninstrumented = target.callPackage (source + "/sw/apps/microbenchmarks/package.nix") {
+    lauberhornRuntime = runtimeUninstrumented;
+  };
   callPackage = recipe: args: target.callPackage recipe ({ lauberhornRuntime = runtime; } // args);
   applications =
     pkgs.lib.mapAttrs
@@ -130,6 +134,30 @@ let
     source = inputs.memcachedUpstream;
     enableLauberhorn = false;
   };
+  echoCampaignDeployment = import ./images/traffic-generator.nix {
+    inherit pkgs;
+    nativeVariants = {
+      breakdown = { app = applications.microbenchmarks; inherit runtime; };
+      off = { app = microbenchmarksUninstrumented; runtime = runtimeUninstrumented; };
+    };
+    dpdk = mlx5Dpdk;
+    probeDpdk = mlx5ProbeDpdk;
+    mlx5 = true;
+    inherit (thunderx) modules;
+    identity = { inherit (identity) revision; };
+  };
+  mlx5Dpdk = target.callPackage ./software/mlx5 {
+    nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch";
+  };
+  mlx5ProbeDpdk = mlx5Dpdk.override { tracing = true; };
+  mlx5Deployment = import ./images/traffic-generator.nix {
+    inherit pkgs;
+    dpdk = mlx5Dpdk;
+    probeDpdk = mlx5ProbeDpdk;
+    mlx5 = true;
+    inherit (thunderx) modules;
+    identity = { inherit (identity) revision; };
+  };
   trafficGeneratorDeployment = import ./images/traffic-generator.nix {
     inherit pkgs;
     inherit (thunderx) dpdk modules;
@@ -164,12 +192,17 @@ in
     callPackage
     applications
     runtime
+    runtimeUninstrumented
+    microbenchmarksUninstrumented
     kmod
     genVerilog
     devHdrs
     kernelRelease
     ;
   inherit (deployment) mkDeploymentEnvironment mkApplicationImage;
+  mkCaladan = args: import ./benchmarks/caladan ({
+    inherit pkgs target kernelBuildTree kernelRelease identity;
+  } // args);
   images = import ./images {
     inherit
       bootFiles
@@ -189,6 +222,14 @@ in
       gitRev = identity.revision;
     };
     trafficGeneratorImage = trafficGeneratorDeployment.image;
+    echoCampaignImage = echoCampaignDeployment.image;
+    mlx5BenchmarkImage = mlx5Deployment.image;
+  };
+  mlx5Benchmark = mlx5Deployment.generator;
+  mlx5BenchmarkNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {
+    dpdk = pkgs.callPackage ./software/mlx5 { nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
+    probeDpdk = pkgs.callPackage ./software/mlx5 { tracing = true; nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
+    mlx5 = true;
   };
   trafficGenerator = trafficGeneratorDeployment.generator;
   trafficGeneratorNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {

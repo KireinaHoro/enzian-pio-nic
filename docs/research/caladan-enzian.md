@@ -1,187 +1,140 @@
 # Caladan Enzian baseline design and progress
 
-**Status: design agreed, October 15, 2026.** Port the maintained Caladan tree
-minimally to Enzian AArch64, validate its mechanisms and measurements, and use
-that port as a baseline for Lauberhorn's hot latency/throughput and breakdown,
-core reclamation, and multi-instance memcached evaluation. Optionally run a
-comparable x86/DPDK configuration to strengthen confidence in the port.
-Calibration relates published results, our x86 measurements and our Enzian
-measurements; it does not require reproducing identical absolute numbers.
+Use **SH-A64** as the chart label for the AArch64 Caladan baseline, alongside
+**DPDK** and **LH**. Add its series only after implementation and acceptance.
 
-Caladan replaces Demikernel as the primary baseline in the
-[paper evidence plan](paper-goals.md): its runtime-managed core allocation and
-networking are a closer match for the mechanisms under evaluation. Implementation
-and measurement stages below are pending; this note establishes their scope and
-acceptance criteria.
+**Scope: ARMv8 + mlx5 directpath; port not yet build- or board-accepted.**
+Updated October 16, 2026. Port the maintained Caladan tree to Enzian AArch64
+with ConnectX-5 directpath and the simple policy. This is the baseline for
+Lauberhorn hot latency/throughput, core reclamation and bounded multi-instance
+memcached. It does not reproduce IAS or full Caladan interference-control claims.
 
-## Implementation scope
+The previous centralized NICVF datapath, DSCP/VNIC directpath investigation and
+x86 calibration experiments are superseded and outside the implementation plan.
+Preserve upstream x86 code and default behavior; no separate x86 calibration
+recipes, deployments or measurements are required.
 
-Use `../caladan`, with centralized NICVF DPDK networking and the `simple`
-scheduler. The intended configuration is `simple noht nobw no_hw_qdel`, with
-build-time exclusion of unsupported subsystems as well as runtime settings.
-Do not enable IAS or reproduce Caladan's interference-control or fairness claims.
-Use **SH-A64** as the chart label alongside **DPDK** and **LH**. Define it once
-in the paper's experimental setup with the following paragraph (use completed
-port wording only after implementation and acceptance):
+## Selected setup
 
-> SH-A64 is our AArch64 port of the Caladan codebase, configured with its simple,
-> Shenango-style core-allocation policy: demand-driven allocation of guaranteed
-> and burstable cores, with idle workers yielding their cores. It uses centralized
-> DPDK networking and retains Caladan's runtime and KSCHED handoff mechanisms;
-> Caladan's interference controllers and directpath networking are disabled.
-
-This identifies the shared policy model without claiming that the policy details,
-implementation or core-reclamation timings are identical to original Shenango.
-Use SH-A64 for the Enzian port; label any optional x86 calibration configuration
-separately so the architecture remains explicit.
-
-Reuse `../thunderx-dpdk-ptp` for NICVF and packet timestamp support and
-[shenango/memcached](https://github.com/shenango/memcached) for the application
-port. Keep `../shenango` as a reference for simpler TLS and signal implementations.
-Its smaller runtime does not remove the shared ARM context-switch/barrier work,
-and its older DPDK integration and SMT assumptions add work of their own.
-
-| Required case | Minimum supported behavior |
+| Setting | Target |
 | --- | --- |
-| Hot latency and throughput | UDP request/reply through the real IOKernel/runtime path, resident workers, selected worker counts and offered loads. Match payload and handler semantics to Lauberhorn, including encoding work where applicable. |
-| Hot breakdown | Packet timestamps and a small set of buffered CPU events with explicit boundaries and request correlation; separate tracing-off controls. |
-| Core reclamation | Two processes sharing a worker core, actual preemption of a busy owner, release and resumption, plus an idle-to-active control. |
-| Memcached | Existing runtime-native UDP port, bounded preloaded dataset, one-instance control and multiple independent instances sharing a selected worker pool. |
+| Source | `../caladan`, branch `enzian-port`, upstream base `bdb4ddebc2198cd95991079ed20e44a5f210d6d3` |
+| CPU and NIC | Enzian ThunderX ARMv8 with Mellanox ConnectX-5 |
+| Board candidates | User reports CX-5 on **zuestoll03, zuestoll05, zuestoll06, zuestoll07**; select after live reservation/NIC checks |
+| Datapath | Existing mlx5 directpath backend, adapted for ARM; runtime RX/TX bypass IOKernel packet forwarding |
+| Scheduling | Actual Caladan runtime and IOKernel simple-policy core allocation/preemption |
+| IOKernel arguments | `simple noht nobw no_hw_qdel nicpci <CX-5 PCI-address>` |
+| Runtime configuration | `enable_directpath 1`; record negotiated flow/queue/external steering mode |
+| Build selection | Directpath enabled as upstream; `CONFIG_IAS=n`, `CONFIG_SPDK=n`, `CONFIG_NO_UINTR=y`, `CONFIG_OPTIMIZE=n` |
+| Kernel | Initially platform-prepared `6.8.0-146-generic`, matching ARM `ksched`/`fake_idle`; confirm mlx5_core/mlx5_ib and userspace compatibility |
+| CPU placement | Initial isolated pool 44–47; actual control/worker placement depends on selected board and PCI/NUMA topology |
 
-Exclude UINTR, Intel PCM/PMCs, IAS bandwidth/SMT controllers, Mellanox directpath,
-SPDK and new TCP acceptance work. Avoid porting the Rust load generator when the
-existing platform generator can express the workload. Defer general-purpose
-tracing, power-efficient idle, portability across ARM boards/kernel versions,
-and unrestricted memcached maintenance. Leave unrelated portable code intact
-where removing it would require additional surgery.
+Directpath retains the IOKernel's scheduling role. Preserve the original mlx5
+queue/flow-steering mechanisms where possible; do not replace them with fixed
+cooperative workers. Exclude UINTR, IAS/Intel PCM/PMCs and SPDK from this selected
+build, without deleting their upstream implementations. No NICVF/PF, DSCP
+classification, custom VNIC ownership or ThunderX PTP work is required.
 
-For memcached, pin the application revision and bound operations, value/key
-sizes, dataset, maintenance and thread configuration. The published port lists
-hash expansion as unfinished; pre-size the table and verify that expansion does
-not occur. Match Lauberhorn's [bounded memcached scope](memcached.md) where
-possible and disclose differences in application revisions and maintenance.
+## Packaging and deployment
 
-## Architecture work that remains
+Caladan owns `package.nix`, `ksched/package.nix`, and the mlx5 DPDK/patched
+rdma-core recipes. Platform `mkCaladan { source = ...; }` supplies the AArch64
+toolchain, prepared kernel and standalone SquashFS image. Reuse the platform
+flake lock and DPDK-baseline deployment routines; no Lauberhorn runtime or RTL
+build is required. The image exposes `/nix/store/caladan`, a provenance manifest,
+Caladan tools and its scheduler modules. Mellanox host kernel drivers must match
+the selected boot kernel; the image does not currently package replacements.
 
-| Work package | Required implementation and validation |
-| --- | --- |
-| Context switching | AArch64 thread frame, initial stack and arguments, register save/restore, AAPCS64 callee-saved SIMD state and stack ownership publication. |
-| TLS and preemption | Replace GS-relative state; maintain correct kernel-thread identity after migration. Replace single-instruction x86 counter updates with signal-safe atomic operations, not plain C load/modify/store. Custom user-thread FS-base support can be excluded if unused by the selected applications. |
-| Signals and syscalls | Port raw syscall helpers and Caladan's custom signal-restoration semantics, or justify a simpler implementation. Its x86 signal-frame offsets remain a dependency even with UINTR disabled. |
-| Memory ordering and helpers | Implement ARM acquire/release/barriers, counter-based timekeeping, checksum/CRC and relax helpers. Existing compiler atomic RMW primitives can be reused. Check cache-line layout, page sizes and fixed-address assumptions. |
-| Kernel handoff | Gate x86 UINTR/PMC code and initialization; preserve Linux signal/IPI and task-management mechanisms. Adapt idle waiting and validate the cpuidle hook on the deployed kernel. |
-| DPDK integration | Negotiate offloads/RSS, validate shared-buffer DMA mappings and completions, tenant addressing, backpressure and packet ownership. |
+```sh
+# From ../caladan; these remain unfinished ARM port targets.
+nix build --impure --file default.nix runtime
+nix build --impure --file default.nix image
+nix develop --impure --file default.nix shell
+```
 
-Caladan already has a non-MWAIT polling fallback, but it polls in 1 microsecond
-steps. Start with correctly ordered tight polling if needed for the mechanism
-benchmark, record that choice, and measure its effect. This does not establish
-power-efficient idle. No new ARM interrupt controller or PMU implementation is
-required: Linux supplies the signal/IPI mechanism and PMCs are outside scope.
+The DPDK recipe selects mlx5 and its PCI/auxiliary dependencies and retains
+Caladan's memseg setting. rdma-core is pinned to
+`53ee89b4abb1463e7ae713103f552b2bef1307ce` with Caladan's five existing patches.
+Validate ARM cross-build and MMIO behavior; historical x86 builds do not establish
+ARM compatibility. The calibration wrapper and centralized-build feature switch
+have been removed. Native x86 architecture code remains intact.
 
-Do not replace the measured runtime with pinned cooperative workers or bypass
-its scheduling/queue path to simplify the port. Fixed resident allocations are
-appropriate for hot measurements; reclamation requires the actual handoff path.
-The simple policy preempts an owner above its guarantee for a requester below
-its guarantee. Configure feasible guarantees and burstable allocations; arbitrary
-continuously busy zero-guarantee tenants are not assured time-sharing. Define
-multi-instance arrival patterns and verify actual allocation/progress rather
-than inferring it from process startup.
+Use the [deployment skill](../../tools/enzian/skills/enzian-deploy/SKILL.md), EMG
+and the platform harness. Check live reservations and preserved experiment state
+before choosing a CX-5 board. In particular, earlier work used zuestoll07/14 for
+hot microbenchmarks; the candidate list does not authorize interrupting them.
+Choose a free CX-5 board where possible. Record PCI address, firmware, link,
+NUMA placement, kernel and source/image identity before acceptance.
 
-## Calibration and measurement acceptance
+The earlier reservation of **zuestoll04** with volume
+`caladan-enzian-z04-20261016`, cloned from golden `2025-07-28`, is historical
+provisioning evidence, not the selected CX-5 target. It was acquired powered off
+with boot bundle `pengxu/lauberhorn-6.8.0-146-ptp/{vmlinuz,initrd.img}`; no Caladan
+boot or deployment was performed. No release or reassignment is implied by this
+scope update. Recheck its state before cleanup. For a new board use an explicitly
+selected golden image and a checked-unused, distinct root-volume name: EMG can
+silently reuse names and couple active exports. Never reuse the z04 volume for
+another active board. The deploy skill's golden-image/name safeguards remain.
 
-ARM correctness and measurement validation are mandatory. The x86 deployment is
-optional and follows initial Enzian bring-up; it is a diagnostic control, not a
-prerequisite for starting the port. Use the same selected Caladan revision,
-centralized DPDK path, simple policy, applications and experiment definitions on
-both platforms, retaining the native x86 architecture implementation. Record
-hardware, kernel, DPDK and configuration differences explicitly.
+## Remaining port and acceptance stages
 
-| Experiment | What it establishes |
-| --- | --- |
-| Mutex, yield, condvar and spawn/join | Runtime primitive costs and regressions in switching, TLS and synchronization. |
-| Cross-core queue exchange | Publication correctness and cost of ARM synchronization/cache transfer. |
-| Minimal DPDK echo | Platform/NIC latency floor and datapath throughput reference. |
-| Echo with resident runtime worker | Added runtime and IOKernel overhead. |
-| Echo requiring worker wakeup | Idle-to-active allocation cost. |
-| Echo requiring busy-owner preemption | Core reclamation and resumption cost. |
-| Bounded single/multi-instance memcached | Application correctness, useful throughput and allocation under the chosen traffic patterns. |
-
-[Shenango section 7.3, Table 2 and Figure 6](https://www.usenix.org/system/files/nsdi19-ousterhout.pdf)
-provide the threading and echo/wakeup/preemption experimental structure.
-[Caladan sections 6 and 7](https://www.usenix.org/system/files/osdi20-fried.pdf)
-provide implementation and evaluation context, but its paper datapath gives
-runtimes direct NIC access. Centralized DPDK forwarding is therefore a material
-configuration difference even before comparing x86 with ARM.
-
-Maintain a compact comparison table per experiment with columns for the paper
-reference/value, our x86 result (or not run), our Enzian result, configurations,
-and the explanation or unresolved question. Use published numbers only where
-the measurement boundaries and workload are comparable; otherwise mark the
-comparison as qualitative or not applicable. Align meanings and explain gaps;
-do not rescale Enzian results to match x86/paper values or require an arbitrary
-percentage agreement. A platform difference alone is not evidence of a port bug.
-Investigate disproportionate runtime/handoff overhead relative to the local DPDK
-and primitive controls before accepting performance conclusions.
-
-Record scheduler timing rather than assuming `simple` reproduces historical
-Shenango: the surveyed Caladan tree has a 10 microsecond scheduler polling
-interval, 2 microsecond minimum runtime polling period and 50 microsecond
-watchdog threshold. Preserve the initial settings for paired runs and document
-any subsequent tuning; do not silently tune to a published target.
-
-Use these measurement rules with the existing [latency methodology](latency-measurement.md):
-
-- Validate ARM counter frequency, conversion, read overhead and cross-core
-  comparability. Counter ticks are not automatically CPU cycles. Keep CPU and
-  NIC clock domains separate unless explicitly correlated.
-- Define client RTT, MAC-to-MAC service time and CPU-stage intervals separately.
-  For reclamation, record demand/preemption request, old-owner release and
-  new-owner execution; separate policy detection from mechanism latency.
-- NICVF permits one outstanding or unread TX timestamp per port. Use bounded
-  timestamped latency trials or sampling; do not serialize saturation traffic
-  for timestamps and report that as uninstrumented throughput.
-- Compare traced and untraced controls. Use per-request stage records for a
-  breakdown; differences between percentile values are not component timings.
-- Record payloads, workload distribution, warmup, offered/achieved load, duration,
-  repeats, correctness, loss/timeouts and generator capacity. Report worker CPUs
-  and IOKernel/control/maintenance CPU budgets separately.
-
-## Execution and progress
-
-The workflow is agent-based. Separate architecture/build helpers, runtime
-switching/TLS/signals, kernel handoff, and memcached packaging into coherent work
-packages with explicit ownership of shared ABI files. Integrate through a common
-ARM build and staged board tests; avoid concurrent incompatible edits to thread
-frames, shared queues or syscall contracts.
-
-Reuse platform [application packaging](../development/interactive-testing.md),
-[validation selection](../development/validation.md) and
-[Enzian provisioning/testing](../development/hardware-test.md). Provision through
-EMG, use matching kernel/module artifacts and existing deployment runners, and
-preserve source revisions and compact results. No FPGA redesign or new deployment
-framework is part of this port. Keep temporary probes under ignored `out/`;
-retain maintained experiment recipes and paper data through the existing tracked
-measurement workflow.
-
-| Stage | Exit evidence | Current status |
+| Stage | Required evidence | Status |
 | --- | --- | --- |
-| Scope and source audit | Minimal datapath, policy, architecture work and calibration approach identified | Complete as design only |
-| ARM build and runtime | Reproducible libraries/module; repeated switches, register preservation, TLS/migration and queue tests | Pending |
-| Kernel handoff | Repeated cross-process park/wake and busy-owner preemption without lost wakeups or state corruption | Pending |
-| NICVF and hot measurements | Correct request/reply, DMA/completion handling, validated clocks, DPDK/runtime controls and traced/untraced results | Pending |
-| Multi-instance memcached | Bounded dataset checks, correct replies and trace/telemetry evidence of intended worker sharing | Pending |
-| Optional x86 calibration | Comparable runs and paper/x86/Enzian comparison with explained limitations | Not started; optional |
-| Main evaluation baseline | Accepted ARM correctness and measurement results, pinned configuration and reproducible benchmark artifacts | Pending |
+| ARM build and primitives | Libraries/tests build; AAPCS64 context/SIMD preservation, stack ownership, TLS/migration, atomics/barriers and timing work | Pending; previous first ARM compile failed on unconditional `immintrin.h` in `inc/asm/ops.h` |
+| Kernel handoff | Matched ARM modules; repeated yield, signal/IPI preemption of a busy process, resume and idle handling | Pending |
+| mlx5 directpath | Patched rdma-core/DPDK cross-build; DMA/MMIO ordering, queue creation, RX/TX/completions, buffer ownership, ARP and steering | Pending |
+| Scheduling integration | Arrival to zero-core process wakes it; core reassignment and busy-owner reclamation preserve packet and runtime progress | Pending |
+| Hot baseline | Correct UDP request/reply at selected workers/loads; unloaded and loaded controls; validated clocks and instrumentation | Pending |
+| Memcached | Pinned runtime-native port, bounded single/multi-instance GET workload and actual scheduling progress | Pending |
 
-Source audit starting points: Caladan `bdb4ddebc2198cd95991079ed20e44a5f210d6d3`,
-Shenango `09cdab31ef0f755799c1461c2adb4aa9d20d6a00`, and ThunderX DPDK/PTP
-`395471583305995801f96989e2f8e108b0721369`. These identify inspected source,
-not validated deployment artifacts. Pin the actual port, memcached, DPDK and
-kernel revisions when implementation begins. No Caladan ARM build, board run
-or calibration result has been established by this design exercise.
+Architecture work includes raw syscalls, signal-frame/restoration semantics,
+GS/FS-dependent state, checksum/CRC helpers and ARM acquire/release barriers.
+Preserve Linux signal/IPI handoff while gating x86 UINTR/PMC paths. Validate page
+sizes, fixed-address assumptions, PCI MMIO barriers, DMA visibility and the
+mlx5 directpath backend's architecture assumptions. The existing non-MWAIT
+fallback polls in microsecond steps; record and measure any tighter polling
+choice rather than claiming power-efficient idle.
 
-Once the ARM acceptance stages pass, use the measured Enzian port directly in
-the main evaluation. If x86 calibration is omitted, record that explicitly;
-it does not block baseline use when local correctness and measurement evidence
-are sufficient. Keep any unresolved performance anomaly attached to the affected
-result rather than presenting the port as a reproduction of full Caladan.
+The simple policy preempts an owner above its guarantee for a requester below
+its guarantee. Use feasible guarantees and burstable allocations. Continuously
+busy zero-guarantee tenants are not automatically assured time-sharing. Test
+idle wakeup and busy-owner preemption separately and verify actual allocation,
+not merely successful process startup.
+
+## Measurement contract
+
+Use the port directly on Enzian; **no x86 calibration experiments** are planned.
+Match Lauberhorn payload/handler semantics, worker counts and offered loads.
+Record actual directpath steering mode and all dependency/hardware differences.
+Include primitive tests, resident-worker echo, idle-to-active echo, busy-owner
+preemption and bounded single/multi-instance memcached. A minimal mlx5 packet
+I/O control may help isolate NIC cost, but is not a replacement for Caladan.
+
+Distinguish client RTT, NIC-to-NIC timestamps and CPU intervals. Validate CX-5
+clock conversion and timestamp availability for the selected directpath mode;
+ThunderX NICVF timestamp assumptions do not transfer. Keep tracing-off controls,
+request correlation and raw evidence. Do not publish a breakdown from unvalidated
+clock domains. Use the existing generator when it can express the workload.
+
+Pin the memcached revision and pre-size its table: the published runtime port
+lists hash expansion as unfinished. Bound operations, keys/values, dataset and
+maintenance to match [Lauberhorn's memcached scope](memcached.md). New TCP,
+general-purpose tracing and portability beyond the selected ARM/kernel/NIC
+configuration remain outside this port.
+
+## Current implementation checkpoint
+
+Commit `bbc152f` established Nix packaging and successful x86 userspace builds
+before this pivot. Those are historical toolchain evidence, not current baseline
+acceptance. Commit `f8f5b41` removes calibration exports and optional
+centralized-build gating, retain IAS/ARM build gating, and compose the existing
+mlx5 recipes for AArch64 instead of ThunderX NICVF. Platform and research-note
+edits remain in its working tree. No successful ARM runtime/module/image build,
+Caladan board test or measurement has been established. Nix syntax and diff
+whitespace checks pass, and the narrowed AArch64 runtime and image derivations
+evaluate successfully; derivation evaluation is not build acceptance.
+
+Update this checkpoint and stage table as work proceeds, recording revisions,
+checks actually run and remaining failures. Keep temporary diagnostics in ignored
+`out/`, preserve unrelated experiments, and retain accepted measurement recipes
+and data through the platform's tracked measurement workflow.

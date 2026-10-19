@@ -5,6 +5,7 @@
 #include <stdatomic.h>
 #include <ucontext.h>
 #include "lauberhorn.h"
+#include "lauberhorn/trace.h"
 
 #include "vstate.h"
 
@@ -30,7 +31,9 @@ typedef uint32_t fiber_gen_t;
 
 struct server_trace_row;
 struct fiber {
+#if LH_ENABLE_TRACING
     struct server_trace_row *trace;
+#endif
 	vstate_t vstate; 
 
 	ucontext_t ctx;

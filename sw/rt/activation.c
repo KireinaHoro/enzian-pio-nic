@@ -12,10 +12,14 @@ int lh_yield(struct lh_activation *result) {
     if (!w || !result) { errno = EINVAL; return -1; }
     if (w->dp.rx_view.pending || w->dp.tx_reserved) { errno = EBUSY; return -1; }
     // Resolve TID before sleeping, not on the measured activation return path.
+#if LH_ENABLE_TRACING
     if (server_trace_enabled && !server_activation.tid)
         server_activation.tid = (int)syscall(SYS_gettid);
+#endif
     if (ioctl(w->ctx->fd, LAUBERHORN_IOCTL_YIELD, &activation)) return -1;
+#if LH_ENABLE_TRACING
     if (server_trace_enabled) server_activation.ioctl_exit_ns = server_trace_clock();
+#endif
     if (activation.worker_index >= LAUBERHORN_NUM_WORKER_CORES ||
         activation.rx_next > 1 || activation.tx_next > 1) {
         lauberhorn_stop(w->ctx);
@@ -26,11 +30,13 @@ int lh_yield(struct lh_activation *result) {
     w->rx_next = activation.rx_next;
     w->tx_next = activation.tx_next;
     *result = activation;
+#if LH_ENABLE_TRACING
     if (server_trace_enabled) {
         server_activation.worker = activation.worker_index;
         ++server_activation.index;
         server_activation.ready_ns = server_trace_clock();
     }
+#endif
     return 0;
 }
 
