@@ -72,6 +72,11 @@ class Recovery(unittest.TestCase):
         controller.atomic(self.root/'status.json',dict(stage='complete'))
         target=self.root/'full';target.mkdir()
         config=dict(scope='full')
+        # Derived receipts also retain requests from their acquisition evidence.
+        derived=controller.read(self.receipts[1])
+        request=self.receipts[0].parent/'attempt-1/request.json'
+        derived['hashes'][str(request)]=digest(request)
+        controller.atomic(self.receipts[1],derived)
         review=inheritance_draft(self.root,config,self.new)
         review.update(reason='Reuse matching full unloaded acquisitions',evidence=self.new)
         for name,decision in review['receipts'].items():
