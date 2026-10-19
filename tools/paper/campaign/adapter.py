@@ -295,6 +295,20 @@ def main():
         atomic(source,request['unloaded' if unloaded else 'loaded'])
         if unloaded: validate_matched(request['unloaded'])
         output=directory/'plots'
+        final_unloaded=request.get('final_unloaded',False)
+        evidence={}
+        if final_unloaded:
+            if not unloaded: raise ValueError('Unloaded finalization requires unloaded cohorts')
+            for cohort in request['unloaded']:
+                if cohort['count']!=10000 or cohort['warmup']!=128*len(cohort.get('chunks',[None])):
+                    raise ValueError('Wrong full unloaded sample count')
+                evidence.update(cohort['files'])
+            if any(digest(path)!=sha for path,sha in evidence.items()):
+                raise ValueError('Unloaded acquisition evidence changed')
+            backend=config['tofino']
+            h.command([sys.executable,Path(backend['repository'])/'tools/qualify-clock.py',
+                '--switch-control',backend['control_socket'],'--output',directory/'clock-after'],
+                'clock-after',timeout=180)
         script='plot_echo_unloaded.py' if unloaded else 'plot_echo.py'
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',source,'--output',output]
                   + ([] if unloaded else ['--partial']),'plot-progress',timeout=600)
@@ -304,6 +318,11 @@ def main():
         atomic(campaign/('unloaded-plots.json' if unloaded else 'loaded-plots.json'),dict(previews=previews))
         result=dict(passed=True,previews=previews)
     elif a.stage=='finalize':
+        if final_unloaded:
+            atomic(directory/'manifest.json',dict(status='complete',paper_inputs=True,
+                unloaded=str(source),hardware=config,files=evidence,visual_review='pending terminal callback'))
+            stop_transfer(config,h)
+            result.update(complete=True,files=evidence)
         from .finalize import finalize
         result=finalize(config,h,request,campaign)
     else: raise ValueError('Unsupported campaign stage')

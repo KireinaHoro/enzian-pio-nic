@@ -218,10 +218,11 @@ class Campaign:
         if self.config.get('scope') == 'unloaded-full':
             self.total=len(SYSTEMS)*len(SIZES)*2
             self.unloaded('full')
-            result=self.stage('progress-plots',dict(unloaded=read(self.root/'full-unloaded.json')))
+            result=self.stage('progress-plots',dict(unloaded=read(self.root/'full-unloaded.json'),final_unloaded=True))
             previews=result.get('previews',[])
             if len(previews)!=2 or any(p not in result['files'] for p in previews):
                 raise ValueError('Full unloaded collection requires two validated plot previews')
+            if result.get('complete') is not True: raise ValueError('Unloaded final validation missing')
             self.status('complete',previews=previews,scope='unloaded-full',loaded_collection_started=False)
             return
         if self.config.get('scope') == 'full':

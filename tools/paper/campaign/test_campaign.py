@@ -59,7 +59,7 @@ class Policy(unittest.TestCase):
             def stage(name, request):
                 requests.append((name,request))
                 if name=='unloaded':return {'cohort':request}
-                if name=='progress-plots':return {'previews':['cdf','breakdown'],'files':{'cdf':'hash','breakdown':'hash'}}
+                if name=='progress-plots':return {'complete':True,'previews':['cdf','breakdown'],'files':{'cdf':'hash','breakdown':'hash'}}
                 return {}
             campaign.stage=stage
             with patch.object(controller,'validate_matched'):
@@ -72,6 +72,7 @@ class Policy(unittest.TestCase):
             state=controller.read(Path(directory)/'status.json')
             self.assertEqual(state['stage'],'complete')
             self.assertEqual(state['completed'],12)
+            self.assertTrue(next(r for n,r in requests if n=='progress-plots')['final_unloaded'])
             self.assertFalse(state['loaded_collection_started'])
 
     def test_prefix_and_nonmonotonic(self):
