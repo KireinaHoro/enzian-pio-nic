@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 import tempfile
 import unittest
-from .import_unloaded import client_rows, cpu_partition, dpdk, lauberhorn
+from .import_unloaded import client_rows, cpu_partition, dpdk, lauberhorn, correct_dpdk_submission
 
 
 class Unloaded(unittest.TestCase):
@@ -31,11 +31,25 @@ class Unloaded(unittest.TestCase):
         for row in c['rows']:
             self.assertIsNone(row['wire_ns']);self.assertNotIn('cpu_wire',row['components_ns'])
             self.assertEqual(row['components_ns']['rx_queue'],10)
-            self.assertEqual(row['components_ns']['tx_submission'],30)
+            self.assertEqual(row['components_ns']['tx_submission'],40)
+            self.assertEqual(row['components_ns']['cpu_other'],20)
             self.assertEqual(sum(row['components_ns'].values()),row['cpu_duration_ns'])
         self.server[-1]['request_id']=4
         with self.assertRaisesRegex(ValueError,'XID sets'):
             dpdk(self.root/'client.csv',self.write('bad.csv',self.server),count=2,warmup=1,payload_bytes=128,instrumentation='breakdown')
+
+    def test_saved_queue_reclassification_conserves_total(self):
+        from .import_loaded import digest
+        chunk=self.root/'chunk-000';chunk.mkdir()
+        path=self.write('chunk-000/server-slice.csv',self.server)
+        cohort=dict(system='DPDK',instrumentation='breakdown',
+                    chunks=[dict(index=0,raw_capture={'path':str(chunk/'tofino/pairs.json')})],
+                    files={str(path):digest(path)},
+                    rows=[dict(chunk=0,wire_xid=1,components_ns=dict(tx_submission=30,cpu_other=30))])
+        correct_dpdk_submission(cohort)
+        self.assertEqual(cohort['rows'][0]['components_ns'],dict(tx_submission=40,cpu_other=20))
+        correct_dpdk_submission(cohort)  # Repeated plotting must not move it twice.
+        self.assertEqual(cohort['rows'][0]['components_ns'],dict(tx_submission=40,cpu_other=20))
 
     def test_reject_missing_or_reversed_queue_boundaries(self):
         self.server[0]['rx_cqe_ns']=0

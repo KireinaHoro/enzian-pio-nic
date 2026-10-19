@@ -35,7 +35,7 @@ after the reply SQ publication and required doorbell. Partition it into:
 | Handler | Echo handler execution | Echo handler execution |
 | RPC transmit | Reply marshaling | Reply marshaling |
 | TX network processing | Ethernet/IP/UDP construction and checksum preparation | Hardware work remains in the residual |
-| TX submission | Packet ready through SQ construction, publication, ordering and doorbell | TX doorbell read through return |
+| TX submission | Packet ready through SQ construction, publication, ordering, doorbell and PMD return bookkeeping | TX doorbell read through return |
 
 RX instrumentation belongs inside the selected mlx5/Caladan receive path;
 wrapping rx_burst includes empty polling and misses the required CQE boundary.
@@ -86,3 +86,9 @@ exact pairing, boundary semantics, CPU queue coverage, wrap/loss failure paths,
 cleanup and plots. Old MAC/RTT acquisitions cannot satisfy wire-to-wire gates.
 Full collection remains gated on that rehearsal. Caladan is not marked complete
 until its port and instrumentation pass the same checks.
+
+The plotted CPU–NIC category combines RX queue processing and TX submission.
+DPDK TX submission ends at `tx_return`, including post-doorbell mbuf tracking
+and counters. NIC–wire is the separate wire-minus-CPU residual. Other CPU
+contains uncovered dispatch/transport work and instrumentation; it is not a
+measurement of probe overhead. Probe costs also occur inside named intervals.

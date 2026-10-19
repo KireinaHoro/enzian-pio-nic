@@ -108,16 +108,39 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_by
                 'handler':(t('rpc_rx_end'),t('handler_end')),
                 'rpc_transmit':(t('handler_end'),t('rpc_tx_end')),
                 'tx_network':(t('network_tx_begin'),t('network_tx_end')),
-                'tx_submission':(t('network_tx_end'),t('tx_doorbell'))})
+                'tx_submission':(t('network_tx_end'),t('tx_return'))})
             part.update(flow_id=0,request_id=int(cl['request_id']))
             software.append(part)
     result=finish(client_path,client,software if instrumentation=='breakdown' else None,
         system='DPDK',count=count,warmup=warmup,instrumentation=instrumentation,
         payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path)
     if software:
+        result['cpu_partition_version']=2
         result['rx_preparation_ns']=[int(by_id[int(c['request_id'])]['rx_cqe_ns'])-int(by_id[int(c['request_id'])]['rx_poll_enter_ns']) for c in client]
         result['rx_preparation_scope']='Successful poll before CQE observation; outside CPU critical interval'
     return result
+
+
+def correct_dpdk_submission(cohort):
+    """Reclassify saved v1 intervals from hashed raw timestamps; preserve raw receipts."""
+    if (cohort['system']!='DPDK' or cohort['instrumentation']!='breakdown'
+            or cohort.get('cpu_partition_version',1)>=2): return
+    from pathlib import Path
+    by_chunk={}
+    for chunk in cohort.get('chunks',[]):
+        path=Path(chunk['raw_capture']['path']).parent.parent/'server-slice.csv'
+        if cohort['files'].get(str(path))!=digest(path):
+            raise ValueError('Missing or changed raw PMD boundaries')
+        by_chunk[chunk['index']]={int(r['request_id']):r for r in rows(path)}
+    if not by_chunk: raise ValueError('Reimport legacy non-chunked DPDK CPU intervals from raw server rows')
+    for row in cohort['rows']:
+        raw=by_chunk[row['chunk']][row['wire_xid']]
+        delta=int(raw['tx_return_ns'])-int(raw['tx_doorbell_ns'])
+        parts=row['components_ns']
+        if not 0<=delta<=parts['cpu_other']: raise ValueError('Invalid PMD return interval')
+        parts['tx_submission']+=delta
+        parts['cpu_other']-=delta
+    cohort['cpu_partition_version']=2
 
 
 def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
