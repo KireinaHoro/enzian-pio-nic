@@ -33,7 +33,7 @@ def verify_loaded(records, plans):
         if record['confirmed']!=record['confirmations'][-1]: raise ValueError('Wrong confirmed candidate')
         for point in record['points']+record['confirmations']:
             sustained=point in record['confirmations']
-            if len(point['trials'])!=3: raise ValueError('Missing repetition')
+            if len(point['trials'])!=1: raise ValueError('Expected one trial per loaded point')
             for trial in point['trials']:
                 if (trial.get('schema') not in (2,3) or trial['warmup_ns']!=2_000_000_000
                         or trial.get('benchmark')!='echo'+str(record['size'])):

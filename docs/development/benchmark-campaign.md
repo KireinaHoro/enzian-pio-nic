@@ -319,8 +319,8 @@ matching, budgets, isolated CPUs, prior-state preservation and actual callback
 delivery. The final stage must archive raw observations and provenance, validate
 all cohorts, generate figures, validate dimensions/fonts and supply previews.
 
-Grid cohorts use 2-second warmup, 10-second measurement, three repetitions;
-sustained candidates use 2+60 seconds and three repetitions. Rehearsal uses
+Grid cohorts use 2-second warmup, 10-second measurement, one trial;
+sustained candidates use 2+60 seconds and one trial. Rehearsal uses
 1+1 seconds for loaded cohorts and 16+100 requests for unloaded gates. It
 brackets workers 1 and 4 geometrically through the first valid >1% loss
 point. Workers 2/3 start from conservative interpolated brackets; every full
@@ -419,7 +419,7 @@ nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-u
 The loaded plotting script uses the shared paper library. It pools on-time RTT
 observations across equal-duration repetitions, retains offered-rate ordering
 and nonmonotonic goodput, and shows median/P99. Overload plots retain every rate
-and trial, with a 1% line. Confirmed peak plots show median and trial range.
+and trial, with a 1% line. Confirmed peak plots show the single sustained trial; no between-trial variation is measured.
 Current loaded campaigns cover paced batch arrivals; the earlier fixed-spacing
 measurements remain separate. Poisson arrivals are deferred to memcached.
 Unloaded CDF and breakdown use separate cohorts under the

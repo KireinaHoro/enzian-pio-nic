@@ -34,14 +34,17 @@ class AggregateFinalize(unittest.TestCase):
                 low=trial(f'low-{size}',100,10,size=size)
                 high=trial(f'high-{size}',150,10,30,size=size)
                 peak=trial(f'peak-{size}',100,60,size=size)
-                points=[dict(rate=100,trials=[low]*3),dict(rate=150,trials=[high]*3)]
-                confirmed=dict(rate=100,trials=[peak]*3)
+                points=[dict(rate=100,trials=[low]),dict(rate=150,trials=[high])]
+                confirmed=dict(rate=100,trials=[peak])
                 for system in SYSTEMS:
                     for workers in WORKERS:
                         key=dict(system=system,size=size,workers=workers)
                         plans.append(dict(key,rates=[100,150]))
                         records.append(dict(key,points=points,confirmations=[confirmed],confirmed=confirmed))
             verify_loaded(records,plans)
+            extra=copy.deepcopy(records)
+            extra[0]['points'][0]['trials']*=3
+            with self.assertRaisesRegex(ValueError,'one trial'):verify_loaded(extra,plans)
             bad=copy.deepcopy(records)
             bad[0]['points'][1]['trials'][0]['on_time']+=1
             with self.assertRaisesRegex(ValueError,'evidence changed'):verify_loaded(bad,plans)

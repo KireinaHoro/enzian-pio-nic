@@ -110,6 +110,8 @@ and validated by the maintained generator and importer. Record the actual batch
 size and arrival model; describe this as bursty paced traffic. Use identical
 batch policy for both systems, and do not merge earlier fixed-spacing loaded
 cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse.
+Use one trial per loaded grid point and one sustained trial per candidate.
+Do not imply a between-trial range when only one trial exists.
 Keep failed attempts and exact rates. One valid point above 1% loss is sufficient
 for rehearsal overload coverage; do not require an additional higher point. Full
 grids end at the rehearsal boundary, with geometric extensions only when no

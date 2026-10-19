@@ -272,14 +272,14 @@ class Campaign:
             raise ValueError('Frozen grid conflicts with resumed rehearsal')
         atomic(plan_path, plans)
         self.completed = 0
-        self.total = len(SYSTEMS)*len(SIZES)*2+sum((len(p['rates'])+1)*3 for p in plans)
+        self.total = len(SYSTEMS)*len(SIZES)*2+sum(len(p['rates'])+1 for p in plans)
         self.unloaded('full')
         collected = []
         for plan in plans:
             points = []
             def point(rate, sustained=False):
                 return dict(rate=rate, trials=[self.loaded(plan['system'], plan['size'], plan['workers'],
-                    rate, 'sustained' if sustained else 'full', t, sustained) for t in range(3)])
+                    rate, 'sustained' if sustained else 'full', t, sustained) for t in range(1)])
             for rate in plan['rates']: points.append(point(rate))
             for _ in range(self.config['max_extensions']):
                 if any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']): break
@@ -288,13 +288,13 @@ class Campaign:
                 extension_path=self.root/f"extensions-{plan['system']}-{plan['size']}-{plan['workers']}.json"
                 rates=read(extension_path) if extension_path.exists() else []
                 if rate not in rates: rates.append(rate); atomic(extension_path,rates)
-                self.total += 3; points.append(point(rate))
+                self.total += 1; points.append(point(rate))
             if not any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']):
                 raise RuntimeError('No overload boundary within extension budget')
             confirmed = None
             confirmations = []
             for candidate in candidates(points):
-                if confirmations: self.total += 3
+                if confirmations: self.total += 1
                 sustained = point(candidate['rate'], True); confirmations.append(sustained)
                 if all(loss(t)<=LOSS_LIMIT for t in sustained['trials']):
                     confirmed = sustained; break
