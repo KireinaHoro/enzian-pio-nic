@@ -278,6 +278,19 @@ def main():
     elif a.stage=='build': result=build(config,h)
     elif a.stage in ('loaded','unloaded'): result=Acquisition(config,request,directory,campaign).run()
     elif a.stage=='rehearsal-validation': result=rehearsal(config,h,campaign)
+    elif a.stage=='progress-plots':
+        unloaded='unloaded' in request
+        source=directory/('unloaded.json' if unloaded else 'loaded.json')
+        atomic(source,request['unloaded' if unloaded else 'loaded'])
+        if unloaded: validate_matched(request['unloaded'])
+        output=directory/'plots'
+        script='plot_echo_unloaded.py' if unloaded else 'plot_echo.py'
+        h.command([sys.executable,ROOT/'tools/paper'/script,'--input',source,'--output',output]
+                  + ([] if unloaded else ['--partial']),'plot-progress',timeout=600)
+        names=['echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'] if unloaded else ['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-loaded-hot-peak-throughput-workers']
+        previews=pdf_checks(output,names)
+        atomic(campaign/('unloaded-plots.json' if unloaded else 'loaded-plots.json'),dict(previews=previews))
+        result=dict(passed=True,previews=previews)
     elif a.stage=='finalize':
         from .finalize import finalize
         result=finalize(config,h,request,campaign)

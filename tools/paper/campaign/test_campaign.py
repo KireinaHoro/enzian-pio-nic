@@ -112,12 +112,20 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
 
     def test_full_grid_extensions_and_sustained_fallback(self):
         class Fixture(controller.Campaign):
-            def unloaded(self, phase): pass
+            def unloaded(self, phase):
+                assert phase=='full'
+                controller.atomic(self.root/'full-unloaded.json',[])
             def stage(self, name, request):
+                assert name!='rehearsal-validation'
+                if name=='progress-plots' and 'unloaded' in request: self.unloaded_plotted=True
+                if name=='progress-plots' and 'loaded' in request: self.loaded_updates=getattr(self,'loaded_updates',0)+1
                 if name=='finalize':
+                    assert self.loaded_updates>1
                     return dict({k:True for k in ('complete','hashes','boundaries','failure_accounting','worker_activity','pdf_dimensions','embedded_fonts')},previews=list('abcde'),files={p:'fixture' for p in 'abcde'})
                 return {}
             def loaded(self, system, size, workers, rate, phase, trial=0, sustained=False):
+                assert getattr(self,'unloaded_plotted',False), 'Loaded started before unloaded plots'
+                assert phase in ('full','sustained')
                 seconds=60 if sustained else 10
                 # Full acquisition exceeds the rehearsal's estimated boundary.
                 limit=100 if phase=='rehearsal' else 210
@@ -129,7 +137,7 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
                 return t
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            config=dict(initial_rate=50,max_extensions=10,scope='full')
+            config=dict(initial_rate=50,max_extensions=10,scope='full',grid=[dict(system='LH',size=8,workers=1,rates=[50,100,150])])
             with patch.object(controller,'SYSTEMS',('LH',)), patch.object(controller,'SIZES',(8,)), patch.object(controller,'WORKERS',(1,)):
                 Fixture(root,config).run()
             result=controller.read(root/'loaded.json')[0]

@@ -42,7 +42,7 @@ def panels(columns=3):
     return fig,axes
 
 
-def render(source,destination, *, rehearsal=False):
+def render(source,destination, *, rehearsal=False, partial=False):
     TRIAL_STATS.clear()
     workers=(1,4) if rehearsal else WORKERS
     source=Path(source).resolve()
@@ -53,12 +53,12 @@ def render(source,destination, *, rehearsal=False):
                 trial['files']={str((source.parent/Path(p)).resolve()):sha for p,sha in trial['files'].items()}
     expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in workers}
     actual=[(r['system'],r['size'],r['workers']) for r in records]
-    if len(actual)!=len(expected) or set(actual)!=expected:
+    if len(actual)!=len(set(actual)) or not set(actual)<=expected or (not partial and set(actual)!=expected):
         raise ValueError('Incomplete or duplicate loaded matrix')
     for record in records:
-        for point in record['points']+([] if rehearsal else [record['confirmed']]):
+        for point in record['points']+([] if rehearsal or partial else [record['confirmed']]):
             observations(point['trials'],collect=False)
-        if not rehearsal and aggregate(record['confirmed']['trials'])['worst_loss']>.01:
+        if not rehearsal and not partial and aggregate(record['confirmed']['trials'])['worst_loss']>.01:
             raise ValueError('Confirmed peak exceeds loss threshold')
     destination=Path(destination); destination.mkdir(parents=True,exist_ok=True)
     stats=[]
@@ -68,7 +68,8 @@ def render(source,destination, *, rehearsal=False):
             for ni,size in enumerate(SIZES):
                 ax=axes[si,ni]
                 for worker in workers:
-                    record=next(r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker))
+                    record=next((r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker)),None)
+                    if record is None: continue
                     points=qualifying(record['points']) if kind=='latency-goodput' else sorted(record['points'],key=lambda p:p['rate'])
                     aggregates=[aggregate(p['trials']) for p in points]
                     color=chart.COLORS[worker-1]
@@ -99,7 +100,7 @@ def render(source,destination, *, rehearsal=False):
                     if kind=='latency-goodput':
                         ax.plot([],[],color='.25',linestyle='-',label='Median')
                         ax.plot([],[],color='.25',linestyle='--',label='P99')
-                    ax.legend(fontsize=6,ncol=2)
+                    if ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
         filename='echo-loaded-hot-latency-goodput.pdf' if kind=='latency-goodput' else 'echo-overload-loss.pdf'
         chart.save(fig,destination/filename)
     if rehearsal:
@@ -110,16 +111,20 @@ def render(source,destination, *, rehearsal=False):
     for si,system in enumerate(SYSTEMS):
         ax=axes[0,si]
         for ni,size in enumerate(SIZES):
-            trials=[]
+            trials=[]; observed_workers=[]
             for worker in workers:
-                r=next(r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker))
+                r=next((r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker)),None)
+                if partial and (r is None or not r.get('confirmed')): continue
+                observed_workers.append(worker)
                 if any(t['duration_ns']!=60_000_000_000 for t in r['confirmed']['trials']): raise ValueError('Peak requires sustained trials')
                 trials.append([t['on_time']/(t['duration_ns']/1e9)/1000 for t in r['confirmed']['trials']])
+            if not trials: continue
             values=np.asarray(trials); middle=np.median(values,axis=1)
-            ax.errorbar(WORKERS,middle,yerr=[middle-values.min(axis=1),values.max(axis=1)-middle],
+            ax.errorbar(observed_workers,middle,yerr=[middle-values.min(axis=1),values.max(axis=1)-middle],
                         fmt='o-',color=chart.COLORS[ni],label=f'{size} bytes',capsize=2)
         ax.set_xlabel('Workers'); ax.set_ylabel('Confirmed goodput (kRPC/s)'); ax.set_title(system)
-        ax.set_xticks(WORKERS); ax.legend(fontsize=7)
+        ax.set_xticks(WORKERS)
+        if ax.get_legend_handles_labels()[0]: ax.legend(fontsize=7)
     chart.save(fig,destination/'echo-loaded-hot-peak-throughput-workers.pdf')
     (destination/'echo-statistics.json').write_text(json.dumps(stats,indent=2)+'\n')
     (destination/'echo-trials.json').write_text(json.dumps(TRIAL_STATS,indent=2)+'\n')
@@ -130,4 +135,5 @@ if __name__=='__main__':
     p.add_argument('--input',type=Path,required=True)
     p.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[3]/'paper/plots')
     p.add_argument('--rehearsal',action='store_true',help='Validate and render the smaller non-paper matrix')
-    a=p.parse_args(); render(a.input,a.output,rehearsal=a.rehearsal)
+    p.add_argument('--partial',action='store_true',help='Render completed points while collection is in progress')
+    a=p.parse_args(); render(a.input,a.output,rehearsal=a.rehearsal,partial=a.partial)

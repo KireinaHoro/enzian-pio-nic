@@ -14,8 +14,7 @@ zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
 wait for its port. LH and DPDK use zuestoll07 sequentially (`dut` and `dpdk_dut` both name
 zuestoll07); zuestoll14 is the separate traffic generator. Both DUT links are
 measured at their server-facing leaf0 ports. Never relabel NICVF observations as
-ConnectX-5 results. Long collection requires the validated integration and rehearsal
-gates below.
+ConnectX-5 results. Long collection requires the validated integration evidence below.
 
 ## Canonical measurement contract
 
@@ -82,10 +81,13 @@ through switch export/rearm; DPDK accepts a new consecutive XID sequence only at
 an explicit 1,024-request boundary. Raw chunk observations retain local wire
 XIDs; merged rows carry both chunk identity and a chronological observation ID.
 Warmups remain archived and are excluded individually from plots. Full launch
-requires hash-bound `wire_acceptance` from a passing unloaded rehearsal. Before
-capacity bracketing, both systems must pass a two-chunk instrumented acquisition.
-The loaded rehearsal then gates the full grid and sustained trials. Use reviewed
-inheritance to carry compatible unloaded cohorts into the new full campaign root.
+requires hash-bound `wire_acceptance` from a passing unloaded rehearsal. Full collection runs directly from an existing frozen `grid.json` or an explicit
+complete `grid` configuration (system, size, workers, increasing integer rates).
+It never launches a preliminary rehearsal. Rehearsal scopes are explicit tools.
+Full unloaded CDF/breakdown plots pass validation before loaded collection starts.
+Each completed loaded point refreshes partial latency/goodput, loss and available
+sustained-peak charts. `unloaded-plots.json` and `loaded-plots.json` point to the
+latest immutable previews; final completeness checks still run at the end.
 
 Every accepted chunk requires exact counts, full XIDs, single-outstanding
 client order, complete capture/export/cleanup, matching artifact/controller
@@ -393,8 +395,7 @@ Resume checks all saved evidence hashes, retains original attempts, archives old
 receipts and both revision maps in `recoveries/`, and records acquisition code
 hashes in new receipts. Only selected or unfinished acquisition cases run again.
 Build/preflight and derived validation/plotting stages rerun after a code change.
-The frozen grid is never silently regenerated; a changed rehearsal boundary that
-conflicts with it stops for review. Configuration and non-code artifact changes
+The frozen grid is never silently regenerated. Configuration and non-code artifact changes
 are rejected. Current reservations are checked again on every resume. Recovery
 holds campaign/global locks and cannot modify a running controller's manifest.
 Develop fixes outside its worktree until it stops. An unsafe hardware state still

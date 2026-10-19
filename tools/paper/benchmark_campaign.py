@@ -111,7 +111,7 @@ class Campaign:
         with (attempt/'log.txt').open('w') as log:
             process = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             try:
-                code = process.wait(timeout=self.config['deadlines'][name])
+                code = process.wait(timeout=900 if name=='progress-plots' else self.config['deadlines'][name])
             except BaseException:
                 os.killpg(process.pid, signal.SIGTERM)
                 try: process.wait(timeout=30)
@@ -217,6 +217,8 @@ class Campaign:
     def run(self):
         self.stage('preflight', {'checked_at': time.time_ns()})
         self.stage('build', {})
+        if self.config.get('scope') == 'full':
+            return self.collect_full()
         if self.config.get('scope') == 'unloaded-rehearsal':
             self.total=len(SYSTEMS)*len(SIZES)*2
             self.unloaded('rehearsal')
@@ -230,14 +232,6 @@ class Campaign:
         # Before bracketing, total is the finite maximum cohort budget.
         self.total = len(SYSTEMS)*len(SIZES)*2 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
         self.unloaded('rehearsal')
-        # Exercise actual rearm with a resident responder before long capture.
-        if self.config.get('scope')=='full':
-            self.total+=len(SYSTEMS)
-            for system in SYSTEMS:
-                self.stage('unloaded',dict(system=system,payload_bytes=8,workers=1,
-                    outstanding=1,count=900,warmup=128,instrumentation='breakdown',phase='chunk-check'))
-                self.completed+=1
-                self.status('acquisition')
         boundaries = {}
         for system in SYSTEMS:
             for size in SIZES:
@@ -259,28 +253,32 @@ class Campaign:
             self.status('rehearsal-complete', previews=previews,
                         scope='rehearsal', full_collection_started=False)
             return
-        plans = []
-        for system in SYSTEMS:
-            for size in SIZES:
-                for workers in WORKERS:
-                    boundary = boundaries.get(f'{system}-{size}-{workers}', min(
-                        workers*boundaries[f'{system}-{size}-1'],
-                        workers*boundaries[f'{system}-{size}-4']/4))
-                    plans.append(dict(system=system, size=size, workers=workers, rates=grid(boundary)))
+
+    def collect_full(self):
         plan_path = self.root/'grid.json'
-        if plan_path.exists() and read(plan_path) != plans:
-            raise ValueError('Frozen grid conflicts with resumed rehearsal')
-        atomic(plan_path, plans)
+        plans = read(plan_path) if plan_path.exists() else self.config.get('grid')
+        expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in WORKERS}
+        if not plans or len(plans)!=len(expected) or {(p['system'],p['size'],p['workers']) for p in plans}!=expected:
+            raise ValueError('Full collection requires an explicit complete frozen grid')
+        for p in plans:
+            rates=p['rates']
+            if not rates or rates!=sorted(set(rates)) or any(type(r)!=int or r<=0 for r in rates):
+                raise ValueError('Grid rates must be positive increasing integers')
+        if not plan_path.exists(): atomic(plan_path,plans)
         self.completed = 0
         self.total = len(SYSTEMS)*len(SIZES)*2+sum(len(p['rates'])+1 for p in plans)
         self.unloaded('full')
+        self.stage('progress-plots', dict(unloaded=read(self.root/'full-unloaded.json')))
         collected = []
         for plan in plans:
             points = []
             def point(rate, sustained=False):
                 return dict(rate=rate, trials=[self.loaded(plan['system'], plan['size'], plan['workers'],
                     rate, 'sustained' if sustained else 'full', t, sustained) for t in range(1)])
-            for rate in plan['rates']: points.append(point(rate))
+            def refresh():
+                self.stage('progress-plots',dict(loaded=collected+[dict(plan,points=points)]))
+            for rate in plan['rates']:
+                points.append(point(rate)); refresh()
             for _ in range(self.config['max_extensions']):
                 if any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']): break
                 rate = next_rate(points[-1]['rate'])
@@ -288,7 +286,7 @@ class Campaign:
                 extension_path=self.root/f"extensions-{plan['system']}-{plan['size']}-{plan['workers']}.json"
                 rates=read(extension_path) if extension_path.exists() else []
                 if rate not in rates: rates.append(rate); atomic(extension_path,rates)
-                self.total += 1; points.append(point(rate))
+                self.total += 1; points.append(point(rate)); refresh()
             if not any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']):
                 raise RuntimeError('No overload boundary within extension budget')
             confirmed = None
@@ -301,6 +299,7 @@ class Campaign:
             if confirmed is None: raise RuntimeError('No sustained qualifying candidate')
             collected.append(dict(plan, points=points, confirmed=confirmed, confirmations=confirmations))
             atomic(self.root/'loaded.json', collected)
+            self.stage('progress-plots',dict(loaded=collected))
         result = self.stage('finalize', dict(grid=str(plan_path), loaded=str(self.root/'loaded.json'), unloaded=str(self.root/'full-unloaded.json')))
         for gate in ('complete', 'hashes', 'boundaries', 'failure_accounting', 'worker_activity', 'pdf_dimensions', 'embedded_fonts'):
             if result.get(gate) is not True: raise ValueError('Final gate missing: '+gate)

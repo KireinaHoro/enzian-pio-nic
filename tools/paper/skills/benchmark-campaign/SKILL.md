@@ -53,12 +53,13 @@ For the authorized bounded switch integration, use `scope: "unloaded-rehearsal"`
 validated CDF/breakdown previews and a terminal callback. It never starts loaded
 or full collection. The same maintained controller owns locking and resume.
 
-Run local gates first. The controller must pass the small rehearsal, including
-all three unloaded payload sizes in both compiled instrumentation modes and overloaded loaded cases, before it
-freezes and collects the full grid. Default to `scope: "rehearsal"`, which
-terminates with a callback after validated rehearsal plots and never starts full
-collection. Use `scope: "full"` only when full acquisition is authorized; a user
-request to stop after rehearsal overrides any earlier full-campaign plan. The canonical methodology is `docs/research/hot-measurement.md`.
+Run local gates first. Full collection starts directly from its frozen `grid.json`
+(or an explicit complete `grid` in a new campaign configuration); never launch a
+preliminary rehearsal implicitly. Use rehearsal scopes only when explicitly
+requested. Full acquisition requires authorization. Collect and validate all
+full unloaded plots before any loaded run. Refresh loaded plots after every
+completed grid/extension point and sustained confirmation. Progress plots are
+partial data, not final completeness evidence. The canonical methodology is `docs/research/hot-measurement.md`.
 Unloaded CDF cases have compiled-out probes and Tofino wire-to-wire durations;
 breakdown cases have enabled probes and their own Tofino totals. Neither uses
 mlx5 hardware timestamps. Partition CPU time into queue processing, network
@@ -84,10 +85,9 @@ real-workload validation still gates long collection. See the campaign document
 for the manifest and per-chunk limit. `campaign/wire.py` requires hashed real
 unloaded rehearsal acceptance before long collection; fixtures never authorize
 capture. Full collection uses resident-worker chunks with 128 warmups after each
-rearm. The controller first requires two-chunk instrumented checks on both systems,
-then loaded validation/capacity bracketing before collecting the full grid.
-A user-authorized full campaign can inherit compatible unloaded rehearsal receipts
-through the explicit review path; preserve original acquisition identities. For bounded software-only board acceptance use
+rearm. Existing integration evidence is checked without launching extra trials.
+Preserve compatible prior acquisitions through the explicit review path.
+For bounded software-only board acceptance use
 `docs/development/mlx5-readiness.md`, the shared NIC runner and
 `tools/paper/campaign/mlx5_readiness.py`; validate its archive with
 `tools/paper/validate_mlx5_readiness.py`. Missing wire durations stay null and
@@ -114,7 +114,7 @@ Use one trial per loaded grid point and one sustained trial per candidate.
 Do not imply a between-trial range when only one trial exists.
 Keep failed attempts and exact rates. One valid point above 1% loss is sufficient
 for rehearsal overload coverage; do not require an additional higher point. Full
-grids end at the rehearsal boundary, with geometric extensions only when no
+grids use explicitly frozen rates, with geometric extensions only when no
 collected repetition exceeds 1%.
 
 Loaded collection supports `aggregate: true`: online validation, exact counters,
