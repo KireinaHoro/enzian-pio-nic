@@ -524,3 +524,8 @@ Plotting and controller source hashes are provenance only, not execution or resu
 gates. Raw evidence and acquisition artifacts remain checked. Controller edits
 require restarting its Python process; plot edits apply to the next plot stage.
 Validated progress PDFs are atomically published to `../paper/plots/`.
+
+Completed `unloaded-full` campaigns can be promoted to `full` through the explicit
+`inheritance-plan` / `--inherit-reviewed` workflow. Review all acquisition receipts
+and retain the matching full unloaded cohorts; regenerate derived stages and
+collect fresh loaded observations. This does not launch another rehearsal.

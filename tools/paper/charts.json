@@ -57,46 +57,46 @@
       "id": "echo-loaded-hot-latency-goodput",
       "output": "../paper/plots/echo-loaded-hot-latency-goodput.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "data/paper/echo/manifest.json",
+      "manifest": "out/echo-full-20261019/loaded-plots.json",
       "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
-      "status": "awaiting_measurements",
-      "tex": null
+      "status": "partial_collection_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
     },
     {
       "id": "echo-loaded-hot-peak-throughput-workers",
       "output": "../paper/plots/echo-loaded-hot-peak-throughput-workers.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "data/paper/echo/manifest.json",
+      "manifest": "out/echo-full-20261019/loaded-plots.json",
       "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
-      "status": "awaiting_measurements",
-      "tex": null
+      "status": "partial_collection_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
     },
     {
       "id": "echo-overload-loss",
       "output": "../paper/plots/echo-overload-loss.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "data/paper/echo/manifest.json",
+      "manifest": "out/echo-full-20261019/loaded-plots.json",
       "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
-      "status": "awaiting_measurements",
+      "status": "partial_collection_pending_inclusion",
       "tex": null
     },
     {
       "id": "echo-unloaded-hot-latency-cdf",
       "output": "../paper/plots/echo-unloaded-hot-latency-cdf.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/manifest.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/unloaded.json",
-      "status": "awaiting_measurements",
-      "tex": null
+      "manifest": "out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "status": "rendered_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
     },
     {
       "id": "echo-unloaded-hot-latency-breakdown",
       "output": "../paper/plots/echo-unloaded-hot-latency-breakdown.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/manifest.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/unloaded.json",
-      "status": "awaiting_measurements",
-      "tex": null
+      "manifest": "out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input out/echo-unloaded-shared-20261019/full-unloaded.json",
+      "status": "rendered_pending_inclusion",
+      "tex": "evaluation.tex (commented inclusion)"
     }
   ]
 }

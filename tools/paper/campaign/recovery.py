@@ -139,9 +139,10 @@ def inherit_reviewed(source, destination, config, code, review, atomic):
         for key in ('source','old_config','old_code','new_config','new_code'):
             if review.get(key)!=expected[key]:raise ValueError('Stale inheritance review: '+key)
         if expected['old_config']['scope']!=config['scope']:
-            if not (expected['old_config']['scope'] in ('rehearsal','unloaded-rehearsal') and config['scope']=='full'
-                    and status=='rehearsal-complete'):
-                raise ValueError('Scope promotion requires a completed rehearsal')
+            if not (config['scope']=='full' and (
+                    (expected['old_config']['scope'] in ('rehearsal','unloaded-rehearsal') and status=='rehearsal-complete')
+                    or (expected['old_config']['scope']=='unloaded-full' and status=='complete'))):
+                raise ValueError('Scope promotion requires a completed rehearsal or full unloaded collection')
             # Acquisition requests retain their rehearsal phase and sample counts.
             # The full controller reruns validation before fresh full acquisitions.
         if not review.get('reason') or not review.get('evidence'):

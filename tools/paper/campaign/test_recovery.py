@@ -67,6 +67,19 @@ class Recovery(unittest.TestCase):
         self.assertTrue((target/self.receipts[0].relative_to(self.root)).exists())
         self.assertFalse((target/self.receipts[1].relative_to(self.root)).exists())
 
+    def test_completed_full_unloaded_can_promote(self):
+        controller.atomic(self.root/'config.json',dict(scope='unloaded-full'))
+        controller.atomic(self.root/'status.json',dict(stage='complete'))
+        target=self.root/'full';target.mkdir()
+        config=dict(scope='full')
+        review=inheritance_draft(self.root,config,self.new)
+        review.update(reason='Reuse matching full unloaded acquisitions',evidence=self.new)
+        for name,decision in review['receipts'].items():
+            decision.update(action='reuse' if name==str(self.receipts[0].relative_to(self.root)) else 'rerun',reason='Keep acquisition; regenerate derived output')
+        inherit_reviewed(self.root,target,config,self.new,review,controller.atomic)
+        self.assertTrue((target/self.receipts[0].relative_to(self.root)).exists())
+        self.assertFalse((target/self.receipts[1].relative_to(self.root)).exists())
+
     def test_inheritance_rejects_running_source(self):
         controller.atomic(self.root/'status.json',dict(stage='loaded'))
         with self.assertRaisesRegex(ValueError,'must be stopped'):

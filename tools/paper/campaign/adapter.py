@@ -199,9 +199,10 @@ def pdf_checks(directory, names):
         info=subprocess.check_output(['pdfinfo',str(path)],text=True,timeout=30)
         size=re.search(r'^Page size:\s+([\d.]+) x ([\d.]+) pts',info,re.M)
         if not size or not re.search(r'^Pages:\s+1$',info,re.M): raise ValueError('Invalid PDF geometry')
-        width,height=map(float,size.groups());wide=True
+        width,height=map(float,size.groups());wide=name!='echo-unloaded-hot-latency-breakdown'
         expected=dimensions['text' if wide else 'column']*72
         expected_height=180 if name in ('echo-loaded-hot-peak-throughput-workers','echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown') else 324
+        if name=='echo-unloaded-hot-latency-breakdown': expected_height=388.8
         if abs(width-expected)>.02 or abs(height-expected_height)>.02: raise ValueError('PDF dimensions differ from paper canvas')
         font_output=subprocess.check_output(['pdffonts',str(path)],text=True,timeout=30)
         font_rows=font_output.splitlines()[2:]
@@ -294,7 +295,6 @@ def main():
         source=directory/('unloaded.json' if unloaded else 'loaded.json')
         atomic(source,request['unloaded' if unloaded else 'loaded'])
         if unloaded: validate_matched(request['unloaded'])
-        output=directory/'plots'
         final_unloaded=request.get('final_unloaded',False)
         evidence={}
         if final_unloaded:
@@ -309,6 +309,7 @@ def main():
             h.command([sys.executable,Path(backend['repository'])/'tools/qualify-clock.py',
                 '--switch-control',backend['control_socket'],'--output',directory/'clock-after'],
                 'clock-after',timeout=180)
+        output=directory/'plots'
         script='plot_echo_unloaded.py' if unloaded else 'plot_echo.py'
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',source,'--output',output]
                   + ([] if unloaded else ['--partial']),'plot-progress',timeout=600)
@@ -317,12 +318,12 @@ def main():
         publish_plots(output)
         atomic(campaign/('unloaded-plots.json' if unloaded else 'loaded-plots.json'),dict(previews=previews))
         result=dict(passed=True,previews=previews)
-    elif a.stage=='finalize':
         if final_unloaded:
             atomic(directory/'manifest.json',dict(status='complete',paper_inputs=True,
                 unloaded=str(source),hardware=config,files=evidence,visual_review='pending terminal callback'))
             stop_transfer(config,h)
             result.update(complete=True,files=evidence)
+    elif a.stage=='finalize':
         from .finalize import finalize
         result=finalize(config,h,request,campaign)
     else: raise ValueError('Unsupported campaign stage')
