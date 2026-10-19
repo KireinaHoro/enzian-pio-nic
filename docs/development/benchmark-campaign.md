@@ -373,8 +373,8 @@ The detached user service has a stop hook for unexpected controller termination.
 Durable notification state prevents ordinary duplicate delivery; failed delivery
 schedules another notification attempt, never acquisition. No intermediate agent
 polling after launch. Read atomic `status.json` and structured `events.jsonl`.
-Configuration/build changes require a fresh campaign root. Compatible source fixes
-can resume the same root with an explicit, hash-bound recovery review:
+Configuration/build changes require a fresh campaign root. Source-only edits resume normally without implementation-hash approval.
+For selective invalidation, an optional explicit review is available:
 
 ```sh
 python3 tools/paper/benchmark_campaign.py recovery-plan --root out/echo-CAMPAIGN > out/recovery-review.json
@@ -394,11 +394,11 @@ because acquisition succeeded; revalidate it or rerun that case.
 Resume checks all saved evidence hashes, retains original attempts, archives old
 receipts and both revision maps in `recoveries/`, and records acquisition code
 hashes in new receipts. Only selected or unfinished acquisition cases run again.
-Build/preflight and derived validation/plotting stages rerun after a code change.
+Explicit recovery reviews rerun derived stages; ordinary resume reuses intact receipts.
 The frozen grid is never silently regenerated. Configuration and non-code artifact changes
 are rejected. Current reservations are checked again on every resume. Recovery
 holds campaign/global locks and cannot modify a running controller's manifest.
-Develop fixes outside its worktree until it stops. An unsafe hardware state still
+An unsafe hardware state still
 requires evidence preservation, restoration and explicit recovery before preflight;
 a code compatibility review does not waive those gates. Failed acquisition attempts
 without a completed receipt are retried, not promoted to success. A final archive
@@ -496,3 +496,8 @@ workers that have executed, permitting zero activity for others. Rehearsal/final
 validation requires every worker in each system/payload/worker configuration to
 be exercised somewhere in the collected grid. Per-worker counts remain preserved;
 these checks do not establish simultaneous execution or CPU utilization.
+
+Plotting and controller source hashes are provenance only, not execution or resume
+gates. Raw evidence and acquisition artifacts remain checked. Controller edits
+require restarting its Python process; plot edits apply to the next plot stage.
+Validated progress PDFs are atomically published to `../paper/plots/`.

@@ -180,6 +180,17 @@ def build(config,h):
     return dict(passed=True)
 
 
+def publish_plots(output):
+    """Atomically refresh the paper PDFs after plot validation."""
+    import shutil
+    destination=ROOT.parent/'paper/plots'
+    destination.mkdir(parents=True,exist_ok=True)
+    for source in Path(output).glob('*.pdf'):
+        temporary=destination/(source.name+'.tmp')
+        shutil.copyfile(source,temporary)
+        temporary.replace(destination/source.name)
+
+
 def pdf_checks(directory, names):
     import paper_chart
     dimensions=paper_chart.dimensions();previews=[];checks=[]
@@ -289,6 +300,7 @@ def main():
                   + ([] if unloaded else ['--partial']),'plot-progress',timeout=600)
         names=['echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'] if unloaded else ['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-loaded-hot-peak-throughput-workers']
         previews=pdf_checks(output,names)
+        publish_plots(output)
         atomic(campaign/('unloaded-plots.json' if unloaded else 'loaded-plots.json'),dict(previews=previews))
         result=dict(passed=True,previews=previews)
     elif a.stage=='finalize':

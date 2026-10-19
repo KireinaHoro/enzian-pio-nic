@@ -154,8 +154,8 @@ identities and record the review separately. Rerun affected or unfinished cases
 and regenerate derived validation/plots; do not combine scientifically incompatible
 cohorts merely to fill a grid.
 
-For supported source-only fixes, use the documented `recovery-plan` and
-`--recovery-review` workflow. Current tooling restricts this to unchanged acquisition
+For explicit selective invalidation, the optional `recovery-plan` and
+`--recovery-review` workflow remains available. Source edits alone never require it. Current tooling restricts this to unchanged acquisition
 manifests and Python/shell/Tcl changes. For artifact/configuration transitions, create a new root with
 `inheritance-plan --inherit-reviewed SOURCE --config NEW_CONFIG --root NEW_ROOT`,
 complete its per-cohort decisions and validation evidence, then launch with
@@ -163,8 +163,10 @@ complete its per-cohort decisions and validation evidence, then launch with
 override to both configurations and code/artifact manifest hashes, checks every
 source receipt and preserves original acquisition provenance. Never bypass the guard by
 editing frozen manifests, receipts or recorded hashes in place.
-Develop fixes in a separate worktree while a campaign is running; apply them only
-after it stops. Hardware preservation and restoration gates still apply.
+Plotting and orchestration source edits do not require a hash-bound recovery review.
+Implementation snapshots are provenance, not a source freeze. Acquisition artifact
+and configuration compatibility and raw-evidence integrity checks still apply.
+Controller edits take effect after restart; plotting edits take effect on the next plot stage. Hardware preservation and restoration gates still apply.
 
 On failure, inspect the named failed stage and preserved evidence, diagnose the
 bounded failure, and repair before explicitly resuming. Retry notification

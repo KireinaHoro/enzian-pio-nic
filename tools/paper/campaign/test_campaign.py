@@ -19,6 +19,18 @@ def trial(on_time=100, transmitted=100):
 
 
 class Policy(unittest.TestCase):
+    def test_source_edit_does_not_invalidate_saved_stage(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            source=root/'plot.py';source.write_text('changed')
+            controller.atomic(root/'code.json',{str(source):'old-source-hash'})
+            request={'example':1}
+            token=hashlib.sha256(json.dumps(['example',request],sort_keys=True).encode()).hexdigest()[:20]
+            target=root/'stages'/token;target.mkdir(parents=True)
+            controller.atomic(target/'receipt.json',dict(result={'passed':True},hashes={}))
+            self.assertEqual(controller.Campaign(root,{}).stage('example',request),{'passed':True})
+
     def test_unloaded_scope_never_starts_loaded_collection(self):
         with tempfile.TemporaryDirectory() as directory:
             campaign=controller.Campaign(Path(directory),dict(scope='unloaded-rehearsal'))

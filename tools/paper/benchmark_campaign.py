@@ -88,8 +88,6 @@ class Campaign:
 
     def stage(self, name, request):
         snapshot=self.root/'code.json'
-        if snapshot.exists() and any(digest(p)!=sha for p,sha in read(snapshot).items()):
-            raise ValueError('Campaign implementation changed during execution')
         token = hashlib.sha256(json.dumps([name, request], sort_keys=True).encode()).hexdigest()[:20]
         directory = self.root/'stages'/token
         directory.mkdir(parents=True, exist_ok=True)
@@ -384,8 +382,8 @@ def main():
                 from campaign.recovery import inherit_reviewed
                 inherit_reviewed(args.inherit_reviewed,root,config,code,read(args.inherit_review),atomic)
             atomic(root/'config.json', config)
-            if (root/'code.json').exists():
-                prepare_recovery(root,code,read(args.recovery_review) if args.recovery_review else None,atomic)
+            if args.recovery_review:
+                prepare_recovery(root,code,read(args.recovery_review),atomic)
             else:
                 atomic(root/'code.json',code)
             if args.inherit_unloaded:
@@ -413,7 +411,6 @@ def main():
     with (ROOT/'out/echo-campaign.lock').open('a') as global_lock, (root/'lock').open('a') as lock:
         fcntl.flock(global_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        if any(digest(path)!=sha for path,sha in read(root/'code.json').items()): raise ValueError('Controller hash mismatch')
         campaign=Campaign(root,config)
         try: campaign.run()
         except BaseException as error:
