@@ -8,6 +8,7 @@ import struct
 import subprocess
 import re
 import sys
+import time
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 from echo_registry import generate
 
@@ -50,8 +51,8 @@ def main():
         body=bytes((1+i)%256 for i in range(size))
         call=struct.pack('!10I',1,0,2,program,version,procedure,0,0,0,0)+body
         reply=struct.pack('!6I',1,1,0,0,0,0)+body
-        for server,batched,compiled in ((True,False,True),(True,False,False),(False,False,False),(True,True,False)):
-            label=f'{size}-{compiled}-'+('server-batched' if batched else 'server' if server else 'client')
+        for server,controlled,compiled in ((True,False,True),(True,False,False),(False,False,False),(True,True,False)):
+            label=f'{size}-{compiled}-'+('server-controlled' if controlled else 'server' if server else 'client')
             rx=a.output/(label+'.rx.pcap'); tx=a.output/(label+'.tx.pcap')
             pcap(rx,[frame(call) if server else frame(reply,True)])
             binary=a.bin/(('echo_dpdk' if compiled else 'echo_dpdk_uninstrumented') if server else 'bench_dpdk')
@@ -61,10 +62,20 @@ def main():
                  '02:00:00:00:00:01', '49152' if server else '12345','1','0','10000',name,str((a.output/(label+'.csv')).resolve())]
             with (a.output/(label+'.log')).open('w') as log:
                 env={k:v for k,v in os.environ.items() if not k.startswith(('LH_ECHO_','LH_BENCH_'))}
-                if server: env['LH_ECHO_SOFTWARE_CONTROL']='1'
-                env.pop('LH_ECHO_BATCHED',None)
-                if batched: env.update(LH_ECHO_BATCHED='1',LH_ECHO_SOFTWARE_CONTROL='1')
-                run=subprocess.run(cmd,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=30)
+                if controlled:
+                    stop=a.output/(label+'.stop')
+                    ready=a.output/(label+'.ready')
+                    env.update(LH_ECHO_STOP_FILE=str(stop.resolve()),LH_ECHO_READY_FILE=str(ready.resolve()))
+                    with subprocess.Popen(cmd,env=env,stdout=log,stderr=subprocess.STDOUT) as run:
+                        deadline=time.monotonic()+20
+                        while not ready.exists() and run.poll() is None and time.monotonic()<deadline:
+                            time.sleep(.01)
+                        # Pcap has one immediately available request; allow processing before stop.
+                        time.sleep(.2)
+                        stop.touch()
+                        run.wait(timeout=10)
+                else:
+                    run=subprocess.run(cmd,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=30)
             sent=packets(tx) if tx.exists() else []
             expected=reply if server else call
             passed=run.returncode==0 and len(sent)==1 and sent[0][42:]==expected

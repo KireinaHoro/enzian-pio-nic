@@ -5,11 +5,11 @@ uses 8/128/1432-byte echo bodies for loaded and unloaded cases; use the
 [canonical campaign](../../../../docs/development/benchmark-campaign.md) for
 acquisition and measurement contracts. Loaded operation uses 32 generator CPUs,
 response-independent paced batches and aggregate RTT observations. Unloaded
-operation is single-outstanding and uses server MAC timestamps.
+operation is single-outstanding and uses external Tofino wire-to-wire durations.
 
 `echo_dpdk` includes software stage probes; `echo_dpdk_uninstrumented` compiles
-them out. Both support PTP for unloaded MAC measurements. Loaded responder
-operation uses the uninstrumented batched path with PTP disabled. `wire.h` owns
+them out. Both execute the same RPC server loop, with RX burst size one.
+Loaded operation uses the uninstrumented binary; neither build uses NIC PTP. `wire.h` owns
 Ethernet/IPv4/UDP framing and validation; `bench.x` defines the echo payloads.
 The independent add/mul codecs remain available for infrastructure tests.
 
@@ -18,12 +18,14 @@ The independent add/mul codecs remain available for infrastructure tests.
 From the repository root:
 
 ```sh
-nix build .#trafficGeneratorNative    # local Linux
-nix build .#trafficGenerator          # cross-compiled ThunderX/AArch64
+nix build .#dev.x86_64-linux.software.trafficGeneratorNative    # local Linux
+nix build .#dev.x86_64-linux.software.trafficGenerator          # cross-compiled ThunderX/AArch64
+nix build .#dev.x86_64-linux.software.mlx5BenchmarkNative
+nix build .#dev.x86_64-linux.software.mlx5Benchmark # CX-5 on Enzian
 nix develop -c make -C sw/apps/microbenchmarks/dpdk check
 ```
 
-Both Nix packages come from the `thunderx-ptp` flake input and include the
+The generator packages use the `thunderx-ptp` flake input and include the
 ThunderX Linux PF receive-filter correction and opt-in packet timestamp support.
 See the [package/API documentation](../../../../../thunderx-dpdk-ptp/README.md).
 The generator does not enable hardware timestamps merely by linking this library.
@@ -212,7 +214,7 @@ from reciprocal median RTT. Reject runs with `failed != 0` or missing rows.
 Validate both modes before a physical run:
 
 ```sh
-nix build .#trafficGeneratorNative --out-link out/load-client
+nix build .#dev.x86_64-linux.software.trafficGeneratorNative --out-link out/load-client
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py \
   out/load-client/bin/bench_dpdk out/NEW-latency-replay
 nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py \
@@ -225,50 +227,26 @@ kernel, because this client deliberately does not answer ARP.
 
 ## CPU-NIC echo responder
 
-The same package builds `echo_dpdk`, a single-worker polling responder for
-exactly the generator's `add` wire format. It buffers paired hardware RX/TX
-samples and writes the CSV after the run. `mac_to_mac_ns` is TX minus RX from
-the NIC's common PTP counter, not client RTT. Only one timestamped TX operation
-may be outstanding. Warmups remain in the CSV with `warmup=1`; failed samples
-are explicit and make the process fail.
+The DPDK backend uses the synchronous Lauberhorn RPC hot path from
+`sw/rt/rpc_request.h`, `rpc_call.h` and `rpc_reply.h`, the actual XDR adapter
+in `sw/rt/oncrpc.c`, and the shared echo handler in `../echo_handler.c`.
+A software program/version/procedure table supplies the descriptor that hardware
+supplies for LH. Both allocate decoded arguments, call the generated XDR decoder,
+invoke the handler through its registered function pointer, encode the borrowed
+result directly into the transport TX buffer, and release the decoded arguments.
+DPDK additionally parses and builds Ethernet/IPv4/UDP/ONC-RPC envelopes.
 
-Boot the DUT with the platform's `bootFiles` and `copymods=force` as described
-in the [deployment workflow](../../../../docs/development/workflow.md#thunderx-cpu-nic-timestamps).
-Mount the matching `trafficGeneratorDeployFs` read-only at `/nix/store` (use a
-private mount namespace if another deployment already occupies that path).
-On a reserved DUT with its data NIC configured, start:
+There is one responder loop with RX burst size **one**, for one to four workers.
+`LH_ECHO_STOP_FILE` selects controller-driven termination; without it the responder
+finishes after COUNT + WARMUP requests. This changes run control and observation
+storage, not RPC processing. `LH_ECHO_PROFILE=1` enables shared runtime probes and
+mlx5 scalar queue instrumentation in the instrumented binary. The uninstrumented
+build compiles both out. Deferred/nested execution is outside this echo backend's
+scope; the complete ECI runtime continues to support those operations.
 
-```sh
-LH_ECHO_READY_FILE=/dev/shm/NEW-ready \
-/nix/store/lauberhorn-client/bin/lh-dpdk-run \
-  --logs /dev/shm/NEW-server --lcore 45 --no-iommu --ptp-bgx 4 \
-  --manifest /nix/store/lauberhorn-client/manifest.json \
-  /nix/store/lauberhorn-client/bin/echo_dpdk -- \
-  DUT_IP CLIENT_IP CLIENT_MAC 49152 2000 32 2000000 add /dev/shm/NEW-server.csv
-```
-
-Wait for the ready file before running `bench_dpdk` on the reserved peer with
-the same count/warmup, DUT destination port 12345, and the reversed endpoints.
-Both runner summaries must pass and report restoration. The timestamp runner
-refuses an unmatched kernel, benchmark package or loaded/installed module set.
-Save the image manifest and both CSVs with any dataset used in the paper.
-`LH_ECHO_DELAY_NS=20000` inserts a deliberate 20 µs service delay for a
-clock/interval control. `LH_ECHO_SOFTWARE_CONTROL=1` disables timestamps for
-a packet-path control; its zero timestamp columns are not MAC measurements.
-
-### Optional CPU-stage profiling
-
-Set `LH_ECHO_PROFILE=1` on the responder to buffer six
-`CLOCK_MONOTONIC_RAW` boundaries alongside each paired MAC timestamp: first
-successful RX-burst observation (including a packet held while draining the
-preceding TX timestamp), network parse start/end, network framing start/end,
-and immediately before the TX-burst attempt. CSV records retain the minimum
-adjacent-clock probe duration; no probe-cost subtraction is applied.
-
-The RX-to-pre-TX CPU interval includes RPC validation/encoding, dispatch and
-buffer preparation. Network time is the sum of the parse and framing spans.
-The fixed-input responder validates 7 and 11 and encodes 18 directly, so there
-is no separately executed handler to time. The residual MAC interval includes
-PMD, DMA, completion polling, NIC processing and queueing; it is not a pure
-interconnect delay. Profiled measurements are a separate cohort: use a
-probe-off control and do not assign their components to an earlier total.
+Use the [campaign workflow](../../../../docs/development/benchmark-campaign.md)
+for matched image deployment, NIC restoration and external wire capture.
+`echo_replay_test.py BIN NEW_OUTPUT` validates all schema sizes against pcap,
+both tracing builds, and controller-driven termination. `make check` also tests
+the actual shared codec/dispatch/cleanup path, including truncated XDR inputs.
+Pcap results are functional checks, never latency measurements.

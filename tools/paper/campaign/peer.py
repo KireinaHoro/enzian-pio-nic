@@ -104,8 +104,7 @@ def run(config):
     if server:
         env['LH_ECHO_READY_FILE']=str(root/'ready')
         if loaded:
-            env.update(LH_ECHO_SOFTWARE_CONTROL='1',LH_ECHO_BATCHED='1',
-                       LH_ECHO_STOP_FILE=str(root/'stop'))
+            env['LH_ECHO_STOP_FILE']=str(root/'stop')
         else:
             if config['instrumentation']=='breakdown': env['LH_ECHO_PROFILE']='1'
             if config.get('chunk_requests'):env['LH_ECHO_CHUNK_REQUESTS']=str(config['chunk_requests'])

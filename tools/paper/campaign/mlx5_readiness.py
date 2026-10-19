@@ -37,7 +37,7 @@ def cases(root, server_ip, client_ip, client_mac, server_mac):
             se=dict(env,LH_ECHO_READY_FILE=str(out/'ready'))
             ce=dict(env)
             if loaded:
-                se.update(LH_ECHO_BATCHED='1',LH_ECHO_SOFTWARE_CONTROL='1',LH_ECHO_STOP_FILE=str(out/'stop'))
+                se['LH_ECHO_STOP_FILE']=str(out/'stop')
                 ce.update(LH_BENCH_RATE='100000',LH_BENCH_WARMUP_MS='50',LH_BENCH_DURATION_MS='250',
                           LH_BENCH_BATCH_MAX='64',LH_BENCH_BATCH_TARGET_NS='250000',LH_BENCH_AGGREGATE='1',
                           LH_BENCH_FLOWS='64',LH_BENCH_DRAINED_FILE=str(out/'drained'))

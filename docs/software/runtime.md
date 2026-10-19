@@ -45,6 +45,16 @@ Applications use the installed runtime Nix package. PCIe remains unfinished;
 backend-neutral naming does not establish support there. Device headers and
 configuration are regenerated from the matching hardware, not edited by hand.
 
+## Shared synchronous echo path
+
+`rpc_request.h`, `rpc_call.h` and `rpc_reply.h` hold the existing request ownership,
+decode/dispatch and synchronous reply implementation. They are included by the
+ECI runtime and the DPDK echo transport backend. DPDK uses the same `oncrpc.c`
+codec adapter and generated XDR functions; no memcpy-only echo shortcut exists.
+The DPDK backend supports synchronous reply/failure for these benchmarks, not
+ECI's nested, deferred or cooperative scheduling mechanisms. The shared echo
+handler retains borrowed argument ownership until encoding and cleanup finish.
+
 ## Request and transport ownership
 
 The core RX API is `core_eci_rx_acquire[_traced]` / `core_eci_rx_release`.

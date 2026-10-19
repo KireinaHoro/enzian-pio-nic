@@ -16,6 +16,21 @@ zuestoll07); zuestoll14 is the separate traffic generator. Both DUT links are
 measured at their server-facing leaf0 ports. Never relabel NICVF observations as
 ConnectX-5 results. Long collection requires the validated integration evidence below.
 
+## Shared echo server implementation
+
+LH and DPDK share the synchronous runtime request, handler and reply path
+(`sw/rt/rpc_{request,call,reply}.h`), the `oncrpc.c` XDR adapter, schema-generated
+codecs, and the separately compiled `echo_handler.c`. Both allocate/decode arguments, dispatch the registered
+handler, marshal directly into their TX buffer and free the decoded arguments.
+DPDK supplies a program/version/procedure table and Ethernet/IP/UDP/RPC envelope
+processing beneath this interface. Its sole server loop always requests one RX
+packet, in both loaded and unloaded operation. Only profiling, output and run
+termination differ. Do not reuse measurements from a different server workload
+as this baseline; transport and codec changes require explicit measurement review.
+Responder/runtime/codec builds use `-O2` and the same Enzian CPU tuning. The
+generator remains separately optimized; its batching does not select a different
+server implementation.
+
 ## Canonical measurement contract
 
 See [hot measurement methodology](../research/hot-measurement.md) for the

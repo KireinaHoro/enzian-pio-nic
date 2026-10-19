@@ -3,26 +3,30 @@ stdenv.mkDerivation {
   pname = "lauberhorn-traffic-generator";
   version = "0.1";
   src = lib.fileset.toSource {
-    root = ../.;
+    root = ../../..;
     fileset = lib.fileset.unions [
-      ../bench.x ../echo_registry.py
+      ../bench.x ../echo_registry.py ../echo_handler.h ../echo_handler.c
+      ../../../include
+      ../../../rt/oncrpc.c ../../../rt/server_trace.c ../../../rt/server_trace.h ../../../rt/pmu.c ../../../rt/pmu.h
+      ../../../rt/utils/bitmap.h ../../../rt/vstate.h ../../../rt/rpc_request.h ../../../rt/rpc_reply.h ../../../rt/rpc_call.h ../../../rt/fiber
       (lib.fileset.fileFilter (f: builtins.elem f.name [
-        "queue_probe_test.c" "bench_dpdk.c" "echo_server.c" "benchmarks.c" "benchmark.h"
+        "rpc_backend.h" "rpc_backend_test.c" "queue_probe_test.c" "bench_dpdk.c" "echo_server.c" "benchmarks.c" "benchmark.h"
         "aggregate.h" "aggregate_test.c" "wire.h" "load.h" "open_loop.h" "open_loop_test.c" "wire_test.c" "schema_test.c" "Makefile"
       ]) ./.)
     ];
   };
-  preBuild = "cd dpdk";
+  preBuild = "cd apps/microbenchmarks/dpdk";
   nativeBuildInputs = [ pkg-config python3 rpcsvc-proto ];
   buildInputs = [ dpdk libtirpc ];
   makeFlags = [ "PKG_CONFIG=${stdenv.cc.targetPrefix}pkg-config" ]
     ++ lib.optionals mlx5 [ "EXTRA_DPDK_LIBS=-lrte_net_mlx5" ];
+  RPC_ARCH_FLAGS = lib.optionalString stdenv.hostPlatform.isAarch64 "-march=armv8-a+crc+lse -mtune=thunderxt88";
   NIX_CFLAGS_COMPILE = lib.optionalString mlx5 "-DLH_HAVE_MLX5=1 -DALLOW_EXPERIMENTAL_API";
   postBuild = lib.optionalString mlx5 ''
     rm echo_dpdk
     PKG_CONFIG_PATH=${probeDpdk}/lib/pkgconfig:$PKG_CONFIG_PATH make echo_dpdk CFLAGS="-O3 -g -Wall -Wextra -Werror -std=gnu11 -DLH_HAVE_MLX5=1 -DALLOW_EXPERIMENTAL_API" EXTRA_DPDK_LIBS="-L${probeDpdk}/lib -Wl,-rpath,${probeDpdk}/lib -lrte_net_mlx5"
   '' + ''
-    if ${stdenv.cc.targetPrefix}nm -u echo_dpdk_uninstrumented | grep -E 'clock_gettime'; then
+    if ${stdenv.cc.targetPrefix}nm echo_dpdk_uninstrumented | grep -E 'server_trace_|lauberhorn_trace_|lh_pmu_| [tT] stamp$'; then
       echo "Software probe hooks survived the uninstrumented responder build" >&2
       exit 1
     fi

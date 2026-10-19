@@ -19,16 +19,20 @@ static inline uint16_t checksum(const uint8_t *p, size_t n, uint32_t sum) {
     return (uint16_t)~sum;
 }
 /* Enclose a benchmark's UDP payload; caller supplies at least 42+len bytes. */
-static inline size_t make_udp(uint8_t *p, const struct endpoint *src,
-        const struct endpoint *dst, const uint8_t *payload, size_t len) {
+static inline size_t make_udp_header(uint8_t *p, const struct endpoint *src,
+        const struct endpoint *dst, size_t len) {
     memset(p,0,42);
     memcpy(p,dst->mac,6); memcpy(p+6,src->mac,6); put16(p+12,0x0800);
     p[14]=0x45; put16(p+16,28+len); put16(p+20,0x4000);
     p[22]=64; p[23]=17; memcpy(p+26,src->ip,4); memcpy(p+30,dst->ip,4);
     put16(p+24,checksum(p+14,20,0));
     put16(p+34,src->port); put16(p+36,dst->port); put16(p+38,8+len);
-    memcpy(p+42,payload,len);
     return 42+len;
+}
+static inline size_t make_udp(uint8_t *p, const struct endpoint *src,
+        const struct endpoint *dst, const uint8_t *payload, size_t len) {
+    memcpy(p+42,payload,len);
+    return make_udp_header(p,src,dst,len);
 }
 /* 0 unrelated, -1 malformed endpoint packet, 1 valid UDP payload. */
 static inline int parse_udp(const uint8_t *p, size_t n,

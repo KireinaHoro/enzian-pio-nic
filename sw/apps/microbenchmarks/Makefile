@@ -23,6 +23,7 @@ bench.h: bench.x
 echo_registry.h: bench.x echo_registry.py
 	python3 echo_registry.py bench.x $@
 main.c: bench.h echo_registry.h
+echo_handler.o: bench.h echo_handler.h
 
 include ../../usr-common.mk
 

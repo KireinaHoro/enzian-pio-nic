@@ -48,14 +48,19 @@ let
       app = "${variant.app}"; runtime = "${variant.runtime}";
       tracing = variant.runtime.tracing;
     }) nativeVariants;
+    rpcImplementation = "shared-xdr-runtime-v1";
+    runtimeSourceHashes = builtins.listToAttrs (map (name: {
+      inherit name;
+      value = builtins.hashFile "sha256" (generator.src + "/rt/${name}");
+    }) [ "oncrpc.c" "rpc_request.h" "rpc_call.h" "rpc_reply.h" ]);
     responderTracing = { echo_dpdk = true; echo_dpdk_uninstrumented = false; };
     kernelRelease = modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
-      value = builtins.hashFile "sha256" (generator.src + "/${name}");
+      value = builtins.hashFile "sha256" (generator.src + "/apps/microbenchmarks/${name}");
     }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/echo_server.c"
-         "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
+         "echo_handler.h" "echo_handler.c" "dpdk/rpc_backend.h" "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
          "dpdk/aggregate.h" "dpdk/open_loop.h" "dpdk/Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });
