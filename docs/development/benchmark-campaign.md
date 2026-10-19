@@ -322,7 +322,7 @@ all cohorts, generate figures, validate dimensions/fonts and supply previews.
 Grid cohorts use 2-second warmup, 10-second measurement, three repetitions;
 sustained candidates use 2+60 seconds and three repetitions. Rehearsal uses
 1+1 seconds for loaded cohorts and 16+100 requests for unloaded gates. It
-brackets workers 1 and 4 geometrically through >1% loss and another overload
+brackets workers 1 and 4 geometrically through the first valid >1% loss
 point. Workers 2/3 start from conservative interpolated brackets; every full
 grid extends geometrically until it crosses 1% or fails a resource/generator
 gate. All grid points are retained. Candidate ranking uses goodput within the

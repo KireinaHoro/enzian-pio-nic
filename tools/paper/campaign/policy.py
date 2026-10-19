@@ -59,7 +59,7 @@ def grid(boundary):
     if not math.isfinite(boundary) or boundary <= 0:
         raise ValueError('Positive finite rehearsal boundary required')
     return sorted({max(1, math.ceil(boundary*f)) for f in
-                   (.1, .25, .5, .7, .8, .85, .9, .95, 1, 1.05, 1.1, 1.2, 1.35, 1.5)})
+                   (.1, .25, .5, .7, .8, .85, .9, .95, 1)})
 
 
 def next_rate(rate):

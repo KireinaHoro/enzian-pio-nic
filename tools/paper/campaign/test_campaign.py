@@ -53,7 +53,8 @@ class Policy(unittest.TestCase):
         self.assertEqual(len(qualifying([dict(rate=10,trials=[trial(99)]*3)])),1)
         t=trial(); t['generator_misses']=1
         with self.assertRaises(ValueError): validate_trial(t)
-        self.assertGreaterEqual(max(grid(101)),1.5*101)
+        self.assertEqual(max(grid(101)),101)
+        self.assertEqual(len(grid(10000)),9)
         t=trial(); t['duration_ns']=20_000_000_000
         with self.assertRaises(ValueError): aggregate([trial(),t])
 

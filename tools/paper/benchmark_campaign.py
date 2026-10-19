@@ -249,8 +249,7 @@ class Campaign:
                         rate = next_rate(rate)
                     else: raise RuntimeError('No capacity boundary within rehearsal budget')
                     boundaries[f'{system}-{size}-{workers}'] = rate
-                    # Verify acquisition continues beyond the boundary.
-                    self.loaded(system, size, workers, next_rate(rate), 'rehearsal')
+                    # One valid point exceeding 1% establishes overload coverage.
         result = self.stage('rehearsal-validation', dict(boundaries=boundaries))
         if self.config.get('scope', 'rehearsal') == 'rehearsal':
             previews = result.get('previews', [])

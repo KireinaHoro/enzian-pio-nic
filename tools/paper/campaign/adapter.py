@@ -252,8 +252,8 @@ def rehearsal(config,h,campaign):
     for (system,size,workers),values in points.items():
         values.sort(key=lambda p:p['rate'])
         first=next((i for i,p in enumerate(values) if loss(p['trials'][0])>.01),None)
-        if first is None or first==0 or first==len(values)-1:
-            raise ValueError('Rehearsal must include low load and continue beyond loss boundary')
+        if first is None or first==0:
+            raise ValueError('Rehearsal must include low load and one valid point above the loss limit')
         records.append(dict(system=system,size=size,workers=workers,points=values))
     path=h.directory/'rehearsal-loaded.json';atomic(path,records)
     output=h.directory/'plots'

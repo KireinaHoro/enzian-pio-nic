@@ -110,7 +110,10 @@ and validated by the maintained generator and importer. Record the actual batch
 size and arrival model; describe this as bursty paced traffic. Use identical
 batch policy for both systems, and do not merge earlier fixed-spacing loaded
 cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse.
-Keep failed attempts and exact rates.
+Keep failed attempts and exact rates. One valid point above 1% loss is sufficient
+for rehearsal overload coverage; do not require an additional higher point. Full
+grids end at the rehearsal boundary, with geometric extensions only when no
+collected repetition exceeds 1%.
 
 Loaded collection supports `aggregate: true`: online validation, exact counters,
 100 ns mergeable RTT histograms and bounded diagnostic samples. Prefer it after
