@@ -127,7 +127,7 @@ configuration remain outside this port.
 
 Follow-up fast-path work is committed as Caladan `6f27ec7` on `enzian-port`. The separate
 [ARM port deficiencies document](../../../caladan/docs/arm-port-deficiencies.md)
-records the changes, architectural costs, remaining gaps and acceptance gates.
+concisely lists potential weaknesses; implementation progress is recorded here.
 Hardware CRC uses ACLE `__crc32cd` and `-march=armv8-a+crc` (ThunderX-1 CRC was
 confirmed by the user's `lscpu`). Atomics use inline LL/SC with
 `-mno-outline-atomics`. TLS reads retain PC restart with fixed-width assembly
@@ -143,7 +143,7 @@ a safe event/interrupt protocol remains unresolved; bounded polling is the
 current implementation and its idle power cost is explicit.
 
 Caladan commit `65dd661` implements the initial port; `0df0f96` includes
-build-status documentation and module closure cleanup. Review HEAD is `6f27ec7`.
+build-status documentation and module closure cleanup. Implementation is `6f27ec7`; review HEAD `06d21d6` condenses the deficiencies note.
 The ARM port now has AAPCS64 context switching (x19–x30 and the low 64 bits of
 v8–v15), ARM raw syscalls, checksum/CRC32C helpers, acquire/release and coherent
 DMA barriers, and architectural-counter timekeeping. The existing integer
