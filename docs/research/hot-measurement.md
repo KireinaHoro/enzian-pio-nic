@@ -35,7 +35,7 @@ after the reply SQ publication and required doorbell. Partition it into:
 | Handler | Echo handler execution | Echo handler execution |
 | RPC transmit | Reply marshaling | Reply marshaling |
 | TX network processing | Ethernet/IP/UDP construction and checksum preparation | Hardware work remains in the residual |
-| TX submission | Packet ready through SQ construction, publication, ordering, doorbell and PMD return bookkeeping | TX doorbell read through return |
+| TX submission | Packet ready through SQ construction, publication, ordering, doorbell and PMD return bookkeeping | TX entry through doorbell return, including descriptor stores and barriers |
 
 RX instrumentation belongs inside the selected mlx5/Caladan receive path;
 wrapping rx_burst includes empty polling and misses the required CQE boundary.
@@ -92,3 +92,9 @@ DPDK TX submission ends at `tx_return`, including post-doorbell mbuf tracking
 and counters. NIC–wire is the separate wire-minus-CPU residual. Other CPU
 contains uncovered dispatch/transport work and instrumentation; it is not a
 measurement of probe overhead. Probe costs also occur inside named intervals.
+
+LH CPU–NIC starts at `server_tx_enter_ns` and ends at
+`server_tx_doorbell_return_ns`. The dispatch/outcome/reply-setup gaps and
+post-return cleanup stay in RPC runtime, as does DPDK remaining Other CPU.
+Payload-dependent pre-doorbell time includes ordering barriers; the recorded
+interval cannot isolate barrier cost from descriptor accesses and probing.

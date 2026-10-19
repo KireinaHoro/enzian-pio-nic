@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 import tempfile
 import unittest
-from .import_unloaded import client_rows, cpu_partition, dpdk, lauberhorn, correct_dpdk_submission
+from .import_unloaded import client_rows, cpu_partition, dpdk, lauberhorn, correct_cpu_submission
 
 
 class Unloaded(unittest.TestCase):
@@ -46,10 +46,24 @@ class Unloaded(unittest.TestCase):
                     chunks=[dict(index=0,raw_capture={'path':str(chunk/'tofino/pairs.json')})],
                     files={str(path):digest(path)},
                     rows=[dict(chunk=0,wire_xid=1,components_ns=dict(tx_submission=30,cpu_other=30))])
-        correct_dpdk_submission(cohort)
+        correct_cpu_submission(cohort)
         self.assertEqual(cohort['rows'][0]['components_ns'],dict(tx_submission=40,cpu_other=20))
-        correct_dpdk_submission(cohort)  # Repeated plotting must not move it twice.
+        correct_cpu_submission(cohort)  # Repeated plotting must not move it twice.
         self.assertEqual(cohort['rows'][0]['components_ns'],dict(tx_submission=40,cpu_other=20))
+
+    def test_saved_lh_submission_includes_pre_doorbell(self):
+        from .import_loaded import digest
+        chunk=self.root/'chunk-000';chunk.mkdir()
+        path=self.write('chunk-000/server-slice.csv',[
+            dict(request_id=99,server_tx_enter_ns=100,server_tx_doorbell_ns=1000)])
+        cohort=dict(system='LH',instrumentation='breakdown',
+                    chunks=[dict(index=0,raw_capture={'path':str(chunk/'tofino/pairs.json')})],
+                    files={str(path):digest(path)},
+                    rows=[dict(chunk=0,wire_xid=1,components_ns=dict(tx_submission=2805,cpu_other=1645))])
+        correct_cpu_submission(cohort)
+        self.assertEqual(cohort['rows'][0]['components_ns'],dict(tx_submission=3705,cpu_other=745))
+        correct_cpu_submission(cohort)
+        self.assertEqual(cohort['rows'][0]['components_ns'],dict(tx_submission=3705,cpu_other=745))
 
     def test_reject_missing_or_reversed_queue_boundaries(self):
         self.server[0]['rx_cqe_ns']=0

@@ -121,23 +121,24 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_by
     return result
 
 
-def correct_dpdk_submission(cohort):
+def correct_cpu_submission(cohort):
     """Reclassify saved v1 intervals from hashed raw timestamps; preserve raw receipts."""
-    if (cohort['system']!='DPDK' or cohort['instrumentation']!='breakdown'
+    if (cohort['instrumentation']!='breakdown'
             or cohort.get('cpu_partition_version',1)>=2): return
     from pathlib import Path
     by_chunk={}
     for chunk in cohort.get('chunks',[]):
         path=Path(chunk['raw_capture']['path']).parent.parent/'server-slice.csv'
         if cohort['files'].get(str(path))!=digest(path):
-            raise ValueError('Missing or changed raw PMD boundaries')
-        by_chunk[chunk['index']]={int(r['request_id']):r for r in rows(path)}
-    if not by_chunk: raise ValueError('Reimport legacy non-chunked DPDK CPU intervals from raw server rows')
+            raise ValueError('Missing or changed raw submission boundaries')
+        by_chunk[chunk['index']]={i:r for i,r in enumerate(rows(path),1)}
+    if not by_chunk: raise ValueError('Reimport legacy non-chunked CPU intervals from raw server rows')
     for row in cohort['rows']:
         raw=by_chunk[row['chunk']][row['wire_xid']]
-        delta=int(raw['tx_return_ns'])-int(raw['tx_doorbell_ns'])
+        delta=(int(raw['tx_return_ns'])-int(raw['tx_doorbell_ns']) if cohort['system']=='DPDK'
+               else int(raw['server_tx_doorbell_ns'])-int(raw['server_tx_enter_ns']))
         parts=row['components_ns']
-        if not 0<=delta<=parts['cpu_other']: raise ValueError('Invalid PMD return interval')
+        if not 0<=delta<=parts['cpu_other']: raise ValueError('Invalid submission reclassification interval')
         parts['tx_submission']+=delta
         parts['cpu_other']-=delta
     cohort['cpu_partition_version']=2
@@ -158,14 +159,16 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
                 'rpc_receive':(t('unmarshal_enter'),t('handler_enter')),
                 'handler':(t('handler_enter'),t('handler_exit')),
                 'rpc_transmit':(t('marshal_enter'),t('marshal_exit')),
-                'tx_submission':(t('tx_doorbell'),t('tx_doorbell_return'))})
+                'tx_submission':(t('tx_enter'),t('tx_doorbell_return'))})
             part.update(flow_id=0,request_id=int(cl['request_id']));software.append(part)
             bounds.append((t('rx_exit'),t('tx_exit'),int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])))
     result=finish(client_path,client,software if instrumentation=='breakdown' else None,
         system='LH',count=count,warmup=warmup,instrumentation=instrumentation,
         payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path,
         correlation='Exact single-outstanding runtime order; client wire XID validation')
-    if bounds: result['causal_cpu_client']=clock_bounds(bounds)
+    if bounds:
+        result['causal_cpu_client']=clock_bounds(bounds)
+        result['cpu_partition_version']=2
     return result
 
 
