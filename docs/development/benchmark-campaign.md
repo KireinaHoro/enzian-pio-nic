@@ -54,6 +54,14 @@ through the same helper after confirming the sender stopped. The maintained pair
 calibration is metadata, not a latency veto. Long collection stays blocked
 pending real-workload capture acceptance.
 
+### Full unloaded collection
+
+Use `scope: "unloaded-full"` for only the full unloaded dataset: both systems,
+8/128/1432-byte echo, probes off and breakdown, 10,000 measured observations per
+cohort with 128 warmups per capture chunk. It starts directly without a rehearsal
+or loaded grid, validates/publishes the CDF and breakdown, sends the terminal
+callback and stops. Existing real-workload wire acceptance remains required.
+
 ### Bounded unloaded capture integration
 
 The hardware manifest's optional `tofino` object supplies `repository`, `host`,

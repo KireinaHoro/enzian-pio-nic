@@ -52,6 +52,28 @@ class Policy(unittest.TestCase):
             self.assertEqual(state['stage'],'rehearsal-complete')
             self.assertFalse(state['full_collection_started'])
 
+    def test_full_unloaded_scope_has_full_counts_and_stops_after_plots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign=controller.Campaign(Path(directory),dict(scope='unloaded-full'))
+            requests=[]
+            def stage(name, request):
+                requests.append((name,request))
+                if name=='unloaded':return {'cohort':request}
+                if name=='progress-plots':return {'previews':['cdf','breakdown'],'files':{'cdf':'hash','breakdown':'hash'}}
+                return {}
+            campaign.stage=stage
+            with patch.object(controller,'validate_matched'):
+                campaign.run()
+            cohorts=[r for n,r in requests if n=='unloaded']
+            self.assertEqual(len(cohorts),12)
+            self.assertTrue(all(r['phase']=='full' and r['count']==10000 and r['warmup']==128 for r in cohorts))
+            self.assertEqual(cohorts[0]['system'],'DPDK')
+            self.assertFalse(any(n in ('loaded','rehearsal-validation','finalize') for n,_ in requests))
+            state=controller.read(Path(directory)/'status.json')
+            self.assertEqual(state['stage'],'complete')
+            self.assertEqual(state['completed'],12)
+            self.assertFalse(state['loaded_collection_started'])
+
     def test_prefix_and_nonmonotonic(self):
         points=[dict(rate=r,trials=[trial(n,t)]*3) for r,n,t in [(10,100,100),(20,90,90),(30,197,200),(40,300,300)]]
         self.assertEqual([p['rate'] for p in qualifying(points)],[10,20])

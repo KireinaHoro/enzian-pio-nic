@@ -198,7 +198,7 @@ class Campaign:
 
     def unloaded(self, phase):
         cohorts=[]
-        systems=('DPDK','LH') if self.config.get('scope')=='unloaded-rehearsal' else SYSTEMS
+        systems=('DPDK','LH') if self.config.get('scope') in ('unloaded-rehearsal','unloaded-full') else SYSTEMS
         for system in systems:
             for size in SIZES:
                 for instrumentation in ('off', 'breakdown'):
@@ -215,6 +215,15 @@ class Campaign:
     def run(self):
         self.stage('preflight', {'checked_at': time.time_ns()})
         self.stage('build', {})
+        if self.config.get('scope') == 'unloaded-full':
+            self.total=len(SYSTEMS)*len(SIZES)*2
+            self.unloaded('full')
+            result=self.stage('progress-plots',dict(unloaded=read(self.root/'full-unloaded.json')))
+            previews=result.get('previews',[])
+            if len(previews)!=2 or any(p not in result['files'] for p in previews):
+                raise ValueError('Full unloaded collection requires two validated plot previews')
+            self.status('complete',previews=previews,scope='unloaded-full',loaded_collection_started=False)
+            return
         if self.config.get('scope') == 'full':
             return self.collect_full()
         if self.config.get('scope') == 'unloaded-rehearsal':
@@ -310,8 +319,8 @@ class Campaign:
 def config_check(config):
     from campaign.wire import require_capture_backend
     if config.get('scope') != 'unloaded-rehearsal': require_capture_backend(config)
-    if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal'):
-        raise ValueError('Scope must be unloaded-rehearsal, rehearsal or full')
+    if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal', 'unloaded-full'):
+        raise ValueError('Scope must be unloaded-full, unloaded-rehearsal, rehearsal or full')
     if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):
         raise ValueError('Between one and 32 distinct isolated generator CPUs required')
     if not 1<=config.get('batch_max',1)<=64 or not 0<config.get('batch_target_ns',250000)<=1_000_000:
