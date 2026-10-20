@@ -102,6 +102,132 @@ are not commands, and returned RX bytes do not overwrite packet-buffer storage.
 The original October 2 correction drained and discarded returned data; that
 historical implementation must not be substituted for today's replay semantics.
 
+## Calibrating the RX stall timeout before NACK
+
+The NIC can hold a receive request while waiting for work, then return NACK
+when its programmable stall timer expires. Calibrate that setting against the
+actual CPU/ECI timeout behavior on matched hardware: an overly long pending
+coherent read can trigger a ThunderX L2C_TAD/LFB timeout before the response
+completes. The programmable NIC timer is not the CPU's architectural timeout.
+Never disable or extend architectural protection to obtain a passing result.
+
+The [RX router](../../hw/src/lauberhorn/host/eci/DcsRxAxiRouter.scala) can leave
+the wait early for a descriptor, yield, fatal release or GSYNC release. Its timer
+covers waiting for work; invalidation and response delivery can add latency.
+Therefore measure the actual request-to-NACK interval and verify that a trial
+exercised the intended stall rather than an early-release path. A register
+setting alone is not an end-to-end coherence deadline guarantee.
+
+The matched module exposes root-only parameters:
+
+- `/sys/module/lauberhorn/parameters/rx_hold_cycles`: write the NIC hold interval
+  in application-clock cycles; read returns the programmed hardware value.
+  The implemented timer is 64 bits with one-cycle resolution. Convert using the
+  matched bitstream's actual clock, and verify durations in traces.
+- `/sys/module/lauberhorn/parameters/l2c_tad_snapshot`: read all eight mapped
+  units' BAR, INT, STAT and TIMEOUT values. Reads do not acknowledge interrupts
+  or modify timeout protection. A clean snapshot alone is insufficient: the
+  normal EDAC handler can clear INT, so retain kernel exception logs too.
+
+For an authorized calibration, first establish a passing setting on the matched
+image. Increase the stall duration within the planned test bounds to locate a
+failure, then refine the pass/fail interval at timer resolution. Preserve
+traces and fault state before every failing-trial reset. Repeat the highest
+passing candidate under contention across two cold boots; record exposure,
+nearest failing bound, actual hold durations and peer completions. The boot
+summary retains available firmware clock declarations verbatim; distinguish
+these and the matched routed clock constraints from an independent frequency
+measurement. Include
+one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
+simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
+do not substitute a historical threshold. Choose an operating setting below
+the observed failure boundary with margin for exposure, contention and response
+latency. Finite tests establish a tested operating envelope, not the exact
+architectural timeout or a universal safe maximum.
+
+Check TAD state and kernel logs again **after** the follow-up RPC check. A clean
+short idle probe can fault later at the same setting. A timed-out client is not a passing probe;
+preserve its trace and subsequent fault state before continuing or resetting.
+Bound the client process and its cleanup as well as the RPC deadline. Confirm
+that the next value was actually programmed before attributing a fault to it:
+a fault before a parameter write still belongs to the preceding setting. Withdraw such a short pass and
+re-establish the lower bound with a longer exposure; do not keep narrowing
+around a lower bound that has already failed.
+
+Use the matched generated trace map to quantify intervals and overlapping peer
+transport events:
+
+```sh
+python3 tools/enzian/analyze_rx_holds.py RUN/trace-dram.bin \
+  --map RUN/lauberhorn_trace_dma_map.json --clock-hz ACTUAL_APP_CLOCK_HZ \
+  --minimum-hold-cycles PROGRAMMED_HOLD \
+  --output RUN/rx-holds.json
+```
+
+The report includes capture/map hashes, loss and incomplete-pair counts. Its
+request-to-NACK intervals include protocol/response overhead; pending handoffs
+are marked. Peer RX/TX, CMAC and activation events are supporting transport
+evidence. Confirm application completions independently using client results.
+
+For finite concurrent peer load, `tools/enzian/cooperative_client.py` supports
+`add`, `mul`, the packaged `nested-validation` fixture's `echo`, and kernel UDP
+`bypass` streams. It checks every response and source, records individual send/
+receive timestamps in `completions.csv`, and fails without retry on loss or
+corruption. Start its `--bypass-server` mode on a non-worker DUT CPU, binding
+only the DUT NIC address; this is an ordinary kernel UDP echo service on 32345.
+Create fresh output directories for each run. For example, on the reserved peer:
+
+```sh
+python3 cooperative_client.py --bind 192.168.129.129 --nic 192.168.129.200 \
+  --streams add,echo,bypass --seconds 60 --window 1 --output NEW_PEER_RUN
+```
+
+Activate services in a recorded order and verify actual worker placement from
+traces. Additional workers still require the existing queue watermark; declaring
+three threads or sending three sequential calls does not allocate three workers.
+To exercise all-but-one stalls, first place an active service on worker 0, then
+use a bounded burst to allocate the three-thread stalled service on the other
+workers. Alternate the two one-thread active services to require cooperative
+handoffs while bypass traffic continues. Verify the resulting placement in the capture before interpreting the trial.
+
+Save plain `l2c_tad_snapshot` output and complete kernel logs before and after
+each trial. `tools/enzian/assess_tad.py --before TAD_BEFORE --after TAD_AFTER
+--kernel-before DMESG_BEFORE --kernel-after DMESG_AFTER --output NEW_REPORT.json`
+requires exactly eight distinct units, checks their interrupt/timeout state,
+and rejects kernel fault diagnostics or missing log continuity. It only reads
+saved files. EDAC may clear a hardware interrupt before a snapshot, so neither
+register snapshots nor logs alone suffice. Preserve the board state on failure.
+
+The hold analyzer additionally groups independent transport events by the number
+of **simultaneously** stalled workers whose completed intervals meet
+`--minimum-hold-cycles`. Bypass is excluded from the stalled-worker count;
+ordinary `YieldAccepted` events are distinguished from initial activation.
+The report also separates idle/ordinary activation counts by physical worker
+and PA domain, and request dispatch counts by Linux PID and physical worker.
+Trace `CoreID` is the NIC datapath ID: zero is bypass, and application worker
+index is `CoreID - 1`; it is not a Linux CPU ID. Keep these identity spaces
+distinct. Preserve a full capture, then analyze a
+recorded byte range for each measured trial so earlier phases cannot inflate
+its counts.
+Use these overlap counts together with client completions and TAD assessment.
+They do not prove progress outside the recorded window.
+
+For the active-peer handoff phase, `cooperative_client.py --streams add,echo,bypass
+--alternate-rpc --rpc-gap-us 2000` keeps one application RPC in flight and rotates
+its destination after each validated reply. Bypass retains an independent window.
+The completion CSV records the actual request spacing. This workload encourages
+cooperative handoffs; verify physical-worker placement and simultaneous holds in
+the trace before counting it as an all-but-one-stalled-worker result. Pool sizes
+alone do not establish that placement. The loopback regression exercises RPC alternation, minimum spacing and bypass
+completions; board placement still comes from the measured trace.
+
+
+Historical calibration evidence and campaign disposition are in
+[agent context](../../agents/runtime-applications.md#scheduling-control-validation-and-continuation).
+That closed campaign is not reopened by this procedure. Retain the matched
+revision, clocks, exposure and nearest failing observation with any new result.
+
+
 ## Checks completed in this implementation round
 
 | Check | Observed result and limits |

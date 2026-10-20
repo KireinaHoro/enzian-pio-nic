@@ -128,7 +128,8 @@ so shutdown was not clean; final verified power-off ended that attempt. Retain
 trials are separate from peer traffic. Failed tcpdump setup attempts were excluded;
 replacement PCAP timestamps are userspace observations without drop accounting,
 not latency evidence. The retired packaging must be reproduced from its
-[historical checkout](../docs/development/hardware-test.md#retired-student-runtime-packaging).
+historical checkout: `93ee25a6709fb8508d30e8298368cc11ecbc6f93:tools/enzian/student_build.nix`
+(and its adjacent `student-*.patch` files).
 
 ## Historical B4 parking and recovery
 

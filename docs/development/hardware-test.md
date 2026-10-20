@@ -37,9 +37,9 @@ checking for another reservation using it. Distinct PXE initiator names do not
 create distinct targets. Prefer generated volumes for fresh clients; an accidental
 shared reservation needs admin cleanup that preserves the active export.
 
-Current platform target: kernel `6.8.0-146-generic`. Historical examples below
-used `6.8.0-64-generic` and require that ABI or an explicit matching module
-rebuild; never combine an old deployment module with the current boot bundle.
+Match the kernel release in the selected boot bundle and deployment manifest.
+The documented boot bundle uses `6.8.0-146-generic`; older artifacts can require
+`6.8.0-64-generic`. Never combine an old module with a different boot kernel.
 CPU credentials `enzian/enzian`
 (`ENZIAN_PASSWORD` overrides the console password); BMC root password `0penBmc` (`ENZIAN_BMC_PASSWORD` supplies it noninteractively).
 The BMC helper prompts if login is needed and that environment variable is absent.
@@ -73,50 +73,38 @@ EMG provisioning with manual export/boot configuration changes.
 
 ## 2. Prepare matching artifacts once
 
-Known working reference: job **2812450**, commit
-`aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`. For another build, update the job,
-revision and paths together. When launching an authorized hardware pipeline, use
-the [30-minute gate check followed by five-hour collection/test timer](ci.md#scheduled-hardware-build-follow-up).
-Do not start additional CI polling outside that workflow unless requested.
-The project token at `../.gitlab_token` is for **read-only CI queries and HW
-artifact downloads only**; do not copy it to remote hosts.
+Select a successful hardware job and its matching software preparation output
+from the same clean revision. Follow the
+[CI artifact contract](ci.md#pipeline-and-handoff) and the
+[scheduled hardware follow-up](ci.md#scheduled-hardware-build-follow-up) when a
+new build is authorized. Record the full revision, job IDs, bitstream/LTX/trace
+map hashes, deployment-image manifest and client protocol together. Verify the
+module's kernel release against the provisioned boot bundle; never force-load
+an incompatible module. Hardware and functional acceptance do not imply timing
+closure.
+
+The project token at `../.gitlab_token` is for read-only CI queries and artifact
+downloads; keep it local. For an already completed job:
 
 ```sh
-python3 tools/enzian/ci_artifacts.py 2812450 --token-file ../.gitlab_token \
-  --download /tmp/hw-2812450
-# This older commit needs only the already-tested kernel-release packaging fix.
-git show 7c9fb46 --format= -- flake.nix > /tmp/kernel-release.patch
-python3 tools/enzian/build_deploy.py aa32b1af04f2fcdd9191c94784eba5bbad1ea25f \
-  --packaging-patch /tmp/kernel-release.patch --out-link /tmp/deploy-2812450
-rsync -rlt /tmp/hw-2812450/ vivado/eci/program_fpga.tcl \
-  enzian-ba2:/tmp/lauberhorn-2812450/
-rsync -L /tmp/deploy-2812450 enzian-gateway:/scratch/pengxu/deploy-2812450.img
+python3 tools/enzian/ci_artifacts.py HARDWARE_JOB_ID --token-file ../.gitlab_token \
+  --download /tmp/hw-UNIQUE_RUN
 ```
 
-For commits already containing the kernel-release fix, omit `--packaging-patch`.
-The historical example above describes the old image layout: use the runner from
-that revision for an unchanged historical image. Current runners require the
-shared `lauberhorn` environment and JSON manifest. The patch builder now accepts
-reviewed `nix/*.nix` definitions (including subdirectories), the interactive helper
-and listed C Makefiles as well as `flake.nix`; it copies composition inputs too.
-Its file allowlist is not proof of ABI preservation. Compare generated RTL and
-ABI collateral before programming, and record baseline-specific packaging tests
-separately from final-master evidence.
-Review any patch: it must preserve HW/ABI generation. Never force-load a module
-with incorrect vermagic. Image hashes are recorded provenance, not pinned test
-requirements. `/scratch/pengxu` is shared between gateway and CPU.
+Fetch the corresponding deployment image from the preparation job using the
+[artifact paths](ci.md#pipeline-and-handoff). For a local build, use the
+[hardware build workflow](hardware-build.md) and matching software image from
+the same clean revision. Stage programmer inputs on the Docker/Vivado host and
+the deployment image on CPU-visible shared storage; record their exact paths
+in the case manifest. `/scratch/USER` is shared between gateway and CPU.
 
-Build the matching client on the gateway (requires GCC, rpcgen and libtirpc):
-
-```sh
-mkdir -p /tmp/client-2812450
-for file in Makefile bench_client.c; do
-  git show aa32b1af:sw/apps/microbenchmarks/client/$file > /tmp/client-2812450/$file
-done
-git show aa32b1af:sw/apps/microbenchmarks/bench.x > /tmp/client-2812450/bench.x
-rsync -rlt /tmp/client-2812450/ enzian-gateway:/scratch/pengxu/lauberhorn-client-2812450/
-ssh enzian-gateway 'cd /scratch/pengxu/lauberhorn-client-2812450 && make'
-```
+Build the matching client through the maintained Nix package/image workflow;
+see the [traffic generator](benchmark-campaign.md#dpdk-traffic-generator).
+Historical packaging overlays require their original checkout, runner and ABI
+comparison. A patch-builder allowlist is not evidence of ABI compatibility.
+The old 2812450 walkthrough is retained in Git at
+`a7970b8b:docs/development/hardware-test.md`; it is not the current acceptance
+baseline.
 
 Recheck tool versions: the tested gateway hardware server is 2023.2 on port
 3121, matching `/opt/Xilinx/Vivado/2023.2/bin/vivado` on ba2. For offline 2025.1
@@ -125,8 +113,9 @@ checkpoint analysis, ba2 has `/opt/Xilinx/2025.1/Vivado/bin/vivado`.
 ## 3. Run and read the summary
 
 Copy [adder.example.json](../../tools/enzian/adder.example.json) to your case
-file. Replace `UNIQUE_RUN` in its name with a fresh experiment label (also used
-for remote logs). Inspect current CPU routes before using its `cpu40g1 down`
+file. This is a historical 2812450 template: replace its revision, image,
+programmer/artifact paths and client command with the matched selection above.
+Replace `UNIQUE_RUN` with a fresh experiment label (also used for remote logs). Inspect current CPU routes before using its `cpu40g1 down`
 command: this removes the overlapping FPGA-subnet route; management/root storage
 must remain on `cpu40g0`. The example is specific to zuestoll14: JTAG
 `Digilent/210357B4B301A`, MAC `0c:53:31:03:01:c8`, IP `192.168.129.200/18`.
@@ -215,7 +204,7 @@ For a negative test, boot with `--negative-no-bitstream`, mount using `cpu.sh`,
 then run `cpu.sh load` through `run.py` with expectations
 `'Internal error: synchronous external abort:'` and `'pc : probe_versions\+'`.
 The observed failure was an oops at shell version register `0x97effffffff8`, not
-a full kernel panic. Reset after an oops. ECI links being up does not establish
+a full kernel panic. Preserve the failure before any reset. ECI links being up does not establish
 working register accesses or RPCs. See [recorded results](../../agents/hardware-state.md#early-boot-and-artifact-evidence)
 for known failures and repeatability limits; historical results are not a new test.
 
@@ -248,34 +237,27 @@ outcomes; it is not a replacement for the DPDK latency benchmark.
 The client does not need a programmed FPGA or the Lauberhorn kernel module.
 `boot.py --machine MACHINE --negative-no-bitstream` can boot it without
 programming. This mode's log label describes the absent FPGA image; no negative
-module-load test is implied. If a newly acquired BMC reports an uninitialized
-`pac_cpu` driver on `power_down()`, inspect its state and initialize sequencer
-drivers before retrying the normal verified reset. Do not treat `is_up` in the
+module-load test is implied. For an uninitialized-device error during power
+sequencing, follow [BMC recovery](#bmc-recovery-and-powered-off-starts); inspect
+voltages and use the helper's powered-off sequence rather than calling
+`init_driver()` as a repair. Do not treat `is_up` in the
 reservation listing as proof of Linux readiness.
 
 For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.
 Keep every test's client machine, software and capture paths in its manifest.
 Never count peer boot/setup failures as runtime test failures.
 
-## Retired student-runtime packaging
+## Historical compatibility
 
-The September student-runtime image recipe and its fixture patches were retired
-when the maintained Dandelion application replaced that adapter. They remain in
-Git at `93ee25a6709fb8508d30e8298368cc11ecbc6f93:tools/enzian/student_build.nix`
-(with both adjacent `student-*.patch` files). Reproduce that campaign from its
-historical checkout; do not combine its packaging with the current flake.
-See [historical results](../../agents/runtime-applications.md#historical-imported-runtime-probes) for its finite coverage.
-Current application testing uses `dandelionImage` and the
-[Dandelion integration workflow](../research/dandelion.md).
-
-## Historical B4 recovery evidence
-
-The September B4 campaign used the superseded control-line and recovery ABI.
-Its runner is removed; it must not be used with cooperative DESCHED images.
-See the [recorded results](../../agents/runtime-applications.md#historical-b4-parking-and-recovery)
-for the tested revisions. Current unsupported exit and fatal faults kill and
-fence the affected domain, retaining resources until a full coherence reset.
-Complete recovery and parked-domain deadline activation remain deferred.
+Current application tests use maintained application images and the
+[Dandelion workflow](../research/dandelion.md). Retired student packaging and
+B4 recovery runners require their original checkout and ABI; they must not be
+combined with cooperative DESCHED images. Historical provenance is in the
+[imported-runtime](../../agents/runtime-applications.md#historical-imported-runtime-probes)
+and [B4 recovery](../../agents/runtime-applications.md#historical-b4-parking-and-recovery)
+records. Current unsupported exit/fatal faults fence the domain; complete
+resource recovery is a separate contract in the
+[scheduling interface](../software/scheduling-control-interface.md).
 
 ## Serial command integrity
 
@@ -287,109 +269,12 @@ framing cancels only the unexecuted compound command; a running board command is
 not automatically interrupted or retried. Preserve the failed console log and
 check whether a requested setting was actually programmed before resuming.
 
-## Cooperative RX hold campaign
+## ECI receive-stall calibration
 
-The matched module exposes root-only parameters:
-
-- `/sys/module/lauberhorn/parameters/rx_hold_cycles`: write the NIC hold interval
-  in application-clock cycles; read returns the programmed hardware value.
-  The implemented timer is 64 bits with one-cycle resolution. Convert using the
-  matched bitstream's actual clock, and verify durations in traces.
-- `/sys/module/lauberhorn/parameters/l2c_tad_snapshot`: read all eight mapped
-  units' BAR, INT, STAT and TIMEOUT values. Reads do not acknowledge interrupts
-  or modify timeout protection. A clean snapshot alone is insufficient: the
-  normal EDAC handler can clear INT, so retain kernel exception logs too.
-
-First establish a passing setting on the new image. Increase hold duration to
-an exception or the register limit, then refine at timer resolution. Preserve
-traces and fault state before every failing-trial reset. Repeat the highest
-passing candidate under contention across two cold boots; record exposure,
-nearest failing bound, actual hold durations and peer completions. The boot
-summary retains available firmware clock declarations verbatim; distinguish
-these and the matched routed clock constraints from an independent frequency
-measurement. Include
-one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
-simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
-do not substitute a historical threshold or weaken architectural protection.
-
-Check TAD state and kernel logs again **after** the follow-up RPC check. A clean
-short idle probe can fault later at the same setting: the October 3 campaign
-observed this at 27,204,589 cycles. A timed-out client is not a passing probe;
-preserve its trace and subsequent fault state before continuing or resetting.
-Bound the client process and its cleanup as well as the RPC deadline. Confirm
-that the next value was actually programmed before attributing a fault to it:
-a later 27,193,602-cycle trial faulted before the following write. Its preserved
-trace still showed only the preceding value. Withdraw such a short pass and
-re-establish the lower bound with a longer exposure; do not keep narrowing
-around a lower bound that has already failed.
-
-Use the matched generated trace map to quantify intervals and overlapping peer
-transport events:
-
-```sh
-python3 tools/enzian/analyze_rx_holds.py RUN/trace-dram.bin \
-  --map RUN/lauberhorn_trace_dma_map.json --clock-hz ACTUAL_APP_CLOCK_HZ \
-  --minimum-hold-cycles PROGRAMMED_HOLD \
-  --output RUN/rx-holds.json
-```
-
-The report includes capture/map hashes, loss and incomplete-pair counts. Its
-request-to-NACK intervals include protocol/response overhead; pending handoffs
-are marked. Peer RX/TX, CMAC and activation events are supporting transport
-evidence. Confirm application completions independently using client results.
-
-For finite concurrent peer load, `tools/enzian/cooperative_client.py` supports
-`add`, `mul`, the packaged `nested-validation` fixture's `echo`, and kernel UDP
-`bypass` streams. It checks every response and source, records individual send/
-receive timestamps in `completions.csv`, and fails without retry on loss or
-corruption. Start its `--bypass-server` mode on a non-worker DUT CPU, binding
-only the DUT NIC address; this is an ordinary kernel UDP echo service on 32345.
-Create fresh output directories for each run. For example, on the reserved peer:
-
-```sh
-python3 cooperative_client.py --bind 192.168.129.129 --nic 192.168.129.200 \
-  --streams add,echo,bypass --seconds 60 --window 1 --output NEW_PEER_RUN
-```
-
-Activate services in a recorded order and verify actual worker placement from
-traces. Additional workers still require the existing queue watermark; declaring
-three threads or sending three sequential calls does not allocate three workers.
-To exercise all-but-one stalls, first place an active service on worker 0, then
-use a bounded burst to allocate the three-thread stalled service on the other
-workers. Alternate the two one-thread active services to require cooperative
-handoffs while bypass traffic continues. This is a campaign procedure, not a
-claim that the placement or progress has already been observed.
-
-Save plain `l2c_tad_snapshot` output and complete kernel logs before and after
-each trial. `tools/enzian/assess_tad.py --before TAD_BEFORE --after TAD_AFTER
---kernel-before DMESG_BEFORE --kernel-after DMESG_AFTER --output NEW_REPORT.json`
-requires exactly eight distinct units, checks their interrupt/timeout state,
-and rejects kernel fault diagnostics or missing log continuity. It only reads
-saved files. EDAC may clear a hardware interrupt before a snapshot, so neither
-register snapshots nor logs alone suffice. Preserve the board state on failure.
-
-The hold analyzer additionally groups independent transport events by the number
-of **simultaneously** stalled workers whose completed intervals meet
-`--minimum-hold-cycles`. Bypass is excluded from the stalled-worker count;
-ordinary `YieldAccepted` events are distinguished from initial activation.
-The report also separates idle/ordinary activation counts by physical worker
-and PA domain, and request dispatch counts by Linux PID and physical worker.
-Trace `CoreID` is the NIC datapath ID: zero is bypass, and application worker
-index is `CoreID - 1`; it is not a Linux CPU ID. Keep these identity spaces
-distinct. Preserve a full capture, then analyze a
-recorded byte range for each measured trial so earlier phases cannot inflate
-its counts.
-Use these overlap counts together with client completions and TAD assessment.
-They do not prove progress outside the recorded window.
-
-For the active-peer handoff phase, `cooperative_client.py --streams add,echo,bypass
---alternate-rpc --rpc-gap-us 2000` keeps one application RPC in flight and rotates
-its destination after each validated reply. Bypass retains an independent window.
-The completion CSV records the actual request spacing. This workload encourages
-cooperative handoffs; verify physical-worker placement and simultaneous holds in
-the trace before counting it as an all-but-one-stalled-worker result. Pool sizes
-alone do not establish that placement. The pinned loopback test verifies RPC
-alternation, the minimum gap and bypass completions between RPCs.
+Use [RX stall-timeout calibration](../hardware/eci-implementation.md#calibrating-the-rx-stall-timeout-before-nack)
+to compare the NIC's NACK timer with observed CPU/ECI timeout behavior. It covers
+parameter readback, TAD/kernel checks, contention, trace analysis and the limits
+of finite measurements. Use the normal preservation and boot gates above.
 
 For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
 verified cold power sequence and BDK handling, skips FPGA programming, and
