@@ -49,7 +49,7 @@ recovery or other work that may require the blocked worker to run. Those events
 need asynchronous delivery. A synchronous encoder status is suitable only when
 its completion can progress independently of the waiting host and its latency
 fits the ECI critical-section/progress contract. Review the
-[coherence notes](../hardware/coherence-progress.md) before extending the wait.
+[coherence notes](../hardware/queue-pair-design.md#motivation-avoid-head-of-line-blocking) before extending the wait.
 
 Elena's existing protobuf results arrive through RX descriptors; they are not
 TX completions. Sven's proposed hardware-held continuation pointer likewise

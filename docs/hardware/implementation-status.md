@@ -20,7 +20,7 @@ open. No fresh hardware build or test accompanies this documentation pass.
 
 | Topic | Evidence and implication |
 | --- | --- |
-| DCU progress/concurrent QPs | [Progress analysis](coherence-progress.md), the selected 8 KiB map separates active control colors from overflow colors and supports full-duplex bypass. Production slice control routing and completion checks supplement the bounded models; finite board progress is recorded, but simultaneous four-worker tail behavior, three stalled peers and corrected-image RX hold qualification remain open. |
+| DCU progress/concurrent QPs | [Progress analysis](queue-pair-design.md#motivation-avoid-head-of-line-blocking), the selected 8 KiB map separates active control colors from overflow colors and supports full-duplex bypass. Production slice control routing and completion checks supplement the bounded models; finite board progress is recorded, but simultaneous four-worker tail behavior, three stalled peers and corrected-image RX hold qualification remain open. |
 | Ownership and activation | [ECI ownership](queue-pair-design.md) is implemented by the decoder, ownership table and cooperative yield path. See [current evidence](eci-implementation.md) for validation limits. |
 | Table scaling and spill | `Global.scala` explicitly attributes small tables to fully connected lookup routing/placement cost. [Lookup spill design](lookup-spill.md) is a proposal for hardware caches and typed software slow paths, not implemented general spill support. |
 | TCP/HTTP/gRPC | `hw/src/lauberhorn/net/{Tcp,Http,Grpc}.scala` are empty classes. Finished external [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects exist; they are unmerged. Integration follows first-paper application work; see [gRPC roadmap](../research/grpc-roadmap.md). |
@@ -31,7 +31,7 @@ open. No fresh hardware build or test accompanies this documentation pass.
 
 ## Progress and verification traps
 
-[DCU analysis](coherence-progress.md) requires active control colors to be globally unique and disjoint from every active overflow color after **ECI scrambling**. Full-duplex QPs contribute both directions; sequential single-thread workers contribute only their active direction. A blocking RX remains active. The selected layout is installed in source and checked against the capacity utility. Arithmetic alone is not a measured progress guarantee.
+[DCU analysis](queue-pair-design.md#motivation-avoid-head-of-line-blocking) requires active control colors to be globally unique and disjoint from every active overflow color after **ECI scrambling**. Full-duplex QPs contribute both directions; sequential single-thread workers contribute only their active direction. A blocking RX remains active. The selected layout is installed in source and checked against the capacity utility. Arithmetic alone is not a measured progress guarantee.
 
 `hw/test/src/lauberhorn/host/eci/OncRpcSim.scala` checks finite stalled-worker progress and RX/TX interleaving against the selected map. These host coherence models and the production slice control-array test do not establish infinite-stall silicon progress. See the evidence ledger for exact passing cases.
 

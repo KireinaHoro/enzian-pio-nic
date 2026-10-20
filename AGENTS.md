@@ -28,7 +28,7 @@ these canonical sources. Edit the tracked source rather than keeping local copie
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md), [Nix-to-Vivado CI handoff](docs/development/ci.md).
 - Real Enzian hardware / adder E2E: use the [enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md), then [hardware test quickstart](docs/development/validation.md#board-validation) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
 - Trace capture: use the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and [canonical workflow](tools/enzian/trace/README.md). Manual and campaign capture share the same scripts; CMAC for full dumps, JTAG only for bounded integrity checks. Failed Ethernet capture stops without reset or full JTAG fallback.
-- Formal model contracts, assumptions, bounds and verification results: [formal documentation](docs/formal/README.md). Model source, configurations and machine-readable evidence stay under `model/`.
+- Formal verification (TLA+, model checking and RTL verification), assumptions, bounds and results: [formal documentation](docs/formal/README.md). Model source, configurations and machine-readable evidence stay under `model/`.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
 - Go runtime / HOST_WORK / future etcd: [design and dispatch matrix](docs/research/etcd.md); documentation only, no implementation authorized by this handoff.

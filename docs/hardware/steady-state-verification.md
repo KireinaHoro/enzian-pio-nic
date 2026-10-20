@@ -156,8 +156,8 @@ justify this fairness; priority RTL alone does not prove it.
 
 ## Replacement address configurations and capacity
 
-The **selected** replacement uses the [8 KiB block layout](coherence-progress.md#example-permissive-layout)
-and [19-bit XOR domain encoding](coherence-progress.md#concrete-domain-qualified-pa-encoding):
+The **selected** replacement uses the [8 KiB block layout](queue-pair-design.md#selected-8-kib-layout)
+and [19-bit XOR domain encoding](queue-pair-design.md#concrete-domain-qualified-pa-encoding):
 RX controls at `+0x300/+0x380`, TX controls at `+0x1300/+0x1380`, twelve
 contiguous overflow lines after each pair, and no preemption control CL. The
 searcher's default is now this selected 64-color/38-bit, 8 KiB geometry. Seven
@@ -166,7 +166,7 @@ level. The checked-in [configuration](../../model/data/selected-8k.json) allocat
 seven workers and 16 domains; it targets the router-free decoder, not production
 thread-router registers. See the [selected-layout evidence and Goal 1 status](#selected-8-kib-layout-evidence-and-goal-1-status).
 
-The 128 KiB stride is inherited, not necessary. The [smaller-block check](coherence-progress.md#block-size-is-a-search-parameter-not-a-2f2f-requirement)
+The 128 KiB stride is inherited, not necessary. The [smaller-block check](queue-pair-design.md#block-size-is-a-search-parameter-not-a-2f2f-requirement)
 finds three workers plus bypass in 4 KiB blocks, and seven plus bypass in 8 KiB
 blocks, with respectively 1048576 and 524288 domain codes per worker. These are
 color/address results only. Reproduce the 4 KiB placement sweep in `nix develop`:

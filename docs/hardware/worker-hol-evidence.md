@@ -15,7 +15,7 @@ original `docs/ECI-2F2F-DCU-PROGRESS.md`; commit
 “try to explain the observed overflow timeout with color model.” Its crash
 section records TX offsets `0x8000`, `0x8100`, `0x8200`, `0x8300`, citing a local
 screenshot, and proposes the mutually blocking RX/TX control-color cycle.
-That explanation survives in [coherence progress](coherence-progress.md).
+That explanation survives in [coherence progress](queue-pair-design.md#motivation-avoid-head-of-line-blocking).
 It was a source-supported hypothesis, not a captured proof of every pending
 DCU transaction at the instant of failure.
 

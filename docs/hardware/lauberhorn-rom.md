@@ -141,7 +141,7 @@ path. The single-line THX FSM omits write buffers and LFBs and cannot prove this
 No autonomous ICI victim-selection mechanism is supplied by the selected ROM.
 General LC/F32 behavior is outside its interface. Removing local locks neither
 proves arbitrary CPU-request admission nor replaces whole-system progress and
-isolation arguments. See [coherence progress](coherence-progress.md).
+isolation arguments. See [coherence progress](queue-pair-design.md#motivation-avoid-head-of-line-blocking).
 
 ## Build integration and selected-ROM checks
 

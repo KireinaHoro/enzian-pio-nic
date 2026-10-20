@@ -57,4 +57,4 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 - [TCP/Protobuf and gRPC roadmap](../research/grpc-roadmap.md): finished external projects and lower-priority integration scope.
 - [Latency measurement](../research/latency-measurement.md): measurement definitions, correlation and historical examples.
 - [Lookup spill](../hardware/lookup-spill.md): proposed software-backed table scaling.
-- [Worker endpoints and domain aliases](../hardware/queue-pair-design.md): selected 8 KiB layout and ownership rules. [Coherence progress](../hardware/coherence-progress.md) explains resource assumptions and the remaining hardware-refinement questions; selected coloring alone does not establish full-system progress.
+- [Queue-pair design and HoL blocking](../hardware/queue-pair-design.md): selected 8 KiB layout, domain aliases, ownership and the coloring rationale. Coloring alone does not establish full-system progress.

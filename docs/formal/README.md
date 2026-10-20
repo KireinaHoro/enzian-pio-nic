@@ -1,8 +1,8 @@
 # Formal models and verification
 
-Human documentation for model structure, contracts, assumptions, finite bounds,
-negative controls and recorded verification results. Model source, configurations
-and machine-readable evidence live under [`model/`](../../model/README.md).
+Formal verification documentation: TLA+ specifications, model checking, RTL
+verification, assumptions, finite bounds, negative controls and recorded results.
+Model source, configurations and machine-readable evidence live under [`model/`](../../model/README.md).
 
 - [AXI and coherence response contract](axi-response-contract.md)
 - [Model layers and coherence verification](../hardware/layered-verification.md)

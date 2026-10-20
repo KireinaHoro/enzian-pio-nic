@@ -326,7 +326,7 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
   activation failures kill and fence the domain; full resource-recycling recovery
   and deadline activation remain deferred.
 - TCP and Protobuf student platform/report trees are located and documented in [TCP](tcp.md) and [Protobuf](protobuf.md). Merge soon to avoid drift, at lower priority than Dandelion and the other first-paper applications. Fully offloaded gRPC is a possible subsequent paper.
-- Updated 2026-09-30: physical-worker-owned QPs and the [8 KiB layout/domain encoding](../hardware/coherence-progress.md#concrete-domain-qualified-pa-encoding) are selected for the router-free replacement. The implementation now selects physical-worker decoding; full acceptance is pending.
+- Updated 2026-09-30: physical-worker-owned QPs and the [8 KiB layout/domain encoding](../hardware/queue-pair-design.md#concrete-domain-qualified-pa-encoding) are selected for the router-free replacement. The implementation now selects physical-worker decoding; full acceptance is pending.
 
 ## Scheduling verification milestones (maintainer, 2026-09-30)
 

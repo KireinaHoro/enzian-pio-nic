@@ -73,7 +73,7 @@ a hardware timer wheel is not required. Add an explicit service-runnable
 notification/control path and integrate it with scheduler allocation and
 preemption acknowledgements. No RX/TX fast-path ioctl or concurrent signal-based
 access to an ECI QP is permitted. Review the
-[coherence progress contract](../hardware/coherence-progress.md) before changing
+[coherence progress contract](../hardware/queue-pair-design.md#motivation-avoid-head-of-line-blocking) before changing
 ownership, ordering or cache-line accesses.
 
 Deschedule only between bounded service activations, after publishing ready

@@ -149,7 +149,7 @@ Before selecting an ABI or implementing this path, establish:
 
 Schedule this with [application performance evaluation](../research/roadmap.md#application-performance-and-coupled-rxtx-analysis).
 It is not a prerequisite for address/DESCHED work or a selected replacement for
-independent TX. Preserve [coherence progress](coherence-progress.md).
+independent TX. Preserve [coherence progress](queue-pair-design.md#motivation-avoid-head-of-line-blocking).
 
 ### Existing RX return-half service
 
