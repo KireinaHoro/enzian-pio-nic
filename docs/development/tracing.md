@@ -1,6 +1,6 @@
 # Lauberhorn Tracing
 
-Detailed reference, source-reviewed on 2026-09-08. Start with [validation](validation.md)
+Start with [validation](validation.md)
 for test selection or the [trace tools README](../../data/eci/sys_trace/README.md)
 for exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
@@ -29,11 +29,6 @@ Wrapped buffers currently fail explicitly; never relabel a prefix as a full dump
 See the canonical workflow for transfer prerequisites, recording-only controls,
 partial failure evidence and export-only recovery. Historical address examples
 below describe particular board experiments, not implicit defaults for new runs.
-
-Measured payload throughput was **6.9 MiB/s** with the current single-outstanding
-1408-byte Python reader, versus roughly 0.01–0.02 MiB/s for the observed
-Vivado/Tcl JTAG dumper. This is implementation throughput, not CMAC line rate.
-The board validation does not establish long-duration reliability or timing closure.
 
 ## Overview
 
@@ -262,24 +257,16 @@ samples to that DDR through the `trace_ddr_axi` AXI port.  The same MIG address
 space is also reachable from the Vivado debug path: the block design connects
 `jtag_axi_0/M_AXI` through the AXI smartconnect to the DDR4 memory map.
 
-This gives the tracing system an out-of-band readout path:
-
-1. Trace samples are written continuously into the circular DDR buffer while the
-   design runs.
-2. After stopping or snapshotting the workload, Vivado hardware manager can use
-   the JTAG-to-AXI master to issue AXI reads into the trace DDR address space.
-3. A Vivado Tcl flow can dump the requested DDR address range to a raw binary
-   file on the host.
-4. Python tooling consumes that raw dump and converts it to pcapng.
-
-This readout path is intentionally separate from the normal ECI/NIC datapath.  It
-does not require software running on the host CPU to understand the trace buffer;
-Vivado reads the MIG-backed trace storage directly over JTAG AXI.
+Readout is independent of the host driver and the normal ECI/NIC datapath.
+Use F_MAC1 UDP for the full frozen buffer. The JTAG AXI connection supports
+bounded independent head/tail integrity reads after successful Ethernet capture;
+it is not a full-dump fallback. The
+[shared capture workflow](../../tools/enzian/trace/README.md) owns freezing,
+readout, persistence and restoration.
 
 ### UDP Readout
 
-Large trace dumps should use the lightweight UDP readout path instead of the
-JTAG AXI dumper.  `lauberhorn_trace_dma` reuses the read side of the same AXI
+Full trace dumps use the lightweight UDP readout path.  `lauberhorn_trace_dma` reuses the read side of the same AXI
 DMA that writes the trace buffer and streams bounded trace-DDR reads out through
 a dedicated trace CMAC.  The path is intentionally small: it strips one combined
 Ethernet/IPv4/UDP request header, parses the trace command in the UDP payload,
@@ -303,9 +290,9 @@ With all override-valid bits left at zero, the hardware defaults are:
 Both active ports use GT RX/TX polarity mask `0011`: F_MAC0 for RPC and
 F_MAC1 for trace. This matches the engineer's
 [interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L549).
-On zuestoll14, F_MAC1 is leaf1 Ethernet100 (ZS14-FPGA2). The main RPC
-interface remains `0c:53:31:03:01:c8` / `192.168.129.200`; the capture peer
-remains zuestoll12 `cpu40g1`, `192.168.129.129`.
+The recorded zuestoll14 mapping is leaf1 Ethernet100 (ZS14-FPGA2); its main
+RPC identity is `0c:53:31:03:01:c8` / `192.168.129.200`. Select peer addresses
+and confirm port mappings for the actual board reservation.
 
 Historical F_MAC3 images used `0c:53:31:03:01:d4` / `192.168.129.201` and
 polarity `1100`. Use the address and port for the actual bitstream; do not
@@ -325,7 +312,7 @@ Asserting `trace stop` freezes trace collection into DDR by preventing
 `TraceBufferDMA` from issuing new write descriptors.  If a descriptor is already
 in flight when the bit is asserted, that descriptor can still complete before
 `writeSlot` stops advancing.  The trace dump/read path remains active, so the
-frozen buffer can be dumped with the normal UDP or JTAG tools.
+frozen buffer remains readable over UDP and available for bounded JTAG checks.
 
 The dump-capture machine runs the Python script as a UDP server.  When the VIO
 `dump over network` output rises, the FPGA sends a zero-data metadata packet to
@@ -365,48 +352,19 @@ a zero UDP checksum; sequence/length checks alone are not an independent
 content-integrity check.
 
 For completeness, freeze and verify a stable write pointer, read the entire
-valid range (and handle wrapping), then inspect recorded loss markers with the
+valid range, then inspect recorded loss markers with the
 matching map. `sampleLost` is sticky and can become asserted after freezing
 because trace inputs continue while DDR writes stop. A set flag alone cannot
-date the loss relative to freeze.
+date the loss relative to freeze. The canonical capture flow rejects wrapped
+buffers; offline parser support for wrap does not make a partial dump complete.
 
-Example status query:
-
-```sh
-python3 data/eci/sys_trace/dump_trace_udp.py \
-  --bind-ip 129.132.102.8 \
-  --status
-```
-
-Example dump:
-
-```sh
-python3 data/eci/sys_trace/dump_trace_udp.py \
-  --bind-ip 129.132.102.8 \
-  --bytes 0x80000000 \
-  --chunk-bytes 1408 \
-  --out trace-dram.bin
-```
-
-The Python default is 1408 bytes, the largest 64-byte-aligned payload within
-the hardware's 1440-byte limit. Older tools defaulted to 1440 and need an
-explicit `--chunk-bytes 1408` to avoid hardware alignment errors. UDP
-port 55555 uses an ordinary socket and does not itself require `sudo`; the bind
-address must be assigned to the capture machine and reachable in the configured
-network.
-
-Start the tool before toggling the VIO `dump over network` bit.  The tool uses a
-normal UDP socket and waits for the FPGA metadata packet; it does not need the
-FPGA MAC address or private FPGA IP address.
-
-For capture on another Enzian's FPGA-facing CPU interface, bind to that
-interface's IPv4 address. Set VIO override bits 3 and 4 (`0x18`) and supply
-the capture interface's MAC as `trace_dump_gateway_mac` and its IPv4 address
-as `trace_dump_server_ip`. On the same subnet the next hop is the capture
-host itself. Check reservations and current interface addresses first.
-Assert `trace_stop`, wait for `writeSlot` to stabilize, start the receiver,
-then toggle `trace_dump_over_network` from zero to one. Preserve the original
-VIO values for restoration after the experiment.
+The standard reader chunk is 1408 bytes, the largest 64-byte-aligned payload
+within the 1440-byte hardware limit. Capture orchestration starts the receiver
+before triggering metadata, supplies the actual peer's next-hop MAC/IP through
+VIO overrides, and preserves the original controls. Use the
+[configuration and commands](../../tools/enzian/trace/README.md#configuration-and-commands)
+for full capture and export-only recovery. Low-level receiver options remain in
+the [trace tools reference](../../data/eci/sys_trace/README.md).
 
 Before debugging UDP, check the VIO at `hier_trace_cmac_ctrl_stat/vio_0`:
 `stat_rx_aligned` and `stat_rx_status` must be one, with local/remote faults
@@ -475,19 +433,12 @@ This checks the local stream path; it does not establish external signal
 integrity or DDR-read correctness. Fabric timing margins and legal CMAC/GT
 placement likewise do not establish serial-link health.
 
-The intended offline flow is:
-
-1. Program and run the design.
-2. Stop or snapshot the workload.
-3. Dump the trace DDR buffer to a raw binary file through the UDP trace CMAC.
-   Use the Vivado hardware-manager JTAG AXI path as a fallback when Ethernet
-   readout is unavailable.
-4. Convert the raw dump to pcapng with `export_trace_pcap.py`.
-5. Open the pcapng in Wireshark or TShark with `lauberhorn_trace.lua`.
-
-The exporter starts from a raw dump file produced by either UDP or JTAG AXI
-readout.  See [the trace parser README](../../data/eci/sys_trace/README.md) for the concrete exporter
-and Wireshark commands.
+For offline analysis, start with the persisted raw buffer and matching map from
+the [capture workflow](../../tools/enzian/trace/README.md). Convert to pcapng and
+open it with the Lua dissector using the
+[exporter and Wireshark commands](../../data/eci/sys_trace/README.md). Ethernet
+failure leaves partial evidence and stops; it does not authorize reset or full
+JTAG readout. The exporter can also read historical JTAG-produced files.
 
 ## Python Tooling
 
@@ -557,11 +508,13 @@ The current ECI preemption ports emit `YieldAccepted`, `ActivationCommitted`
 and `ActivationDelivered`, with physical core, PA domain code and scheduler
 slot; committed activation also records RX/TX parity. Idle dispatch is identified
 at acceptance. Use the matching generated trace map. Kernel `worker_switch`
-records outgoing and incoming task/lifetime identities at activation delivery.
+records outgoing and incoming task/lifetime identities at phase 2, when activation
+is published before waking the incoming task. Current code does not emit the
+legacy phase 0/1 switch or `process_recovery` sequence described below.
 
 ## Historical B4 scheduling and recovery events
 
-The B4 source extends `SchedulerDeschedCore` with `PreviousProcessID` and
+For historical B4 captures, the source extends `SchedulerDeschedCore` with `PreviousProcessID` and
 `EciTxSubmit` with `ExecutionCommand` (0 unchanged, 1 end, 2 begin, 3 end/begin).
 Incoming `SchedulerRequestDispatched` begins an inline interval; completion RX
 does not imply a resumed fiber. `SchedulerWatchdogExpired` marks expiry once,
@@ -583,7 +536,8 @@ Recovery reason values are 0 close, 1 explicit stop/unmap, 2 hardware kill and
 The kernel assigns a monotonically increasing lifetime at registration so PID
 or process-slot reuse does not silently merge separate applications.
 
-Enable `events/lauberhorn/enable` in tracefs for a recovery campaign, and preserve
+When reproducing that historical ABI, enable `events/lauberhorn/enable` in
+tracefs and preserve
 its trace, per-CPU loss/overrun statistics, kernel log, hardware raw capture and
 matching generated trace map. Kernel timestamps and NIC cycles are separate
 clock domains: correlate the worker/PID switch sequence before fitting offsets;
@@ -594,7 +548,7 @@ analysis; they are not themselves measured scheduling results.
 
 ## Directory allocation stalls
 
-The trace-only `trace-directory-allocation` DCS branch adds nonfatal
+The allocation-trace variant of DCS defines nonfatal
 `ERR_RTG_ALLOC_FULL` (code 7). It identifies an allocating miss with no free RTG
 way and preserves the blocked request's opcode/address even though it was not
 accepted. `state=s1__1`, `action=STALL` are diagnostic values on this pre-ROM path.
@@ -611,38 +565,33 @@ limitations. See the [allocation-trace contract and regression](../hardware/dire
 
 ## Timestamp capture point and legacy queue bias
 
-The October 11 memcached campaign found that dependency `5845335` and earlier
-`TraceBufferDMA` implementations sampled `cycleCount` when a trace batch left
-the input FIFO. Serialization/backpressure could therefore add a variable delay
-to timestamps even when every sample was retained. A loss-free dump alone does
-not establish event-time accuracy. The preserved 518836 capture demonstrates
-contradictory CPU/DCS timing bounds under concurrent bursts; see the
-[memcached evidence](../research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
-
-Correction `e24f2ef` captures the timestamp together with the batch at input and
-carries it through the queue. The generated map now declares
-`sample.timestamp_point = "trace_dma_input_before_batch_queue"`. Maps without
-that field describe legacy dequeue timestamping. The sample bit layout is
-unchanged, but maps and provenance must distinguish these contracts. The
-regression checks ingress-cycle spacing under multi-source serialization and
-rejects the original implementation.
+Current `TraceBufferDMA` captures the timestamp together with each input batch
+before the batch queue and carries it through serialization. The generated map
+declares `sample.timestamp_point = "trace_dma_input_before_batch_queue"`.
+Maps without that field describe legacy dequeue timestamping: FIFO residence
+and serialization/backpressure can then add variable timestamp delay even when
+no sample is lost. The sample bit layout is unchanged, so map/provenance must
+distinguish the two contracts. The regression checks ingress-cycle spacing under
+multi-source serialization. Historical affected measurements are described in
+[the recorder limitation and evidence](../research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
 
 System-domain ECI sources still cross an untimestamped asynchronous FIFO before
 reaching the trace recorder. Fixed pipeline-delay subtraction does not bound
 variable CDC residence. Report CPU/FPGA fit uncertainty as conditional on that
 path and reject inconsistent fits; do not widen the acceptance threshold merely
 to obtain a breakdown. App-domain NIC/MAC events with the corrected recorder
-avoid the global batch-queue bias. New hardware validation is required before
-claiming corrected measurements; historical fine hardware intervals, including
-nullrpc comparisons, retain this newly identified limitation until reassessed.
+avoid the global batch-queue bias. Use a matching recorder/map for new
+measurements; historical fine hardware intervals from dequeue-timestamped
+recorders retain that limitation until reassessed.
 CPU-only intervals and client RTTs are unaffected by the recorder correction.
 
-### Vivado freeze shutdown recovery
+### Vivado control recovery
 
-The shared trace controller handles the known Vivado exit-139 shutdown crash
-only for a completed `freeze`: the log must show `trace_stop=1`, target closure,
-`exit 0`, and Vivado shutdown without Tcl errors. It then performs one independent
-read-only status operation, requiring a successful exit and identical VIO outputs.
-A failed or mismatched readback remains terminal. The original freeze snapshot
-and crash log are preserved; freeze is not repeated, so restoration state is not
-overwritten. This does not relax Ethernet dump validation or enable JTAG fallback.
+The shared controller retries SIGSEGV (exit 139 or signal 11) up to three
+attempts for its replayable control operations, retaining every attempt log.
+A crash is not success: a later invocation must complete successfully, and
+normal freeze, persistence and integrity checks still apply. Tcl errors,
+other failures and timeouts remain terminal. Saved original VIO snapshots are
+not replaced on retry. See the
+[capture recovery contract](../../tools/enzian/trace/README.md#vivado-crash-recovery).
+No retry resets the board or starts a full JTAG dump.

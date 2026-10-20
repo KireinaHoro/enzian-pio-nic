@@ -5,6 +5,9 @@ capture and unattended campaigns. `trace.session.capture()` is the same operatio
 as a Python API. The benchmark adapter calls that API; it has no separate dump,
 export, restoration or integrity implementation.
 
+See [tracing architecture and interpretation](../../../docs/development/tracing.md)
+for recorder timestamps, event schemas, loss markers and diagnostic boundaries.
+
 The workflow reuses the existing low-level implementations:
 
 - `data/eci/sys_trace/dump_trace_udp.py`: CMAC/UDP receiver, bounded retries and
@@ -51,8 +54,9 @@ hashes, the matching map, original VIO outputs, pre/post-freeze status, stable
 write pointer, receiver logs, complete raw bytes and SHA256, JTAG comparisons,
 restoration state and a relative-file hash manifest. A per-target lock serializes
 canonical control operations. Trace recording remains frozen after restoration.
-Only unwrapped captures of at least 4096 bytes are currently supported; wrapped
-buffers fail explicitly rather than silently persisting a prefix.
+Only nonempty, unwrapped captures are supported. For traces shorter than
+4096 bytes, both bounded JTAG checks cover the complete trace. Wrapped buffers
+fail explicitly rather than silently persisting a prefix.
 
 `capture.json` is durable progress/failure state. `summary.json` exists only after
 successful persistence, integrity and restoration. `manifest.json` retains partial

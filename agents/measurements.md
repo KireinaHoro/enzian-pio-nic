@@ -222,3 +222,11 @@ userspace and kernel perf reads. Isolate PMU configuration, hardware semantics
 and kernel behavior; the old observations establish no named erratum or root
 cause. Changing counter-register access alone already failed as a remedy.
 No new profiling run is implied by this evidence migration.
+
+## Historical trace-readout throughput observation
+
+The former tracing reference reported 6.9 MiB/s payload throughput for its
+single-outstanding 1408-byte Python reader, versus roughly 0.01–0.02 MiB/s for
+the observed Vivado/Tcl JTAG reader. This is dated implementation throughput,
+not CMAC line rate, a current performance result, long-duration reliability or
+timing closure. Original note: `73c84805:docs/development/tracing.md`.

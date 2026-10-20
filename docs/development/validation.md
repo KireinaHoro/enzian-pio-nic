@@ -11,7 +11,10 @@ from the repository root in the Nix development environment.
 A successful build supplies an artifact, not board acceptance. A passing RPC
 test requires externally routed correct replies through `lauberhorn0`, with
 matching bitstream, generated ABI, runtime, kernel module and client protocol.
-Record the image manifest and hashes alongside the board result.
+Record the image manifest and hashes alongside the board result. For captured
+evidence, use the [tracing reference](tracing.md) to interpret source IDs, loss
+markers and clock boundaries; successful transport alone does not validate a
+workload measurement.
 
 | Flow | Use it for | Entry point and result |
 | --- | --- | --- |

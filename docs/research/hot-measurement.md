@@ -61,6 +61,11 @@ Loaded cases use compiled-out probes and client RTT, without switch capture,
 FPGA readout or NIC PTP. Keep the existing 32-core paced batches, deadline,
 loss/rejection accounting, aggregate histograms and complete overload grid.
 
+For historical FPGA-recorder comparisons, use the
+[trace timestamp contract](../development/tracing.md#timestamp-capture-point-and-legacy-queue-bias)
+and [source/acceptance boundaries](../development/tracing.md#eci-message-trace-points).
+The active Tofino wire measurements have their own boundaries above.
+
 ## Capture and collection acceptance
 
 Both rehearsal and full collection require the same validated Tofino backend.

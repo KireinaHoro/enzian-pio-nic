@@ -18,6 +18,8 @@ Scope: current source tree, inspected 2026-09-08. Source paths below are relativ
 
 F_MAC0's CMAC is configured over AXI-Lite through a 64 KiB register window,
 including its RS-FEC controls. F_MAC1 uses autonomous control for the trace link.
+See [tracing architecture](../development/tracing.md#hardware-collection) for
+producer wiring, recorder/map generation and timestamp semantics.
 
 ## Packet paths
 
