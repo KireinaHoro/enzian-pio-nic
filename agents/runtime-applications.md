@@ -41,7 +41,9 @@ human-facing protocol reference. Historical source integration originated on
 `feat/cooperative-yield`; that branch name is not current work state.
 
 The [October 3 finite board record](../data/eci/board-evidence/cooperative-20261003-contention.json)
-reports 5,926 ordinary handoffs with zero scheduling IRQ counter change,
+records two cold boots at a 133.281505 ms RX hold. Its loss-free measured
+interval contains 5,926 ordinary handoffs with matching activation parities and
+zero scheduling IRQ counter change,
 including 4,710 overlapping three full-length peer stalls. Concurrent control
 reads and bypass traffic completed with clean TAD/kernel checks. This record
 has its own finite exposure and does not extend the October 5 GSYNC test's
@@ -66,6 +68,10 @@ to application validation. Before proposing a specific check, reconcile it with
 [the implementation ledger](../docs/hardware/eci-implementation.md) and later
 application results. Retain matched artifacts/clocks, actual stall exposure,
 nearest failing bound and fault traces for any authorized boundary trial.
+The recorded finite RX-hold setting does not resolve the maximum-timeout
+boundary or the earlier baseline kernel lockup. Before resuming either question,
+check subsequent evidence for a resolution and select an application-driven
+case; neither is permission to reopen the closed dedicated campaign.
 Shared-control traffic must be included when assessing progress behind a
 blocking info read; model independence alone does not establish bus progress.
 

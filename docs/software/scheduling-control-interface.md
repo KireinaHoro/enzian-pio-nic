@@ -10,6 +10,17 @@ field layouts. The decoder normalizes these names; saved evidence and historical
 analysis JSON metric keys retain their original spelling. Generated headers and
 displayed protocol labels use DESCHED/DeschedInfo.
 
+## Execution boundary
+
+A worker enters RX after exhausting runnable local work. Handlers run to finish
+or cooperatively wait for external results; applications must release locks
+before blocking in RX/yield. Self-sustaining batch work is outside this
+cooperative execution contract. Ordinary syscall sleep retains the assignment.
+
+At idle RX the NIC supplies a packet, stalls, returns a finite NACK or returns
+DESCHED. The runtime drains ready fibers and sweeps RPC timeouts before RX;
+DESCHED causes immediate yield without further transport access.
+
 ## Activation and handoff
 
 There are two entry paths with one kernel activation helper:
@@ -152,6 +163,9 @@ and writeback checks address separate finite obligations. The
 [implementation evidence](../hardware/eci-implementation.md) records source,
 model, RTL and board results within their respective scopes. Finite board
 exposure does not establish infinite-stall progress or a latency guarantee.
+The [bounded scheduling composition](../hardware/scheduling-composition.md) and
+[coherence progress analysis](../hardware/coherence-progress.md) describe the
+remaining resource and hardware-refinement assumptions.
 
 Source entry points: [handoff RTL](../../hw/src/lauberhorn/host/eci/EciDeschedulingControlPlugin.scala),
 [kernel activation](../../sw/kmod/sched.c), [runtime yield](../../sw/rt/activation.c)

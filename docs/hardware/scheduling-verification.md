@@ -31,7 +31,8 @@ claim whole-system hardware refinement.
 ## Source audit and scope
 
 The implementation audit starts at platform `7387e05`. The
-[pivot](../architecture/sched-design-pivot.md) supplies the intended behavior.
+[control contract](../software/scheduling-control-interface.md) describes the
+implemented cooperative handoff.
 At that revision, `Scheduler.scala` distinguished `coreResident` from the early
 `corePidMap` reservation. The former `sw/kmod/sched.c` retained the old route until
 `datapathDrained`, then updates affinity/routing/parity; this is useful ordering
