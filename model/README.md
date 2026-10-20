@@ -1,5 +1,8 @@
 # TLA+ models
 
+See [formal models and verification](../docs/formal/README.md) for human-readable
+contracts, assumptions, model explanations and bounded verification results.
+
 The version-3 contiguous TX payload contract is checked by
 [`TxPayloadLayout`](tla/composition/TxPayloadLayout.tla): length-based overflow
 invalidation, inline alias priority, cancellation and full preemption cleanup.
@@ -103,7 +106,7 @@ are compositions, **not proofs that one specification refines another**.
 | `Probe` | A second device client of the unchanged generic DCS resource interface |
 | `DirectoryAdmission` | Separate CPU fill-reservation/pigeonhole contract; it models requests overtaking queued victims, which `RetainedCache` does not |
 | `ReadResponses` | Generic finite ordered read-data channel, transaction identity and capacity; no scheduling policy |
-| `AxiReloadGate` | Earlier/queued/buffered reads, held doorbell, stop fencing and independent peer service; [contracts and counterexamples](../docs/hardware/axi-response-contract.md) |
+| `AxiReloadGate` | Earlier/queued/buffered reads, held doorbell, stop fencing and independent peer service; [contracts and counterexamples](../docs/formal/axi-response-contract.md) |
 | `Assignment`, `Reservation` | Cooperative assignment transitions and destination-capacity contention |
 | `Handoff`, `SelectedAddresses` | Handoff to the exact Goal 1 predicate using generated selected-layout control addresses |
 | `HostWake`, `WakeHandoff`, `WakeRetirement` | Notification ownership, joined host-driven handoff, and callback lifetime; the retirement harness assumes endpoint retirement |
@@ -168,7 +171,7 @@ remain. Neither a kernel cache flush nor an activation commit write is implied.
 The new low-level suites check selected single-line histories and repeated worker
 operations, not every THX race. General single-line correctness, independent THX replacement/response service,
 exact writeback/data-buffer timing and hardware correspondence of kill TX/overflow cleanup, and hardware conformance to the
-[AXI response contracts](../docs/hardware/axi-response-contract.md) remain undischarged. See the
+[AXI response contracts](../docs/formal/axi-response-contract.md) remain undischarged. See the
 [review and current evidence](../docs/hardware/model-review.md) and
 [implementation checklist](../docs/software/scheduling-implementation-checks.md).
 

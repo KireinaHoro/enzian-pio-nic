@@ -11,6 +11,7 @@ Start with the [system map](docs/architecture/overview.md).
 - [Development setup and build commands](docs/development/workflow.md)
 - [Nix packages and deployment products](nix/README.md)
 - [Validation: local checks and board testing](docs/development/validation.md)
+- [Formal models and verification](docs/formal/README.md)
 - [CI and dependency maintenance](docs/development/ci.md)
 - [FPGA builds](docs/development/hardware-build.md)
 - [Trace capture](tools/enzian/trace/README.md) and [trace analysis tools](data/eci/sys_trace/README.md)

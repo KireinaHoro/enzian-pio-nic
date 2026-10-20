@@ -105,7 +105,7 @@ completion. Stable old cache entries may remain after metadata release. As in
 traffic must not dereference freed application metadata or reused packet storage.
 That late-address/tombstone implementation is not modeled here.
 
-The [AXI response contracts](axi-response-contract.md) remain premises: no
+The [AXI response contracts](../formal/axi-response-contract.md) remain premises: no
 forbidden target refill behind a held doorbell, correct same-line response
 ordering, and independent eligible coherence service. Actual THX credit topology,
 replacement initiation and service fairness remain undischarged. The response

@@ -629,7 +629,8 @@ replace whole-slice routing tests or hardware validation.
 
 ## TLA+ source and module checks
 
-Start with the [model index](../../model/README.md) and
+Start with [formal verification topics](../formal/README.md), the
+[model source index](../../model/README.md) and
 [module review](../hardware/model-review.md). The active model is LCI-only;
 source, configuration, address data and historical evidence are separate.
 `nix build .#checks.x86_64-linux.tla-modules` checks the inventory/import boundaries
@@ -639,7 +640,7 @@ separate scopes. The historical wake/close composition targets below include
 behavior outside the implemented cooperative protocol; their bounded results
 do not establish full-system progress.
 
-The [AXI/coherence response suite](../hardware/axi-response-contract.md) runs with
+The [AXI/coherence response suite](../formal/axi-response-contract.md) runs with
 `nix build .#checks.x86_64-linux.scheduling-axi` or the scheduling runner
 `--axi-only`. It checks earlier and buffered reads, stop fencing and response
 service with deliberate faults. These are bounded contract checks, not RTL refinement.

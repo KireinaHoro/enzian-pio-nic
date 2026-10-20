@@ -43,6 +43,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 | Runtime transport and dispatch | [Runtime](../software/runtime.md) |
 | Write an application | [Programming model](../software/programming-model.md) |
 | Build and deploy | [Workflow](../development/workflow.md) |
+| Model contracts, assumptions and bounded results | [Formal verification](../formal/README.md) |
 | Select verification | [Validation](../development/validation.md) |
 | Full-paper evidence and experiments | [Paper goals](../research/paper-goals.md) |
 | Unfinished work and decisions | [Roadmap](../research/roadmap.md) |

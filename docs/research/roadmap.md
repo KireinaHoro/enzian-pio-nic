@@ -419,7 +419,7 @@ composes LCIA release without UL with the existing scheduling modules. Focused
 handoff/cache safety and liveness checks passed, as did combined state invariants
 over 2,528,455 states. Full combined temporal verification remains open.
 
-The [AXI response-contract checks](../hardware/axi-response-contract.md) now cover
+The [AXI response-contract checks](../formal/axi-response-contract.md) now cover
 earlier/queued/buffered reads, stop fencing and shared response service: five
 positive cases, seven deliberate faults and two witnesses. THX same-line response
 ordering, independent service and exclusion of target reads behind the held

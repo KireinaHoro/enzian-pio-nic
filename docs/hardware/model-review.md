@@ -107,7 +107,7 @@ coherence correctness remains an undischarged endpoint assumption.
 
 ## Follow-up: AXI/coherence response interactions
 
-The [response-contract extension](axi-response-contract.md) adds generic
+The [response-contract extension](../formal/axi-response-contract.md) adds generic
 `ReadResponses` and reuses unchanged DCS invariants. Four entry scenarios plus a
 one-slot boundary now cover earlier/in-flight reads and stop; faults expose the
 ordering and service obligations. Its separate evidence does not supersede the

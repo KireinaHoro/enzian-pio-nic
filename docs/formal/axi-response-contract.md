@@ -2,20 +2,23 @@
 
 The bounded [AxiReloadGate model](../../model/tla/composition/AxiReloadGate.tla)
 checks earlier reads, buffered coherence responses, a held doorbell and a stop
-without a doorbell. It identifies implementation requirements for Goal 2;
-it does **not** establish THX conformance or a hardware bug. This extends the
-later-read diagnostic reviewed on 2026-10-01. No RTL is changed by this work.
+without a doorbell. It formalizes ordering and service requirements behind the
+[nonlocking ROM](../hardware/lauberhorn-rom.md#response-ordering-replaces-post-invalidation-locks).
+Some mechanisms exist in RTL; the endpoint assumptions below still require
+hardware correspondence. A bounded model result is not THX conformance or evidence
+of a hardware bug.
 
 ## Components and boundaries
 
-The harness instantiates the unchanged `DcsResources` and the new generic
+The harness instantiates the unchanged `DcsResources` and the generic
 [ReadResponses](../../model/tla/common/ReadResponses.tla) channel. The latter has
 no scheduling, domains, parity or 2F2F semantics. `Safety` references their typing,
 capacity and response-identity properties directly; only cross-component tracking
-and harness state are added. Full scheduling composition should reuse these
-properties and `CachedTransport`/`ProgressSystem` properties, adding only the
-relations between control and transport. This harness is not yet joined to
-`CombinedScheduling` or concrete kill cleanup.
+and harness state are added. The subsequent [kill/transport composition](../hardware/kill-transport-composition.md)
+reuses `ReadResponses` and `CachedTransport` alongside cleanup and packet
+ownership. The [scheduling composition](../hardware/scheduling-composition.md)
+adds control/transport relations. These are bounded model compositions, not
+proofs that the current RTL implements every modeled behavior.
 
 | Port/event | Contract |
 | --- | --- |
@@ -32,17 +35,18 @@ is a conservative shared-path experiment with depths one and two, not an audited
 THX queue topology. Values 0/1 are old/new generation ghosts, not payload semantics.
 The cached-line invalid value is 2. Directory replacement is covered separately.
 
-## Implementation evidence and assumptions
+## Implemented mechanisms and endpoint assumptions
 
-Source inspected for this contract:
+The RTL supplies these mechanisms:
 
 - [RX router](../../hw/src/lauberhorn/host/eci/DcsRxAxiRouter.scala) and
   [TX router](../../hw/src/lauberhorn/host/eci/DcsTxAxiRouter.scala): each read FSM
   finishes its current response before processing the next read. Their `queue(8)`
-  helper buffers AR/AW, not R data. TX also has an independent write FSM.
+  helper buffers AR/AW, not R data. RX and TX also have independent write handling.
 - [2F2F engine](../../hw/src/lauberhorn/host/eci/EciDecoupledRxTxProtocol.scala):
-  doorbell handling waits for invalidation completion; stop/preemption can begin
-  without a new doorbell. Router serialization alone therefore does not cover stop.
+  doorbell handling waits for invalidation completion; cooperative cleanup can begin
+  without a new doorbell and checks router quiescence before retirement. These
+  mechanisms alone do not prove all modeled stop-fence assumptions.
 - [Selected ROM generator](../../vivado/eci/directory-controller-slice/gen_dc_protocol/dc_stmc_lauberhorn/eci_stmc_auto.pl):
   R12 enters `3pRA3`, local LCI stalls there, RDDA advances to state 3 and sends
   RA3. This explains why a target read can obstruct local invalidation.
@@ -110,7 +114,7 @@ The target-read cycle is a **conditional model counterexample**. Determining
 whether THX can issue this sequence is outstanding. The peer lasso in that trace
 is an example, not a universal peer-progress proof with the fault enabled.
 
-## Reproduction and next composition
+## Reproduction
 
 ```sh
 nix build .#checks.x86_64-linux.scheduling-axi
@@ -124,9 +128,6 @@ seven faults, two witnesses). [Recorded evidence](../../model/evidence/steady/ax
 contains source/configuration/log hashes and state counts. Source and effective
 configurations are snapshotted beside ignored run logs for reproduction.
 
-Next connect kill completion to concrete RX/TX/overflow and packet ownership,
-then compose transition liveness and stalled peers. Reuse existing component
-properties through instances; add only admission/ownership/retirement relations
-at the scheduling boundary. Keep the THX service assumptions visible until
-source, directed RTL tests or hardware evidence establish them. Full formal
-RTL refinement remains a separate strengthening step.
+The endpoint ordering, speculative-request and service assumptions remain
+premises until source correspondence, directed RTL tests or hardware evidence
+establish them. Full formal RTL refinement is separate from these bounded checks.
