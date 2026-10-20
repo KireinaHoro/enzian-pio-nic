@@ -1,6 +1,6 @@
 # Hot echo benchmark campaign
 
-The new workload is defined by `sw/apps/microbenchmarks/bench.x`: `echo0` is
+The new workload is defined by `../microbenchmarks/bench.x`: `echo0` is
 void to void; `echo8`, `echo128` and `echo1432` return fixed opaque application
 bytes. `rpcgen` produces runtime codecs; `echo_registry.py` derives procedure,
 size and codec registration from the same schema. The ONC-RPC XID identifies client
@@ -431,10 +431,10 @@ includes the recovery history.
 
 ```sh
 nix build .#dev.x86_64-linux.software.trafficGeneratorNative -o out/echo-generator
-nix develop -c python3 sw/apps/microbenchmarks/dpdk/echo_replay_test.py out/echo-generator/bin out/echo-schema-replay
-nix develop -c python3 sw/apps/microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
-nix develop -c python3 sw/apps/microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
-nix develop -c python3 sw/apps/microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
+nix develop -c python3 ../microbenchmarks/dpdk/echo_replay_test.py out/echo-generator/bin out/echo-schema-replay
+nix develop -c python3 ../microbenchmarks/dpdk/replay_test.py out/echo-generator/bin/bench_dpdk out/echo-replay
+nix develop -c python3 ../microbenchmarks/dpdk/load_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-load-replay
+nix develop -c python3 ../microbenchmarks/dpdk/open_loop_replay_test.py out/echo-generator/bin/bench_dpdk out/echo-open-replay
 PYTHONPATH=tools/paper nix develop -c python3 -m unittest campaign.test_campaign campaign.test_unloaded campaign.test_loaded campaign.test_histogram campaign.test_acquire campaign.test_hardware campaign.test_trace_capture campaign.test_recovery -v
 nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
 nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json

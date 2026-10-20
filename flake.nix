@@ -10,6 +10,10 @@
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/explicit-inline-codec&rev=d74fb48a06c719296126d59ac5bb7cf4b423be63";
       flake = false;
     };
+    microbenchmarks = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master&rev=cb7ca0332f290c350975f1edd6066450a39b15f2";
+      flake = false;
+    };
     memcached = {
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=master&rev=b376490d303da13ba15ed0295190893c64d1d324";
       flake = false;

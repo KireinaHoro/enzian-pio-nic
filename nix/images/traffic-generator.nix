@@ -1,15 +1,14 @@
 # Runtime-only Enzian client image: all executables are cross-built on the host.
-{ pkgs, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {}, probeDpdk ? dpdk, mlx5 ? false }:
+{ pkgs, microbenchmarkSource, lauberhornSource, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {}, probeDpdk ? dpdk, mlx5 ? false }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
-  generator = target.callPackage ../../sw/apps/microbenchmarks/dpdk/package.nix { inherit dpdk probeDpdk mlx5; };
+  generator = target.callPackage (microbenchmarkSource + "/dpdk/package.nix") { inherit dpdk probeDpdk mlx5 lauberhornSource; source = microbenchmarkSource; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
     lh-dpdk-run = "tools/enzian/dpdk_run.py";
     lh-cpu-isolation = "tools/enzian/cpu_isolation.py";
     lh-benchmark-summary = "tools/enzian/benchmark_summary.py";
     lh-trace-dump = "data/eci/sys_trace/dump_trace_udp.py";
-    lh-dpdk-replay = "sw/apps/microbenchmarks/dpdk/replay_test.py";
   };
   sourceRoot = ../..;
   scriptSource = pkgs.lib.cleanSourceWith {
@@ -21,7 +20,7 @@ let
           (builtins.attrValues scriptPaths)
       else type == "regular" && builtins.elem relative (builtins.attrValues scriptPaths);
   };
-  scripts = pkgs.lib.mapAttrs (_: relative: scriptSource + "/${relative}") scriptPaths;
+  scripts = pkgs.lib.mapAttrs (_: relative: scriptSource + "/${relative}") scriptPaths // { lh-dpdk-replay = microbenchmarkSource + "/dpdk/replay_test.py"; };
   wrappers = pkgs.runCommand "lauberhorn-client-commands" { } ''
     mkdir -p $out/bin
     ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: source: ''
@@ -48,17 +47,18 @@ let
       app = "${variant.app}"; runtime = "${variant.runtime}";
       tracing = variant.runtime.tracing;
     }) nativeVariants;
+    benchmarkRevision = microbenchmarkSource.rev or null;
     rpcImplementation = "shared-xdr-runtime-v1";
     runtimeSourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
-      value = builtins.hashFile "sha256" (generator.src + "/rt/${name}");
+      value = builtins.hashFile "sha256" (lauberhornSource + "/rt/${name}");
     }) [ "oncrpc.c" "rpc_request.h" "rpc_call.h" "rpc_reply.h" ]);
     responderTracing = { echo_dpdk = true; echo_dpdk_uninstrumented = false; };
     kernelRelease = modules.kernelRelease;
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
-      value = builtins.hashFile "sha256" (generator.src + "/apps/microbenchmarks/${name}");
+      value = builtins.hashFile "sha256" (generator.src + "/${name}");
     }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/echo_server.c"
          "echo_handler.h" "echo_handler.c" "dpdk/rpc_backend.h" "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
          "dpdk/aggregate.h" "dpdk/open_loop.h" "dpdk/Makefile" ]);

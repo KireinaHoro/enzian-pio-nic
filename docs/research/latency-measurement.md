@@ -15,7 +15,7 @@ survey. See [paper goals](paper-goals.md) for the broader evaluation plan.
 
 ## DPDK benchmark infrastructure and accounting audit (2026-10-04)
 
-The reusable [traffic generator](../../sw/apps/microbenchmarks/dpdk/README.md)
+The reusable [traffic generator](../../../microbenchmarks/dpdk/README.md)
 replaces the client UDP/RPC stack with direct polling through a DPDK PMD.
 The common engine owns timing, warmup, request IDs, timeouts and CSV output;
 benchmark codecs supply payload encoding/validation. Add and multiply use the
@@ -586,7 +586,7 @@ Lauberhorn datapath.
 ## Source and reproduction entry points
 
 - [Plotter](../../data/eci/apps/plot_latency.py): joins CSVs, estimates ECI RTT and clock offset, emits percentile breakdown CSV/PDF and histogram PDF. Requires Python and matplotlib for plotting.
-- [Client instrumentation](../../sw/apps/microbenchmarks/client/bench_client.c), [server probes](../../sw/rt/server_trace.c), [2F2F receive/transmit](../../sw/core/eci/core.h). Server CSV is enabled with `LAUBERHORN_SERVER_TRACE_CSV` (`ADDER_SERVER_TRACE_CSV` remains a compatibility fallback).
+- [Client instrumentation](../../../microbenchmarks/client/bench_client.c), [server probes](../../sw/rt/server_trace.c), [2F2F receive/transmit](../../sw/core/eci/core.h). Server CSV is enabled with `LAUBERHORN_SERVER_TRACE_CSV` (`ADDER_SERVER_TRACE_CSV` remains a compatibility fallback).
 - [Tracing reference](../development/tracing.md) and [trace tools](../../data/eci/sys_trace/README.md).
 
 Example (replace inputs with one matched capture; run from repository root):

@@ -68,8 +68,9 @@ as a build input: exclude generated `result`/`out` trees, captures, build
 products and unrelated submodules. Audit the actual store source contents;
 filtering a derivation cannot undo an earlier full-checkout flake snapshot.
 
-The DPDK generator admits seven direct build files; its client image admits four
-Python tools. Build `.#trafficGeneratorImage` on the build host and deploy
+The DPDK generator selects benchmark build files and shared platform RPC/tracing
+sources explicitly; its client image selects four platform Python tools and the
+benchmark repository’s replay tool. Build `.#trafficGeneratorImage` on the build host and deploy
 the cross-built runtime closure. DPDK headers/static archives and Python setup
 tools have separate `dev`/`tools` outputs, which are not shipped to the client.
 Do not ship a toolchain or compile/install Ubuntu build dependencies on Enzian.
@@ -128,3 +129,14 @@ checkout. Refresh it after sibling edits with
 After publishing that repository, restore the Git pin using
 `nix flake update thunderx-ptp`. The no-commit/no-push iteration rule applies
 to plotting changes; keep those separate from driver and measurement commits.
+
+## Microbenchmark sources
+
+The non-flake `microbenchmarks` input owns the schema, handlers, Lauberhorn
+server and DPDK clients/responders in `../microbenchmarks`, packaged like
+memcached. Both native and cross DPDK builds receive the filtered platform
+RPC/tracing sources explicitly; the Lauberhorn server receives the matching
+runtime package. Recovery tests use the schema from that same input.
+For local edits use `--override-input microbenchmarks path:../microbenchmarks`;
+published builds use the Git revision in `flake.lock`. Caladan support is
+reserved for a later change in the benchmark repository.

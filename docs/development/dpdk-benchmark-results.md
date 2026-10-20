@@ -8,7 +8,7 @@ this client. zuestoll12/14 were not used for the campaign.
 **The R12→RA3 TX latency comparison remains outstanding.** The numbers below
 validate the client, not Lauberhorn. See the
 [evidence ledger](../../data/eci/board-evidence/dpdk-client-20261004.json),
-[generator instructions](../../sw/apps/microbenchmarks/dpdk/README.md) and
+[generator instructions](../../../microbenchmarks/dpdk/README.md) and
 [trace accounting contract](../research/latency-measurement.md).
 
 ## Physical client results

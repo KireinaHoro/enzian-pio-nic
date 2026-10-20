@@ -133,6 +133,24 @@
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       }
     },
+    "microbenchmarks": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792489999,
+        "narHash": "sha256-SS3XjOPHK7qkpq/VSvnFbhdrS2fc3mYHcw8ueeXVxmE=",
+        "ref": "master",
+        "rev": "cb7ca0332f290c350975f1edd6066450a39b15f2",
+        "revCount": 4,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git"
+      },
+      "original": {
+        "ref": "master",
+        "rev": "cb7ca0332f290c350975f1edd6066450a39b15f2",
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git"
+      }
+    },
     "mill-ivy-fetcher": {
       "inputs": {
         "flake-parts": "flake-parts",
@@ -178,6 +196,7 @@
         "mackerel": "mackerel",
         "memcached": "memcached",
         "memcachedUpstream": "memcachedUpstream",
+        "microbenchmarks": "microbenchmarks",
         "mill-ivy-fetcher": "mill-ivy-fetcher",
         "nixpkgs": "nixpkgs",
         "thunderx-ptp": "thunderx-ptp"

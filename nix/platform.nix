@@ -82,7 +82,18 @@ let
     ];
   };
   runtimeUninstrumented = runtime.override { tracing = false; };
-  microbenchmarksUninstrumented = target.callPackage (source + "/sw/apps/microbenchmarks/package.nix") {
+  microbenchmarkSource = inputs.microbenchmarks;
+  benchmarkRuntimeSource = (sources.c [
+    "sw/include"
+    "sw/rt/oncrpc.c" "sw/rt/server_trace.c" "sw/rt/server_trace.h"
+    "sw/rt/pmu.c" "sw/rt/pmu.h" "sw/rt/utils/bitmap.h" "sw/rt/vstate.h"
+    "sw/rt/rpc_request.h" "sw/rt/rpc_reply.h" "sw/rt/rpc_call.h" "sw/rt/fiber"
+  ]) + "/sw";
+  microbenchmarks = callPackage (microbenchmarkSource + "/package.nix") {
+    source = microbenchmarkSource;
+  };
+  microbenchmarksUninstrumented = target.callPackage (microbenchmarkSource + "/package.nix") {
+    source = microbenchmarkSource;
     lauberhornRuntime = runtimeUninstrumented;
   };
   callPackage = recipe: args: target.callPackage recipe ({ lauberhornRuntime = runtime; } // args);
@@ -98,12 +109,11 @@ let
       )
       {
         nested-validation = callPackage (source + "/sw/apps/nested-validation/package.nix") { };
-        recovery-test = callPackage (source + "/sw/apps/recovery-test/package.nix") { };
-        microbenchmarks = callPackage (source + "/sw/apps/microbenchmarks/package.nix") { };
+        recovery-test = callPackage (source + "/sw/apps/recovery-test/package.nix") { inherit microbenchmarkSource; };
         nix-build-demo = callPackage (source + "/sw/apps/nix-build-demo/package.nix") { };
       }
     // {
-      inherit dandelion memcached;
+      inherit dandelion memcached microbenchmarks;
     };
   runtimeTests = import ./checks/runtime.nix {
     inherit pkgs;
@@ -135,7 +145,8 @@ let
     enableLauberhorn = false;
   };
   echoCampaignDeployment = import ./images/traffic-generator.nix {
-    inherit pkgs;
+    inherit pkgs microbenchmarkSource;
+    lauberhornSource = benchmarkRuntimeSource;
     nativeVariants = {
       breakdown = { app = applications.microbenchmarks; inherit runtime; };
       off = { app = microbenchmarksUninstrumented; runtime = runtimeUninstrumented; };
@@ -151,7 +162,8 @@ let
   };
   mlx5ProbeDpdk = mlx5Dpdk.override { tracing = true; };
   mlx5Deployment = import ./images/traffic-generator.nix {
-    inherit pkgs;
+    inherit pkgs microbenchmarkSource;
+    lauberhornSource = benchmarkRuntimeSource;
     dpdk = mlx5Dpdk;
     probeDpdk = mlx5ProbeDpdk;
     mlx5 = true;
@@ -159,7 +171,8 @@ let
     identity = { inherit (identity) revision; };
   };
   trafficGeneratorDeployment = import ./images/traffic-generator.nix {
-    inherit pkgs;
+    inherit pkgs microbenchmarkSource;
+    lauberhornSource = benchmarkRuntimeSource;
     inherit (thunderx) dpdk modules;
     identity = { inherit (identity) revision; };
   };
@@ -226,13 +239,17 @@ in
     mlx5BenchmarkImage = mlx5Deployment.image;
   };
   mlx5Benchmark = mlx5Deployment.generator;
-  mlx5BenchmarkNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {
+  mlx5BenchmarkNative = pkgs.callPackage (microbenchmarkSource + "/dpdk/package.nix") {
+    source = microbenchmarkSource;
+    lauberhornSource = benchmarkRuntimeSource;
     dpdk = pkgs.callPackage ./software/mlx5 { nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
     probeDpdk = pkgs.callPackage ./software/mlx5 { tracing = true; nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
     mlx5 = true;
   };
   trafficGenerator = trafficGeneratorDeployment.generator;
-  trafficGeneratorNative = pkgs.callPackage ../sw/apps/microbenchmarks/dpdk/package.nix {
+  trafficGeneratorNative = pkgs.callPackage (microbenchmarkSource + "/dpdk/package.nix") {
+    source = microbenchmarkSource;
+    lauberhornSource = benchmarkRuntimeSource;
     dpdk = thunderx.dpdkNative;
   };
   checks =
