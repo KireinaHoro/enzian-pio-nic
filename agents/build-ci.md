@@ -87,9 +87,56 @@ The dirty bundle is not a board-testable revision identity.
 
 ## September 15 packaging board evidence
 
-Four verified-reset trials on historical job 2812450 hardware passed 400 adder
-calls: helper and direct paths twice each. Matching historical sources/collateral
-were used; this is packaging acceptance, not final-master hardware acceptance.
-The [packaging record](../docs/development/nix-refactor-validation.md) retains
-image hashes and reconstruction checks. Original summary:
-`8f05507a:docs/development/hardware-test-results.md`.
+Implementation `e908897affc565088af96bc145c89533864896b3` passed Linux/Darwin
+flake evaluation (no Darwin build), formatting, four helper tests/ShellCheck,
+and 29 fast ECI tests across five suites. Blocks, trace and trace-FIFO checks
+resolved to cached successful outputs rather than executing again. RTL/config,
+headers, runtime, module, installed-interface demo, portable Vivado bundle and
+historical `deployFs` built. Dependency pins, generated Maven lock and hardware
+implementation were unchanged by this packaging task.
+
+External-consumer checks verified installed headers/pkg-config and application
+input overrides affecting the application, shell and image without changing
+runtime/module/RTL or the consumer lock. Image inspection checked 3,498 links,
+146 closure paths, all 426 deployed tool entry points as AArch64, interpreter/
+dynamic dependencies and vermagic. Native compiler debug files in the closure
+were not deployed tool entry points. Delivery image SHA256:
+`3289391696c27145c8a61cde4ca9c13dd8fe00d34a9dc6353739def139e94fea`.
+
+Board trials used pipeline 509533 / job 2812450 at
+`aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`, with a packaging overlay on that
+historical source, not the refactor revision's different hardware/runtime.
+The downloaded archive lacked generated RTL and C headers. Reconstructed
+collateral from the exact baseline and dependency pins matched the original
+RTL/XDC/JSON, generated headers and device descriptions byte-for-byte; the map
+matched the downloaded artifact. No revision bypass or ABI exception was used.
+The independently exercised `build_deploy.py --packaging-patch` reconstruction
+had a different source/store identity and was not counted as the board-tested
+image. Keep those identities separate.
+
+| Artifact | SHA256 |
+| --- | --- |
+| Downloaded bitstream | `6ae889584a3367e07c2fec5612ead75b6ee8dab5439c573aa463430224aec9f3` |
+| Downloaded probes | `0a5b45a6d6aad642e148e6024c8619eeab215b19dd831523b78da828fa27972e` |
+| Downloaded trace map | `87abddeffae7bbf9d1049addbc05d78b97c3c818accaef485a7e5c0bafc309a8` |
+| Board-tested baseline image | `f71f0fee2d0aa0f01e001eff88231b722545eef408d84480b9a804c546a5a9cb` |
+
+Four verified-reset trials passed 400 adder calls: helper configure/run and
+manual stable-executable paths twice each. Each checked rails off, BDK/program,
+image mount, module load/vermagic (`6.8.0-64-generic`), hardware revision and
+100 external replies, with no detected kernel faults. The initial console
+preflight timed out before reset and is separate from those passes. This is
+packaging/adder smoke acceptance on the matched baseline, not timing closure,
+current-master hardware acceptance, broad application coverage or reliability.
+No timing/PnR run was launched. Later board observations supersede the old
+running-server note.
+
+Evidence under `out/nix-refactor/`: `delivery-paths.json`, `delivery-summary.json`,
+`delivery-image-check.json`, `external/`, build/evaluation/format logs,
+`baseline-provenance.json`, `lh-baseline-abi-comparison.json`,
+`baseline-packaging.patch`, `board-trials/summary.json` and per-trial logs,
+plus `servers/`. The early aggregate regression log contains a fixture failure;
+`lh-portable-checks-v2.log` and `lh-fast-complete.log` record corrected passes.
+Shared board results: `/scratch/pengxu/lh-02-nix-shared-baseline-direct`.
+Full historical record: `ff6d8957:docs/development/nix-refactor-validation.md`.
+No raw artifacts were removed by this consolidation.
