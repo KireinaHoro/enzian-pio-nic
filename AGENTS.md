@@ -9,7 +9,7 @@ relevant source and subsequent changes before relying on implementation details.
 
 Use these tracked skills for their respective workflows:
 
-- [documentation-discipline](../../skills/documentation-discipline/SKILL.md): inspect affected documentation on every change and update it in place. README and `docs/` serve human readers; `agents/` holds agent work context and progress.
+- [documentation-discipline](../../skills/documentation-discipline/SKILL.md): inspect and update affected documentation when a task changes documented behavior, interfaces, workflows, or design; small fixes preserving the documented contract do not require review. README and `docs/` serve human readers; `agents/` holds agent work context and progress.
 - [paper-chart](../../skills/paper-chart/SKILL.md): reproducible publication figures; apply the [local chart contract](tools/paper/README.md).
 - [benchmark-campaign](tools/paper/skills/benchmark-campaign/SKILL.md): RPC measurement campaigns.
 - [enzian-deploy](tools/enzian/skills/enzian-deploy/SKILL.md): Enzian deployment and acceptance.
