@@ -311,6 +311,13 @@ voltages and use the helper's powered-off sequence rather than calling
 `init_driver()` as a repair. Do not treat `is_up` in the
 reservation listing as proof of Linux readiness.
 
+For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
+verified cold power sequence and BDK handling, skips FPGA programming, and
+requires Linux login. This is not FPGA/ECI acceptance. Provision its kernel and
+isolation arguments through EMG first. For the 32-core echo generator, use
+CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
+and temporarily corrects device IRQ, RPS and unbound-workqueue placement.
+
 For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.
 Keep every test's client machine, software and capture paths in its manifest.
 Never count peer boot/setup failures as runtime test failures.
@@ -343,13 +350,6 @@ Use [RX stall-timeout calibration](../hardware/eci-implementation.md#calibrating
 to compare the NIC's NACK timer with observed CPU/ECI timeout behavior. It covers
 parameter readback, TAD/kernel checks, contention, trace analysis and the limits
 of finite measurements. Use the normal preservation and boot gates above.
-
-For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
-verified cold power sequence and BDK handling, skips FPGA programming, and
-requires Linux login. This is not FPGA/ECI acceptance. Provision its kernel and
-isolation arguments through EMG first. For the 32-core echo generator, use
-CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
-and temporarily corrects device IRQ, RPS and unbound-workqueue placement.
 
 ## DPDK baseline readiness
 
@@ -441,7 +441,7 @@ complement board acceptance; they do not establish physical ECI behavior.
 # All untagged/fast Lauberhorn tests (broader than CI).
 nix develop -c mill gen.test -l org.scalatest.tags.Slow
 
-# Exact CI scope: only ECI package, exclude Slow.
+# ECI package portion of the fast CI check, excluding Slow.
 nix develop -c mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci
 
 # One suite / one test.
@@ -454,6 +454,11 @@ nix develop -c mill gen.test
 # Dependency regression when touching/updating blocks.
 nix develop -c mill 'blocks[2.13.12].test'
 ```
+
+The `fast-tests-eci` CI check also runs `RecoveryStreamBufferSim`,
+`RecoveryInFlightSim`, `ExecutionWatchdogSim` and `RpcReplyContextsSim` in the
+`lauberhorn` package. See the [check definitions](../../nix/checks/default.nix)
+for the complete selection.
 
 | Changed area | Start with suite(s) |
 | --- | --- |
@@ -476,8 +481,8 @@ Set `REPEAT_TEST_LIMIT=100` for a bounded campaign. Compiled Verilator models
 are cached outside Mill's disposable test sandbox in
 `out/repeat-test-verilator-cache` (`LAUBERHORN_VERILATOR_CACHE` overrides it);
 each repetition still starts a fresh test JVM. Mill module-level test
-parallelism being disabled does not serialize `ParallelTestExecution` suites:
-CI logs show overlapping simulations. Start with one reproducer, then verify
+parallelism being disabled does not serialize `ParallelTestExecution` suites.
+Simulations can overlap. Start with one reproducer, then verify
 that selecting sibling tests does not alter its stimulus.
 
 To request eight ScalaTest suite runners:
@@ -493,7 +498,7 @@ model builds. Read compressed simulation transcripts with `less`, `vim` or
 ## Evidence to retain from a failure
 
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.
-- The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Seed format 2 passes `simSeed` directly to Spinal; DCS stimulus uses that simulation's `simRandom`, not the JVM-global RNG. Invocation-local configuration prevents sibling suites from overwriting seed/log settings. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. A seed is not a substitute for matching source/toolchain inputs.
+- The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. Follow the [seed and stimulus contract](#simulation-reproducibility) when replaying.
 - `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts.
 - ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../data/eci/sys_trace/README.md).
 - PCAP replay tests load `data/eci/iladata/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
@@ -548,11 +553,10 @@ stimulus or weakening assertions.
 ### Settled progress checks
 
 See the [verification contract and reproducible commands](../hardware/steady-state-verification.md).
-`OncRpcSim` tests `rx-independent-progress-1-stalls` and
-`rx-independent-progress-2-stalls` replace the historical empty RX HoL test with
-finite observations of active peer and bypass RX progress. They do not prove
-infinite-stall liveness, full-duplex bypass safety or the new decoder. Python
-capacity tests and the independent TLC runner live under `tools/progress/`.
+`OncRpcSim` tests `rx-independent-progress-{1,2,3}-stalls` exercise finite
+independent-worker and simultaneous bypass RX/TX progress while peers stall.
+They do not prove infinite-stall liveness or establish silicon timeout bounds.
+Python capacity tests and the independent TLC runner live under `tools/progress/`.
 
 The steady-state model uses **`tlaplus18` from the locked nixpkgs**, with Python
 and Java supplied by Nix. No external jar download is needed:
@@ -575,10 +579,11 @@ are separate from the steady-state regression:
 nix build .#checks.x86_64-linux.scheduling-progress --out-link out/scheduling/nix-check
 ```
 
-They model the proposed cooperative handoff, pending wake ownership and interrupt
-ordering. They do not test the current kernel scheduler or instantiate DCS RTL.
-The optional stalled-third-worker case and remaining composition work are
-listed in the report.
+These historical models cover handoff, pending wake ownership and interrupt
+ordering, including scenarios outside the current implementation. They do not
+test the kernel scheduler or instantiate DCS RTL. The report defines the
+optional stalled-third-worker bound. For the implemented IRQ-free protocol, use
+the [cooperative scheduling checks](#cooperative-scheduling-and-slice-routing).
 
 For the focused concurrent-race subset, run
 `nix build .#checks.x86_64-linux.scheduling-races --out-link out/scheduling/races-nix`.
@@ -630,7 +635,9 @@ source, configuration, address data and historical evidence are separate.
 `nix build .#checks.x86_64-linux.tla-modules` checks the inventory/import boundaries
 and SANY semantics. `scheduling-transport` checks focused transport/handoff cases;
 `steady-progress`, `scheduling-races` and `scheduling-kill-exit` retain their
-separate scopes. Full combined temporal verification remains open.
+separate scopes. The historical wake/close composition targets below include
+behavior outside the implemented cooperative protocol; their bounded results
+do not establish full-system progress.
 
 The [AXI/coherence response suite](../hardware/axi-response-contract.md) runs with
 `nix build .#checks.x86_64-linux.scheduling-axi` or the scheduling runner
@@ -653,8 +660,8 @@ validation status and finite bounds.
 
 ### RX writeback regression reproducer
 
-The October 2 board failure is reproduced by connecting the actual generated RX
-AXI router to the actual DCU and `axi_wr_cl` using the selected ROM. Run from the
+The RX writeback regression connects the generated RX AXI router to the DCU
+and `axi_wr_cl` using the selected ROM. Run from the
 repository root; output directories must be new:
 
 ```sh
@@ -667,7 +674,7 @@ nix develop -c python3 tools/progress/check_dcs_pressure.py \
   --output out/rx-writeback-check
 ```
 
-The regression now requires the production RX sink to accept both write beats,
+The regression requires the production RX sink to accept both write beats,
 return B and release WDDA, LCIA and the next RX control read. Controls check a
 no-data HAKD and an independent test sink which deliberately withholds B: the
 latter must block completion until B is released. The test uses synthetic
@@ -683,8 +690,7 @@ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxWritebackSim
 ```
 
 It checks W-before-AW, delayed W, queued IDs, zero/partial strobes, stable B under
-backpressure and quiescence. The historical failing diagnostic and board
-comparison remain in the [October 2 report](../hardware/eci-implementation.md#rx-writeback-and-permission-changes).
+backpressure and quiescence. See the [writeback and permission-change contract](../hardware/eci-implementation.md#rx-writeback-and-permission-changes).
 
 ## Layered coherence contracts
 
