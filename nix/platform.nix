@@ -89,10 +89,10 @@ let
     "sw/rt/pmu.c" "sw/rt/pmu.h" "sw/rt/utils/bitmap.h" "sw/rt/vstate.h"
     "sw/rt/rpc_request.h" "sw/rt/rpc_reply.h" "sw/rt/rpc_call.h" "sw/rt/fiber"
   ]) + "/sw";
-  microbenchmarks = callPackage (microbenchmarkSource + "/package.nix") {
+  microbenchmarks = callPackage (microbenchmarkSource + "/server/lauberhorn/package.nix") {
     source = microbenchmarkSource;
   };
-  microbenchmarksUninstrumented = target.callPackage (microbenchmarkSource + "/package.nix") {
+  microbenchmarksUninstrumented = target.callPackage (microbenchmarkSource + "/server/lauberhorn/package.nix") {
     source = microbenchmarkSource;
     lauberhornRuntime = runtimeUninstrumented;
   };
@@ -238,8 +238,14 @@ in
     echoCampaignImage = echoCampaignDeployment.image;
     mlx5BenchmarkImage = mlx5Deployment.image;
   };
-  mlx5Benchmark = mlx5Deployment.generator;
-  mlx5BenchmarkNative = pkgs.callPackage (microbenchmarkSource + "/dpdk/package.nix") {
+  mlx5TrafficGenerator = mlx5Deployment.generator;
+  mlx5Server = mlx5Deployment.responder;
+  mlx5TrafficGeneratorNative = pkgs.callPackage (microbenchmarkSource + "/client/package.nix") {
+    source = microbenchmarkSource;
+    dpdk = pkgs.callPackage ./software/mlx5 { nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
+    mlx5 = true;
+  };
+  mlx5ServerNative = pkgs.callPackage (microbenchmarkSource + "/server/dpdk/package.nix") {
     source = microbenchmarkSource;
     lauberhornSource = benchmarkRuntimeSource;
     dpdk = pkgs.callPackage ./software/mlx5 { nicvfCompatPatch = inputs.thunderx-ptp + "/patches/dpdk-thunderx-linux-cam.patch"; };
@@ -247,7 +253,12 @@ in
     mlx5 = true;
   };
   trafficGenerator = trafficGeneratorDeployment.generator;
-  trafficGeneratorNative = pkgs.callPackage (microbenchmarkSource + "/dpdk/package.nix") {
+  dpdkServer = trafficGeneratorDeployment.responder;
+  trafficGeneratorNative = pkgs.callPackage (microbenchmarkSource + "/client/package.nix") {
+    source = microbenchmarkSource;
+    dpdk = thunderx.dpdkNative;
+  };
+  dpdkServerNative = pkgs.callPackage (microbenchmarkSource + "/server/dpdk/package.nix") {
     source = microbenchmarkSource;
     lauberhornSource = benchmarkRuntimeSource;
     dpdk = thunderx.dpdkNative;

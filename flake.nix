@@ -11,7 +11,7 @@
       flake = false;
     };
     microbenchmarks = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master&rev=cb7ca0332f290c350975f1edd6066450a39b15f2";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master&rev=297819cf458bf353588516c0de141ba580da2516";
       flake = false;
     };
     memcached = {
@@ -122,8 +122,8 @@
             inherit (platform) runtime runtimeUninstrumented microbenchmarksUninstrumented dandelion memcached;
             inherit (platform.applications) microbenchmarks recovery-test nested-validation;
             memcachedReferenceNative = platform.memcachedReference;
-            mlx5Benchmark = platform.mlx5Benchmark;
-            mlx5BenchmarkNative = platform.mlx5BenchmarkNative;
+            inherit (platform) mlx5TrafficGenerator mlx5TrafficGeneratorNative
+              mlx5Server mlx5ServerNative dpdkServer dpdkServerNative;
             trafficGenerator = platform.trafficGenerator;
             trafficGeneratorNative = platform.trafficGeneratorNative;
             dpdk = platform.thunderx.dpdk;

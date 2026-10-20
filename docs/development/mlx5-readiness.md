@@ -9,7 +9,7 @@ benchmark acceptance.
 Build the maintained products:
 
 ```
-nix build .#dev.x86_64-linux.software.mlx5BenchmarkNative -o out/mlx5-native
+nix build .#dev.x86_64-linux.software.mlx5ServerNative -o out/mlx5-native
 nix build .#mlx5BenchmarkImage -o out/mlx5-image
 ```
 

@@ -56,7 +56,8 @@ that same tree. No standalone headers-only build is used.
   module, helpers and generated collateral as a SquashFS Nix-store closure.
   These currently also include patched ThunderX modules and DPDK.
 - `trafficGeneratorImage`: `images/traffic-generator.nix` packages the cross-built
-  DPDK generator, Python tools, utilities and patched modules as a SquashFS closure.
+  separate DPDK generator and responder packages, Python tools, utilities and
+  patched modules as a SquashFS closure.
 - `eciVivadoInputs`: `hardware/vivado-inputs.nix` packages sources, generated
   collateral and the pinned static-shell checkpoint. Vivado builds the FPGA image
   separately using the image pinned in `vivado/eci/container.yml`.
@@ -90,3 +91,9 @@ beside `sw/apps` sources or in their upstream repositories. Use the installed
 runtime contract and `lib.mkPlatform` for external applications; do not import
 private image internals. Nixpkgs supplies compilers and standard tools, Mackerel
 comes from its pinned input, and `build.mill` owns RTL/ABI generation.
+
+Microbenchmark software packages are separated by role: `trafficGenerator`
+contains only `bench_dpdk`, while `dpdkServer` contains `echo_dpdk` and
+`echo_dpdk_uninstrumented`. Each has a `Native` variant. For mlx5 use
+`mlx5TrafficGenerator` and `mlx5Server` (also with `Native` variants). The
+previous bundled `mlx5Benchmark` and `mlx5BenchmarkNative` outputs are retired.

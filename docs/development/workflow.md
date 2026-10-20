@@ -134,9 +134,18 @@ to plotting changes; keep those separate from driver and measurement commits.
 
 The non-flake `microbenchmarks` input owns the schema, handlers, Lauberhorn
 server and DPDK clients/responders in `../microbenchmarks`, packaged like
-memcached. Both native and cross DPDK builds receive the filtered platform
-RPC/tracing sources explicitly; the Lauberhorn server receives the matching
+memcached. DPDK responder builds receive the filtered platform
+RPC/tracing sources explicitly; client builds are independent of that runtime; the Lauberhorn server receives the matching
 runtime package. Recovery tests use the schema from that same input.
 For local edits use `--override-input microbenchmarks path:../microbenchmarks`;
 published builds use the Git revision in `flake.lock`. Caladan support is
 reserved for a later change in the benchmark repository.
+
+The benchmark repository now separates `server/lauberhorn`, `server/dpdk`,
+and the DPDK-only `client`. Each has its own Makefile and Nix package.
+`trafficGenerator{,Native}` contains only `bench_dpdk`; `dpdkServer{,Native}`
+contains the two responder instrumentation variants. The mlx5 equivalents are
+`mlx5TrafficGenerator{,Native}` and `mlx5Server{,Native}`, replacing the bundled
+`mlx5Benchmark{,Native}` outputs. Deployment images explicitly compose client
+and responder packages. The socket client is retired; historical reproduction
+recipes remain pinned to their original revisions.

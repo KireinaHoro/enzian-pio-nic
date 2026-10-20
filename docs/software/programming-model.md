@@ -18,7 +18,7 @@ endpoints must remain at a stable address and must not be copied. Codec and
 service-private state must outlive their users. A service supplies `{data, func}`;
 there is no service-level inline/fiber declaration. See
 [`lauberhorn.h`](../../sw/include/lauberhorn.h) and the
-[microbenchmark](../../../microbenchmarks/main.c).
+[microbenchmark](../../../microbenchmarks/server/lauberhorn/main.c).
 
 Every incoming handler starts on the worker's default stack. It borrows decoded
 request storage and returns one of these outcomes:

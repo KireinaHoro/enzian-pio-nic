@@ -2,7 +2,8 @@
 { pkgs, microbenchmarkSource, lauberhornSource, dpdk, modules, identity ? { revision = null; }, nativeVariants ? {}, probeDpdk ? dpdk, mlx5 ? false }:
 let
   target = pkgs.pkgsCross.aarch64-multiplatform;
-  generator = target.callPackage (microbenchmarkSource + "/dpdk/package.nix") { inherit dpdk probeDpdk mlx5 lauberhornSource; source = microbenchmarkSource; };
+  generator = target.callPackage (microbenchmarkSource + "/client/package.nix") { inherit dpdk mlx5; source = microbenchmarkSource; };
+  responder = target.callPackage (microbenchmarkSource + "/server/dpdk/package.nix") { inherit dpdk probeDpdk mlx5 lauberhornSource; source = microbenchmarkSource; };
   utilities = map pkgs.lib.getBin (with target; [ bash coreutils iproute2 kmod util-linuxMinimal python3 ]);
   scriptPaths = {
     lh-dpdk-run = "tools/enzian/dpdk_run.py";
@@ -20,7 +21,7 @@ let
           (builtins.attrValues scriptPaths)
       else type == "regular" && builtins.elem relative (builtins.attrValues scriptPaths);
   };
-  scripts = pkgs.lib.mapAttrs (_: relative: scriptSource + "/${relative}") scriptPaths // { lh-dpdk-replay = microbenchmarkSource + "/dpdk/replay_test.py"; };
+  scripts = pkgs.lib.mapAttrs (_: relative: scriptSource + "/${relative}") scriptPaths // { lh-dpdk-replay = microbenchmarkSource + "/client/replay_test.py"; };
   wrappers = pkgs.runCommand "lauberhorn-client-commands" { } ''
     mkdir -p $out/bin
     ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (name: source: ''
@@ -40,7 +41,7 @@ let
     dpdkVersion = dpdk.version;
     queueInstrumentation = if mlx5 then "mlx5-scalar-cpu-v1" else null;
     packages = {
-      generator = "${generator}"; dpdk = "${dpdk}"; probeDpdk = "${probeDpdk}";
+      generator = "${generator}"; responder = "${responder}"; dpdk = "${dpdk}"; probeDpdk = "${probeDpdk}";
       thunderxPtpModules = "${modules}";
     };
     nativeVariants = pkgs.lib.mapAttrs (_: variant: {
@@ -58,15 +59,15 @@ let
     scripts = pkgs.lib.mapAttrs (_: source: builtins.hashFile "sha256" source) scripts;
     sourceHashes = builtins.listToAttrs (map (name: {
       inherit name;
-      value = builtins.hashFile "sha256" (generator.src + "/${name}");
-    }) [ "bench.x" "echo_registry.py" "dpdk/bench_dpdk.c" "dpdk/echo_server.c"
-         "echo_handler.h" "echo_handler.c" "dpdk/rpc_backend.h" "dpdk/benchmarks.c" "dpdk/benchmark.h" "dpdk/wire.h" "dpdk/load.h"
-         "dpdk/aggregate.h" "dpdk/open_loop.h" "dpdk/Makefile" ]);
+      value = builtins.hashFile "sha256" (microbenchmarkSource + "/${name}");
+    }) [ "bench.x" "echo_registry.py" "client/bench_dpdk.c" "server/dpdk/echo_server.c"
+         "server/echo_handler.h" "server/echo_handler.c" "server/dpdk/rpc_backend.h" "common/benchmarks.c" "common/benchmark.h" "common/wire.h" "client/load.h"
+         "client/aggregate.h" "client/open_loop.h" "client/Makefile" "server/dpdk/Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });
   environment = pkgs.buildEnv {
     name = "lauberhorn-client-environment";
-    paths = [ generator wrappers ] ++ utilities;
+    paths = [ generator responder wrappers ] ++ utilities;
     pathsToLink = [ "/bin" "/sbin" ];
     postBuild = ''
       ln -s ${manifest} $out/manifest.json
@@ -78,4 +79,4 @@ let
     fileName = "lauberhorn-client";
     pseudoFiles = [ "lauberhorn-client s 0777 0 0 ${baseNameOf environment}" ];
   };
-in { inherit generator environment image; }
+in { inherit generator responder environment image; }
