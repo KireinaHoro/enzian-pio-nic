@@ -31,7 +31,7 @@ commands below. Both paths require the same boot gates and failure preservation.
 Dandelion and other application images use this same environment; select their
 packaged fixture and workload from the application's documentation rather than
 assuming an image build exercises it. See [Dandelion](../../sw/apps/dandelion/README.md)
-and its [evaluation scope](../research/dandelion.md).
+and its [evaluation scope](../applications/dandelion.md).
 
 ## Check access and reserve
 
@@ -325,7 +325,7 @@ Never count peer boot/setup failures as runtime test failures.
 ## Historical compatibility
 
 Current application tests use maintained application images and the
-[Dandelion workflow](../research/dandelion.md). Retired student packaging and
+[Dandelion workflow](../applications/dandelion.md). Retired student packaging and
 B4 recovery runners require their original checkout and ABI; they must not be
 combined with cooperative DESCHED images. Historical provenance is in the
 [imported-runtime](../../agents/runtime-applications.md#historical-imported-runtime-probes)

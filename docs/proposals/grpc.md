@@ -1,6 +1,6 @@
 # Follow-on protocol work: TCP, Protobuf and gRPC
 
-Maintainer direction, 2026-09-08: the TCP and Protobuf student projects are finished research projects in external trees. Merge their work into the platform soon enough to limit drift, but give **Dandelion and the other first-full-system-paper applications higher priority**. Fully offloaded gRPC is a potential subsequent paper, not the first paper's required contribution or a currently implemented system.
+Maintainer direction, 2026-09-08: the TCP and Protobuf student projects are finished research projects in external trees. Merge their work into the platform soon enough to limit drift, but give **active first-full-system-paper applications higher priority**. Fully offloaded gRPC is a potential subsequent paper, not the first paper's required contribution or a currently implemented system.
 
 ## Inputs and scope
 
@@ -8,7 +8,7 @@ Maintainer direction, 2026-09-08: the TCP and Protobuf student projects are fini
 | --- | --- | --- |
 | Partial TCP offload | `../flavian-tcp/{platform,report}`; [TCP project](../research/tcp.md) | External implementation; not merged into this checkout |
 | Protobuf decoder | `../elena-protobuf/{platform,report}` plus project dependencies; [Protobuf project](../research/protobuf.md) | External decoder work; not merged into this checkout |
-| Application/runtime composition | `../sven-dandelion/{platform,dandelion,report}`; [Dandelion](../research/dandelion.md) | Higher-priority application/runtime integration |
+| Application/runtime composition | `../sven-dandelion/{platform,dandelion,report}`; [Dandelion](../applications/dandelion.md) | Bracketed for the paper; retained integration evidence |
 
 A finished student project does not imply production host support, complete protocol coverage or board validation. Preserve the distinction between report evidence, source implementation and intended full gRPC system. TCP transport and Protobuf receive decoding are ingredients; their combination alone does not demonstrate an offloaded gRPC implementation. The TCP report (`sections/02-background-and-motivation.tex`, gRPC subsection) explicitly leaves HTTP/2 stream/frame handling and gRPC envelope decoding outside its implementation. Those are additional follow-on components.
 

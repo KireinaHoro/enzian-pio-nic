@@ -1,6 +1,8 @@
 # Open proposals
 
-Unimplemented designs and alternatives. Inclusion here does not authorize
+Reusable mechanism designs and alternatives, independent of a particular
+application. Application-specific plans belong in [applications](../applications/README.md)
+and cross-reference the mechanisms they could use. Inclusion here does not authorize
 implementation or establish acceptance; each proposal states its scope.
 
 - [Service execution and resident applications](service-execution.md): event-driven service lifetime; raft-rs alternative.

@@ -155,8 +155,8 @@ selection retains metadata, payload and dispatch acknowledgment association.
 traffic. Unsupported services follow normal classification; there is no
 switch-reflection fallback.
 
-[Dandelion](../research/dandelion.md) uses this path for compositions. Its
-application integration and [measurements](../research/dandelion-measurement.md)
+[Dandelion](../applications/dandelion.md) uses this path for compositions. Its
+application integration and [measurements](../applications/dandelion.md#composition-measurements)
 are separate from the generic transport contract.
 
 ## Validation

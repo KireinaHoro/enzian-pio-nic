@@ -6,11 +6,11 @@ Survey: 2026-09-08, base `b86c68c`. The system objective, application portfolio,
 
 The [current evidence index](roadmap.md#current-status--october-8-consolidation)
 records completed hot/cold DPDK microbenchmarks, GSYNC mitigation and CPU-work
-analysis. The [Dandelion campaign](dandelion-measurement.md) adds checked
-atomic/composition execution and correlated waterfalls, including three parallel
-children on real hardware. These are bounded results, not the full paper
-evaluation: loaded four-worker tails, broader application workloads, Caladan controls,
-recovery and broader adversarial acceptance remain open. HOST_WAKE/events and
+analysis. Dandelion is [bracketed](../applications/dandelion.md) because process-sandbox
+overhead dominates and leaves no meaningful end-to-end benefit for Lauberhorn.
+Its retained composition results are outside the active paper goals. The full
+evaluation still needs loaded four-worker tails, broader application workloads,
+Caladan controls, recovery and broader adversarial acceptance. HOST_WAKE/events and
 complete resource recovery are still follow-on implementation work. The
 experiment matrix below is an evidence plan, not a list of completed features.
 
@@ -32,17 +32,16 @@ separately evaluates Caladan's runtime-managed scheduling. Both use the common
 
 | Planned application | Purpose in the evaluation / integration starting point |
 | --- | --- |
-| Dandelion | Bounded Enzian composition/four-worker and aligned atomic measurements complete; paused. Scope is programming-model support and communication overhead, with lightweight-isolation projections distinguished from measurements. [Closeout and two deferred extensions](roadmap.md#dandelion-closeout-limited-scope-and-deferred-work--october-8). |
 | RPC server | Basic request dispatch, payload/handler sweeps and multi-service load; current microbenchmarks are a starting point |
 | Userspace NFS server | Stateful service and larger data movement; implementation/version and filesystem semantics to select |
 | memcached | Next application, in a new thread: key-value service, mixed operations, concurrency and skew; port remains planned |
 | Consensus, e.g. etcd/Raft | Chained peer RPCs and stateful coordination; exact implementation and durability/failure semantics to select |
 
-These are planned applications, not claims that five ports run on the current FPGA. The historical Dandelion student report evaluates a software mock. The newer Enzian reports establish bounded implementation results, not a controlled end-to-end speedup over vanilla Dandelion or measured CHERI gains.
+These are planned applications, not claims that every port runs on the current FPGA. The historical Dandelion student report evaluates a software mock. The newer Enzian reports establish bounded implementation results, not a controlled end-to-end speedup over vanilla Dandelion or measured CHERI gains.
 
 ## Follow-on scope
 
-The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than Dandelion and the other applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](../proposals/grpc.md); do not expand the first paper into that agenda by default.
+The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than the active applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](../proposals/grpc.md); do not expand the first paper into that agenda by default.
 
 ## Proposed evidence plan
 

@@ -93,9 +93,9 @@ work remains subject to the [physical-implementation pause](physical-implementat
 - Dandelion's October 8 zuestoll14/zuestoll07 campaign passed atomic, DAG and
   concurrent-chain gates plus 9,000 measured requests across allocation and
   tracing controls. Depth-2 children overlapped on CPUs 45–47 with a parent on
-  CPU 44 after bounded allocation warmup. Use the [integration plan](../docs/research/dandelion.md#active-integration--october-8)
-  and [waterfalls and limits](../docs/research/dandelion-measurement.md) when
-  resuming application work; this does not establish broader paper claims.
+  CPU 44 after bounded allocation warmup. Use the [integration plan](../docs/applications/dandelion.md#integration-and-execution)
+  and [waterfalls and limits](../docs/applications/dandelion.md#composition-measurements) for
+  historical interpretation. Dandelion is now bracketed for the paper.
 - Native memcached passed two five-instance/one-worker cohorts sharing four
   physical workers, with ordinary yields and process switching in traces.
   [Evidence](../docs/research/memcached.md#five-instances-on-four-workers-october-10).
@@ -245,3 +245,24 @@ Resolved descriptor-generator and callback bugs, interim dirty-tree builds and
 old merge checklists are retired to Git history. Original diagnostic evidence
 pointers remain recoverable there (`out/b1/`, `out/b2-b6/`, `out/b3-20260917/`,
 `out/reply-context-20260917/`, `out/merge-20260923/`); no raw evidence was removed.
+
+## Dandelion bracketed for the paper
+
+Dandelion is no longer an active paper goal: process-sandbox overhead dominates
+and prevents a meaningful Lauberhorn end-to-end benefit. Do not resume campaigns
+or deferred application extensions without a new task. The consolidated
+[application document](../docs/applications/dandelion.md) retains measured evidence
+and reproduction procedures. The source reviewed for this scrub was the pinned
+`d74fb48a06c719296126d59ac5bb7cf4b423be63` input, resolved from the local Nix cache;
+the older sibling student checkout is not that revision.
+
+Old build/bring-up diaries and source-repository branch instructions are retired
+to Git at `507905c6:docs/research/dandelion.md` and the companion baseline/measurement
+pages. Their evidence remains under `out/dandelion-resume/`,
+`out/dandelion-baseline/`, `out/dandelion-parity-results/` and
+`out/dandelion-aligned-atomic/` in the original worktree/shared copies. Preserve
+failed captures; dated mounts, worker PIDs and frozen-board statements are not
+live-state assertions. No board access or new measurements accompanied this scrub.
+
+Preserved fan-out failure records: `out/dandelion-resume/wide-failure-trace/`, `out/dandelion-resume/retry-failure-trace/`.
+Capture SHA-256 identities: `13cb7df01abfdc8fa09053f73c684d3c9f578ada30ef5570aad0e9cf9856c5b3`, `afdd4109dfc12155a0707a19d52e68440506988c47d9b87b4a55c5247723d43c`.

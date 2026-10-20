@@ -47,13 +47,13 @@ master without colleague upstream approval.
 
 The [full-paper goal](docs/research/paper-goals.md) is efficient low-latency RPC
 on published 2F2F with OS flexibility and security. [Caladan](docs/research/caladan-enzian.md)
-is the primary baseline. Applications include Dandelion, RPC, userspace NFS,
+is the primary baseline. Active application goals include RPC, userspace NFS,
 memcached and consensus such as etcd/Raft. Tasks run to finish on isolated RPC
 worker cores, never shared with ordinary tasks; complete timeout/kill recovery
 is an open design problem.
 
-Read [Dandelion](docs/research/dandelion.md) before porting `../sven-dandelion`;
-the student evaluation uses a software mock. External TCP/Protobuf integration
+[Dandelion](docs/applications/dandelion.md) is bracketed for the paper because
+process-sandbox overhead dominates; its student evaluation used a software mock. External TCP/Protobuf integration
 from `../flavian-tcp` and `../elena-protobuf` is below first-paper application
 priority; fully offloaded gRPC is a potential follow-on paper. See the
 [protocol roadmap](docs/proposals/grpc.md) and

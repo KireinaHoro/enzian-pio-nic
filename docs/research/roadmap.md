@@ -48,8 +48,7 @@ tail cases move into application validation; they are no longer prerequisites
 for starting Dandelion. This is a scope decision, not evidence those cases passed.
 The isolation/progress limitations in the table above remain explicit.
 
-**HOST_WAKE remains on hold. Dandelion is paused; memcached is next, in a new
-thread.** The bounded Dandelion campaign includes atomic/composition waterfalls,
+**HOST_WAKE remains on hold. Dandelion is bracketed for the paper.** The bounded Dandelion campaign includes atomic/composition waterfalls,
 32-way graph fan-out and the aligned vanilla 1×1 comparison. See the
 [closeout and two deferred items](#dandelion-closeout-limited-scope-and-deferred-work--october-8).
 Sharding acceptance, loaded multi-domain/overload cases and general recovery
@@ -63,153 +62,28 @@ optimization and timing optimization remain deferred. Subsequent first-paper
 applications and the [Caladan baseline comparison](caladan-enzian.md) continue, with memcached next; TCP/Protobuf and gRPC
 retain their documented lower priority. Historical nested-runtime results are
 recorded in the [merge disposition](../../agents/runtime-applications.md#nested-rpc-follow-up),
-not a substitute for current Dandelion composition acceptance.
+not a substitute for acceptance of a different runtime or workload.
 
 ### Completed goal: Dandelion nested-composition waterfall — October 8
 
-**Completed within the bounded October 8 scope.** Atomic/DAG/concurrent-chain
-correctness passed; three 1,000-request cohorts were measured with one and four
-resident workers, plus a four-worker tracing-off control. All 1,000 depth-2
-requests showed three overlapping children after bounded allocation warmup.
-Correlated FPGA/software waterfalls and launch/collection/return zooms are
-available; cross-clock uncertainty is ±0.97 µs. See the
-[results, provenance and limits](dandelion-measurement.md). This does not close
-recovery, sharding, loaded multi-domain or full-paper evaluation claims.
-
-The goal as requested was:
-
-Reproduce Sven's evaluation compositions on real Enzian hardware and produce
-high-resolution latency waterfalls: blocked RX → request arrival/launch →
-deferral to a fiber → nested-call submission → parallel child execution →
-result collection → final reply. Show each child on its own lane so overlapping
-execution is visible and is not double-counted as serial latency.
-
-Proceed in order: validate one atomic function with checked output and actual
-worker placement; validate a composition through local FPGA loopback; then add
-buffered timestamp instrumentation, measure, and plot. Correlate parent/child
-identities, runtime/fiber events and matched FPGA traces, retaining clock
-alignment uncertainty, missing intervals and tracing overhead. Dump software
-records after the run. Reuse the hot/cold waterfall conventions, including the
-RX wait beginning before request arrival, and preserve exact artifact provenance.
-Build checks alone do not complete either hardware gate. HOST_WAKE remains on
-hold; no timing or address/DESCHED redesign is part of this goal.
+Historical results are consolidated in [Dandelion](../applications/dandelion.md#composition-measurements).
+Dandelion is bracketed for the paper; this completed campaign is not an active task.
 
 ### Completed bounded follow-up: wide Dandelion fan-out
 
-Exercise 32 independent matrix tasks and a sum reduction on all four workers,
-including compute on the core whose parent composition is suspended. Reuse the
-existing graph walker and its submit-until-capacity / await / resume mechanism;
-do not substitute a benchmark-specific scheduler. Check the distinction between
-outgoing-call admission and incoming loopback reply-context capacity before
-claiming that a larger graph works. Plot worker lanes as well as parent/child
-correlation. Two corrected requests now complete all 63 children each, reach
-four concurrent executions, and demonstrate compute on the parent’s waiting
-core. See the [wide-graph evidence](dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8).
-This bounded probe supplements the earlier three-child measurement cohorts.
-
-The first 32-way probe on the old runtime failed: parent plus 15 children
-occupied the 16 incoming reply contexts; receive-side rejection surfaces as
-`SYSTEM_ERR`, and the old walker unwrapped a missing child result. The frozen
-336,433,472-byte failure window is preserved under
-`out/dandelion-resume/wide-failure-trace/` (SHA-256
-`13cb7df01abfdc8fa09053f73c684d3c9f578ada30ef5570aad0e9cf9856c5b3`).
-Dandelion `f95d33d` retains/requeues the rejected loopback shard; the platform
-runtime preserves SYSTEM_ERR as future status 4. Other future errors drain accepted
-calls and fail the composition. Native runtime status tests, AArch64/QEMU
-capacity-policy tests, cross-build and image packaging passed. The first corrected
-board probe handled four SYSTEM_ERR retries but still lost 13 completions between
-host enqueue and scheduler queue admission (88 versus 75 descriptors), then
-returned failure without aborting the server. Its 139,149,632-byte trace is saved
-under `out/dandelion-resume/retry-failure-trace/`, SHA-256
-`afdd4109dfc12155a0707a19d52e68440506988c47d9b87b4a55c5247723d43c`.
-
-A process-wide runtime credit now retains the 16-call bound through software
-consumption, including ready futures. Native tests cover full-table admission,
-credit reuse and 32 concurrent submitters. This is a **temporary UDP/small-table
-workaround**, not the intended architectural limit; see the
-[table scaling and spill plan](../proposals/lookup-spill.md#completion-capacity-and-delivery).
-Many current capacity restrictions should eventually be lifted. The corrected
-bounded board gate passed on FPGA 516232; no new bitstream was needed.
+See the [two-request fan-out result](../applications/dandelion.md#wide-fan-out-and-bounded-backpressure)
+and its bounded admission/retry interpretation. Failure evidence is indexed in
+[agent context](../../agents/runtime-applications.md#dandelion-bracketed-for-the-paper).
 
 ### Dandelion closeout: limited scope and deferred work — October 8
 
-The maintainer closes this round and pauses Dandelion. Continue with memcached
-in a separate thread; do not launch more Dandelion measurements or implement the
-items below until resumed. The full Dandelion paper benchmark suite is out of
-scope for this PoC.
+Dandelion is bracketed and no longer an active paper goal: process-sandbox
+overhead dominates enough that Lauberhorn cannot make a meaningful end-to-end
+difference. Its [consolidated application document](../applications/dandelion.md)
+retains integration, bounded composition results, upstream/aligned comparisons
+and deferred application-specific work. No further Dandelion work is authorized
+by the historical campaign plans elsewhere in this ledger.
 
-**Established results.** The 32-way graph runs 32 independent matrix tasks plus
-31 reduction tasks, not 32 simultaneous hardware executions. Two checked
-requests completed all 63 children each, with peak parallelism four on CPUs
-44–47 and compute on the core whose parent fiber was waiting. RTTs were 86.678
-and 86.296 ms; five busy replies were retried successfully. This is a two-sample
-correctness/parallelism result, not a tail-latency distribution. The matched
-hardware/software join covers 259 RX descriptors and 259 TX commits without
-missing packets. See [wide-graph evidence and provenance](dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8).
-
-The other thread completed the [aligned atomic rerun and vanilla comparison](dandelion-baseline.md#aligned-atomic-rerun--october-8):
-3,000 measured requests passed after aligning static worker linking, 8 MiB
-contexts and function binaries. For prewarmed 1×1 on the port, mean/median RTT
-was 2772.709/2771.143 µs; setup averaged 432.098 µs and process execution
-2236.109 µs. Vanilla upstream process execution averaged 2145.418 µs: the
-remaining engine gap is 4.2%. Setup plus execution account for about 96.2% of
-port RTT. The aligned 2×2 port's mean RTT improved 29.7% over the old port,
-almost entirely in process execution; linking and context-size changes were
-combined, so this is not an isolated transport improvement. Upstream and port
-cohorts differ in warmup and CPU placement, and the original upstream client
-stops timing at HTTP headers whereas the port validates the full response.
-There is **no controlled end-to-end speedup claim over vanilla upstream**.
-The aligned atomic run used runtime `ce271135`; the wide-graph run used the
-later bounded runtime. Their exact artifacts and tracing limits remain in the
-two reports, rather than being treated as one matched campaign.
-
-**Intended claim.** Demonstrate the compute/communication composition model,
-measure reductions in communication/orchestration overhead under matched
-conditions, and assess their significance for lightweight isolation. Process
-sandbox costs dominate the measured implementation. A CHERI benefit would be a
-component-level projection, not measured CHERI performance on Enzian. The
-[paper's approximately 90 µs CHERI figure](https://arxiv.org/html/2505.01603v1#S7)
-is a complete 1×1 invocation, including communication/data-handling components;
-it is not a standalone isolation cost to which our transport cost can simply
-be added. Replace comparable components without double counting, state platform
-assumptions, and do not claim a quantified gain until that comparison exists.
-
-Exactly two application-facing extensions are deferred:
-
-1. **Dandelion messages beyond one MTU.** Fragment the BSON blob inside the
-   existing small ONC RPC calls using XDR fields such as logical message ID,
-   total length, chunk sequence/index and opaque chunk bytes. Reassemble in
-   the receiving Dandelion adapter before BSON decoding and invocation. Cover
-   requests, results and nested calls. This is a Dandelion-specific protocol
-   over ONC RPC, not generic large ONC RPC messages, IP fragmentation or the
-   byte-stream record-marking protocol. Keep the single-packet fast path.
-   Retire individual chunk transactions promptly; keep logical message state
-   in software rather than one persistent hardware context per chunk. Initial
-   scope excludes retransmission; retain bounds/resource limits, duplicate
-   handling and expiry, and fail incomplete messages without partial execution.
-   “Arbitrarily long” means independent of the MTU within explicit resource
-   bounds. UDP delivery and small-table restrictions remain first-PoC limits;
-   see the [temporary workaround and scaling plan](../proposals/lookup-spill.md#completion-capacity-and-delivery).
-2. **Communication functions expressed as nested RPC calls.** Map a communication
-   node to asynchronous RPC submission, suspend its composition without holding
-   a compute worker, then resume dependent nodes on completion. Demonstrate a
-   representative compute → remote RPC → parallel compute → join composition.
-   This preserves the programming pattern; it does not promise compatibility
-   with arbitrary existing HTTP services or require reproducing every paper
-   workload. Side-effecting communication must not inherit the local pure-task
-   SYSTEM_ERR retry assumption indiscriminately.
-
-These are scoped future capabilities, not implemented features or a requirement
-to finish the full benchmark suite. Keep reliability, recovery and isolation
-limitations explicit while evaluating the core programming-model and overhead
-contribution.
-
-Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
-
-The nested RPC integration is approved for master as of 2026-09-23. Its
-[merge disposition and remaining tests](../../agents/runtime-applications.md#nested-rpc-follow-up)
-record the historical campaign scope and the cross-process late-reply race to test. The earlier Dandelion validation hold is superseded by the October 8 direction
-to resume the application on the integrated scheduler/critical-section design.
 
 ## Active coherence verification follow-up — October 2
 
@@ -278,8 +152,7 @@ justify it. Timing optimization remains paused.
 ### Application performance and coupled RX/TX analysis
 
 Put the RX return-half study in the application evaluation round, after the
-correct independent RX/TX baseline is running. Start with RPC workloads and
-Dandelion, then the planned application portfolio in the
+correct independent RX/TX baseline is running. Start with RPC workloads, then the active application portfolio in the
 [paper evidence plan](paper-goals.md). The
 [hot-path optimization note](hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses) describes possible
 commands/status and responses carried by intentionally dirtying an RX CL.
@@ -320,12 +193,12 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 ## Confirmed design intent (maintainer, 2026-09-08)
 
 - Build the full RPC system on published 2F2F; demonstrate low latency and efficiency while retaining OS flexibility and security. [Paper scope and application portfolio](paper-goals.md).
-- Primary baseline: [Caladan](caladan-enzian.md), selected October 15 as a closer match for runtime-managed core allocation and networking. The minimal Enzian port and validation are pending. Planned applications: Dandelion, RPC server, userspace NFS, memcached, and consensus such as etcd/Raft.
-- `../sven-dandelion/{report,platform,dandelion}` contains the student report, mock platform/runtime extensions and Dandelion port. See [source map and limitations](dandelion.md); these are external reference trees, not merged support in this checkout.
+- Primary baseline: [Caladan](caladan-enzian.md), selected October 15 as a closer match for runtime-managed core allocation and networking. The minimal Enzian port and validation are pending. Planned applications: RPC server, userspace NFS, memcached, and consensus such as etcd/Raft. Dandelion is bracketed.
+- `../sven-dandelion/{report,platform,dandelion}` contains the student report, mock platform/runtime extensions and Dandelion port. See [source map and limitations](../applications/dandelion.md); these are external reference trees, not merged support in this checkout.
 - Worker cores are isolated and never shared with ordinary Linux tasks. RPC tasks run to finish. Ordinary idle RX cooperatively yields on DESCHED. Unsupported exits and fatal
   activation failures kill and fence the domain; full resource-recycling recovery
   and deadline activation remain deferred.
-- TCP and Protobuf student platform/report trees are located and documented in [TCP](tcp.md) and [Protobuf](protobuf.md). Merge soon to avoid drift, at lower priority than Dandelion and the other first-paper applications. Fully offloaded gRPC is a possible subsequent paper.
+- TCP and Protobuf student platform/report trees are located and documented in [TCP](tcp.md) and [Protobuf](protobuf.md). Merge soon to avoid drift, at lower priority than the active first-paper applications. Fully offloaded gRPC is a possible subsequent paper.
 - Updated 2026-09-30: physical-worker-owned QPs and the [8 KiB layout/domain encoding](../hardware/queue-pair-design.md#concrete-domain-qualified-pa-encoding) are selected for the router-free replacement. The implementation now selects physical-worker decoding; full acceptance is pending.
 
 ## Scheduling verification milestones (maintainer, 2026-09-30)

@@ -2,7 +2,7 @@
 
 Surveyed 2026-09-08. External workspace `../elena-protobuf/`, relative to the platform root. Report: **Elena von Känel, _Unmarshaling unit for the Lauberhorn smart NIC_**, bachelor thesis 606b, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected report `1e4e907`, platform `7a202c3`, spinal-blocks `98870e3`, standalone Protoacc source `8cd3aa596`. The platform gitlink pins `deps/blocks` to `526ee1b4da729fa6394330c6725a784254df2abb`, but that submodule directory is empty here; the separately inspected spinal-blocks checkout is a different revision. Reconcile these before reproducing builds. Its black box loads the tracked `spinal-blocks/deps/protoacc-ae/rtl/generated.v` resource.
 
-Maintainer priority: preserve and integrate this finished student project soon to limit bit rot, **below Dandelion and the other first-full-system-paper applications**. Together with the TCP project, it supports a possible later paper on fully offloaded gRPC. This artifact implements UDP-fed protobuf receive decoding, not a complete gRPC stack. No code has been merged by this documentation survey.
+Maintainer priority: preserve and integrate this finished student project soon to limit bit rot, **below active first-full-system-paper applications**. Together with the TCP project, it supports a possible later paper on fully offloaded gRPC. This artifact implements UDP-fed protobuf receive decoding, not a complete gRPC stack. No code has been merged by this documentation survey.
 
 ## Source entry map
 

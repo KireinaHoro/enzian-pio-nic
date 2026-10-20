@@ -53,7 +53,7 @@ A hardware slot can retire while its completion is still queued for software.
 The runtime bounds live outgoing calls, including ready but unconsumed futures,
 to `NUM_SESSIONS`; Dandelion retries local-loopback `SYSTEM_ERR` as busy. See the
 [programming-model contract](../software/programming-model.md#loopback-composition-receive-side-backpressure)
-and [finite evaluation](../research/dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8).
+and [finite evaluation](../applications/dandelion.md#wide-fan-out-and-bounded-backpressure).
 
 Spill must account for ownership through software consumption, not just hardware
 retirement. Larger tables or retries after an indeterminate outcome do not by

@@ -2,7 +2,7 @@
 
 Surveyed 2026-09-08. External sibling workspace: `../flavian-tcp/`, not vendored here. Report: **Flavian Kaufmann, _Reliable transport for the Lauberhorn smart NIC_**, bachelor thesis 607b, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected revisions: platform `9bedb136`, report `e39bf00`. Routed-build metadata records a different source revision, `46bc64784c484fc0`; historical results are not tests of today's tree.
 
-Maintainer priority: merge this finished student project's work soon to limit bit rot, **below Dandelion and the other first-full-system-paper applications**. TCP and the [protobuf decoder](protobuf.md) are components for a possible subsequent paper on fully offloaded gRPC. This project implements partial TCP offload, not that complete system. No TCP code was merged during this documentation survey.
+Maintainer priority: merge this finished student project's work soon to limit bit rot, **below active first-full-system-paper applications**. TCP and the [protobuf decoder](protobuf.md) are components for a possible subsequent paper on fully offloaded gRPC. This project implements partial TCP offload, not that complete system. No TCP code was merged during this documentation survey.
 
 ## Architecture and host contract
 
