@@ -211,3 +211,16 @@ Full service: `echo-campaign-122293d0b1a2.service`; root
 `out/caladan-hot-full-20261021`. Launch returned successfully. No post-launch
 progress polling was performed. Terminal callbacks target the requesting thread;
 inspect on callback or user request. The full dataset is not yet claimed complete.
+
+The full campaign stopped after six unloaded cohorts and six loaded points at
+echo8/one worker/125,000 RPC/s: all activity counters and client replies were
+zero, including warmup. Generator schedule/admission checks passed; both roles
+reported restoration, unchanged NIC error counters and no kernel fault. Failed
+archive member hashes verified. This is a rejected acquisition, not an overload
+measurement. Startup markers passed; the underlying cause remains unresolved.
+`out/caladan-hot-full-20261021/loaded-zero-activity-review.json` preserves the
+diagnosis and explicit one-retry decision. Resumed the same service/root with
+unchanged configuration/artifacts and fresh processes; passing receipts remain
+subject to ordinary integrity checks. No reset or automatic retry loop. If this
+recurs, investigate further before another resume. Await the terminal callback;
+the retry has not been claimed successful.
