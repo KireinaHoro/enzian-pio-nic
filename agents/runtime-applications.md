@@ -26,7 +26,7 @@ Corrected 516232 module `af0f64fe` passed two fresh cold boots (200 measured plu
 failure capture. See the [consolidated evidence](../docs/research/roadmap.md#current-status--october-8-consolidation).
 
 October 5 GSYNC one-shot early NACK tests covered 240 controlled RPCs and one/two
-observed stalled peers. See the [GSYNC record](../docs/hardware/gsync-worker-reproduction.md).
+observed stalled peers. See the [GSYNC record](../docs/research/eci-progress.md#controlled-gsync-results).
 The October 8 direction closes the dedicated multi-worker campaign at that
 finite coverage; additional four-worker cases belong to application validation.
 Do not report three stalled peers, adversarial isolation/recovery or full-system
@@ -72,6 +72,15 @@ The recorded finite RX-hold setting does not resolve the maximum-timeout
 boundary or the earlier baseline kernel lockup. Before resuming either question,
 check subsequent evidence for a resolution and select an application-driven
 case; neither is permission to reopen the closed dedicated campaign.
+The unresolved `lscpu`/`find_inode_fast` baseline lockup predates application
+activation. Its preserved 132,696,064-byte trace has SHA-256
+`de51121b463c8ac129a8cba416488979cc8b79fb3152dbef8dfcdcf48898b054`;
+full original context is `3cd5f968:docs/hardware/eci-implementation.md`.
+The trace showed bypass traffic and 347 paired invalidations, with no decoded
+loss; no postfailure TAD snapshot was available. Forty stock-Linux queries and
+a later matched baseline passed, which did not identify the cause. Check later
+evidence before planning any reproduction.
+
 Shared-control traffic must be included when assessing progress behind a
 blocking info read; model independence alone does not establish bus progress.
 

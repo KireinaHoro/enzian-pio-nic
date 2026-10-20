@@ -35,7 +35,7 @@ cohort was still running; it does not establish today's DUT state.
 ## Preservation references
 
 - Corrected 516232 module `af0f64fe` passed two fresh cold boots after an
-  idle-activation failure. Keep the original failure capture; the [GSYNC record](../docs/hardware/gsync-worker-reproduction.md)
+  idle-activation failure. Keep the original failure capture; the [GSYNC record](../docs/research/eci-progress.md#controlled-gsync-results)
   distinguishes it from successful follow-up.
 - October 8 Dandelion left its tracing-off control frozen, with two instrumented
   windows preserved. The October 9 [memcached follow-up](../docs/research/memcached.md#first-native-board-attempt-after-merge)
@@ -239,7 +239,7 @@ RT throttling was disabled on the second run; recurring 50 ms delays disappeared
 but two approximately 124 ms echo outliers remained between promptly answered
 TX acquisition and commit. The analyzer's recorder-bubble bug was corrected
 and old ranges reprocessed. A serial setup failure was captured separately.
-[Interpretation](../docs/hardware/worker-hol-evidence.md) and
+[Interpretation](../docs/research/eci-progress.md) and
 [ledger](../data/eci/board-evidence/worker-hol-516112-20261004.json) retain limits.
 Do not restart the closed dedicated campaign from these dated observations.
 

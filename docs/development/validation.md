@@ -297,7 +297,7 @@ the generator, kernel/PMD requirements and calibration limits. Its pcap replay
 checks are functional tests; require physical packet validation before collecting
 network latency data.
 
-The controlled [worker-issued GSYNC reproduction](../hardware/gsync-worker-reproduction.md)
+The controlled [worker-issued GSYNC reproduction](../research/eci-progress.md#controlled-gsync-results)
 uses a separate instrumented RPC probe to test whether worker-local permission
 changes wait behind peer RX holds. Its socket client measures reproduction
 outcomes; it is not a replacement for the DPDK latency benchmark.
@@ -346,10 +346,157 @@ check whether a requested setting was actually programmed before resuming.
 
 ## ECI receive-stall calibration
 
-Use [RX stall-timeout calibration](../hardware/eci-implementation.md#calibrating-the-rx-stall-timeout-before-nack)
-to compare the NIC's NACK timer with observed CPU/ECI timeout behavior. It covers
-parameter readback, TAD/kernel checks, contention, trace analysis and the limits
-of finite measurements. Use the normal preservation and boot gates above.
+The [ECI timeout rationale](../hardware/eci-implementation.md#calibrating-the-rx-stall-timeout-before-nack)
+distinguishes the NIC NACK timer from CPU protection and end-to-end response
+latency. Use the normal preservation and boot gates above. These procedures
+support an authorized, matched-image test; they do not reopen the closed
+standalone scheduling campaign.
+
+The matched module exposes root-only parameters:
+
+- `/sys/module/lauberhorn/parameters/rx_hold_cycles`: write the NIC hold interval
+  in application-clock cycles; read returns the programmed hardware value.
+  The implemented timer is 64 bits with one-cycle resolution. Convert using the
+  matched bitstream's actual clock, and verify durations in traces.
+- `/sys/module/lauberhorn/parameters/l2c_tad_snapshot`: read all eight mapped
+  units' BAR, INT, STAT and TIMEOUT values. Reads do not acknowledge interrupts
+  or modify timeout protection. A clean snapshot alone is insufficient: the
+  normal EDAC handler can clear INT, so retain kernel exception logs too.
+
+For an authorized calibration, first establish a passing setting on the matched
+image. Increase the stall duration within the planned test bounds to locate a
+failure, then refine the pass/fail interval at timer resolution. Preserve
+traces and fault state before every failing-trial reset. Repeat the highest
+passing candidate under contention across two cold boots; record exposure,
+nearest failing bound, actual hold durations and peer completions. The boot
+summary retains available firmware clock declarations verbatim; distinguish
+these and the matched routed clock constraints from an independent frequency
+measurement. Include
+one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
+simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
+do not substitute a historical threshold. Choose an operating setting below
+the observed failure boundary with margin for exposure, contention and response
+latency. Finite tests establish a tested operating envelope, not the exact
+architectural timeout or a universal safe maximum.
+
+Check TAD state and kernel logs again **after** the follow-up RPC check. A clean
+short idle probe can fault later at the same setting. A timed-out client is not a passing probe;
+preserve its trace and subsequent fault state before continuing or resetting.
+Bound the client process and its cleanup as well as the RPC deadline. Confirm
+that the next value was actually programmed before attributing a fault to it:
+a fault before a parameter write still belongs to the preceding setting. Withdraw such a short pass and
+re-establish the lower bound with a longer exposure; do not keep narrowing
+around a lower bound that has already failed.
+
+Use the matched generated trace map to quantify intervals and overlapping peer
+transport events:
+
+```sh
+python3 tools/enzian/analyze_rx_holds.py RUN/trace-dram.bin \
+  --map RUN/lauberhorn_trace_dma_map.json --clock-hz ACTUAL_APP_CLOCK_HZ \
+  --minimum-hold-cycles PROGRAMMED_HOLD \
+  --output RUN/rx-holds.json
+```
+
+The report includes capture/map hashes, loss and incomplete-pair counts. Its
+request-to-NACK intervals include protocol/response overhead; pending handoffs
+are marked. Peer RX/TX, CMAC and activation events are supporting transport
+evidence. Confirm application completions independently using client results.
+
+For finite concurrent peer load, `tools/enzian/cooperative_client.py` supports
+`add`, `mul`, the packaged `nested-validation` fixture's `echo`, and kernel UDP
+`bypass` streams. It checks every response and source, records individual send/
+receive timestamps in `completions.csv`, and fails without retry on loss or
+corruption. Start its `--bypass-server` mode on a non-worker DUT CPU, binding
+only the DUT NIC address; this is an ordinary kernel UDP echo service on 32345.
+Create fresh output directories for each run. For example, on the reserved peer:
+
+```sh
+python3 cooperative_client.py --bind 192.168.129.129 --nic 192.168.129.200 \
+  --streams add,echo,bypass --seconds 60 --window 1 --output NEW_PEER_RUN
+```
+
+Activate services in a recorded order and verify actual worker placement from
+traces. Additional workers still require the existing queue watermark; declaring
+three threads or sending three sequential calls does not allocate three workers.
+To exercise all-but-one stalls, first place an active service on worker 0, then
+use a bounded burst to allocate the three-thread stalled service on the other
+workers. Alternate the two one-thread active services to require cooperative
+handoffs while bypass traffic continues. Verify the resulting placement in the capture before interpreting the trial.
+
+Save plain `l2c_tad_snapshot` output and complete kernel logs before and after
+each trial. `tools/enzian/assess_tad.py --before TAD_BEFORE --after TAD_AFTER
+--kernel-before DMESG_BEFORE --kernel-after DMESG_AFTER --output NEW_REPORT.json`
+requires exactly eight distinct units, checks their interrupt/timeout state,
+and rejects kernel fault diagnostics or missing log continuity. It only reads
+saved files. EDAC may clear a hardware interrupt before a snapshot, so neither
+register snapshots nor logs alone suffice. Preserve the board state on failure.
+
+The hold analyzer additionally groups independent transport events by the number
+of **simultaneously** stalled workers whose completed intervals meet
+`--minimum-hold-cycles`. Bypass is excluded from the stalled-worker count;
+ordinary `YieldAccepted` events are distinguished from initial activation.
+The report also separates idle/ordinary activation counts by physical worker
+and PA domain, and request dispatch counts by Linux PID and physical worker.
+Trace `CoreID` is the NIC datapath ID: zero is bypass, and application worker
+index is `CoreID - 1`; it is not a Linux CPU ID. Keep these identity spaces
+distinct. Preserve a full capture, then analyze a
+recorded byte range for each measured trial so earlier phases cannot inflate
+its counts.
+Use these overlap counts together with client completions and TAD assessment.
+They do not prove progress outside the recorded window.
+
+For the active-peer handoff phase, `cooperative_client.py --streams add,echo,bypass
+--alternate-rpc --rpc-gap-us 2000` keeps one application RPC in flight and rotates
+its destination after each validated reply. Bypass retains an independent window.
+The completion CSV records the actual request spacing. This workload encourages
+cooperative handoffs; verify physical-worker placement and simultaneous holds in
+the trace before counting it as an all-but-one-stalled-worker result. Pool sizes
+alone do not establish that placement. The loopback regression exercises RPC alternation, minimum spacing and bypass
+completions; board placement still comes from the measured trace.
+
+### Controlled GSYNC and early-NACK checks
+
+The historical experiment built [gsync_probe.c](../../tools/enzian/gsync_probe.c)
+with the exact tested runtime and public headers. It extracted `liblauberhorn.so` from the 516112 deployment image and cross-compiled
+only the probe; public headers had no diff from the pipeline revision. It uses
+the deployment's existing AArch64 glibc and runtime paths. Build with `-O2 -g
+-pthread -Wall -Wextra -Werror`, the matched public and libtirpc includes, and
+`-L MATCHED_RUNTIME/lib -llauberhorn` plus its DUT-visible rpath. Do not pass a
+relative shared-library filename directly: that library has no SONAME and the
+linker would embed the relative path as DT_NEEDED. Verify dependencies before
+staging. The probe must match the deployed module/runtime ABI.
+
+The probe registers port 22346 and one worker. Start it once; individual domain
+teardown still requires the documented recovery policy. Allocate the peer mul
+workers with a bounded burst before sending probe RPCs, then verify actual
+placement from tracing. Prefault the probe's private page and thread-local
+message buffer before activation. Once the peer holds are configured and tracing
+is armed, run on the reserved traffic board:
+
+```sh
+python3 gsync_probe_client.py --bind 192.168.128.225 --count 20 \
+  --modes 0,1,2 --output NEW_RUN
+```
+
+The client saves every completed reply's CPU, operation/restore timestamps and
+E2E interval; timeout or malformed response fails the run without retries.
+These socket-client E2E values are reproduction evidence, not DPDK
+latency measurements. Repeat with 10,000,000, 2,000,000 and 200,000 hold cycles at
+200 MHz, then repeat the first setting. Preserve failures before any reset and
+use the same dmesg implementation for both health snapshots.
+
+The [progress evaluation](../research/eci-progress.md#controlled-gsync-results)
+records the historical matched builds, before/after distributions and trace
+limits. Use a matched current runtime/header pair for a new experiment; use the
+recorded 516112 pair only to reproduce that historical experiment.
+
+Local RTL checks include `GsyncReleaseSim` for one-shot release, descriptor
+priority, replay and response backpressure; the GHDL CDC test in `eci-toolkit-rx`
+checks clock phases and burst coalescing. Full-engine
+`OncRpcSim` independent-progress cases require held peers to return within
+1000 cycles after a pulse instead of their configured 50000-cycle timeout.
+These finite model timings do not bound the real CPU/ECI synchronization path.
 
 ## DPDK baseline readiness
 
@@ -696,8 +843,9 @@ no-data HAKD and an independent test sink which deliberately withholds B: the
 latter must block completion until B is released. The test uses synthetic
 returned data, manual initial DC read completion, test XPM RAM and direct
 LCIA-to-`invDone` wiring. It excludes the full slice data buffer/crossbar, THX
-and higher-level RX protocol. The [return-half design note](../hardware/rx-writeback.md)
-describes the current payload replay shadow and proposed response-channel uses.
+and higher-level RX protocol. The [cache-line interface](../architecture/hw-sw-interface.md#independent-rx-writeback-service)
+defines the implemented replay shadow; the [performance analysis](../research/hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses)
+discusses proposed response-channel uses.
 
 The independent-channel test also runs in the fast ECI CI suite:
 
@@ -774,8 +922,8 @@ A→B→A reuse, every TX alias, RX tails and DMA transmission of unwritten succ
 bytes through the neighbor-miss path. The coherent host model alone does not
 exercise partial AXI write strobes; keep the direct fixture too.
 
-These tests belong to the normal fast ECI suite. See the [isolation correction
-and board-acceptance boundary](../hardware/payload-isolation-blocker.md#source-correction--october-3-follow-up).
+These tests belong to the normal fast ECI suite. See the [payload isolation contract](../architecture/hw-sw-interface.md#payload-cleanup-across-owners)
+and [recorded board scope](../research/eci-progress.md#builds-and-interpretation).
 
 ## Hot echo RPC generator and campaign
 

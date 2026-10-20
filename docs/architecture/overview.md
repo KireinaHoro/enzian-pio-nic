@@ -59,3 +59,5 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 - [Latency measurement](../research/latency-measurement.md): measurement definitions, correlation and historical examples.
 - [Lookup spill](../hardware/lookup-spill.md): proposed software-backed table scaling.
 - [Queue-pair design and HoL blocking](../hardware/queue-pair-design.md): selected 8 KiB layout, domain aliases, ownership and the coloring rationale. Coloring alone does not establish full-system progress.
+
+- [ECI progress evaluation](../research/eci-progress.md): matched contention and GSYNC experiments, timeout interpretation and finite coverage.

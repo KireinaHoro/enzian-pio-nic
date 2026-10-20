@@ -867,7 +867,7 @@ require a TX overflow CL to have color 0.
 
 The old bypass spinlock serialized RX/TX but was removed in June 2026. Its
 removal alone does not establish progress, and historical timeouts do not prove
-the specific cycle above. See [worker HoL evidence](worker-hol-evidence.md) for
+the specific cycle above. See [worker HoL evidence](../research/eci-progress.md) for
 captured failures and finite board observations.
 
 `OncRpcSim` includes `rx-tx-interleaved` in the regular fast suite and

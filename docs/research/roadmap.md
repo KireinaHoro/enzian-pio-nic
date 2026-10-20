@@ -31,9 +31,9 @@ for consolidation into master by the October 8 closeout below.
 | Area | Established evidence | Remaining claim or work |
 | --- | --- | --- |
 | Physical-worker addressing and cooperative DESCHED | Selected 8 KiB layout implemented; bounded models, targeted RTL and finite handoff/board checks passed. [Implementation ledger](../hardware/eci-implementation.md). | Full-system refinement and adversarial progress/isolation acceptance are not established. |
-| Payload isolation and inactive-domain access | TX scrub/bounds, RX tail masking and multi-PA fault corrections implemented; pipeline 516112 passed all CI jobs and two cold-boot 100-RPC trials. [Correction record](../hardware/payload-isolation-blocker.md#matched-corrected-build-baseline--october-4). | The original disclosure is a corrected defect, not an active campaign stop. Adversarial multi-domain board stress remains open. |
-| 516232 idle activation | Module per-CPU storage corrected at `af0f64fe`; two fresh cold boots passed 200 measured + 32 warmup RPCs. [Diagnosis and correction](../hardware/gsync-worker-reproduction.md#per-cpu-module-correction--october-5). | Preserve the original failure capture; do not describe the board as still frozen by that failure or claim an independently confirmed upstream kernel bug. |
-| GSYNC early NACK | 240 controlled RPCs passed; 160 permission-change GSYNCs, 107 overlapping one/two fully observed peer holds. Hold-dependent millisecond stalls disappeared. [Board evidence](../hardware/gsync-worker-reproduction.md#corrected-module-early-nack-measurement--october-5). | Three simultaneously stalled peers and arbitrary-interrupt tail guarantees remain untested by this campaign. |
+| Payload isolation and inactive-domain access | TX scrub/bounds, RX tail masking and multi-PA fault corrections implemented; pipeline 516112 passed all CI jobs and two cold-boot 100-RPC trials. [Correction record](eci-progress.md#builds-and-interpretation). | The original disclosure is a corrected defect, not an active campaign stop. Adversarial multi-domain board stress remains open. |
+| 516232 idle activation | Module per-CPU storage corrected at `af0f64fe`; two fresh cold boots passed 200 measured + 32 warmup RPCs. [Diagnosis and correction](eci-progress.md#builds-and-interpretation). | Preserve the original failure capture; do not describe the board as still frozen by that failure or claim an independently confirmed upstream kernel bug. |
+| GSYNC early NACK | 240 controlled RPCs passed; 160 permission-change GSYNCs, 107 overlapping one/two fully observed peer holds. Hold-dependent millisecond stalls disappeared. [Board evidence](eci-progress.md#corrected-module-early-nack-measurement--october-5). | Three simultaneously stalled peers and arbitrary-interrupt tail guarantees remain untested by this campaign. |
 | Hot/cold benchmark | Cross-built Nix DPDK client, buffered runtime/kernel tracing, 1,000 requests per hot/cold × kernel-tracing on/off cohort; all 4,000 measured RPCs passed. Kernel-off median RTT: 12.24 us hot, 43.36 us cold. [Breakdowns, percentiles and figures](latency-measurement.md#corrected-module-516232-comparison--october-5). | One measured thread plus a separate four-thread flush domain is not four measured workers concurrently. Kernel tracing adds measured overhead; residual latency is not all wire time. |
 | Hot CPU work | Cache-refill campaign and exact-binary selected-path instruction audit complete. [Static counts](hot-path-performance.md#historical-exact-binary-instruction-baseline--october-5): 1,865 instructions per nominal untraced iteration, 3,434 with buffered tracing. | Retired-instruction PMU counter was unreliable; static counts exclude rare retries/interrupts and do not measure cycles. |
 | TX latency | 516232 TX hardware median 0.950 us, unchanged from 516112. | This comparison is not a controlled R12-versus-RA3 experiment and establishes no new TX reduction. |
@@ -222,9 +222,10 @@ modeling is broader CPU eviction/request races and independent VC ordering,
 finite shared response/data resources, and justified full-product fairness.
 These are distinct from the historical bounded scheduling completion milestone.
 
-RX writebacks are now drained and discarded by the RTL, with a
-[design note](../hardware/rx-writeback.md) retaining command/status/fast-response
-use as an open feasibility/performance study alongside
+RX writebacks complete independently and preserve payload mutations in the
+[private replay shadow](../architecture/hw-sw-interface.md#independent-rx-writeback-service).
+[RX-return responses](hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses)
+remain an open feasibility/performance study alongside
 [application measurements](#application-performance-and-coupled-rxtx-analysis). Pipeline
 [515802](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515802)
 built that fix at `a51139e` after pipeline 515796 failed fetching its prematurely
@@ -281,7 +282,7 @@ Put the RX return-half study in the application evaluation round, after the
 correct independent RX/TX baseline is running. Start with RPC workloads and
 Dandelion, then the planned application portfolio in the
 [paper evidence plan](paper-goals.md). The
-[hot-path optimization note](../hardware/rx-writeback.md) describes possible
+[hot-path optimization note](hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses) describes possible
 commands/status and responses carried by intentionally dirtying an RX CL.
 This is an experiment to establish benefit, not a prerequisite for the address
 or DESCHED work and not a selected replacement protocol.

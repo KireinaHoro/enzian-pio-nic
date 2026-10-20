@@ -1,10 +1,40 @@
-# Worker head-of-line blocking: historical failures and matched checks
+# ECI progress evaluation
 
-For the directory-capacity source of DC head-of-line blocking, see
-[ROM simplification](lauberhorn-rom.md): why local locking creates pressure,
-the selected nonlocking protocol, and its area/timing evaluation. The board
-observations below cover their recorded workloads and do not establish that
-all shared-resource blocking has been eliminated.
+These experiments evaluate independent worker/bypass progress during long coherent
+RX waits and worker-issued synchronization. Results are bounded observations on
+the named revisions. The [queue-pair design](../hardware/queue-pair-design.md)
+defines the coloring argument, [ROM simplification](../hardware/lauberhorn-rom.md)
+addresses directory lock pressure, and [ECI implementation](../hardware/eci-implementation.md)
+defines the selected early-NACK behavior. Neither coloring nor finite board
+success establishes freedom from all shared-resource blocking.
+
+## Builds and interpretation
+
+| Experiment | Matched artifacts | Scope |
+| --- | --- | --- |
+| Earlier timeout screening | 515944, RTL `8cc9ad58` | Historical timeout observations on a payload-isolation-vulnerable image; not corrected-image acceptance |
+| Corrected functional baseline and contention | 516112, `b2117e9625cca7ce256b44db34a5f2a46a952622` | Two 100-RPC cold-boot baselines, followed by finite near-timeout contention |
+| Controlled GSYNC before early NACK | Same 516112 hardware/software; application-only permission-change probe | 240 RPCs; 160 explicit permission-change GSYNCs overlapping two/three peer holds |
+| Controlled GSYNC after early NACK | 516232 FPGA `6f5fa076adbad2002681d3051c7056522929b7a1`, corrected module `af0f64fe` | Two fresh cold-boot baselines (200 measured + 32 warmups), then 240 controlled RPCs; one/two observed stalled peers |
+
+516112 contains TX scrub/bounds, RX tail masking and inactive-domain admission
+corrections. The [original disclosure](../../data/eci/board-evidence/cooperative-20261003-isolation-blocker.json)
+was an RTL reproduction of successor-visible TX storage, not a board exploit.
+The [correction record](../../data/eci/board-evidence/cooperative-20261003-isolation-correction.json)
+records 50 passing fast ECI tests (one ignored), and the
+[matched baseline](../../data/eci/board-evidence/isolation-516112-20261004.json)
+records the two cold boots. Those functional trials do not establish adversarial
+multi-domain isolation. The implemented rules belong to the
+[cache-line interface](../architecture/hw-sw-interface.md#payload-cleanup-across-owners).
+
+The first 516232 module had an idle-activation failure caused by invalid per-CPU
+storage placement. Module `af0f64fe` corrected it without changing the FPGA;
+only the corrected-module results below establish the successful follow-up.
+The [failure ledger](../../data/eci/board-evidence/gsync-516232-results-20261005.json)
+and [corrected-module ledger](../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
+retain original capture and artifact provenance. This is not an unresolved
+GSYNC blocker. Routed timing was not closed: 516112 had WNS −0.396 ns with
+7,227 failing setup endpoints; 516232 had WNS −0.102 ns with 893.
 
 ## Original coloring motivation
 
@@ -15,7 +45,7 @@ original `docs/ECI-2F2F-DCU-PROGRESS.md`; commit
 “try to explain the observed overflow timeout with color model.” Its crash
 section records TX offsets `0x8000`, `0x8100`, `0x8200`, `0x8300`, citing a local
 screenshot, and proposes the mutually blocking RX/TX control-color cycle.
-That explanation survives in [coherence progress](queue-pair-design.md#motivation-avoid-head-of-line-blocking).
+That explanation survives in [coherence progress](../hardware/queue-pair-design.md#motivation-avoid-head-of-line-blocking).
 It was a source-supported hypothesis, not a captured proof of every pending
 DCU transaction at the instant of failure.
 
@@ -51,23 +81,10 @@ reads. It must not be presented as proof of a DCU-color collision.
 The exact tested revision `b2117e96` has no `dp_lock`, and neither
 `netdev_xmit` nor `napi_poll`/`poll_once` in `sw/kmod/bypass.c` takes a spinlock
 around the ECI RX/TX calls. Commit `bf20f8f5` (June 15) removed the already
-commented-out lock calls and the lock field. Thus the current board tests do
+commented-out lock calls and the lock field. Thus these recorded board tests do
 not rely on that workaround. `claim_lock` still protects scheduler/worker
 bookkeeping; eliminating coherence-induced serialization does not eliminate
 ordinary software synchronization requirements.
-
-## Current verification scope
-
-The corrected image is pipeline 516112, RTL/software revision
-`b2117e9625cca7ce256b44db34a5f2a46a952622`; baseline provenance is recorded in
-[the board ledger](../../data/eci/board-evidence/isolation-516112-20261004.json).
-The prior 515944 contention campaign is historical evidence, not acceptance of
-this corrected image. Near-timeout trials must record actual finite holds,
-physical worker overlap, independent RPC completions, TAD state and kernel
-faults. A successful finite campaign does not establish universal freedom from
-HOL blocking or the four-worker tail-latency distribution; that distribution
-will be measured using the separately developed benchmark infrastructure.
-
 ## Meaning of the earlier timeout probe
 
 The final 515944 screening bracket was 26,857,015 passing versus 26,857,032
@@ -79,25 +96,17 @@ repeated finite contention setting was 26,656,301 cycles (133.281505 ms),
 approximately 1.004 ms below that screening boundary. Request-to-NACK trace
 intervals also include protocol overhead. Do not call the 85 ns-wide screening
 bracket a guaranteed timing margin or transfer it to another bitstream.
+## Trace-analysis validity
 
-## Timestamp-analysis correction
-
-The October 4 campaign exposed an analyzer bug: `analyze_rx_holds.py` used the
-decoder's internal epoch-extended raw timestamp instead of its already corrected
-timestamp. Recorder bubbles can make that internal value advance by a whole
-46-bit counter period, inflating durations and overlap counts. The analyzer now
-uses the corrected timestamp and rejects captures spanning half a counter
-period or crossing a genuine counter wrap. A binary trace regression covers a
-bubble between a read and NACK, source pipeline compensation, peer overlap and
-rejection of a real wrap; all eight hold-analysis tests passed.
-
-All three saved 515944 measurement ranges were reprocessed. The
-[historical ledger](../../data/eci/board-evidence/cooperative-20261003-contention.json)
-now contains corrected counts and duration histograms, with unchanged capture,
-client and TAD provenance. Its all-but-one case still shows 4,656 descriptor
-and TX-submit events from the active worker while three other workers hold
-requests for at least 26,656,301 cycles. Earlier numeric overlap counts are
-superseded; the finite progress observation survives reanalysis.
+The RX-hold analyzer uses corrected timestamps, not the decoder's internal
+epoch-extended raw counter: recorder bubbles can make the latter advance by an
+entire 46-bit period. It rejects half-period spans and genuine wraps; regression
+coverage includes bubbles, source-pipeline compensation and peer overlap.
+The [515944 ledger](../../data/eci/board-evidence/cooperative-20261003-contention.json)
+contains reprocessed counts with unchanged capture/client/TAD provenance. Its
+all-but-one interval retains 4,656 descriptor/TX-submit pairs while three peers
+hold for at least 26,656,301 cycles. Earlier uncorrected overlap counts are not
+valid evidence. All corrected-image results below use corrected analysis.
 
 ## 516112 first cold boot: throttling enabled
 
@@ -129,26 +138,18 @@ workers are SCHED_FIFO. Thus the recurring roughly 50 ms-per-second delays
 have an RT-bandwidth explanation to test, rather than demonstrating a
 200 ms outstanding coherence read.
 
-The test routine now disables RT bandwidth throttling before module load,
-checks readback and records the setting. The second boot was already underway
-when this change was made, so its setting was applied explicitly before the
-contention run and retained separately in the ledger. This does not require a
-new bitstream or deployment closure.
+The board validation routine disables RT bandwidth throttling before module
+load and checks readback. The second experiment below applied that setting
+before contention, permitting comparison with the throttled run.
 
 ## 516112 second cold boot: throttling disabled
 
-The second verified cold boot passed its 100-RPC baseline. After setting
-`kernel.sched_rt_runtime_us=-1`, the first contention attempt stopped because
-characters were lost from the serial shell's initial PS2 assignment. The echo
-setup payload never ran; 9,355 mul allocation RPCs had already passed. The
-harness preserved the full FPGA trace before proceeding. The console helper
-now sends the initial commands separately, one byte at a time, with a shorter
-continuation prompt; four shell-framing tests passed. A recovery precheck
-exceeded its 60-second harness deadline but later produced a clean assessment.
-The existing mul/bypass services were reused, and tracing resumed. The final
-measurement range excludes that intentional freeze/resume gap.
+The second verified cold boot passed its 100-RPC baseline. Contention used
+`kernel.sched_rt_runtime_us=-1`. An interrupted setup and its preserved trace
+are excluded from the final measurement range, which contains no intentional
+freeze/resume gap.
 
-The retry (`out/board/hol-516112-boot02-three-retry`) passed 3,128 add, 3,128 echo
+The measured run (`out/board/hol-516112-boot02-three-retry`) passed 3,128 add, 3,128 echo
 and 54,950 bypass replies without retries or pending requests. A 180.01-second
 control probe completed 133,613 reads; the host-side bound places the client
 completion within 156.733 seconds of control launch. TAD/kernel checks passed,
@@ -225,8 +226,7 @@ record the ID histogram and examples. Neither CPU-side global retirement nor
 the interrupt/TLB-maintenance trigger is visible in this FPGA trace. A matching
 GSYNC ID is stronger evidence than temporal proximity alone, but does not prove
 that exact initiating instruction or a universal causal equivalence.
-
-## Outcome and retained state
+## Contention result and limits
 
 The finite all-but-one checks passed on two cold boots of corrected 516112,
 including the second exposure with RT throttling disabled. No TAD timeout,
@@ -238,13 +238,110 @@ four-worker tail distribution. Routed timing remains open (WNS -0.396 ns,
 
 The [matched ledger](../../data/eci/board-evidence/worker-hol-516112-20261004.json)
 records artifact hashes, job IDs, command inputs, corrected analysis, interrupted
-attempts and limitations. The DUT retains `sched_rt_runtime_us=-1`, a safe
-post-exposure hold of 10,000,000 cycles, and the existing services. Tracing is
-frozen after the final successful capture; no reset followed it.
+attempts and limitations.
 
-## Controlled GSYNC reproduction
+## Controlled GSYNC results
 
-The [worker-local permission-change experiment](gsync-worker-reproduction.md)
-reproduced hold-dependent tails in 80 RPCs with 160 matching PPVID-47 GSYNCs.
-It strengthens the synchronization hypothesis without identifying the trigger
-of the historical two outliers.
+On October 4, an application-only probe on matched pipeline **516112**
+(`b2117e9625cca7ce256b44db34a5f2a46a952622`) reproducibly generated RPC tails by
+changing a populated page's permissions on a worker while other workers waited
+in coherent RX reads. All **240 RPC replies** validated. All **80 mprotect
+requests** generated two GSYNCs with PPVID **47**, matching the probe's reported
+Linux CPU 47. The 80 explicit `getpid` syscall controls generated none.
+
+This strengthens the historical two-outlier interpretation above:
+a worker's synchronization can wait behind a peer's blocked RX even though the
+FPGA answers GSYNC immediately. It does not establish which interrupt or
+instruction initiated the historical GSYNCs. The experiment intentionally invokes
+TLB maintenance through `mprotect`; no transport barrier, RTL, address-layout,
+DESCHED or kernel implementation was changed.
+
+The one-thread probe changes an already populated private anonymous page from
+read/write to read-only, then restores read/write. CPU CLOCK_MONOTONIC_RAW
+measures the two calls separately. Twenty repetitions of each mode (no-op,
+`syscall(SYS_getpid)`, and permission change) ran in every phase.
+
+| Programmed RX hold | First mprotect median | Restore mprotect median | Permission-change RPC E2E median |
+| --- | ---: | ---: | ---: |
+| 50 ms, first phase | 40.333 ms | 50.004 ms | 90.450 ms |
+| 10 ms | 9.071 ms | 10.004 ms | 19.188 ms |
+| 1 ms | 0.358 ms | 1.004 ms | 1.472 ms |
+| 50 ms, repeated | 40.314 ms | 50.004 ms | 90.424 ms |
+
+The first call encounters the remaining peer hold, whereas the restoration can
+encounter a newly issued full-length peer RX. These are measured durations, not
+an assumption that every call must cost exactly one hold interval. All 160
+explicit permission-change GSYNCs overlap two or three fully observed peer RX
+holds. The final TX commit follows the latest outstanding peer's NACK in every
+permission-change RPC: minimum **4.51 us**, median **4.64 us**, maximum **40.18 us**.
+CPU-side global retirement itself is not directly traced.
+
+The first no-op request also had a PPVID-47 GSYNC and a **44.412 ms**
+RX-descriptor-to-TX-commit interval. Commit followed the last peer NACK by
+**6.03 us**. Its explicitly measured no-op took only 70 ns, so that delay is
+outside the measured no-op. The remaining 79 no-op requests contain no GSYNC.
+This additional cold-request tail remains visible; its initiating instruction
+is unresolved. The syscall controls take at most **10.32 us** inside getpid.
+
+The probe prefaulted its private page and thread-local message buffer. It ran on
+Linux CPU47 / datapath4 after add/mul activation placed peers on datapaths1–3,
+with RT throttling disabled and no ordinary DESCHED intentionally induced.
+The 184,771,456-byte final capture has zero decoded loss during all 240 measured
+requests and exactly 240 descriptor-to-commit pairs. An earlier freeze/resume
+loss marker precedes probe activation. Matched dmesg snapshots and all eight
+TAD checks passed. The
+[evidence ledger](../../data/eci/board-evidence/gsync-reproduction-516112-20261004.json)
+retains binary/source hashes, distributions, capture/health records and limits;
+raw outputs remain under `out/gsync-repro-20261004/` and shared scratch.
+[Validation](../development/validation.md#controlled-gsync-and-early-nack-checks)
+describes probe construction, workload and collection.
+
+## Corrected-module early-NACK measurement — October 5
+
+With the same 516232 FPGA and the corrected module, all **240 controlled RPCs**
+passed, including 80 permission changes and 80 syscall controls. The probe ran
+on **Linux CPU46 / physical worker2 / NIC datapath3**. All 160 permission-change
+GSYNCs had PPVID46; 107 overlapped one or two fully observed peer RX holds,
+while 53 had no such overlap. The observed peers were datapaths 1 and 2, so this
+run does not establish three simultaneously stalled peers.
+
+| RX hold setting | First mprotect median | Restore median | Socket RPC median |
+| --- | ---: | ---: | ---: |
+| 50 ms, first | 18.455 us | 17.940 us | 146.197 us |
+| 10 ms | 18.340 us | 17.925 us | 145.471 us |
+| 1 ms | 18.655 us | 17.935 us | 146.391 us |
+| 50 ms, repeated | 18.365 us | 17.925 us | 146.681 us |
+
+The prior hold-dependent millisecond waits disappeared in these requests.
+For the 196 observed peer overlaps, trace-adjusted GSYNC-to-NACK was **10–35 ns**
+(median 10 ns). This is the FPGA event interval, not CPU synchronization
+retirement or complete coherent-read latency. Subsequent full 1 ms peer holds
+were observed, confirming that release did not remain sticky in that phase.
+Other GSYNCs interrupted longer holds; do not interpret this as a clean test
+that every later 50 ms read retains its full timeout.
+
+All 240 descriptor-to-commit spans correlate with client replies, with no decoded
+loss during the experiment. The complete unwrapped **864,557,952-byte** capture
+was saved and hash-verified before resetting for latency measurements. DMA status
+was clear and pre-freeze loss status was zero. Paired kernel/TAD assessment passed.
+The [correction and GSYNC ledger](../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
+records provenance, distributions and limits. Raw evidence remains in
+`out/gsync-516232-fixed/`. These socket-client results are separate from the DPDK
+latency comparison. FPGA timing remains open.
+
+## Remaining questions
+
+The controlled permission-change experiment establishes a reproducible
+hold-dependent synchronization delay and its removal in the tested early-NACK
+cases. It does not identify the initiating instruction of the two historical
+outliers or the extra cold-request GSYNC. CPU global retirement is not directly
+visible in FPGA traces. Three-peer early-NACK behavior, arbitrary interrupt
+origins, all worker permutations and four-worker tail distributions require
+separate evidence. A one-shot pulse also cannot promise release for a read that
+enters `waitDesc` after that pulse.
+
+Finite near-timeout contention does not determine a universal RX timeout bound
+or prove infinite-stall progress. Adversarial isolation and complete recovery are
+separate from functional RPC success. Follow the
+[application validation scope](roadmap.md#current-status--october-8-consolidation)
+for further cases; the historical dedicated campaign is closed.

@@ -66,8 +66,29 @@ RX writebacks complete independently of the blocked read FSM, so LCIA service
 cannot depend on that read finishing first. A private per-packet replay shadow
 retains byte-masked parser mutations; it does not modify the backing packet
 allocation. Shadow state is cleared for a new payload and during retirement/
-descheduling. See [RX writeback](../hardware/rx-writeback.md) for the mechanism
-and proposed future response-path changes.
+descheduling. See [independent writeback service](#independent-rx-writeback-service) below and
+the [proposed response path](../research/hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses).
+
+### Independent RX writeback service
+
+The RX router accepts a 128-byte write as two 512-bit beats, checks WLAST,
+and returns OKAY with the accepted AW ID only after both beats. It retains B
+under backpressure and includes queued/in-flight writes and held B responses in
+quiescence accounting. This service cannot depend on the read FSM: the next
+control read may itself be waiting for LCIA, which DCS issues only after this
+writeback completes. The [permission-change contract](../hardware/eci-implementation.md#rx-writeback-and-permission-changes)
+explains why an exclusive load can return data even without a CPU store.
+
+The replay shadow honors byte strobes and preserves parser mutations across
+conflict eviction/reload. Descriptor writes are ignored. Retirement clears shadow
+validity after old-line invalidation; DESCHED also clears it. The shadow is not
+a response channel or permission to transmit returned RX bytes.
+
+RX retains the actual DMA-written body length and constructs the logical host
+payload from that body plus any metadata prefix. Reads mask the final partial
+payload beat and return zeros beyond the logical payload length, including after
+replay overlay. Single-beat backing-store reads avoid crossing an allocation
+boundary. Stale padding in packet RAM must never become successor-visible data.
 
 ## TX: reservation fixes placement
 
@@ -129,6 +150,33 @@ writebacks and invalidations retain their original full addresses through
 completion. Before another owner can use the slot, cleanup drains old obligations
 and scrubs payload state; retaining unused overflow lines after an ordinary TX
 is not permission to expose them to a successor.
+
+### Payload cleanup across owners
+
+Address authorization and invalidating CPU cache lines do not erase the FPGA's
+shared backing storage. TX scrubs the entire physical worker allocation after
+the drained DESCHED event, including initial activation. The configured rounded
+MTU is 1536 bytes. Successor TX reads/writes wait for every scrub B response;
+ownership installation and RX service may proceed while this internal scrub
+runs. The next preemption also waits for scrub completion. Old-owner transport
+must already be drained, as checked by the router's quiescence assertion.
+Scrub progress assumes eventual packet-buffer AXI write responses; it does not
+wait for successor host traffic.
+
+Clearing storage protects host reads, partial writes and DMA transmission of
+bytes the successor never wrote. Inline and overflow addresses alias the same
+allocation; their capacities are not additive. Packet-store writes outside the
+allocation are redirected within the same slot with zero strobes; out-of-range
+reads return zero. DCS still receives the original two-beat read or single write
+response with its retained ID. These bounds also prevent access to a neighboring
+allocation.
+
+[Isolation regressions](../development/validation.md#payload-isolation-across-cooperative-ownership-changes)
+cover A→B→A reuse, aliases, partial strobes, delayed scrub completion, unwritten
+TX bytes and poisoned RX tails. The [domain-isolation model](../formal/domain-isolation.md)
+separately checks admission and provenance under its bounded assumptions.
+
+### Optimization boundaries
 
 The [hot-path performance analysis](../research/hot-path-performance.md) uses
 this interface when comparing instruction counts, copies, cache-line accesses
