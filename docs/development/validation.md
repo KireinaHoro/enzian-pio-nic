@@ -239,7 +239,7 @@ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxWritebackSim
 
 It checks W-before-AW, delayed W, queued IDs, zero/partial strobes, stable B under
 backpressure and quiescence. The historical failing diagnostic and board
-comparison remain in the [October 2 report](hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02).
+comparison remain in the [October 2 report](../hardware/eci-implementation.md#rx-writeback-and-permission-changes).
 
 ## Layered coherence contracts
 

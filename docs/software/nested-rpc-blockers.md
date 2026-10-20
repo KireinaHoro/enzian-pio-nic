@@ -51,7 +51,7 @@ into passing results.
 
 DECERR is closed by the pinned RTL repair and simulation regression. Server
 per-request CSV tracing is implemented and board-validated. See
-[hardware results](../development/hardware-test-results.md#bundled-nested-rpc-and-restored-server-tracing--2026-09-18)
+[hardware results](../../agents/runtime-applications.md#historical-bundled-nested-rpc-validation)
 for exact revisions, artifacts and evidence. The dated sections below preserve
 historical findings and acceptance checklists; their old merge-gate language is
 superseded by this disposition.
@@ -66,7 +66,7 @@ successfully. Logs and tested submodule revisions are retained in ignored
 
 ## Bundled board follow-up — 2026-09-18
 
-[Detailed evidence](../development/hardware-test-results.md#bundled-nested-rpc-and-restored-server-tracing--2026-09-18)
+[Detailed evidence](../../agents/runtime-applications.md#historical-bundled-nested-rpc-validation)
 now covers 88 generic nested/runtime cases, a full-outgoing-table process kill
 with 31 replacement-service checks, and 100 add plus 100 mul calls from the
 second Enzian. Server tracing (`dac2450`) is restored and board-validated,
@@ -91,7 +91,7 @@ remain separate. Historical status sections below describe their original dates.
 
 ## Merge assessment after kernel parking validation — 2026-09-18
 
-The [512199 kernel-only follow-up](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18)
+The [512199 kernel-only follow-up](../../agents/runtime-applications.md#historical-b4-parking-and-recovery)
 passed 100 multiplication RPCs and all 20 incoming/process recovery cases across
 two no-reset rounds. Fix `5ec614c` prevents workers returning to userspace before
 routing. Archived kernel traces show complete fixture retirement, no L2 faults
@@ -271,7 +271,7 @@ open until the relevant checks below pass and link their evidence here.
   Broader composition/placement checks remain under B6.
 
 Retain manifests, reset/program logs, packet captures and failed trials with the
-[hardware test results](../development/hardware-test-results.md).
+[hardware test results](../../agents/runtime-applications.md#historical-bundled-nested-rpc-validation).
 
 ## B2 — Registered endpoint transport and internal loopback
 

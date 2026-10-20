@@ -3,7 +3,7 @@
 Selected in the source build, 2026-10-01: an LCI-only, non-locking ROM replaces
 the previous auto-lock selection. The initial October 2 board trial exposed a
 missing RX AXI write service. With the independent RX sink at `a51139e`,
-[two cold-reset trials passed 200 RPCs and captured RX completion](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
+[two cold-reset trials passed 200 RPCs and captured RX completion](../../agents/hardware-state.md#rx-writeback-regression-evidence).
 This is bounded functional acceptance of the fix, not general progress/refinement
 or timing closure; the routed build still has one failing setup endpoint.
 

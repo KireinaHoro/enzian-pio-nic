@@ -138,7 +138,7 @@ scheduled; timing optimization remains paused.
 
 The separately collected pipeline 515802 (`a51139e`, hardware job 2863307)
 reports WNS/TNS −0.005/−0.005 ns, one failing setup endpoint, WHS +0.004 ns and
-no hold/pulse-width failures. It also [passed the board regression](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02).
+no hold/pulse-width failures. It also [passed the board regression](../../agents/hardware-state.md#rx-writeback-regression-evidence).
 This newer implementation includes RX write service and a new place/route result;
 it does not turn the earlier comparison into an isolated ROM timing experiment.
 No new targeted DCS-path comparison was run on this checkpoint.

@@ -139,7 +139,7 @@ The module cross-build and seven local parking scenarios passed. On Enzian,
 of the previously failing hung-handler case completed. Archived kernel traces
 show every fixture retiring, with no trace loss or L2 timeout. This supports the
 kernel-side repair without waiting for the independent crossbar fix. See the
-[full board result and setup caveats](../development/hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18).
+[full board result and setup caveats](../../agents/runtime-applications.md#historical-b4-parking-and-recovery).
 
 ## DECERR repair accepted by simulation (2026-09-18)
 

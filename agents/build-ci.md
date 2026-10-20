@@ -84,3 +84,12 @@ log SHA-256 is `3ff72fda7c0022ebc49d7a523ddf6be008e30b0e4d8cd4c1c9c60987cca8e59c
 This establishes Docker project creation and bundle portability. Full CI,
 synthesis/PnR, bitstream generation and board tests were not run for this change.
 The dirty bundle is not a board-testable revision identity.
+
+## September 15 packaging board evidence
+
+Four verified-reset trials on historical job 2812450 hardware passed 400 adder
+calls: helper and direct paths twice each. Matching historical sources/collateral
+were used; this is packaging acceptance, not final-master hardware acceptance.
+The [packaging record](../docs/development/nix-refactor-validation.md) retains
+image hashes and reconstruction checks. Original summary:
+`8f05507a:docs/development/hardware-test-results.md`.

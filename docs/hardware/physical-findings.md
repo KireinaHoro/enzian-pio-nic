@@ -7,7 +7,7 @@ comparison of completed checkpoints, not a resumed timing-optimization campaign.
 Read-only analysis on **enzian-ba2, Vivado 2025.1**, using implemented
 `Physopt postRoute` checkpoints. Recipes and report meanings are in
 [physical implementation](physical-implementation.md). Board observations are
-[recorded separately](../development/hardware-test-results.md); no new board
+[recorded separately](../../agents/hardware-state.md#early-boot-and-artifact-evidence); no new board
 experiment was performed during this analysis.
 
 ## Round 2 checkpoint review — September 17

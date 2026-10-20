@@ -50,7 +50,7 @@ Delivery SquashFS SHA-256 at the implementation revision:
 Downloaded successful [CI job 2812450](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2812450),
 pipeline **509533**, revision `aa32b1af04f2fcdd9191c94784eba5bbad1ea25f`.
 Its earlier successful adder tests are documented in
-[hardware results](hardware-test-results.md). Final master differs substantively
+[hardware results](../../agents/hardware-state.md#early-boot-and-artifact-evidence). Final master differs substantively
 in trace FIFO hardware/dependencies and runtime/API sources; its image was not
 combined with this bitstream.
 

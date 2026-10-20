@@ -191,7 +191,8 @@ test bypasses this gate because absent ECI initialization is intentional.
 
 If `probe_versions` still fails after validated bring-up, freeze and dump trace
 DDR using the [CMAC-first capture procedure](tracing.md#default-agent-capture-pipeline)
-before resetting; fall back to JTAG if Ethernet fails. Retain partial captures
+before resetting. If Ethernet capture fails, retain partial output and stop
+without reset or a full JTAG fallback. Retain partial captures
 and the matching map, VIO status, and image
 provenance. Keep tracing active through module load. The shell-version read is
 handled inside the static shell, so arm the static ECI edge ILA before the
@@ -215,7 +216,7 @@ then run `cpu.sh load` through `run.py` with expectations
 `'Internal error: synchronous external abort:'` and `'pc : probe_versions\+'`.
 The observed failure was an oops at shell version register `0x97effffffff8`, not
 a full kernel panic. Reset after an oops. ECI links being up does not establish
-working register accesses or RPCs. See [recorded results](hardware-test-results.md)
+working register accesses or RPCs. See [recorded results](../../agents/hardware-state.md#early-boot-and-artifact-evidence)
 for known failures and repeatability limits; historical results are not a new test.
 
 ## Use a second Enzian as the traffic generator
@@ -263,7 +264,7 @@ when the maintained Dandelion application replaced that adapter. They remain in
 Git at `93ee25a6709fb8508d30e8298368cc11ecbc6f93:tools/enzian/student_build.nix`
 (with both adjacent `student-*.patch` files). Reproduce that campaign from its
 historical checkout; do not combine its packaging with the current flake.
-See [historical results](hardware-test-results.md) for its finite coverage.
+See [historical results](../../agents/runtime-applications.md#historical-imported-runtime-probes) for its finite coverage.
 Current application testing uses `dandelionImage` and the
 [Dandelion integration workflow](../research/dandelion.md).
 
@@ -271,7 +272,7 @@ Current application testing uses `dandelionImage` and the
 
 The September B4 campaign used the superseded control-line and recovery ABI.
 Its runner is removed; it must not be used with cooperative DESCHED images.
-See the [recorded results](hardware-test-results.md#b4-kernel-parking-fix-on-512199--2026-09-18)
+See the [recorded results](../../agents/runtime-applications.md#historical-b4-parking-and-recovery)
 for the tested revisions. Current unsupported exit and fatal faults kill and
 fence the affected domain, retaining resources until a full coherence reset.
 Complete recovery and parked-domain deadline activation remain deferred.

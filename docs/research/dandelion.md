@@ -50,7 +50,7 @@ Surveyed 2026-09-08. External sibling workspace: `../sven-dandelion/` from the p
 AArch64 against this branch's real imported runtime. A peer-driven 1×1 matmul
 smoke test passed on Enzian, including HTTP registration and an FPGA UDP RPC
 reply. This is separate from the thesis's mock evaluation; compositions and
-performance remain unvalidated. See [recorded hardware results](../development/hardware-test-results.md).
+performance remain unvalidated. See [recorded hardware results](../../agents/runtime-applications.md#historical-imported-runtime-probes).
 The inspected port initializes process engines with logical worker indices
 0–3, which `mmu_worker` treats as Linux CPU IDs, whereas the NIC RPC workers
 use isolated CPUs 44–47 in this setup. Reconcile that mapping before claiming

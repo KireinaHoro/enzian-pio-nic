@@ -228,7 +228,7 @@ use as an open feasibility/performance study alongside
 [application measurements](#application-performance-and-coupled-rxtx-analysis). Pipeline
 [515802](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515802)
 built that fix at `a51139e` after pipeline 515796 failed fetching its prematurely
-deleted branch. [Two cold-reset trials passed 200 RPCs](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02),
+deleted branch. [Two cold-reset trials passed 200 RPCs](../../agents/hardware-state.md#rx-writeback-regression-evidence),
 with trace-confirmed RX writeback completion. The
 [30-minute / five-hour CI follow-up](../development/ci.md#scheduled-hardware-build-follow-up)
 now retains pipeline refs until all jobs finish. That historical trial used the former address ABI. The current ECI source now
@@ -391,16 +391,16 @@ Hardware validation used revision `2699f58`,
 [pipeline 515621](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/pipelines/515621).
 Hardware job [2861585](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2861585)
 succeeded in CI. This is the existing routed/addressed design with the simplified DC and UL removed,
-not the scheduling/address pivot. The [October 2 matched board trial](../development/hardware-test-results.md#simplified-lci-only-dc-trial--2026-10-02)
+not the scheduling/address pivot. The [October 2 matched board trial](../../agents/hardware-state.md#rx-writeback-regression-evidence)
 passed driver/revision checks but failed RPC discovery. The frozen trace shows a
 data-bearing HAKD for RX `0x100`, followed by `WDD` without `WDDA`/LCIA; the RX
-AXI router blocks write channels. The [trace comparison](../development/hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02)
+AXI router blocks write channels. The [trace comparison](../hardware/eci-implementation.md#rx-writeback-and-permission-changes)
 identifies the newly selected R12→RA3 permission change: earlier RX used
 PSHA/SINV_H/no-data HAKD; exclusive RX now uses FLDX_EH/data-bearing HAKD. No
 software store is required. The [actual-RTL reproducer](../development/validation.md#rx-writeback-regression-reproducer)
 reproduced AW queueing with WREADY low; the production fix now drains and discards
 RX writes independently, and its regression checks WDDA/LCIA and the pending read.
-The [RX-fix follow-up](../development/hardware-test-results.md#rx-writeback-fix--2026-10-02)
+The [RX-fix follow-up](../../agents/hardware-state.md#rx-writeback-regression-evidence)
 passed two cold-reset trials and directly observed RX completion. Both captures
 are preserved. The address/DESCHED replacement is now implemented on `feat/cooperative-yield`.
 See the current evidence ledger for its checks and pending board acceptance.

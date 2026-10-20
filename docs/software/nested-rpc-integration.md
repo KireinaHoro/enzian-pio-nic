@@ -5,7 +5,7 @@ Merge to master approved by the maintainer on 2026-09-23.
 The initial build-only stopping point is complete. The maintainer subsequently
 authorized hardware validation using the upstream agent-accessible Enzian
 workflow, merged from `ed1b45b` in `5cb21f4`. See
-[recorded hardware results](../development/hardware-test-results.md).
+[recorded hardware results](../../agents/runtime-applications.md#historical-bundled-nested-rpc-validation).
 
 ## Imported scope
 
@@ -44,7 +44,7 @@ Registered endpoints supply hardware PID, cookie, reserved source ports and FPGA
 reply listeners. Remote and internal-loopback calls, futures, forwarding,
 admission/error paths and lifecycle recovery have passed the recorded Enzian
 campaign. See the [endpoint contract](nested-rpc-endpoints.md) and
-[hardware evidence](../development/hardware-test-results.md#bundled-nested-rpc-and-restored-server-tracing--2026-09-18).
+[hardware evidence](../../agents/runtime-applications.md#historical-bundled-nested-rpc-validation).
 
 ## Follow-up work after merge
 

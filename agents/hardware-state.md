@@ -132,3 +132,117 @@ The maintainer subsequently authorized release of all boards. Reservations
 cleanup was forced. This is a dated closeout, not current reservation state.
 Evidence: `out/benchmark-zs07/release-all-final.txt` and the
 [ledger closeout](../data/eci/board-evidence/dpdk-client-20261004.json).
+
+## Early boot and artifact evidence
+
+September trials on zuestoll14 used the following matched historical builds:
+
+| Build | Functional observation | Final setup timing |
+| --- | --- | --- |
+| 2812450 / `aa32b1af` | Initial 101 add calls; two verified-reset repeats of 100 passed | WNS −1.051 ns |
+| 2811847 / `93f4c1da` | Static-shell read oops despite programming and ECI RUN | WNS −1.813 ns |
+| 2383312 / `4fa10def` | Initial shell-read oops; two resets passed module checks but failed RPC | WNS −0.164 ns, TNS −165.535 ns, WHS +0.004 ns |
+
+Reset dwell and run-to-run variation were confounded. These small samples do
+not establish reliability or explain failures by WNS. The negative test twice
+aborted in `probe_versions` at shell-version address `0x97effffffff8`; an
+application trace alone does not capture this static-shell access. Matching
+software included a kernel-release packaging correction, never a force-loaded
+6.8.12 module. March's legacy `add.x` lacks request IDs; use its matching client.
+
+Evidence under `out/hardware-tests/`: `reproducibility/verified-trials/summary.json`,
+`reproducibility/repro-{01,02}-{2812450,2383312}/`, `2812450/`, `2811847/`,
+`2383312/`, and `build-selection/`. Excluded monitor/harness failures remain in
+`reproducibility/trials/` and `monitor-recovery/`. Older ba2 archive
+`Downloads/artifacts(21).zip` was associated with 2383312 by generation timestamps
+and later NIC revision checks; `(22)` matched job 2645398 / `76c1ae40`.
+June jobs 2623585/2622870 returned artifact 404s. Legacy client copies are in
+`out/hardware-tests/2383312/client/` and
+`/scratch/pengxu/lauberhorn-e2e-2383312-client/`.
+
+## Early CMAC and boot-gate evidence
+
+The September polarity ECOs were not accepted deployment artifacts. One changed
+an ECI clock route and failed version reads; a route-locked retry passed version
+checks but later panicked. Original hardware subsequently passed 100 RPCs.
+Evidence: `out/hardware-tests/cmac-trace-20260917/summary.json`. The ARP-body
+parser regression passed after correction; later framing fixes and F_MAC1
+acceptance supersede these early capture failures.
+
+Pipeline 512110 (`4c898645`, jobs 2834758/2834757) failed shell access on a boot
+without the CCPI lane report, then passed 100 RPCs after a cold boot with all
+lanes. Its first DDR snapshot was taken with tracing already stopped and does
+not capture the abort. Partial ILA/DDR windows in
+`out/hardware-tests/cmac-trace-512110/` are not a full credit reconstruction.
+The boot gate now requires QLM8–13 lock and all 24 lanes; use the current
+[harness procedure](../docs/development/hardware-test.md) for retry limits.
+
+The September 23 matched 512381 trial (`5adb1e7`, jobs 2837292/2837291) passed
+100 RPCs after one automatic boot retry, but trace data/status requests failed.
+Its metadata alone did not establish a working readout path. Summary:
+`out/hardware-tests/cmac-20260923/summary.json`. The initially volatile peer
+capture was subsequently preserved under
+`out/cmac-trace-archive/hardware-tests/cmac-diagnosis-20260924/prior-capture/`;
+the later [CMAC evidence](#cmac-trace-readout-evidence) supersedes its old
+copy-blocked and unresolved-readout notes.
+
+## RX writeback regression evidence
+
+October 2 pipeline 515621 / hardware 2861585 (`2699f580`) failed before any
+application RPC completed. Boot retry passed the lane gate and module checks;
+client creation then failed and console responsiveness was lost. Its preserved
+139,951,936-byte F_MAC1 capture was unwrapped, repeat-hash-matched and free of
+decoded loss/DCS errors. The selected exclusive RX read at `0x100` received
+PEMD, then FLDX_EH returned HAKD dmask 15. DCS entered WDD without WDDA/LCIA;
+the next `0x80` read remained blocked. AXI handshakes were not traced on board.
+The directed actual-DCU/router diagnostic reproduced the absent write service;
+withholding B retained the wait, releasing B completed WDDA/LCIA and the read.
+Four expected diagnostic outcomes and six selected-ROM checks passed, not a
+production acceptance campaign.
+
+The September 28 `5cda901` comparison used PSHA/RA2 and SINV_H with HAKD dmask 0.
+TX already used data-bearing FLDX_EH/HAKD. No CPU store is required to explain
+the exclusive RX response. Evidence and excerpts:
+[lci-only trial](../data/eci/board-evidence/lci-only-20261002.json),
+[permission comparison](../data/eci/board-evidence/rx-ra3-comparison-20261002.json),
+[RTL diagnostic](../data/eci/board-evidence/rx-writeback-rtl-20261002.json).
+Raw failure artifacts remain in `out/board/20261002-lci/` and its recorded
+shared/ba2 locations; later deployments supersede the frozen-live-DUT note.
+
+Pipeline 515802 (`a51139ef8816ecc91366043016867caccf7b0e0c`, jobs
+2863306/2863307/2863308) added independent RX write completion. Two cold boots
+passed 100 adder RPCs each with no reported kernel faults. A prior missing-pexpect
+invocation failed before reset and is not a hardware trial. The first capture
+was preserved before the second reset: 429,277,056 bytes, SHA256
+`d3b147b45535c95b992c80a9f5db68f921b132aeb5d4980f6d91719a4ba620c3`.
+It has no decoded loss or asserted DC errors; 144 code-6 events are the trace-only
+ERR_REQ_STALLED diagnostic. The old blocked sequence now completes WDD→WDDA/LCIA
+and the next read. Aggregate equal WDD/WDDA counts are not independent transaction
+proof. WNS −0.005 ns with one failing endpoint is not timing closure.
+[Fix ledger](../data/eci/board-evidence/rx-writeback-fix-20261002.json);
+`out/board/rx-fix-515802/` and `/scratch/pengxu/rx-fix-515802/` retain raw evidence.
+This predates the scheduling/address pivot and current RX replay shadow.
+
+## Isolation and contention evidence for 516112
+
+Pipeline 516112 (`b2117e9625cca7ce256b44db34a5f2a46a952622`, jobs
+2865917/2865918/2865919) passed all 13 gates and two first-attempt cold boots,
+100 correct one-worker add RPCs each. Tracing and static ILA were armed through
+module load; checks found no TAD/kernel fault. This finite baseline does not
+establish adversarial isolation or full progress. WNS −0.396 ns, TNS −917.034 ns,
+7,227 failing setup endpoints. [Matched ledger](../data/eci/board-evidence/isolation-516112-20261004.json);
+`out/board/isolation-516112/` and `out/ci-followup/516112/` retain artifacts.
+
+The follow-up passed finite three-peer contention across two cold boots at
+26,656,301 cycles (133.281505 ms), with 180-second TAD/kernel/control checks.
+RT throttling was disabled on the second run; recurring 50 ms delays disappeared,
+but two approximately 124 ms echo outliers remained between promptly answered
+TX acquisition and commit. The analyzer's recorder-bubble bug was corrected
+and old ranges reprocessed. A serial setup failure was captured separately.
+[Interpretation](../docs/hardware/worker-hol-evidence.md) and
+[ledger](../data/eci/board-evidence/worker-hol-516112-20261004.json) retain limits.
+Do not restart the closed dedicated campaign from these dated observations.
+
+These summaries derive from `8f05507a:docs/development/hardware-test-results.md`.
+Git retains intermediate trials and complete historical hashes; raw captures
+were not removed. None of these service/reservation observations is live state.

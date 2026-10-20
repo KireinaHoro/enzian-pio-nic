@@ -11,7 +11,7 @@ their launch/frozen-state instructions are not current tasks.
 **Corrected-build baseline (October 4):** pipeline 516112 (`b2117e96`)
 includes the payload-isolation and multi-PA fault corrections and passed all CI
 jobs. Two verified cold boots each passed module/version checks and 100 correct
-RPCs. See the [matched board result](../development/hardware-test-results.md#isolation-correction-baseline--516112--2026-10-04).
+RPCs. See the [matched board result](../../agents/hardware-state.md#isolation-and-contention-evidence-for-516112).
 Adversarial domain-isolation and contention acceptance remain outstanding; this
 functional baseline does not discharge those obligations. Timing also remains
 open: WNS −0.396 ns, 7,227 failing setup endpoints. The old vulnerable 515944
@@ -78,6 +78,29 @@ After the committed response, the outgoing thread becomes claimable before the
 helper waits for an incoming thread. This prevents simultaneous A→B/B→A claim
 waits. Unrelated wakeups cannot return an old activation; failed delivery kills
 and fences the affected domain. Ordinary syscall sleep retains assignment.
+
+## RX writeback and permission changes
+
+An exclusive RX load can return data when invalidated even without a CPU store.
+The selected R12→RA3 path grants exclusive permission (`PEMD`); its invalidation
+uses `FLDX_EH` and can receive data-bearing `HAKD`. The earlier shared RX path
+used `PSHA` / RA2 and `SINV_H` with no returned data. A data-bearing acknowledgment
+does not by itself establish that software modified the line.
+
+DCS waits for AXI write completion before issuing WDDA/LCIA. RX must therefore
+complete AW/W/B independently of its read FSM: the next RX control read can be
+waiting for the very invalidation whose writeback is arriving. Blocking writes
+behind that read creates a circular wait. The
+[historical failure and intervention](../../agents/hardware-state.md#rx-writeback-regression-evidence)
+record this boundary with board traces and a directed DCU/router reproducer.
+
+The current [RX router](../../hw/src/lauberhorn/host/eci/DcsRxAxiRouter.scala)
+accepts the two writeback beats and returns B independently. It retains
+byte-masked payload mutations in a per-packet replay shadow for conflict-miss
+reloads, clearing the shadow on packet retirement or DESCHED. Descriptor stores
+are not commands, and returned RX bytes do not overwrite packet-buffer storage.
+The original October 2 correction drained and discarded returned data; that
+historical implementation must not be substituted for today's replay semantics.
 
 ## Checks completed in this implementation round
 
