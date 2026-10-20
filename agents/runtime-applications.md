@@ -2,7 +2,7 @@
 
 ## Accepted direction
 
-The [October 13 Go/etcd design](../docs/research/etcd.md) selects HOST_WORK
+The [October 13 Go/etcd design](../docs/proposals/go-etcd.md) selects HOST_WORK
 (formerly HOST_WAKE) to return assigned RX waiters to host work. Allocation for
 unassigned domains is separate. Preserve worker-core–endpoint affinity.
 The handoff authorizes documentation and naming only, not runtime/kernel/RTL
@@ -13,7 +13,7 @@ and etcd. Historical HOST_WAKE holds do not override this selected direction.
 Caladan is the primary baseline; follow its [port and calibration plan](../docs/research/caladan-enzian.md)
 when that work resumes. Port and measurement acceptance are pending in this
 handoff. Integrate external TCP/Protobuf work after higher-priority paper
-applications, following the [protocol roadmap](../docs/research/grpc-roadmap.md).
+applications, following the [protocol roadmap](../docs/proposals/grpc.md).
 
 ## Scheduling and isolation evidence
 

@@ -120,7 +120,7 @@ not promise bounded latency under every downstream network/coherence stall.
 
 Public arbitrary nested callbacks have been removed. Futures do not depend on
 that API. Service-owned async work and transport-only resident applications are
-specified in the [follow-on design](service-execution-design.md); neither
+specified in the [follow-on design](../proposals/service-execution.md); neither
 interface is implemented in this run. This does not remove application-internal
 callbacks or registration/init/cleanup function pointers.
 
@@ -170,7 +170,7 @@ by a full process RX queue; therefore the current bound includes ready but
 unconsumed futures. It is not a general reliability guarantee for arbitrary
 concurrent incoming traffic, packet loss, or deeply nested compositions.
 
-See the existing [lookup-table scaling and spill design](../hardware/lookup-spill.md):
+See the existing [lookup-table scaling and spill design](../proposals/lookup-spill.md):
 these limits should eventually be lifted through scalable table backing, explicit
 ownership on spill, and reliable end-to-end admission/backpressure. Hardware
 capacity should affect fast-path hit rate and latency rather than impose permanent
@@ -190,7 +190,7 @@ Application readiness/delivery flags do not own or release transport storage.
 Initialize workers before `lauberhorn_udp_attach`. At the worker's idle boundary,
 after runnable work and pending responses have drained, call
 `lauberhorn_udp_receive_view`. It waits for network RX and handles DESCHED through
-the existing yield contract; [HOST_WORK](../research/etcd.md#host_work) (formerly
+the existing yield contract; [HOST_WORK](../proposals/go-etcd.md#host_work) (formerly
 HOST_WAKE) is not implemented. A return of 1 lends
 one contiguous mutable datagram, including a zero-length datagram; 0 is NACK,
 and -1 reports an error through `errno`.

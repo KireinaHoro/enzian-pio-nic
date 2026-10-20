@@ -74,7 +74,7 @@ B1 validation/status is tracked in the [blocker queue](nested-rpc-blockers.md).
 
 ## Outstanding acceptance and resource contract
 
-See [TX completion extension uses and boundaries](tx-completion-design.md) for
+See [TX completion extension uses and boundaries](../proposals/tx-completion.md) for
 TCP command results, software spill/retry, a future protobuf encoder, and the
 distinction between local consumption and downstream completion.
 
@@ -121,7 +121,7 @@ Remaining work includes matched-hardware admission/cancellation validation,
 shutdown, abnormal-exit recovery and multi-process overload validation. Endpoint
 timeouts/cancellation now use an acknowledged PID/cookie retirement control
 command; failed retirement still retains reservations for process cleanup.
-[Service-owned events/timers and resident applications](service-execution-design.md)
+[Service-owned events/timers and resident applications](../proposals/service-execution.md)
 are documented follow-ons only, intentionally not implemented in this batch.
 
 ## Internal local RPC

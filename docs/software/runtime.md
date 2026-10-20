@@ -161,9 +161,9 @@ NACK timing lets an assigned worker regain control. Parked-domain deadline
 activation and execution-watchdog integration are deferred; the former deadline
 housekeeping thread is removed. HOST_WORK (formerly proposed as HOST_WAKE) and
 its interface are not implemented. The [failure policy](process-recovery.md)
-retains unresolved resources. The [Go toward etcd design](../research/etcd.md)
+retains unresolved resources. The [Go toward etcd design](../proposals/go-etcd.md)
 records the next runtime/HOST_WORK direction, currently documentation only.
-The earlier [raft-rs service proposal](service-execution-design.md) remains
+The earlier [raft-rs service proposal](../proposals/service-execution.md) remains
 historical design context, not a Go integration API.
 Native UDP memcached adaptation and its bounded maintenance scope are tracked in
 the [canonical design](../research/memcached.md); board acceptance is separate.
@@ -248,7 +248,7 @@ The current UDP evaluation temporarily admits at most 16 live calls per process,
 including ready futures until consumption. This prevents a submit burst from
 reusing hardware-retired slots faster than software drains completions. It is a
 [small-table workaround](programming-model.md#loopback-composition-receive-side-backpressure),
-not the intended scalable limit; see the [spill plan](../hardware/lookup-spill.md).
+not the intended scalable limit; see the [spill plan](../proposals/lookup-spill.md).
 
 Native UDP trace metadata version 1 exposes the wrapping RX `HostMsgID` in
 `packet->trace_ref` (valid bit 15, ID bits 5:0). Pass that scalar as `related_rx`

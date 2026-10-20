@@ -2,7 +2,7 @@
 
 ## Go toward etcd and HOST_WORK — October 13
 
-The [Go runtime design](etcd.md) records the new direction: adapt Go, implement
+The [Go runtime design](../proposals/go-etcd.md) records the new direction: adapt Go, implement
 HOST_WORK, validate memcached hash expansion, and run native Go null-RPC with
 nested calls before porting Go Raft and full etcd/client functionality. The
 current instruction is **documentation only; stop before implementation**.
@@ -127,7 +127,7 @@ A process-wide runtime credit now retains the 16-call bound through software
 consumption, including ready futures. Native tests cover full-table admission,
 credit reuse and 32 concurrent submitters. This is a **temporary UDP/small-table
 workaround**, not the intended architectural limit; see the
-[table scaling and spill plan](../hardware/lookup-spill.md#completion-capacity-and-delivery).
+[table scaling and spill plan](../proposals/lookup-spill.md#completion-capacity-and-delivery).
 Many current capacity restrictions should eventually be lifted. The corrected
 bounded board gate passed on FPGA 516232; no new bitstream was needed.
 
@@ -189,7 +189,7 @@ Exactly two application-facing extensions are deferred:
    handling and expiry, and fail incomplete messages without partial execution.
    “Arbitrarily long” means independent of the MTU within explicit resource
    bounds. UDP delivery and small-table restrictions remain first-PoC limits;
-   see the [temporary workaround and scaling plan](../hardware/lookup-spill.md#completion-capacity-and-delivery).
+   see the [temporary workaround and scaling plan](../proposals/lookup-spill.md#completion-capacity-and-delivery).
 2. **Communication functions expressed as nested RPC calls.** Map a communication
    node to asynchronous RPC submission, suspend its composition without holding
    a compute worker, then resume dependent nodes on completion. Demonstrate a
@@ -311,7 +311,7 @@ or DESCHED work and not a selected replacement protocol.
 | Scalable service/process/session tables | `docs/hardware/lookup-spill.md` proposes hardware caches and typed software spill ownership | End-to-end admission, eviction, ownership and packet lifetime tests beyond table capacity |
 | Nested RPC usable from applications | Managed C-runtime outcomes, futures and nested completion are implemented with historical generic board validation; this is not current application acceptance | Generic runtime/outcome checks passed in the historical nested campaign; application-specific acceptance and revalidation on the replacement scheduling ABI remain |
 | Coherence progress and queue-pair placement | Goal 1 complete as a bounded modeling/layout milestone: selected 8 KiB physical-worker blocks, domain encoding and reproducible positive/negative models | Selected bounded Goal 2 matrix complete; replacement implementation and targeted DCS RTL validation below, followed by adversarial board traces |
-| TCP and Protobuf integration | Finished external student projects in `../flavian-tcp` and `../elena-protobuf`; unmerged here | Adapt code/dependencies and validate host contracts after higher-priority applications; [follow-on roadmap](grpc-roadmap.md) |
+| TCP and Protobuf integration | Finished external student projects in `../flavian-tcp` and `../elena-protobuf`; unmerged here | Adapt code/dependencies and validate host contracts after higher-priority applications; [follow-on roadmap](../proposals/grpc.md) |
 | Data movement and decode extensions | Current C runtime performs XDR; generator TODO suggests coupled worker protocol | Chosen ABI and workloads; measured benefit; large-message strategy independently validated |
 | Reproducible evaluation | Trace/latency tooling and descheduling microbenchmark exist; historical examples are not a full evaluation | [Paper evidence matrix](paper-goals.md), reproducible raw data and controls |
 | Development consistency | Build/CI/manual instructions have drift; PCIe contains unfinished preemption | See [workflow](../development/workflow.md) and [validation](../development/validation.md); repair only within a separately scoped implementation task |
@@ -508,7 +508,7 @@ model checks, THX credit assumptions and eventual board conformance separately.
 
 1. Complete expanded acceptance of the implemented physical-worker/domain design using the completed bounded scheduling models and the next-step sequence above. Establish concrete admission/resource guarantees and validate supported concurrency; the color-compatible seven-worker capacity is not yet a hardware progress guarantee.
 2. Specify receive-critical-section versus whole-application timeout, timer start/reset points, kill granularity and safe resource/reply cleanup. Define service allocation fairness if a guarantee is needed; run-to-finish alone does not define it.
-3. Validate the [managed outcome contract](../software/programming-model.md), including local reply forwarding for tail calls. Direct downstream-to-original-client replies remain separate protocol work. Implement [service-owned events/timers and resident-worker integration](../software/service-execution-design.md) in later runs.
+3. Validate the [managed outcome contract](../software/programming-model.md), including local reply forwarding for tail calls. Direct downstream-to-original-client replies remain separate protocol work. Implement [service-owned events/timers and resident-worker integration](../proposals/service-execution.md) in later runs.
 4. Consensus targets a runtime-managed raft-rs embedding; memcached uses [native UDP cooperative workers](memcached.md) with bounded maintenance. Select NFS implementation, Caladan port/application revisions and resource budgets under the [Enzian baseline plan](caladan-enzian.md), target venue/cycle, and ordered feature milestones.
 5. Choose the TCP/Protobuf merge order and follow-on gRPC scope without displacing first-paper applications. Any separate Linux/full-paper source trees still need identification if required; student reports are not the full-system paper source.
 

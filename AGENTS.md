@@ -31,8 +31,8 @@ these canonical sources. Edit the tracked source rather than keeping local copie
 - Formal verification (TLA+, model checking and RTL verification), assumptions, bounds and results: [formal documentation](docs/formal/README.md). Model source, configurations and machine-readable evidence stay under `model/`.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
-- Go runtime / HOST_WORK / future etcd: [design and dispatch matrix](docs/research/etcd.md); documentation only, no implementation authorized by this handoff.
-- External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/research/grpc-roadmap.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
+- Go runtime / HOST_WORK / future etcd: [design and dispatch matrix](docs/proposals/go-etcd.md); documentation only, no implementation authorized by this handoff.
+- External TCP/Protobuf projects and later gRPC scope: [protocol roadmap](docs/proposals/grpc.md), [TCP](docs/research/tcp.md), [Protobuf](docs/research/protobuf.md).
 - Pending features and unresolved intent: [roadmap](docs/research/roadmap.md).
 
 ## Agent context
@@ -56,7 +56,7 @@ Read [Dandelion](docs/research/dandelion.md) before porting `../sven-dandelion`;
 the student evaluation uses a software mock. External TCP/Protobuf integration
 from `../flavian-tcp` and `../elena-protobuf` is below first-paper application
 priority; fully offloaded gRPC is a potential follow-on paper. See the
-[protocol roadmap](docs/research/grpc-roadmap.md) and
+[protocol roadmap](docs/proposals/grpc.md) and
 [runtime/application continuation](agents/runtime-applications.md).
 
 ## Working rules

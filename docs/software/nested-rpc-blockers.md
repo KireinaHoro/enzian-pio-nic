@@ -1,6 +1,6 @@
 # Nested RPC integration blockers
 
-**October 13:** [Go toward etcd and HOST_WORK](../research/etcd.md) records the
+**October 13:** [Go toward etcd and HOST_WORK](../proposals/go-etcd.md) records the
 new future direction. The current task is documentation only. HOST_WAKE in the
 dated ledger below is the former proposal name, not an implemented interface.
 
@@ -331,7 +331,7 @@ bitstream must be deployed together. Timeout/DMA uncertainty still quarantines
 endpoint state; no claim of B4 closure is made.
 
 See the [API contract](programming-model.md). Raft service events/timers and
-resident memcached transport integration are [design-only follow-ons](service-execution-design.md).
+resident memcached transport integration are [design-only follow-ons](../proposals/service-execution.md).
 Their implementations and harnesses are intentionally excluded from this run.
 
 **Incoming admission follow-up, September 17:** the old session table is now a
@@ -501,7 +501,7 @@ No Vivado implementation or board campaign ran. B3 remains open for matched
 hardware acceptance. At that validation point incoming server-session overflow
 was still unresolved; the reply-context follow-up above supersedes that finding. B4/B5 remain
 open. Service-owned Raft work and resident memcached adoption are documented in
-[the service execution design](service-execution-design.md), without runtime
+[the service execution design](../proposals/service-execution.md), without runtime
 implementation or application harnesses in this batch.
 
 ## Incoming reply-context follow-up validation (2026-09-17)

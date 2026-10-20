@@ -2,7 +2,7 @@
 
 The generated datapath supports native UDP and ONC-RPC calls/replies over
 Ethernet/IPv4/UDP. Unsupported traffic can use the kernel bypass path. General
-software-backed RPC table spill remains a [proposal](lookup-spill.md).
+software-backed RPC table spill remains a [proposal](../proposals/lookup-spill.md).
 
 ## Receive and transmit paths
 

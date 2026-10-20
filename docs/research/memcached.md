@@ -1,6 +1,6 @@
 # Native UDP memcached
 
-**October 13 design follow-up:** [HOST_WORK](etcd.md#host_work), formerly proposed
+**October 13 design follow-up:** [HOST_WORK](../proposals/go-etcd.md#host_work), formerly proposed
 as HOST_WAKE, will return assigned RX waiters to host-side work. The Go/etcd
 stage also requires allocation for unassigned domains, targeted maintenance
 notification and host-only pause/resume parking, with real hash expansion as
@@ -129,7 +129,7 @@ pause notification to every worker and waits. A worker parked in kernel yield
 cannot consume its libevent notification. Finite RX polling does not solve this.
 HOST_WORK, allocation for unassigned domains, epoll subscriptions and voluntary
 host-only yield remain follow-on work, with no new API, hardware field or stub
-in this implementation. See the [October 13 design](etcd.md#host_work); HOST_WORK
+in this implementation. See the [October 13 design](../proposals/go-etcd.md#host_work); HOST_WORK
 itself completes assigned RX waits, not threads parked inside kernel yield.
 
 Tentative sketches retain one epoll instance per worker for host notifications

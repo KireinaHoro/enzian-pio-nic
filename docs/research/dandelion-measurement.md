@@ -249,7 +249,7 @@ are drained and fail the composition.
 
 This is a **temporary workaround for UDP and small hardware tables**, not the
 intended architecture. See the existing
-[table-size restrictions and scaling/spill plan](../hardware/lookup-spill.md#completion-capacity-and-delivery).
+[table-size restrictions and scaling/spill plan](../proposals/lookup-spill.md#completion-capacity-and-delivery).
 Many limits should eventually be lifted. Neither this cap nor retrying SYSTEM_ERR
 provides general UDP reliability or safe retries for arbitrary side-effecting
 handlers, concurrent external traffic, or deeply nested compositions.

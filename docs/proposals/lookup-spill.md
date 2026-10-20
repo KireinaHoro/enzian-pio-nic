@@ -1,7 +1,7 @@
 # Lookup table scaling and spill design
 
 This is a proposal for software-backed hot tables and typed slow paths. General
-RPC spill is not implemented. The [packet-processing contract](packet-processing.md#lookup-and-capacity-behavior)
+RPC spill is not implemented. The [packet-processing contract](../hardware/packet-processing.md#lookup-and-capacity-behavior)
 describes current admission, rejection and drop behavior. Proposed block names,
 descriptors and policies below are design sketches, not an available ABI.
 
@@ -27,7 +27,7 @@ the admission limits:
   outgoing nested-request tables.
 - `NUM_NEIGHBOR_ENTRIES = 8`: max cached IPv4 neighbors.
 
-The [current behavior table](packet-processing.md#lookup-and-capacity-behavior)
+The [current behavior table](../hardware/packet-processing.md#lookup-and-capacity-behavior)
 distinguishes registration capacity, per-request admission and neighbor caching.
 
 These should not be hard registration limits. Hardware should cache the active
@@ -62,7 +62,7 @@ queue capacity together before lifting the existing bound.
 
 ## Existing slow paths and TCP reference
 
-The implemented [kernel bypass path](packet-processing.md#kernel-bypass-and-neighbor-misses)
+The implemented [kernel bypass path](../hardware/packet-processing.md#kernel-bypass-and-neighbor-misses)
 handles raw packets and packet-bearing neighbor misses. It supplies a useful
 allocation/acknowledgment mechanism for kernel-owned exceptions. Application-owned
 spills need separate typed requests and a real software delivery route.
@@ -432,7 +432,7 @@ Full capacity rejects the call with a bounded, best-effort `SYSTEM_ERR` path;
 no live context is overwritten. Reply lookup validates slot, generation and
 owner, then captures routing and retires the context. See
 [reply contexts](../software/reply-contexts.md) and the
-[current behavior](packet-processing.md#lookup-and-capacity-behavior).
+[current behavior](../hardware/packet-processing.md#lookup-and-capacity-behavior).
 
 A RAM-backed indexed context store is a candidate for tens/hundreds of entries,
 with URAM considered only at larger scales. Preserve atomic allocation,
@@ -483,7 +483,7 @@ RAM implementation:
 The physical-worker decoder and indexed ownership table have one entry per
 worker; they are not an associative thread router or an initial spill target.
 Keep address authorization independent of service/process cache replacement.
-See the [ECI ownership contract](eci-implementation.md#address-ownership-and-integration).
+See the [ECI ownership contract](../hardware/eci-implementation.md#address-ownership-and-integration).
 
 ## Lookup Table Implementation Plan
 
@@ -570,7 +570,7 @@ Evaluate storage changes independently of spill semantics, using the same
 workload and capacity. Compare the register implementation, RAM service/context
 storage, and scheduler PID/bitmap split with the utilization/timing criteria
 above. Any routed experiment remains subject to the existing
-[physical-implementation pause](physical-implementation.md#scope-and-interpretation).
+[physical-implementation pause](../hardware/physical-implementation.md#scope-and-interpretation).
 
 Correctness and performance cases must include:
 

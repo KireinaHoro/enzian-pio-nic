@@ -9,7 +9,7 @@ planning handoff alone.
 The first implementation stage will adapt Go, implement HOST_WORK, demonstrate
 memcached hash expansion, and run a native Go null-RPC demo with goroutines and
 nested calls. Porting the Go Raft core and then etcd itself, including its client
-interface, are later stages. The older [raft-rs service proposal](../software/service-execution-design.md)
+interface, are later stages. The older [raft-rs service proposal](service-execution.md)
 is historical design context, not the selected Go implementation.
 
 ## Scope and baseline

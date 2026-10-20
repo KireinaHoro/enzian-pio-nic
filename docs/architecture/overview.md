@@ -47,17 +47,18 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 | Model contracts, assumptions and bounded results | [Formal verification](../formal/README.md) |
 | Select verification | [Validation](../development/validation.md) |
 | Full-paper evidence and experiments | [Paper goals](../research/paper-goals.md) |
+| Unimplemented designs and alternatives | [Open proposals](../proposals/README.md) |
 | Unfinished work and decisions | [Roadmap](../research/roadmap.md) |
 
 ## Detailed references
 
 - [Packet processing](../hardware/packet-processing.md) and [tracing](../development/tracing.md): source-oriented mechanism detail.
 - [Nested RPC](../software/nested-rpc.md): descriptor/RTL paths; the [runtime](../software/runtime.md) and [endpoint contract](../software/nested-rpc-endpoints.md) describe software integration.
-- [Go toward etcd](../research/etcd.md): design-only G/M/P/L scheduling, HOST_WORK and native null-RPC stage; no implementation yet.
+- [Go toward etcd](../proposals/go-etcd.md): design-only G/M/P/L scheduling, HOST_WORK and native null-RPC stage; no implementation yet.
 - [Dandelion](../research/dandelion.md): native application integration and historical student/mock design. The [measurement report](../research/dandelion-measurement.md) describes bounded Enzian composition results and their limits.
-- [TCP/Protobuf and gRPC roadmap](../research/grpc-roadmap.md): finished external projects and lower-priority integration scope.
+- [TCP/Protobuf and gRPC roadmap](../proposals/grpc.md): finished external projects and lower-priority integration scope.
 - [Latency measurement](../research/latency-measurement.md): measurement definitions, correlation and historical examples.
-- [Lookup spill](../hardware/lookup-spill.md): proposed software-backed table scaling.
+- [Lookup spill](../proposals/lookup-spill.md): proposed software-backed table scaling.
 - [Queue-pair design and HoL blocking](../hardware/queue-pair-design.md): selected 8 KiB layout, domain aliases, ownership and the coloring rationale. Coloring alone does not establish full-system progress.
 
 - [ECI progress evaluation](../research/eci-progress.md): matched contention and GSYNC experiments, timeout interpretation and finite coverage.

@@ -42,7 +42,7 @@ These are planned applications, not claims that five ports run on the current FP
 
 ## Follow-on scope
 
-The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than Dandelion and the other applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](grpc-roadmap.md); do not expand the first paper into that agenda by default.
+The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than Dandelion and the other applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](../proposals/grpc.md); do not expand the first paper into that agenda by default.
 
 ## Proposed evidence plan
 
