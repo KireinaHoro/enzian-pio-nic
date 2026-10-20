@@ -47,3 +47,17 @@ Private-input fetch failures require the platform project's job-token allowlist,
 not a personal diagnostic token: memcached job 2879237 failed before compilation
 when that permission was missing. Keep credentials out of source and artifacts.
 No credential or remote permission changes are authorized by this handoff.
+
+## CMAC regression references
+
+`tools/cmac/check-routing.py` exercises the production aperture;
+`tools/cmac/check-startup.py` uses generated headers and fake MMIO to check
+startup and callback failure/retry/DOWN/UP in IRQ and polling modes. The former
+CMAC note records passing local tests and a 6.8.0-64 arm64 module build;
+these do not model analog alignment or establish the later physical UP/retry
+case. Use current `dev.SYSTEM.hardware.deviceHeaders` and
+`dev.SYSTEM.kernel.lauberhornModule` outputs when reproducing local checks.
+For a future statistics change, audit mixed status latches and adjacent 32-bit
+reads through the width adapter. There is no periodic carrier monitor or
+automatic link-loss recovery. Board provenance is in
+[hardware state](hardware-state.md#cmac-initialization-evidence-reference).

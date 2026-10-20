@@ -53,3 +53,23 @@ cohort was still running; it does not establish today's DUT state.
 
 These pointers preserve recovery context; no captures or raw evidence were
 removed by the documentation migration.
+
+## CMAC initialization evidence reference
+
+The October 9 pipeline 518139 (`79d5758f86a9b891234519b46e49226e01cfbb3d`)
+passed two cold boots and 200 checked RPCs with register-controlled F_MAC0
+startup. A BMC power-read failure and a rejected CCPI boot are separate failures.
+This tested startup at module load, before the later software UP/DOWN lifecycle
+restoration; it does not establish physical failed-UP/retry recovery. WNS was
+−0.881 ns, not timing closure. Subsequent deployments supersede its live-DUT note.
+
+Artifacts and manifests: `/tmp/lauberhorn-cmac-axil/out/cmac-ci-518139/`;
+results: `board-rpc/summary.json`, `board-rpc-retry/summary.json`,
+`trial-01-results/` and `trial-02-results/` beneath that root. Deployment SHA256:
+`c489cbe0b3f2fad1aba9313963d82638872e42c8da4e83e6df7d74f73c09ea76`.
+The prior 517951 failure was preserved at
+`out/native-udp/memcached-recovery-trace/trace-dram.bin` (682,201,600 bytes;
+SHA256 `76450049ee7cbe01f0a0f8880d37afd980a53ed77aab6262f53831f2277748ba`).
+Its sticky sample-loss limitation remains; only a hash-matched remote duplicate
+was removed for quota recovery. Full historical provenance is in Git at
+`418f8bcc:docs/development/cmac-axil-init.md`.

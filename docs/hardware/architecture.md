@@ -16,6 +16,9 @@ Scope: current source tree, inspected 2026-09-08. Source paths below are relativ
 | Coherent CPU link | `hw/src/lauberhorn/host/eci/`: ECI routing, per-worker 2F2F RX/TX, preemption |
 | Physical ECI integration | `vivado/eci/rtl/lauberhorn_eci.vhd`: NicEngine, even/odd DCS, ECI transport, interrupts, CMAC, trace DMA/DDR |
 
+F_MAC0's CMAC is configured over AXI-Lite through a 64 KiB register window,
+including its RS-FEC controls. F_MAC1 uses autonomous control for the trace link.
+
 ## Packet paths
 
 See [packet processing](packet-processing.md) for ingress/egress stages, metadata/payload ownership and bypass behavior. Both ONC-RPC call and reply paths are installed.
