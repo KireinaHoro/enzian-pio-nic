@@ -138,8 +138,20 @@ boots lacking the CCPI report aborted at shell access. Six no-reset signal cases
 passed before a hung-handler case hit an L2 timeout; remaining cases were unrun.
 Only bounded trace head/tail windows survive in `out/enzian/b4-512199/`, not a
 full lossless reconstruction. The separate DECERR diagnosis does not establish
-the board's unrecorded RRESP or exact wakeup. See the
-[B4 investigation](../docs/hardware/b4-l2-timeout-512199.md).
+the board's unrecorded RRESP or exact wakeup. Preserved diagnosis inputs are
+`out/enzian/b4-512199/hang-capture/hang-failure-tail.jsonl`,
+`hang-capture/timeout-app-ila.csv` under that same root, and `analysis/` with
+`decerr_repro.sv`, `crossbar_repro.sv`, the positive control and Verilator logs.
+The full retired investigation is in Git at
+`692242f9:docs/hardware/b4-l2-timeout-512199.md`.
+
+The independent read/write DECERR accounting repair (verilog-axi `5de055e`,
+blocks `b527f9c`) was accepted on simulation evidence; further board reproduction
+was not a merge gate. Bitstream 512199 lacks that repair. Its kernel-only parking
+result below establishes prevention of premature access within the tested cases,
+not board validation of the crossbar fix. The maintained
+[DECERR regression](../docs/development/validation.md#axi-decode-error-regression)
+checks mapped-transaction progress after an unmapped transaction.
 
 Kernel-only parking patch `5ec614c` on the same hardware passed 100 mul RPCs and
 20/20 recovery cases over two no-reset rounds: INT/TERM/KILL before/after dispatch,

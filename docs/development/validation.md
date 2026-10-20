@@ -495,6 +495,21 @@ Mill module-level test parallelism remains disabled to avoid repeated Verilator
 model builds. Read compressed simulation transcripts with `less`, `vim` or
 `zcat`; use the workspace path printed by the suite.
 
+### AXI decode-error regression
+
+When changing AXI crossbar decode or completion accounting, run:
+
+```sh
+nix build .#checks.x86_64-linux.axi-decerr
+```
+
+The [read/write regression](../../deps/blocks/deps/verilog-axi/tb/axi_crossbar/test_decerr.sv)
+completes an unmapped transaction through the internal DECERR responder, then
+requires a mapped transaction to progress. Internal error responses must not
+release a transaction count that address admission never acquired. This is a
+crossbar simulation check; it does not validate kernel worker parking or establish
+what response occurred in a historical board capture.
+
 ## Evidence to retain from a failure
 
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.

@@ -40,7 +40,7 @@ has no visible acknowledgment; a later GSYNC response establishes that the
 capture continues beyond that point. The analysis leaves the exact blocking
 resource unresolved.
 
-The [September 18 pipeline 512199 failure](b4-l2-timeout-512199.md) is distinct:
+The [September 18 pipeline 512199 failure](../../agents/runtime-applications.md#historical-b4-parking-and-recovery) is distinct:
 an RX read remains unanswered after an earlier invalidation completed normally,
 and bypass subsequently stops too. The investigation reproduces an AXI
 crossbar DECERR completion-accounting underflow that prevents later valid
