@@ -414,7 +414,7 @@ sets a shared CI/local default with ETH first and HACC as fallback, while honori
 explicit host overrides. It passed the Nix workflow check (ShellCheck and 12
 tests) and a real xcvu9p synthesis in a fresh bridge-network container using the
 pinned image, with `LICENSE_SYNTHESIS_PASS` and exit zero. See the
-[license recovery note](../development/ci.md#license-server-recovery-september-16).
+[license configuration](../development/ci.md#vivado-license-configuration).
 
 The table now lists the resubmissions with this fix. `cases-packaging-relaunch.json`
 preserves the previous revisions; the active `cases.json` drives the existing

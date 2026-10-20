@@ -4,6 +4,7 @@ Human descriptions and design rationale belong in README files and `docs/`.
 These files hold continuation state by goal; follow [AGENTS.md](../AGENTS.md)
 for working rules and topic routing.
 
+- [Build and CI](build-ci.md): build ownership, validation references and continuation checks.
 - [Runtime and applications](runtime-applications.md): accepted scope, bounded results and next checks.
 - [Measurements](measurements.md): instrumentation, evidence and remaining measurement work.
 - [Physical implementation](physical-implementation.md): timing pause and dependency ownership.
