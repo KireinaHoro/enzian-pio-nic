@@ -23,10 +23,10 @@ def render(source,output, *, rehearsal=False):
             raise ValueError('Unloaded raw evidence hash mismatch')
     output=Path(output)
     def panels():
-        fig,original=chart.figure(columns=2,height=2.5)
+        fig,original=chart.figure(columns=1,height=3.5)
         original.remove()
-        axes=fig.subplots(1,len(SIZES),sharey=True)
-        fig.subplots_adjust(left=.09,right=.985,bottom=.24,top=.84,wspace=.22)
+        axes=fig.subplots(len(SIZES),1,sharex=True,sharey=True)
+        fig.subplots_adjust(left=.14,right=.98,bottom=.15,top=.88,hspace=.20)
         return fig,axes
     statistics={}
     fig,axes=panels()
@@ -38,14 +38,28 @@ def render(source,output, *, rehearsal=False):
             if len(values)!=count or np.any(values<=0): raise ValueError('Invalid CDF observations')
             ax.step(values,np.arange(1,len(values)+1)/len(values),where='post',label=system,color=chart.COLORS[i])
             statistics[str(size)][system]=dict(p50_us=float(np.percentile(values,50)),p99_us=float(np.percentile(values,99)),max_us=float(values[-1]))
-        ax.set_xlabel(str(size)+' B\nWire-to-wire latency ($\\mu$s)')
-    axes[0].set_ylabel('CDF')
+            median,p99=np.percentile(values,[50,99])
+            ax.plot(median,.5,'o',color=chart.COLORS[i],markersize=3)
+            ax.plot(p99,.99,'D',color=chart.COLORS[i],markersize=3)
+            ax.text(.75 if size==1432 else .97,.73-i*.30,
+                    f'{system}: median {median:.3f}, P99 {p99:.3f} '+r'$\mu$s',
+                    transform=ax.transAxes,ha='right',va='center',fontsize=6,
+                    color=chart.COLORS[i])
+
+        ax.set_xscale('log')
+        ax.set_yticks([0,.5,1],['0','.5','1'])
+        ax.text(.97,.16,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)
+    from matplotlib.ticker import NullFormatter
+    axes[-1].set_xticks([3,5,10,20,30],['3','5','10','20','30'])
+    axes[-1].xaxis.set_minor_formatter(NullFormatter())
+    axes[1].set_ylabel('CDF',labelpad=2)
+    axes[-1].set_xlabel('Wire-to-wire latency ($\\mu$s)')
     fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=2)
     chart.save(fig,output/'echo-unloaded-hot-latency-cdf.pdf')
     fig,original=chart.figure(columns=1,height=5.4)
     original.remove()
-    axes=fig.subplots(3,1,sharex=False)
-    fig.subplots_adjust(left=.25,right=.975,bottom=.09,top=.88,hspace=.85)
+    axes=fig.subplots(3,1,sharex=True)
+    fig.subplots_adjust(left=.25,right=.975,bottom=.09,top=.88,hspace=.30)
     categories=(('handler',),('rpc_receive','rpc_transmit','cpu_other'),
                 ('rx_network','tx_network'),('rx_queue','tx_submission'),('cpu_wire',))
     labels=('Handler','RPC runtime','Network stack','CPU--NIC','NIC--wire')
@@ -67,16 +81,16 @@ def render(source,output, *, rehearsal=False):
                 combined[label]=mean
                 ax.barh(1-i,mean,left=bottom,height=.45,color=colors[j],label=label if not i else None)
                 center=bottom+mean/2
-                if mean>=.1*panel_max:
+                if mean>=1.8:
                     ax.text(center,1-i,f'{mean:.3f}',ha='center',va='center',fontsize=7)
+                elif mean>=.5:
+                    ax.text(center,1-i,f'{mean:.3f}',ha='center',va='center',fontsize=6.5,rotation=90)
                 else:
-                    dx,align=((-9,'right') if mean==0 else
-                              (-4,'center') if i==1 and j==1 else
-                              (2,'center') if i==1 and j==2 else (0,'center'))
-                    if size==1432 and i==1 and j<3: dx,align=((-10,'center'),(0,'center'),(10,'center'))[j]
-                    ax.annotate('0' if mean==0 else f'{mean:.3f}',(center,1-i+.225),
-                                xytext=(dx,14 if size==1432 and i==1 and j==3 else 3),textcoords='offset points',ha=align,
-                                va='bottom',fontsize=6.5,color=colors[j])
+                    below=j==2
+                    ax.annotate('0' if mean==0 else f'{mean:.3f}',
+                                (center,1-i+(-.225 if below else .225)),
+                                xytext=(0,-3 if below else 3),textcoords='offset points',ha='center',
+                                va='top' if below else 'bottom',fontsize=6.5,color=colors[j])
                 bottom+=mean
             statistics[str(size)][system]['instrumented_median_us']=bottom
             statistics[str(size)][system]['breakdown_us']=combined
@@ -84,10 +98,11 @@ def render(source,output, *, rehearsal=False):
                 raise ValueError('Combined components do not conserve median wire latency')
         ax.set_yticks([1,0],['LH','DPDK'])
         ax.set_ylim(-.55,1.55)
-        ax.set_xlim(0,max(statistics[str(size)][system]['instrumented_median_us'] for system in ('LH','DPDK'))*1.05)
         ax.grid(False)
-        ax.set_xlabel(str(size)+' B\nWire-to-wire latency ($\\mu$s)')
+        ax.text(.97,.03,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)
 
+    axes[-1].set_xlim(0,max(statistics[str(size)][system]['instrumented_median_us'] for size in SIZES for system in ('LH','DPDK'))*1.05)
+    axes[-1].set_xlabel('Wire-to-wire latency ($\\mu$s)')
     fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=2,fontsize=7,columnspacing=1.1,handlelength=1.3)
     chart.save(fig,output/'echo-unloaded-hot-latency-breakdown.pdf')
     (output/'echo-unloaded-statistics.json').write_text(json.dumps(statistics,indent=2)+'\n')

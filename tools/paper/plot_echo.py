@@ -67,7 +67,7 @@ def render(source,destination, *, rehearsal=False, partial=False):
         for si,system in enumerate(SYSTEMS):
             for ni,size in enumerate(SIZES):
                 ax=axes[si,ni]
-                for worker in workers:
+                for worker in ((4,) if kind=='latency-goodput' else workers):
                     record=next((r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker)),None)
                     if record is None: continue
                     points=qualifying(record['points']) if kind=='latency-goodput' else sorted(record['points'],key=lambda p:p['rate'])
@@ -77,10 +77,11 @@ def render(source,destination, *, rehearsal=False, partial=False):
                         values=[observations(p['trials']) for p in points]
                         if any(not len(v) for v in values): raise ValueError('Empty qualifying latency point')
                         x=[a['goodput']/1000 for a in aggregates]
-                        for percentile,style in ((50,'-'),(99,'--')):
+                        for percentile,style in ((99,'-'),):
                             y=[v.percentile(percentile)/1000 for v in values]
-                            ax.plot(x,y,style,color=color,label=f'{worker} workers' if percentile==50 else None)
-                            if x: ax.plot(x[-1],y[-1],'o',color=color)
+                            ax.plot(x,y,style,color=chart.COLORS[si],marker=('o','s','^')[ni],
+                                    markersize=3,label=f'{system} {size} B')
+                            if x: ax.plot(x[-1],y[-1],marker=('o','s','^')[ni],color=chart.COLORS[si],markersize=5)
                         stats.append(dict(system=system,size=size,workers=worker,
                             rates=[p['rate'] for p in points],goodput=x,
                             median_us=[v.percentile(50)/1000 for v in values],
@@ -92,24 +93,26 @@ def render(source,destination, *, rehearsal=False, partial=False):
                         ax.plot(x,y,'o-',color=color,label=f'{worker} workers')
                         for a,p in zip(x,points):
                             ax.plot([a]*len(p['trials']),[100*(1-t['on_time']/t['transmitted']) for t in p['trials']],'.',color=color)
-                if kind=='overload-loss': ax.axhline(1,color='.4',linestyle=':',linewidth=.7)
-                ax.set_xlabel('Goodput (kRPC/s)' if kind=='latency-goodput' else 'Offered load (kRPC/s)')
-                ax.set_ylabel(f'{system}: '+('Client RTT ($\\mu$s)' if kind=='latency-goodput' else 'Loss (\\%)'))
-                ax.set_title(f'{size} application bytes',fontsize=9)
-                if si==0 and ni==0:
-                    if kind=='latency-goodput':
-                        ax.plot([],[],color='.25',linestyle='-',label='Median')
-                        ax.plot([],[],color='.25',linestyle='--',label='P99')
-                    if ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
+                if kind=='overload-loss':
+                    ax.axhline(1,color='.4',linestyle=':',linewidth=.7)
+                    ax.set_xlabel('Offered load (kRPC/s)')
+                    ax.set_ylabel(f'{system}: Loss (\\%)')
+                    ax.set_title(f'{size} application bytes',fontsize=9)
+                    if si==0 and ni==0 and ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
+                if kind=='latency-goodput':
+                    ax.set_ylim(0,75)
+                    ax.set_xlabel('Goodput (kRPC/s)')
+                    ax.set_ylabel(f'{system}: P99 RTT ($\\mu$s)')
+                    ax.set_title(f'{size} B',fontsize=9)
         filename='echo-loaded-hot-latency-goodput.pdf' if kind=='latency-goodput' else 'echo-overload-loss.pdf'
         chart.save(fig,destination/filename)
     if rehearsal:
         (destination/'echo-trials.json').write_text(json.dumps(TRIAL_STATS,indent=2)+'\n')
         (destination/'echo-statistics.json').write_text(json.dumps(stats,indent=2)+'\n')
         return
-    fig,axes=panels(2)
+    fig,ax=chart.figure(columns=1,height=3.2)
+    fig.subplots_adjust(left=.19,right=.97,bottom=.18,top=.72)
     for si,system in enumerate(SYSTEMS):
-        ax=axes[0,si]
         for ni,size in enumerate(SIZES):
             trials=[]; observed_workers=[]
             for worker in workers:
@@ -121,10 +124,14 @@ def render(source,destination, *, rehearsal=False, partial=False):
             if not trials: continue
             values=np.asarray(trials); middle=np.median(values,axis=1)
             ax.errorbar(observed_workers,middle,yerr=[middle-values.min(axis=1),values.max(axis=1)-middle],
-                        fmt='o-',color=chart.COLORS[ni],label=f'{size} bytes',capsize=2)
-        ax.set_xlabel('Workers'); ax.set_ylabel('Confirmed goodput (kRPC/s)'); ax.set_title(system)
-        ax.set_xticks(WORKERS)
-        if ax.get_legend_handles_labels()[0]: ax.legend(fontsize=7)
+                        fmt=('o','s','^')[ni]+'-',color=chart.COLORS[si],label=f'{system} {size} B',capsize=2)
+    ax.set_xlabel('Workers'); ax.set_ylabel('Confirmed goodput (kRPC/s)')
+    ax.set_xticks(WORKERS)
+    ax.set_yscale('log')
+    from matplotlib.ticker import NullFormatter
+    ax.set_yticks([50,100,200,500,1000,2000],['50','100','200','500','1000','2000'])
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    fig.legend(*ax.get_legend_handles_labels(),loc='upper center',ncol=2,fontsize=7)
     chart.save(fig,destination/'echo-loaded-hot-peak-throughput-workers.pdf')
     (destination/'echo-statistics.json').write_text(json.dumps(stats,indent=2)+'\n')
     (destination/'echo-trials.json').write_text(json.dumps(TRIAL_STATS,indent=2)+'\n')
