@@ -146,7 +146,7 @@ isolation arguments. See [coherence progress](queue-pair-design.md#motivation-av
 ## Build integration and selected-ROM checks
 
 ```sh
-nix build .#dcsRom --out-link out/progress/lauberhorn-rom
+nix build .#dev.x86_64-linux.hardware.dcsRom --out-link out/progress/lauberhorn-rom
 nix build .#checks.x86_64-linux.dcs-rom-thx
 nix build .#checks.x86_64-linux.dcs-lauberhorn
 nix build .#checks.x86_64-linux.dcs-pressure

@@ -851,7 +851,7 @@ and `axi_wr_cl` using the selected ROM. Run from the
 repository root; output directories must be new:
 
 ```sh
-nix build .#dcsRom --out-link out/rx-writeback-rom
+nix build .#dev.x86_64-linux.hardware.dcsRom --out-link out/rx-writeback-rom
 nix develop -c mill gen.test.runMainLocal \
   lauberhorn.host.eci.GenRxWritebackFixture "$PWD/out/rx-writeback-rtl"
 nix develop -c python3 tools/progress/check_dcs_pressure.py \

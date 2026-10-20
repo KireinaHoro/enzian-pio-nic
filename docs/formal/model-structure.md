@@ -272,7 +272,7 @@ nix build .#checks.x86_64-linux.tla-modules
 nix build .#checks.x86_64-linux.coherence-layers
 nix build .#checks.x86_64-linux.steady-progress
 nix build .#checks.x86_64-linux.scheduling-races
-nix build .#dcsRom --out-link out/layered-rom
+nix build .#dev.x86_64-linux.hardware.dcsRom --out-link out/layered-rom
 nix develop -c python3 tools/model/check_layers.py \
   --rom out/layered-rom --case expanded-scheduling-safety \
   --output out/layered-full-product --timeout 7200
