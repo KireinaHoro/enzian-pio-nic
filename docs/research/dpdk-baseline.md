@@ -7,7 +7,7 @@ as LH, with networking supplied by the mlx5 PMD. This comparison measures the
 systems with their respective NICs and transports; it does not isolate one
 hardware offload or coherence mechanism by itself.
 
-[SH-A64](caladan-enzian.md) is the separate Caladan simple-policy/directpath
+[CS-A64](caladan-enzian.md) is the separate Caladan simple-policy/directpath
 baseline for runtime-managed core allocation and preemption. The DPDK responder
 uses configured polling workers and does not establish Caladan scheduling or
 interference-control behavior. The DPDK traffic generator is a separate client

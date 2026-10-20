@@ -46,8 +46,8 @@ master without colleague upstream approval.
 ## Confirmed research and scheduling scope
 
 The [full-paper goal](docs/research/paper-goals.md) is efficient low-latency RPC
-on published 2F2F with OS flexibility and security. [Caladan](docs/research/caladan-enzian.md)
-is the primary baseline. Active application goals include RPC, userspace NFS,
+on published 2F2F with OS flexibility and security. [CS-A64 (Caladan Simple)](docs/research/caladan-enzian.md)
+is the primary runtime baseline, alongside the [DPDK baseline](docs/research/dpdk-baseline.md). Active application goals include RPC, userspace NFS,
 memcached and consensus such as etcd/Raft. Tasks run to finish on isolated RPC
 worker cores, never shared with ordinary tasks; complete timeout/kill recovery
 is an open design problem.

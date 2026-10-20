@@ -22,7 +22,16 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 ## Planned applications and baseline
 
-**Caladan is the selected primary baseline, labeled SH-A64 for the AArch64 port alongside DPDK and LH.** Follow the [current Enzian port plan](caladan-enzian.md): ConnectX-5 networking, the simple scheduler, and bounded hot, core-reclamation and memcached experiments. Pin implementation, application versions and resource budgets; ARM port and measurement acceptance remain pending. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and load generation comparable. Full Caladan interference-control claims are outside scope.
+**Caladan and DPDK are explicit paper baselines.** **CS-A64 (Caladan Simple)**
+is the AArch64 Caladan port using the simple scheduler and ConnectX-5 mlx5
+directpath; **DPDK** is the polling transport/CPU-processing baseline. CS-A64
+evaluates runtime-managed networking and core allocation, not a Shenango
+simulation. Compare both with **LH** under matched workload semantics and
+resource budgets. The [Caladan baseline](caladan-enzian.md) records finite ARM,
+packet-path and shared-echo acceptance; controlled paper measurements and
+memcached comparison remain pending. Conventional Linux RPC and static
+Lauberhorn are additional controls. Full Caladan IAS/interference-control
+claims are outside the selected scope.
 
 **Native Lauberhorn memcached versus Caladan memcached is a main paper goal.**
 Use the [Caladan baseline plan](caladan-enzian.md) and
@@ -32,7 +41,7 @@ Linux-over-FPGA-bypass comparison is a separate control, not the Caladan baselin
 
 The [DPDK microbenchmark baseline](dpdk-baseline.md) uses ConnectX-5 polling
 and the shared echo RPC software path to compare CPU-side networking with LH.
-Its configured workers provide a transport/CPU-processing baseline; SH-A64
+Its configured workers provide a transport/CPU-processing baseline; CS-A64
 separately evaluates Caladan's runtime-managed scheduling. Both use the common
 [hot measurement methodology](hot-measurement.md).
 
@@ -40,7 +49,7 @@ separately evaluates Caladan's runtime-managed scheduling. Both use the common
 | --- | --- |
 | RPC server | Basic request dispatch, payload/handler sweeps and multi-service load; current microbenchmarks are a starting point |
 | Userspace NFS server | Stateful service and larger data movement; implementation/version and filesystem semantics to select |
-| memcached | Main paper comparison: native Lauberhorn versus Caladan (SH-A64), covering key-value service latency, throughput and dynamic worker allocation under comparable workloads and resource budgets. Native bounded integration results exist; the controlled baseline comparison remains pending. |
+| memcached | Main paper comparison: native Lauberhorn versus Caladan (CS-A64), covering key-value service latency, throughput and dynamic worker allocation under comparable workloads and resource budgets. Native bounded integration results exist; the controlled baseline comparison remains pending. |
 | Consensus, e.g. etcd/Raft | Chained peer RPCs and stateful coordination; exact implementation and durability/failure semantics to select |
 
 These are planned applications, not claims that every port runs on the current FPGA. The historical Dandelion student report evaluates a software mock. The newer Enzian reports establish bounded implementation results, not a controlled end-to-end speedup over vanilla Dandelion or measured CHERI gains.

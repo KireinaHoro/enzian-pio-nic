@@ -528,7 +528,8 @@ restoration summaries. Import unloaded observations through
 the ordinary aggregate validator; validate actual worker activity and full
 payload replies. Paper CDF/breakdown validation rejects missing wire durations.
 Full collection uses the [campaign wire-acceptance gate](benchmark-campaign.md#canonical-measurement-contract).
-Caladan directpath has its [own acceptance plan](../research/caladan-enzian.md).
+Caladan directpath has its [own acceptance plan](../research/caladan-enzian.md)
+and [build/check commands](caladan.md).
 
 The helper CLI, run inside the staged image, is:
 

@@ -34,7 +34,7 @@ Paths below are relative to `../elena-protobuf/`; these siblings are not vendore
 
 The report evaluates 22 message shapes (scalars, strings, packed/unpacked repeated fields, nesting and multiple output slots) against a forwarding-only baseline in RTL simulation. At an assumed 200 MHz it reports 11–526 additional cycles for the full decoder path versus forwarding. These are simulation cycle costs; even 526 cycles is 2.63 microseconds, so do not generalize the report's concluding “tens to low hundreds of nanoseconds” wording to every case. Inter-message spacing gives estimated throughput, not measured NIC line rate.
 
-The baseline does **no software unmarshaling**. Results establish neither end-to-end RPC speedup nor a CPU savings comparison. The report explicitly leaves Vivado synthesis, resource/timing measurements and full Enzian system integration to future work. Caladan is the selected full-system paper baseline (see the [port and calibration plan](caladan-enzian.md)); this evaluation does not provide it.
+The baseline does **no software unmarshaling**. Results establish neither end-to-end RPC speedup nor a CPU savings comparison. The report explicitly leaves Vivado synthesis, resource/timing measurements and full Enzian system integration to future work. Caladan is the selected full-system paper baseline (see the [baseline](caladan-enzian.md)); this evaluation does not provide it.
 
 Reproduction commands in the sibling platform, after satisfying its build prerequisites:
 

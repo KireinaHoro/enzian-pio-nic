@@ -1,6 +1,6 @@
 # Native UDP memcached
 
-Comparing native Lauberhorn memcached against [Caladan memcached (SH-A64)](../research/caladan-enzian.md)
+Comparing native Lauberhorn memcached against [Caladan memcached (CS-A64)](../research/caladan-enzian.md)
 is a [main paper goal](../research/paper-goals.md#planned-applications-and-baseline).
 Match application versions, operation mixes, concurrency, skew and core budgets.
 The finite integration and scheduling results below establish bounded native

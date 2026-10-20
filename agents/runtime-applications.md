@@ -10,9 +10,9 @@ implementation. Planned work is Go adaptation, HOST_WORK with memcached
 hash-expansion validation, native Go null-RPC with nested calls, then Go Raft
 and etcd. Historical HOST_WAKE holds do not override this selected direction.
 
-Caladan is the primary baseline; follow its [port and calibration plan](../docs/research/caladan-enzian.md)
-when that work resumes. Port and measurement acceptance are pending in this
-handoff. Integrate external TCP/Protobuf work after higher-priority paper
+Caladan is the primary baseline; follow its [baseline](../docs/research/caladan-enzian.md)
+when that work resumes. Finite ARM/directpath/echo acceptance and remaining measurement work are
+recorded in [Caladan continuation](caladan.md). Integrate external TCP/Protobuf work after higher-priority paper
 applications, following the [protocol roadmap](../docs/proposals/grpc.md).
 
 ## Scheduling and isolation evidence

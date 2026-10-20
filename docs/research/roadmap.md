@@ -193,7 +193,7 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 ## Confirmed design intent (maintainer, 2026-09-08)
 
 - Build the full RPC system on published 2F2F; demonstrate low latency and efficiency while retaining OS flexibility and security. [Paper scope and application portfolio](paper-goals.md).
-- Primary baseline: [Caladan](caladan-enzian.md), selected October 15 as a closer match for runtime-managed core allocation and networking. The minimal Enzian port and validation are pending. Planned applications: RPC server, userspace NFS, memcached, and consensus such as etcd/Raft. Dandelion is bracketed.
+- Primary baseline: [Caladan](caladan-enzian.md), selected October 15 as a closer match for runtime-managed core allocation and networking. CS-A64 has finite ARM/directpath/echo acceptance; paper measurements remain pending. Planned applications: RPC server, userspace NFS, memcached, and consensus such as etcd/Raft. Dandelion is bracketed.
 - `../sven-dandelion/{report,platform,dandelion}` contains the student report, mock platform/runtime extensions and Dandelion port. See [source map and limitations](../applications/dandelion.md); these are external reference trees, not merged support in this checkout.
 - Worker cores are isolated and never shared with ordinary Linux tasks. RPC tasks run to finish. Ordinary idle RX cooperatively yields on DESCHED. Unsupported exits and fatal
   activation failures kill and fence the domain; full resource-recycling recovery

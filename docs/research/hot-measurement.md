@@ -1,9 +1,9 @@
 # Hot-path measurement methodology
 
 The paper compares Lauberhorn, DPDK on zuestoll07's ConnectX-5, and
-the Caladan-derived AArch64 baseline on that ConnectX-5 after measurement
-acceptance. Its [port](caladan-enzian.md) has partial implementation and native
-mechanism checks; those checks are not benchmark acceptance. All use schema echo
+CS-A64 (Caladan Simple on AArch64) on that ConnectX-5 after measurement
+acceptance. Its [port](caladan-enzian.md) has finite native mechanism, shared-echo and CPU-trace checks;
+those checks are not paper benchmark acceptance. All use schema echo
 payloads of 8, 128 and 1432 bytes. NICVF data is not a ConnectX-5 baseline.
 
 ## Measurement boundaries

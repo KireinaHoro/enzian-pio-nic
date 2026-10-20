@@ -27,8 +27,8 @@ rules. Distinguish requested worker pools from observed active workers and
 resolve cold-workload semantics before collecting a dependent curve.
 
 
-Comparison charts use **DPDK**, **SH-A64**, and **LH** for the DPDK control,
-Caladan-derived AArch64 baseline, and Lauberhorn, respectively. Define SH-A64
+Comparison charts use **DPDK**, **CS-A64**, and **LH** for the DPDK control,
+Caladan Simple AArch64 baseline, and Lauberhorn, respectively. Define CS-A64
 once in the experimental setup using the [baseline description](../research/caladan-enzian.md#selected-setup).
 The ARM/MLX5 port has partial native mechanism acceptance; include its series
 only after the benchmark contract has been accepted.
