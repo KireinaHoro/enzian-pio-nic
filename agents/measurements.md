@@ -193,3 +193,32 @@ Evidence: `out/mlx5-readiness/acceptance.json`, `validated-v2.json`, and the com
 Archive SHA256: `401ecdd1a2abbb52c15fc335aad58070c18290d960e3824b1dacc772e559f324`.
 The archive manifest records both PMD package paths and each role's executable
 hash, arguments, raw observations, NIC counters and restoration results.
+
+## October 5 PMU campaign provenance
+
+DUT zuestoll14, DPDK client zuestoll07, all 3,048 requests correct on CPU44 / worker0
+(3 × 1,000 measured plus 16 warmups each). One measured `add` thread and a separate
+four-thread `mul` domain were registered; no flush traffic or deliberate reschedule
+was issued. Kernel activation tracing was off. All 3,048 buffered rows exported
+once, zero drops. TAD/kernel health passed. The matched hardware was pipeline
+516232 SHA `6f5fa076adbad2002681d3051c7056522929b7a1`, with corrected module
+`af0f64fe`; timing remains open. No FPGA or scheduling changes were made. Tracing remained armed through module
+load and was frozen after the campaign. The final FPGA `sample_lost` flag was
+set (DMA error zero), so this is not a loss-free FPGA capture; PMU attribution
+uses the loss-free runtime records and does not depend on FPGA trace events.
+
+Accepted cache/cycle tables and the instruction-counter failure are in the
+[hot-path analysis](../docs/research/hot-path-performance.md#october-5-pipeline-516232).
+The loss-free runtime CSV is the PMU attribution source; do not label the FPGA
+capture loss-free. Later hardware observations supersede this campaign's final
+frozen-state note.
+
+Local records: `out/pmu-hot-516232/data/{server/server.csv,per-request.csv,pmu-summary.json}`;
+independent probes and matched boot evidence: `out/pmu-hot-516232/`.
+[Tracked summary](../data/eci/board-evidence/hot-pmu-516232-20261005.json).
+Before accepting instruction counts in future work, reproduce known-instruction
+loops across memory footprints and adjacent-snapshot monotonicity using both
+userspace and kernel perf reads. Isolate PMU configuration, hardware semantics
+and kernel behavior; the old observations establish no named erratum or root
+cause. Changing counter-register access alone already failed as a remedy.
+No new profiling run is implied by this evidence migration.

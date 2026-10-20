@@ -184,5 +184,100 @@ checks input hashes, validates every selected control-flow edge, requires every
 executed call to be resolved, and emits an ordered instruction ledger plus
 branch decisions. The selected-path audit cannot prove its predicates from
 machine state; those assumptions are explicit above. The
-[PMU retired-instruction blocker](../development/pmu-profiling.md#instruction-counter-blocker)
+[PMU retired-instruction blocker](#instruction-counter-blocker)
 explains why this baseline uses static selected-path counts.
+
+## PMU measurement boundaries
+
+The optional runtime profiler uses task-bound Linux perf events pinned as one
+non-multiplexed group, with direct AArch64 userspace reads. CSV event order is
+`INST_RETIRED` (0x08), native 64-bit `CPU_CYCLES` (0x11), `L1D_CACHE_REFILL`
+(0x03), `L2D_CACHE_REFILL` (0x17). Counts exclude kernel and hypervisor execution.
+Use the [PMU validation procedure](../development/validation.md#runtime-pmu-profiling)
+before interpreting a new cohort. Availability and one successful simple loop
+do not establish counter accuracy. The historical instruction event failed
+independent checks; neither positive deltas nor IPC from that campaign are valid.
+
+Snapshots include their own instructions, timestamps and bookkeeping. Empty
+snapshot cycle calibration is a lower-cost observation, not a universal correction.
+Cache refills can complete after their initiating instruction; stage attribution
+is bounded by the sampling points, not precise load-PC attribution. Snapshots of
+different counters are sequential. L1D/L2D events overlap and must not be summed.
+RX entry includes pre-arrival blocked time; RX-return to TX-return is the measured
+software service interval. Post-TX cleanup, trace-buffer append, unsuccessful RX
+polls and inter-request maintenance are outside that interval. Instruction-cache
+misses and sampled instruction/address attribution are not collected here.
+
+## October 5: pipeline 516232
+
+The October 5 historical `add` campaign used pipeline 516232 with corrected
+module `af0f64fe`: three cohorts of 1,000 measured requests plus 16 warmups each.
+The PMU results below use buffered runtime records; they do not require the
+campaign's FPGA trace, whose final sample-loss flag was set. These measurements
+include instrumentation and do not describe the current echo baseline.
+
+| Counter snapshots | RTT P50 | P90 | P95 | P99 | P100 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Off | 12.240 µs | 12.400 | 12.470 | 16.262 | 19.160 |
+| Coarse | 12.400 µs | 12.430 | 12.491 | 12.674 | 19.280 |
+| Detailed | 13.350 µs | 13.360 | 13.390 | 13.670 | 20.360 |
+
+These sequential cohorts show +0.160 µs coarse and +1.110 µs detailed median RTT
+relative to snapshots off. They are not paired per-request overhead corrections;
+the lower instrumented P99 is not evidence that profiling improves latency.
+
+| Detailed stage | L1D refills P50 / P99 / max | L2D refills P50 / P99 / max | User cycles P50 |
+| --- | ---: | ---: | ---: |
+| RX call, including blocked wait | 1 / 2.01 / 4 | 1 / 1 / 1 | 16,583 |
+| Runtime dispatch after RX | 0 / 0 / 4 | 0 / 0 / 0 | 829 |
+| Unmarshal | 0 / 0 / 2 | 0 / 0 / 0 | 838 |
+| Before handler | 0 / 0 / 0 | 0 / 0 / 0 | 445 |
+| Handler | 0 / 0 / 0 | 0 / 0 / 0 | 614 |
+| Before marshal | 0 / 0 / 1 | 0 / 0 / 0 | 487 |
+| Marshal | 0 / 0 / 3 | 0 / 0 / 0 | 653 |
+| Before TX | 0 / 0 / 0 | 0 / 0 / 0 | 525 |
+| TX call | 1 / 1 / 2 | 1 / 1 / 1 | 4,163 |
+
+Over RX-entry through TX-return, all 1,000 detailed requests had exactly two L2D
+refills; 984 had exactly two L1D refills (mean 2.040, max 6). The coarse cohort
+agrees: two L2D refills in every request, mean 2.036 L1D refills. The location is
+consistent with the coherent RX read and TX doorbell/next-line acquisition;
+there is no PMU address sample proving which individual access caused each event.
+
+RX-return to TX-return cycles were 6,825 median with coarse snapshots and 8,553
+with detailed snapshots. These include instrumentation and are not new estimates
+of uninstrumented component latency.
+
+### Instruction-counter blocker
+
+The initial 200,000-instruction loop reported 200,190, apparently consistent
+with probe overhead. Stronger checks then exposed:
+
+- Seven detailed RPC stage deltas of −55 instructions, differing from common
+  deltas by multiples of 256. Do not discard just these seven: positive deltas
+  are not independently validated either.
+- A separate non-Lauberhorn process on CPU0 produced 9,376 negative deltas in
+  100,000 adjacent snapshot pairs (minimum −68). Direct `PMEVCNTRn_EL0` reads
+  also reproduced it: 5,079 negative pairs, minimum −57. Thus changing from
+  selected-register access is not a demonstrated fix.
+- The same six-instruction memory loop, confirmed by disassembly, runs 1,048,576
+  iterations for either footprint: approximately 6.291 million instructions
+  expected. Kernel perf reads reported 6,291,892 for a 512-byte footprint but
+  4,194,996 for 64 MiB; userspace reads agreed apart from boundary overhead.
+  Other repeats gave approximately 2.097 million for the large footprint.
+
+The cache response behaved as expected: about 524,288 L1D refills for the 64 MiB
+stream with 64-byte stride (two accesses per 128-byte cache line), versus a few
+refills for the tiny repeated footprint. These checks establish an instruction
+measurement blocker on this setup, not its root cause. They do not establish a
+new kernel bug or a named hardware erratum. PMU configuration, hardware semantics
+and kernel behavior remain to be isolated. Instruction counts are withheld from
+the accepted summary; raw snapshots and standalone diagnostics are preserved.
+
+
+[Summary and provenance](../../data/eci/board-evidence/hot-pmu-516232-20261005.json)
+retain raw counter validation and accepted statistics. The
+[static executed-path baseline](#historical-exact-binary-instruction-baseline--october-5)
+uses the exact pre-PMU binaries and explicit branch assumptions independently
+of the unreliable retired-instruction event. It does not replace cycle or
+cache measurement.

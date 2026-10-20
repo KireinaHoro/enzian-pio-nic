@@ -1109,7 +1109,7 @@ python3 data/eci/apps/plot_hot_cold.py \
 
 ### Hot-path PMU follow-up — October 5
 
-The [PMU campaign](../development/pmu-profiling.md#october-5-pipeline-516232)
+The [PMU campaign](hot-path-performance.md#october-5-pipeline-516232)
 collected 1,000 hot RPCs each with counter snapshots off, coarse and detailed.
 It found two median L1D refills and two L2D refills per RX-entry → TX-return
 interval, concentrated in RX and TX. Independent tests invalidated the retired

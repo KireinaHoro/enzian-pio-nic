@@ -391,6 +391,42 @@ python3 tools/paper/campaign/mlx5_readiness.py --output NEW_READINESS_RUN \
 The current helper fixes the server interface to `enP5p144s0np0` and local peer
 to `cpu40g1`; verify those names and their connectivity before running it.
 
+## Runtime PMU profiling
+
+The runtime image includes `lh-pmu-probe`. Read the
+[PMU boundaries and instruction-counter blocker](../research/hot-path-performance.md#pmu-measurement-boundaries)
+before interpreting counts. Independent instruction validation failed on the
+October 5 setup; do not publish instruction counts or IPC from those cohorts.
+
+After checking reservations and staging the cross-built, matched deployment:
+
+1. Enable `/proc/sys/kernel/perf_user_access` as root for the experiment. Record
+   its previous value. Do not disable access while a profiling worker is still
+   executing counter reads; restore it after that process has stopped or rebooted.
+2. Run `taskset -c 0 lh-pmu-probe` before launching workers. It checks a known
+   instruction loop, 100,000 adjacent snapshot pairs, and small/large memory
+   footprints, including comparison against kernel perf `read()` counts.
+   Exit 2 means instruction validation failed while the cache-response check
+   passed; exit 1 means another validation failed. This is not an RPC failure.
+3. For a buffered traced service, set `LAUBERHORN_PMU=1` and the existing
+   `LAUBERHORN_SERVER_TRACE_CSV`/application CSV path. Initialization happens
+   before worker registration. Unavailable or unscheduled counters fail closed.
+4. `LAUBERHORN_PMU_SKIP_ROWS=N` skips snapshots for the first N completed rows
+   of each thread. `LAUBERHORN_PMU_WHOLE_ROWS=M` then takes only RX-entry,
+   RX-return and TX-return snapshots for M rows; subsequent rows have detailed
+   snapshots. Counts are per thread, include warmups, and do not count unsuccessful
+   RX polls. Set both to zero for detailed profiling throughout.
+5. Stop traffic, then export once with SIGUSR2. Never dump while measuring.
+   Retain CSV, status, calibration, client timings and software/FPGA provenance.
+
+`tools/enzian/pmu_breakdown.py DIRECTORY` validates three consecutive cohorts
+(`off.csv`, `coarse.csv`, `detailed.csv`, plus `server/server.csv` and its status).
+Defaults are 1,000 measured requests and 16 warmups per cohort. It checks IDs,
+CPU/worker identity, success, snapshot masks and additive conservation. Negative
+counts are errors. Only after independent instruction validation fails may
+`--exclude-instructions` withhold that entire event while retaining every request
+for cycles/cache statistics. It never clamps negatives or silently drops samples.
+
 ## Local checks and simulation
 
 Select the smallest relevant check for the changed component. These checks
