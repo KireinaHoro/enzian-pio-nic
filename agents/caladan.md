@@ -232,3 +232,15 @@ modules, restored DUT NIC/sysctls and the generator's original PCI driver throug
 the shared harness. Evidence and prior unsafe state are preserved under
 `out/caladan-hot-full-20261021/recovery-live-check/`. Released the hold with that
 review and relaunched the same bounded retry without a reset or artifact change.
+
+The bounded retry reproduced the zero-activity failure in `attempt-2` of stage
+`286d8c391e69798e830f`. Both role archives verify against their member hashes;
+both wrappers report restored. The hardware hold remains set; do not launch
+another acquisition retry without further diagnosis. The earlier 50,000 RPC/s
+point completed all warmup/measured requests; 75,000 and 100,000 had just one
+on-time warmup reply and no on-time measured replies, with total worker activity
+10,710 and 10,650 respectively. Thus rate-dependent collapse precedes the rejected
+125,000 point; startup failure alone is not established. Runtime RX/drop/run-queue
+and TX diagnostics are needed to distinguish overload, starvation and a stalled
+receive path. No root cause or repaired performance result is claimed.
+`loaded-repeat-failure-review.json` in the campaign root records this stop.
