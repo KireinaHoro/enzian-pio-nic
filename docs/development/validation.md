@@ -22,7 +22,7 @@ workload measurement.
 | Interactive image testing | Inspect or run a packaged application on a prepared board using the same target environment | [lh-test and manual equivalents](#interactive-image-testing); manifest, application/client output |
 | Focused boot/console diagnosis | Boot gating, programming handoff or bounded commands for a reported failure | [boot.py, run.py and cpu.sh](#focused-debugging); stage summaries and failed-stage evidence |
 | Benchmark acquisition | Coordinated DUT/generator setup, workload sweeps, capture, resume and result validation | [benchmark campaigns](benchmark-campaign.md); campaign receipts and summaries, with the board prerequisites here |
-| Trace preservation | Preserve a failed or completed measurement before board reuse | [capture workflow](../../tools/enzian/trace/README.md); matched capture/map and preservation result |
+| Trace preservation | Preserve a failed or completed measurement before board reuse | [capture workflow](tracing.md); matched capture/map and preservation result |
 | Local regression | Software, RTL and bounded model checks before deployment | [local checks and simulation](#local-checks-and-simulation) |
 
 For a Nix-built image: select matching artifacts, reserve/provision the board and
@@ -45,25 +45,40 @@ programming, boot validation and tests.
 
 Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
 `enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
-assume the previous reservation persists. For an unreserved zuestoll14, build and rsync `bootFiles` using the
+assume the previous reservation persists. For an unreserved zuestoll14, select an available golden image and a
+checked-unused volume name using the [safeguards below](#fresh-root-volume-safeguards).
+Build and rsync `bootFiles` using the
 [boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then run on
 the gateway:
 
 ```sh
-emg acquire zuestoll14 -n lauberhorn-linux-6.8 \
+emg acquire zuestoll14 -n NEW_UNUSED_VOLUME \
   -a 'isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force' \
   -k "$USER/lauberhorn-6.8.0-146-ptp/vmlinuz" \
   -i "$USER/lauberhorn-6.8.0-146-ptp/initrd.img" \
-  -g 2025-07-28
+  -g SELECTED_GOLDEN_DATE
 ```
 
-Named volumes persist after release, but their iSCSI export is shared by
-**user + volume name**, not by reservation. Do not reuse an active machine's
-named root volume for another reservation. The current gateway backend removes
-the common TGT configuration and attempts target deletion on release, without
-checking for another reservation using it. Distinct PXE initiator names do not
-create distinct targets. Prefer generated volumes for fresh clients; an accidental
-shared reservation needs admin cleanup that preserves the active export.
+### Fresh root-volume safeguards
+
+For a new test machine, derive a fresh root volume from an explicitly selected
+available golden image (`emg acquire MACHINE -g DATE -n NEW_NAME ...`). Inspect
+`emg list-machines` and `emg list-images` immediately before acquisition; confirm
+the machine is unreserved and NEW_NAME is absent from the user's existing volumes.
+Use a purpose/machine/date-specific name. EMG does not reject an existing name:
+`-n` reuses that volume, so `-g` alone does not guarantee a fresh golden-image clone.
+Do not reuse a golden image's name or another experiment's root-volume name.
+If the name exists, choose another and recheck; do not delete or overwrite it.
+
+Named volumes persist after release. Their iSCSI export is shared by user and
+volume name, not reservation; using the same name on two boards can couple their
+root disks, and releasing either reservation can disrupt the other. Never share
+an active root-volume name. Keep user-designated busy boards and their volumes
+untouched. Confirm acquisition with both inventory commands and retain the board,
+new volume name, golden-image date, boot bundle and kernel arguments in run
+provenance. Reservation is not evidence of boot or hardware acceptance.
+
+### Kernel and console matching
 
 Match the kernel release in the selected boot bundle and deployment manifest.
 The documented boot bundle uses `6.8.0-146-generic`; older artifacts can require

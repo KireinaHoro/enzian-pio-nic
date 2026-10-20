@@ -14,7 +14,7 @@ Start with the [system map](docs/architecture/overview.md).
 - [Formal models and verification](docs/formal/README.md)
 - [CI and dependency maintenance](docs/development/ci.md)
 - [FPGA builds](docs/development/hardware-build.md)
-- [Trace capture](tools/enzian/trace/README.md) and [trace analysis tools](data/eci/sys_trace/README.md)
+- [Trace capture](docs/development/tracing.md) and [trace analysis tools](data/eci/sys_trace/README.md)
 
 ## System and research
 

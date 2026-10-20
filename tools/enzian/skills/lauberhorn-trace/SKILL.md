@@ -6,14 +6,14 @@ description: Freeze, dump, validate and persist Lauberhorn FPGA traces manually,
 # Lauberhorn trace preservation
 
 Work in the platform repository. Paths below are relative to its root. Read
-[the canonical workflow](tools/enzian/trace/README.md) for the configuration,
+[the canonical workflow](../../../../docs/development/tracing.md) for the configuration,
 commands, output contract and recovery options. For boot or power failures use
-[enzian-deploy](tools/enzian/skills/enzian-deploy/SKILL.md) first; a board that
+[enzian-deploy](../enzian-deploy/SKILL.md) first; a board that
 never powered/programmed has no accessible recorder to invent a capture from.
 
 Invoke `python3 tools/enzian/trace_capture.py capture --config TRACE.json --output
 NEW_DIRECTORY`. This is the same `trace.session.capture()` operation used by
-[benchmark-campaign](tools/paper/skills/benchmark-campaign/SKILL.md). It stages
+[benchmark-campaign](../../../paper/skills/benchmark-campaign/SKILL.md). It stages
 one source-controlled `control.tcl` and reuses the existing
 `data/eci/sys_trace/dump_trace_udp.py` CMAC receiver and
 `data/eci/sys_trace/dump_trace_hw_axi.tcl` JTAG reader. Never write per-run Tcl,
@@ -38,8 +38,9 @@ run the workload's matched trace analysis separately.
 
 Recording-off operation uses `freeze` and `preserve` with the same control-session
 directory and performs no dump. The unattended benchmark adapter uses this same
-control implementation for loaded cohorts. Both unloaded software modes collect
-MAC traces. Receiver and exporter run through `tools/enzian/image.py`, the same hash-verified
+control implementation for loaded cohorts. Normal unloaded echo measurements use Tofino wire timestamps; both unloaded
+and loaded cohorts keep FPGA recording frozen without a dump. Full FPGA dumps
+are for exceptional failure preservation or separately requested diagnostics. Receiver and exporter run through `tools/enzian/image.py`, the same hash-verified
 private Nix image launcher used by benchmark roles. Require `peer_image` and
 `peer_image_sha256`; host Python is only the verification bootstrap. Respect campaign
 no-poll behavior and selective resume policy; manual diagnosis does not authorize

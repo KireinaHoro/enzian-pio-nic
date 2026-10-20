@@ -406,7 +406,7 @@ contiguous prefix before the first rate where any repetition exceeds 1% loss;
 failed sustained confirmations step down through that candidate order.
 
 Exceptional Lauberhorn boot/module failure preservation uses the canonical
-[trace infrastructure](../../tools/enzian/trace/README.md). Normal measurements
+[trace infrastructure](tracing.md). Normal measurements
 only freeze recording; neither unloaded nor loaded cases dump FPGA traces.
 The hardware adapter argv is `python3 tools/paper/echo_hardware.py HARDWARE.json`.
 Its manifest names immutable build products, artifact hashes, the matched boot

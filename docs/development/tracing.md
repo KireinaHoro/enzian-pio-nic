@@ -1,14 +1,15 @@
 # Lauberhorn Tracing
 
 Start with [validation](validation.md)
-for test selection or the [trace tools README](../../data/eci/sys_trace/README.md)
-for exporter commands. Commands below run from the repository root. Hardware defaults
+for test selection, [capture configuration](#capture-configuration-and-commands)
+for FPGA preservation, or the [trace tools README](../../data/eci/sys_trace/README.md)
+for low-level exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
 
 ## Default agent capture pipeline
 
 Use the [lauberhorn-trace skill](../../tools/enzian/skills/lauberhorn-trace/SKILL.md)
-and [canonical capture workflow](../../tools/enzian/trace/README.md). Manual and
+and [canonical capture workflow](tracing.md). Manual and
 unattended benchmark capture share `tools/enzian/trace_capture.py` and its session
 API. They reuse the existing CMAC receiver and JTAG reader rather than maintaining
 separate paper-specific capture scripts or per-run Tcl.
@@ -29,6 +30,114 @@ Wrapped buffers currently fail explicitly; never relabel a prefix as a full dump
 See the canonical workflow for transfer prerequisites, recording-only controls,
 partial failure evidence and export-only recovery. Historical address examples
 below describe particular board experiments, not implicit defaults for new runs.
+
+## Shared capture implementation
+
+The workflow reuses the existing low-level implementations:
+
+- `data/eci/sys_trace/dump_trace_udp.py`: CMAC/UDP receiver, bounded retries and
+  partial output. Its readiness marker is created only after socket bind.
+- `data/eci/sys_trace/dump_trace_hw_axi.tcl`: JTAG reader, called only for two
+  4 KiB head/tail integrity checks after a successful full Ethernet dump.
+- `tools/enzian/trace/control.tcl`: one parameterized VIO/snapshot/trigger/check
+  script staged from source, never generated per trial.
+- `tools/enzian/run.py` and `console.py`: shared expect-based peer execution,
+  reservation checks and console ownership. No alternative login implementation.
+
+Workload-specific event counts, joins and latency analysis remain in paper tools;
+transport integrity does not claim those measurements are valid.
+
+## Capture configuration and commands
+
+Use a JSON configuration with `gateway`, `programmer`, `dut`, `peer`, `vivado`,
+`hw_server`, `cable`, `ltx`, `remote_artifacts` (remote bitstream/LTX paths mapped
+to SHA256), `trace_map`, `trace_map_sha256`, `pipeline` (provenance), `peer_ip`,
+`peer_mac`, `peer_management_ip`, `export_port`, `peer_image`, `peer_image_sha256`, `transfer_root`,
+and `transfer_url`. `cable` accepts an exact `Digilent/SERIAL` ID or bare
+alphanumeric serial; the shared controller normalizes it once. Select addresses and artifacts for the actual reservation.
+The transfer endpoint must be running and reachable from the peer, with adequate
+space. The existing `tools/paper/transfer_results.py` service supplies this during
+campaigns; do not provision another server on an occupied endpoint. `tools/enzian/image.py` verifies the staged Nix image hash and mounts it read-only
+in a private namespace for the receiver and exporter, using the same launcher
+as benchmark roles. Host Python only bootstraps image verification; capture and
+export execute with the image-pinned Python. Downloaded role scripts are hashed
+before execution. The peer image must already be staged through the shared harness.
+Capture does not reconfigure NICs, boot, reset, or change provisioning.
+
+For a compatible campaign hardware manifest, resolve the explicit configuration
+before capture:
+
+```sh
+python3 tools/enzian/trace_capture.py campaign-config --config HARDWARE.json > TRACE.json
+python3 tools/enzian/trace_capture.py capture --config TRACE.json --output NEW_DIRECTORY
+```
+
+The CLI refuses to overwrite a capture. Each session saves configuration, source
+hashes, the matching map, original VIO outputs, pre/post-freeze status, stable
+write pointer, receiver logs, complete raw bytes and SHA256, JTAG comparisons,
+restoration state and a relative-file hash manifest. A per-target lock serializes
+canonical control operations. Trace recording remains frozen after restoration.
+Only nonempty, unwrapped captures are supported. For traces shorter than
+4096 bytes, both bounded JTAG checks cover the complete trace. Wrapped buffers
+fail explicitly rather than silently persisting a prefix.
+
+`capture.json` is durable progress/failure state. `summary.json` exists only after
+successful persistence, integrity and restoration. `manifest.json` retains partial
+failure evidence too. Stored trace loss/event-count validation belongs to the
+matched analysis tool; recorder flags are preserved without interpreting a sticky
+post-freeze loss bit as pre-freeze loss.
+
+Ethernet failure is terminal: retain local/peer partial files, restore controls
+when a saved snapshot exists, keep tracing frozen, and do not reset or fall back
+to a full JTAG read. A primary failure remains visible if cleanup also fails.
+If the receiver completed but export failed, explicitly retry export only:
+
+```sh
+python3 tools/enzian/trace_capture.py recover-export --config TRACE.json --output EXISTING_DIRECTORY
+```
+
+This requires a saved receiver-complete receipt and unchanged frozen recorder.
+Each export attempt retains prior partial files. It does not trigger another dump.
+Successful remote RAM copies are retained until the caller chooses to release
+those resources after validating local persistence.
+
+For recording-off controls without a dump, `freeze --config TRACE.json --output
+CONTROL_DIRECTORY` saves the original controls and freezes only; `preserve` on
+that same directory restores saved values while keeping recording frozen.
+`status` reads the current recorder. Never call restore under a fresh label:
+the session directory owns its snapshot, not an independently invented name.
+
+## Capture-tool validation
+
+```sh
+nix develop -c python3 -m unittest discover -s tools/enzian/tests -p test_trace_capture.py
+nix develop -c python3 -m unittest discover -s data/eci/sys_trace/tests -p test_dump_trace_udp.py
+```
+
+Normal echo campaigns freeze FPGA recording and collect unloaded wire
+timestamps through Tofino; neither loaded nor unloaded normal cohorts dump FPGA
+traces. Full FPGA capture preserves exceptional boot/module failures. Campaign
+tests enforce the recording/capture boundary. Source changes require a reviewed compatible campaign resume, not a new
+hardware acquisition of every completed cohort.
+
+
+## Vivado crash recovery
+
+All six control operations use one bounded runner: at most three attempts for
+SIGSEGV (exit 139 or signal 11), with a separate retained log per attempt.
+Ordinary Tcl errors, other exit statuses and timeouts remain terminal. A crash
+never counts as success; a subsequent invocation must finish successfully and
+the normal capture integrity checks still apply.
+
+Operations are replayable: freeze/configure atomically save the original VIO
+snapshot before mutation and never replace it on retry; trigger asserts the
+existing control without creating a second rising edge; status and integrity
+reads are read-only; preserve reapplies the original saved controls. No retry
+resets the board or starts a full JTAG dump.
+
+Nonempty diagnostic traces shorter than 4 KiB are captured in full; both JTAG
+integrity reads cover the complete short trace. Empty recorders are reported
+explicitly rather than represented as successful captures.
 
 ## Overview
 
@@ -68,7 +177,7 @@ Readout is independent of the host driver and the normal ECI/NIC datapath.
 Use F_MAC1 UDP for the full frozen buffer. The JTAG AXI connection supports
 bounded independent head/tail integrity reads after successful Ethernet capture;
 it is not a full-dump fallback. The
-[shared capture workflow](../../tools/enzian/trace/README.md) owns freezing,
+[shared capture workflow](tracing.md) owns freezing,
 readout, persistence and restoration.
 
 ### UDP Readout
@@ -169,7 +278,7 @@ The standard reader chunk is 1408 bytes, the largest 64-byte-aligned payload
 within the 1440-byte hardware limit. Capture orchestration starts the receiver
 before triggering metadata, supplies the actual peer's next-hop MAC/IP through
 VIO overrides, and preserves the original controls. Use the
-[configuration and commands](../../tools/enzian/trace/README.md#configuration-and-commands)
+[configuration and commands](#capture-configuration-and-commands)
 for full capture and export-only recovery. Low-level receiver options remain in
 the [trace tools reference](../../data/eci/sys_trace/README.md).
 
@@ -241,7 +350,7 @@ integrity or DDR-read correctness. Fabric timing margins and legal CMAC/GT
 placement likewise do not establish serial-link health.
 
 For offline analysis, start with the persisted raw buffer and matching map from
-the [capture workflow](../../tools/enzian/trace/README.md). Convert to pcapng and
+the [capture workflow](tracing.md). Convert to pcapng and
 open it with the Lua dissector using the
 [exporter and Wireshark commands](../../data/eci/sys_trace/README.md). Ethernet
 failure leaves partial evidence and stops; it does not authorize reset or full
@@ -378,11 +487,5 @@ for recorder queue bias and asynchronous ECI-source uncertainty, and
 
 ### Vivado control recovery
 
-The shared controller retries SIGSEGV (exit 139 or signal 11) up to three
-attempts for its replayable control operations, retaining every attempt log.
-A crash is not success: a later invocation must complete successfully, and
-normal freeze, persistence and integrity checks still apply. Tcl errors,
-other failures and timeouts remain terminal. Saved original VIO snapshots are
-not replaced on retry. See the
-[capture recovery contract](../../tools/enzian/trace/README.md#vivado-crash-recovery).
-No retry resets the board or starts a full JTAG dump.
+See [Vivado crash recovery](#vivado-crash-recovery) for bounded retries,
+replayable operations and preserved snapshots.
