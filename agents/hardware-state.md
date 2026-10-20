@@ -175,7 +175,7 @@ lanes. Its first DDR snapshot was taken with tracing already stopped and does
 not capture the abort. Partial ILA/DDR windows in
 `out/hardware-tests/cmac-trace-512110/` are not a full credit reconstruction.
 The boot gate now requires QLM8–13 lock and all 24 lanes; use the current
-[harness procedure](../docs/development/hardware-test.md) for retry limits.
+[harness procedure](../docs/development/validation.md#board-validation) for retry limits.
 
 The September 23 matched 512381 trial (`5adb1e7`, jobs 2837292/2837291) passed
 100 RPCs after one automatic boot retry, but trace data/status requests failed.

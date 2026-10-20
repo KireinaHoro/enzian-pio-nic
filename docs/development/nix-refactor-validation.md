@@ -3,7 +3,7 @@
 The packaging and shared interactive workflow passed local checks and four real
 Enzian trials. **Board evidence validates packaging on the matched historical CI
 baseline, not the final master's different hardware/runtime.** No timing/PnR run
-was launched. See [the workflow](interactive-testing.md) for usage.
+was launched. See [the workflow](validation.md#interactive-image-testing) for usage.
 
 ## Local implementation checks
 

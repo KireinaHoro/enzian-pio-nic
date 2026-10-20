@@ -7,6 +7,15 @@ size and codec registration from the same schema. The ONC-RPC XID identifies cli
 requests, including size zero; existing internal RPC IDs pair FPGA events. Adder acceptance and legacy loopback
 measurements retain their original semantics and provenance.
 
+## Board setup and acceptance
+
+Build the matched DUT and generator images with the [development workflow](workflow.md).
+Use [validation](validation.md#board-validation) for EMG provisioning, image
+staging, boot/module/ABI gates, automated acceptance and interactive target
+commands. Campaign orchestration below adds workload scheduling, switch capture,
+resume and measurement validation to those shared board procedures. Recheck
+reservations and preserve existing failures before a deployment or reset.
+
 ## Baseline selection and launch gates
 
 The benchmark configuration selects Lauberhorn, DPDK on the ConnectX-5 in

@@ -5,7 +5,7 @@ description: Deploy matched Lauberhorn artifacts to reserved Enzian boards, run 
 
 # Enzian deployment
 
-Work in the Lauberhorn platform repository. Read `docs/development/hardware-test.md`
+Work in the Lauberhorn platform repository. Read `docs/development/validation.md`
 for manifests and acceptance, `docs/development/workflow.md` for matching build
 products, and the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) when
 failure preservation is needed. Both manual preservation and benchmark capture

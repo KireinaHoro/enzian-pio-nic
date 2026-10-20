@@ -229,7 +229,7 @@ Port/evaluation checklist:
 
 The platform now supplies `lib.mkPlatform { pkgs; }`, target application
 `callPackage`, and installed runtime headers/library/pkg-config; see
-[interactive testing](../development/interactive-testing.md). Source inspection
+[interactive testing](../development/validation.md#interactive-image-testing). Source inspection
 confirms the sibling's `dandelion_lauberhorn/build.rs` links `lauberhorn` and
 `tirpc`, while `src/config.rs` accepts `DANDELION_LAUBERHORN_CONFIG` and otherwise
 reads checkout-relative `config.toml`. Its eventual package should use the

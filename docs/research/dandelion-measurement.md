@@ -148,7 +148,7 @@ from their loss-free exports.
 
 ## Reproduction and evidence
 
-Use the [hardware harness](../development/hardware-test.md), matched artifacts,
+Use the [hardware harness](../development/validation.md#board-validation), matched artifacts,
 and a fresh output directory. Preserve captures before any reset. The evaluated
 manifests, build expressions, deployment identities and compact summaries are in
 `out/dandelion-resume/`; the application source/package changes live directly in

@@ -26,7 +26,7 @@ these canonical sources. Edit the tracked source rather than keeping local copie
 - Linux scheduling/preemption: [scheduler](docs/software/scheduler.md).
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).
 - Nix/Mill/Vivado/software builds: [workflow](docs/development/workflow.md), [Nix-to-Vivado CI handoff](docs/development/ci.md).
-- Real Enzian hardware / adder E2E: use the [enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md), then [hardware test quickstart](docs/development/hardware-test.md) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
+- Real Enzian hardware / adder E2E: use the [enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md), then [hardware test quickstart](docs/development/validation.md#board-validation) → [example manifest](tools/enzian/adder.example.json) → `python3 tools/enzian/test.py CASES.json --logs NEW_DIR --repeats 2`. Check reservation and stage matching artifacts first; read `summary.json`, not full boot logs.
 - Trace capture: use the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and [canonical workflow](tools/enzian/trace/README.md). Manual and campaign capture share the same scripts; CMAC for full dumps, JTAG only for bounded integrity checks. Failed Ethernet capture stops without reset or full JTAG fallback.
 - Simulation, trace analysis, validation selection: [validation](docs/development/validation.md).
 - Research claims and evaluation: [paper goals](docs/research/paper-goals.md).
@@ -110,7 +110,7 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   FPGA programming, boot validation and tests.
 - Use `nix develop` and source-defined Mill targets. Choose targeted validation
   from the [validation guide](docs/development/validation.md); for real hardware use
-  the [automated test routine](docs/development/hardware-test.md). Vivado and
+  the [automated test routine](docs/development/validation.md#board-validation). Vivado and
   deployment require platform prerequisites.
   State which checks actually ran. Historical logs are not current test results.
 - If a hardware test fails in `probe_versions`, preserve the failure before

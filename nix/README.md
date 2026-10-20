@@ -17,7 +17,7 @@ hardware, kernel modules, runtime and applications. Leaf recipes use
 | `ci.SYSTEM` | CI cache-warming closures | `nix build .#ci.x86_64-linux.dependencies` |
 | `devShells.SYSTEM.default` | Development environment | `nix develop` |
 | `formatter.SYSTEM` | Nix formatter | `nix fmt -- flake.nix` |
-| `lib.mkPlatform` | Composition API for external applications | See [interactive testing](../docs/development/interactive-testing.md) |
+| `lib.mkPlatform` | Composition API for external applications | See [application packaging](../docs/development/workflow.md#application-packaging) |
 
 Standard `packages`, `checks` and `apps` stay flat within each system. Custom
 `dev` and `ci` sets require explicit system paths. `checks.SYSTEM.output-interface`

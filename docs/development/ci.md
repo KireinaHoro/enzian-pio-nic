@@ -58,7 +58,7 @@ not an unattended script that programs a board without rechecking its state.
    immediately. If it failed, diagnose and report rather than queue a board test.
 4. At the five-hour check, collect hardware results and matching bitstream,
    software and trace-map artifacts. On success, follow the
-   [Enzian test procedure](hardware-test.md): recheck reservation, preserve any
+   [Enzian test procedure](validation.md#board-validation): recheck reservation, preserve any
    frozen failure evidence before reset, and run matched-artifact RPC tests with
    at least two repeats and tracing through module load. Report compact results;
    capture and diagnose a failure before resetting. Do not claim timing closure
@@ -201,7 +201,7 @@ read-only diagnostic token out of source-fetch credentials.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
 Hardware runs take hours; use the [30-minute / five-hour follow-up](#scheduled-hardware-build-follow-up) above rather than frequent polling.
 Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
-and results, and [hardware testing](hardware-test.md) for verified-reset RPC trials.
+and results, and [hardware testing](validation.md#board-validation) for verified-reset RPC trials.
 
 Mackerel uses the standard Nixpkgs Cargo vendoring implementation. The Nixpkgs
 pin includes the upstream switch from the rate-limited crates.io API to

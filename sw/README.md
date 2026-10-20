@@ -97,4 +97,4 @@ $ file result/lib/liblauberhorn.so
 result/lib/liblauberhorn.so: ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, with debug_info, not stripped
 ```
 For installed runtime development and shared image deployment, use the
-[interactive testing workflow](../docs/development/interactive-testing.md).
+[interactive testing workflow](../docs/development/validation.md#interactive-image-testing).

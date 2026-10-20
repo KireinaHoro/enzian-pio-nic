@@ -1,10 +1,359 @@
-# Validation and simulation
+# Validation
 
-Real-machine setup and execution are covered by [automated hardware test quickstart](hardware-test.md).
+Use this guide to test a Nix-built application image on an Enzian board, select
+local checks, and choose an automation flow. Build images, boot bundles and
+matching FPGA inputs with the [development workflow](workflow.md); application
+package recipes and local overrides are documented there. Run host commands
+from the repository root in the Nix development environment.
 
-Scope: source-inspected test entry points and coverage limitations, 2026-09-08. No simulation or hardware build was run to create this document.
+## Board validation
 
-## Select the smallest relevant check
+A successful build supplies an artifact, not board acceptance. A passing RPC
+test requires externally routed correct replies through `lauberhorn0`, with
+matching bitstream, generated ABI, runtime, kernel module and client protocol.
+Record the image manifest and hashes alongside the board result.
+
+| Flow | Use it for | Entry point and result |
+| --- | --- | --- |
+| Automated board acceptance | Repeated reset → program → boot → mount/load/verify → application/client cases | [test.py orchestration](#automated-board-orchestration); compact stage output and `summary.json` |
+| Interactive image testing | Inspect or run a packaged application on a prepared board using the same target environment | [lh-test and manual equivalents](#interactive-image-testing); manifest, application/client output |
+| Focused boot/console diagnosis | Boot gating, programming handoff or bounded commands for a reported failure | [boot.py, run.py and cpu.sh](#focused-debugging); stage summaries and failed-stage evidence |
+| Benchmark acquisition | Coordinated DUT/generator setup, workload sweeps, capture, resume and result validation | [benchmark campaigns](benchmark-campaign.md); campaign receipts and summaries, with the board prerequisites here |
+| Trace preservation | Preserve a failed or completed measurement before board reuse | [capture workflow](../../tools/enzian/trace/README.md); matched capture/map and preservation result |
+| Local regression | Software, RTL and bounded model checks before deployment | [local checks and simulation](#local-checks-and-simulation) |
+
+For a Nix-built image: select matching artifacts, reserve/provision the board and
+peer through EMG, then use either the automated case manifest or interactive
+commands below. Both paths require the same boot gates and failure preservation.
+Dandelion and other application images use this same environment; select their
+packaged fixture and workload from the application's documentation rather than
+assuming an image build exercises it. See [Dandelion](../../sw/apps/dandelion/README.md)
+and its [evaluation scope](../research/dandelion.md).
+
+## Check access and reserve
+
+Use `emg` exclusively for Enzian provisioning, including reservations, boot-image
+and kernel selection, kernel arguments, and root-volume setup. Never edit PXE/GRUB
+configuration or iSCSI/TGT exports directly, or manage their backing volumes by
+hand. This applies to both DUTs and traffic-generator/capture peers. If the needed
+operation is unclear, inspect the supported `emg` workflow rather than bypassing
+it. Continue to use the repository harness for BMC power sequencing, FPGA
+programming, boot validation and tests.
+
+Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
+`enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
+assume the previous reservation persists. For an unreserved zuestoll14, build and rsync `bootFiles` using the
+[boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then run on
+the gateway:
+
+```sh
+emg acquire zuestoll14 -n lauberhorn-linux-6.8 \
+  -a 'isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force' \
+  -k "$USER/lauberhorn-6.8.0-146-ptp/vmlinuz" \
+  -i "$USER/lauberhorn-6.8.0-146-ptp/initrd.img" \
+  -g 2025-07-28
+```
+
+Named volumes persist after release, but their iSCSI export is shared by
+**user + volume name**, not by reservation. Do not reuse an active machine's
+named root volume for another reservation. The current gateway backend removes
+the common TGT configuration and attempts target deletion on release, without
+checking for another reservation using it. Distinct PXE initiator names do not
+create distinct targets. Prefer generated volumes for fresh clients; an accidental
+shared reservation needs admin cleanup that preserves the active export.
+
+Match the kernel release in the selected boot bundle and deployment manifest.
+The documented boot bundle uses `6.8.0-146-generic`; older artifacts can require
+`6.8.0-64-generic`. Never combine an old module with a different boot kernel.
+CPU credentials `enzian/enzian`
+(`ENZIAN_PASSWORD` overrides the console password); BMC root password `0penBmc` (`ENZIAN_BMC_PASSWORD` supplies it noninteractively).
+The BMC helper prompts if login is needed and that environment variable is absent.
+Supply it for unattended boot: the remote login prompt expires after 60 seconds. CPU console is `zuestoll14-console`,
+BMC console is `zuestoll14-bmc`; detach with Ctrl-E, c, period. Do not force
+another console user off. See the [quickstart](https://gitlab.inf.ethz.ch/project-openenzian/documentation/userguide/-/jobs/artifacts/main/raw/enzian_quickstart.pdf?job=build)
+and [machine/JTAG inventory](https://enzian.systems/generated/cluster-info.html).
+
+## BMC recovery and powered-off starts
+
+The discoverable [enzian-deploy skill](../../tools/enzian/skills/enzian-deploy/SKILL.md)
+is the agent workflow entry point. In `enzian-shell bringup`, inspect
+`print_voltage_all()` before choosing the power sequence. An uninitialized-device
+error suggesting `init_driver()` can mean CPU rails are off: do not call that
+function as a repair. Use `common_power_up()` followed by `cpu_power_up()` through
+the boot helper, which catches BDK before FPGA programming. Missing voltage
+readings are not numeric proof of off rails; the helper verifies actual core
+voltages after restoring common monitor power.
+
+For this powered-off starting state, pass `--cold-start-first` to `test.py`.
+It forwards `--cold-start` only to the first boot: skip the redundant
+`power_down()`, restore common power, require CPU/FPGA core rails below 0.2 V,
+then continue normal bring-up. Subsequent cases and bounded ECI retries use a full
+cold reset. Never use this option to bypass a failed rail check.
+
+A D-Bus `NoReply` timeout is different from a normal API/state error. Preserve
+the failing log, reboot the DUT BMC, verify its return, inspect voltages, then retry
+the appropriate sequence. If a timeout recurs after one reboot and bounded
+retry, stop and report evidence. Do not steal an occupied console or replace
+EMG provisioning with manual export/boot configuration changes.
+
+## Prepare matching artifacts
+
+Select a successful hardware job and its matching software preparation output
+from the same clean revision. Follow the
+[CI artifact contract](ci.md#pipeline-and-handoff) and the
+[scheduled hardware follow-up](ci.md#scheduled-hardware-build-follow-up) when a
+new build is authorized. Record the full revision, job IDs, bitstream/LTX/trace
+map hashes, deployment-image manifest and client protocol together. Verify the
+module's kernel release against the provisioned boot bundle; never force-load
+an incompatible module. Hardware and functional acceptance do not imply timing
+closure.
+
+The project token at `../.gitlab_token` is for read-only CI queries and artifact
+downloads; keep it local. For an already completed job:
+
+```sh
+python3 tools/enzian/ci_artifacts.py HARDWARE_JOB_ID --token-file ../.gitlab_token \
+  --download /tmp/hw-UNIQUE_RUN
+```
+
+Fetch the corresponding deployment image from the preparation job using the
+[artifact paths](ci.md#pipeline-and-handoff). For a local build, use the
+[hardware build workflow](hardware-build.md) and matching software image from
+the same clean revision. Stage programmer inputs on the Docker/Vivado host and
+the deployment image on CPU-visible shared storage; record their exact paths
+in the case manifest. `/scratch/USER` is shared between gateway and CPU.
+
+Build the matching client through the maintained Nix package/image workflow;
+see the [traffic generator](benchmark-campaign.md#dpdk-traffic-generator).
+Historical packaging overlays require their original checkout, runner and ABI
+comparison. A patch-builder allowlist is not evidence of ABI compatibility.
+The old 2812450 walkthrough is retained in Git at
+`a7970b8b:docs/development/hardware-test.md`; it is not the current acceptance
+baseline.
+
+Recheck tool versions: the tested gateway hardware server is 2023.2 on port
+3121, matching `/opt/Xilinx/Vivado/2023.2/bin/vivado` on ba2. For offline 2025.1
+checkpoint analysis, ba2 has `/opt/Xilinx/2025.1/Vivado/bin/vivado`.
+
+## Automated board orchestration
+
+Copy [adder.example.json](../../tools/enzian/adder.example.json) to your case
+file. This is a historical 2812450 template: replace its revision, image,
+programmer/artifact paths and client command with the matched selection above.
+Replace `UNIQUE_RUN` with a fresh experiment label (also used for remote logs). Inspect current CPU routes before using its `cpu40g1 down`
+command: this removes the overlapping FPGA-subnet route; management/root storage
+must remain on `cpu40g0`. The example is specific to zuestoll14: JTAG
+`Digilent/210357B4B301A`, MAC `0c:53:31:03:01:c8`, IP `192.168.129.200/18`.
+
+```sh
+cp tools/enzian/adder.example.json /tmp/cases.json
+# Edit the unique case name and review the machine-specific settings.
+python3 tools/enzian/test.py /tmp/cases.json --logs /tmp/test-UNIQUE_RUN --repeats 2
+cat /tmp/test-UNIQUE_RUN/summary.json
+```
+
+`cpu load` disables Linux RT bandwidth throttling by setting
+`kernel.sched_rt_runtime_us=-1` and checking readback before loading the module.
+This prevents the default 950 ms-per-second budget from pausing the SCHED_FIFO
+workers for roughly 50 ms. The setting applies to the DUT for the current boot;
+it is reapplied by the routine after every cold reset and recorded in
+`summary.json` as `rt_bandwidth`. It does not change the matched deployment image
+or ordinary scheduler/worker synchronization locks.
+
+The manifest is a list of cases: `name`, full `revision`, CPU-visible `image`,
+programmer argv `program`, post-verification shell commands `cpu`, and
+shell command `client` (gateway by default). Set `client_machine` (for example `zuestoll12`) to
+execute that command as root through the reserved peer CPU console instead of
+on the gateway. Peer logs are retained in `client-cpu/console.log`. The `cpu` function exposes all `cpu.sh` steps. `{run}`
+expands to round/case name in CPU/client commands. Cases alternate each round;
+the gateway client must exit nonzero on incorrect replies. The example checks
+100 add calls per trial, including arithmetic and echoed request IDs.
+
+Launch once, wait for compact stage/results output, then read `summary.json`.
+For standalone `boot.py`, read its compact output and `--logs/summary.json`.
+**Agents must not read raw logs unless a reported error needs diagnosis.**
+Do not open, tail, or search console, BMC, programmer, or CPU transcripts to
+monitor normal progress, recheck boot markers, or confirm a successful run.
+The expect-based flow validates QLM/ECI initialization and handles retries;
+use its structured results. A recovered retry needs no raw-log inspection
+unless its underlying error is being investigated. For diagnosis, start with
+the summary's error and read only a bounded excerpt of the relevant failed
+stage, expanding only if needed. Automated parsing and retaining logs on disk
+continue normally; avoid loading routine transcripts into the conversation
+to save tokens. Do not issue one tool call per setup step.
+Full logs, manifest and executed CPU script
+are retained; client CSVs are at the manifest's shared paths. Reset failures
+stop the campaign as infrastructure failures. CPU or client failures also stop
+the entire campaign before another reset, preserving hardware state for capture. Timeouts
+interrupt/reap local child processes. The final successful server stays running.
+
+Each normal boot shuts down CPU/FPGA rails and main PSU, waits five seconds,
+restores common power to access monitors, and requires CPU/FPGA core readings
+≤0.2 V **before** enabling either core. It then catches BDK automatically,
+powers/programs the FPGA, and releases boot only after programming succeeds.
+The BMC remains powered. Use `boot.py --cold-start --hold-only` only for recovery
+from a confirmed already-off board; normal comparison trials require full resets.
+
+After releasing BDK, `boot.py` requires CDR lock on QLM8..13 and the complete
+`N0.CCPI Lanes([] is good):[0]...[23]` report before accepting Linux boot.
+Missing or incomplete initialization triggers another full verified cold reset
+and reprogramming, up to ten attempts (`--boot-attempts` overrides the limit).
+The first attempt keeps the usual log paths; retries use `retry-02/`, etc., and
+`boot/summary.json` records each outcome. Exhaustion is an infrastructure
+failure; do not load the driver anyway. The explicit `--negative-no-bitstream`
+test bypasses this gate because absent ECI initialization is intentional.
+
+If `probe_versions` still fails after validated bring-up, freeze and dump trace
+DDR using the [CMAC-first capture procedure](tracing.md#default-agent-capture-pipeline)
+before resetting. If Ethernet capture fails, retain partial output and stop
+without reset or a full JTAG fallback. Retain partial captures
+and the matching map, VIO status, and image
+provenance. Keep tracing active through module load. The shell-version read is
+handled inside the static shell, so arm the static ECI edge ILA before the
+attempt when possible; the application DDR trace alone may not show that read.
+
+## Interactive image testing
+
+Build the application image using the [development workflow](workflow.md).
+After the reservation, artifact and boot checks above, use the same target
+commands as the automated harness. Stage the selected Nix image:
+
+```sh
+rsync -L result enzian-gateway:/scratch/USER/deploy-UNIQUE.img
+# On the CPU, as root; refuses to replace an existing mount:
+bash cpu.sh mount /scratch/USER/deploy-UNIQUE.img
+export LH=/nix/store/lauberhorn
+export PATH="$LH/bin:$LH/sbin:$PATH"
+```
+
+Run `cpu.sh` from a staged copy of `tools/enzian/cpu.sh` on the CPU, or use
+`run.py --script` from the host. The automated harness stages it itself.
+`lauberhorn` links to a hashed environment in the mounted closure. Applications
+never install into that stable location themselves.
+
+| Operation | Helper | Manual equivalent |
+| --- | --- | --- |
+| Inspect | `lh-test info --json` | `jq . "$LH/manifest.json"` |
+| Load | `lh-test load` | Check `modinfo -F vermagic "$LH/modules/lauberhorn.ko"` against `uname -r`, ensure module is absent, then `insmod "$LH/modules/lauberhorn.ko"` |
+| Configure | `lh-test configure MAC CIDR` | `ip link set lauberhorn0 address MAC`; `ip link set lauberhorn0 mtu 1500`; `ip addr add CIDR dev lauberhorn0`; `ip link set lauberhorn0 up` (helper retries link-up three times) |
+| Run | `lh-test run microbenchmarks -- add 4 /scratch/pengxu/run/server.csv` | `"$LH/apps/microbenchmarks/bin/microbenchmarks" add 4 /scratch/pengxu/run/server.csv` |
+| Select executable | `lh-test run NAME --executable PROGRAM -- ARGS` | `"$LH/apps/NAME/bin/PROGRAM" ARGS` |
+
+Create a fresh writable result directory before launching. For example, create
+`/scratch/pengxu/run` before using the illustrative paths in the table. Start Ubuntu's
+`rpcbind` service with `systemctl start rpcbind`; inspect with `rpcinfo -p localhost`.
+The tools environment includes rpcinfo, IP tools, kmod, mount tools, Bash, jq and
+coreutils. Ubuntu owns system services. No helper unloads modules, kills workers,
+or replaces a mount. `run` preserves argument boundaries and the program's exit
+status. `load` validates kernel vermagic; it does not prove FPGA ABI compatibility.
+Check hardware identity with `cpu.sh verify`, then require an externally routed
+correctness client. Use `LH_DIRECT=1 cpu serve ...` for the manual application path
+in the same test harness. Collect server/client logs from the writable directory
+with host-side rsync, along with image hashes and the manifest.
+
+
+## Focused debugging
+
+- [run.py](../../tools/enzian/run.py): run a command or local shell script over
+  the CPU console; `--expect REGEX` asserts ordered output instead of exit zero.
+  Script transfer uses short base64 lines and waits for the shell's continuation
+  prompt after each line; fixed pacing alone lost input during kernel logging.
+- [cpu.sh](../../tools/enzian/cpu.sh): independent `mount IMAGE`, `load`, `verify`,
+  `configure MAC CIDR`, `serve add/mul WORKERS NEW_LOG_DIR` steps.
+- [boot.py](../../tools/enzian/boot.py): `--hold-only`, `--resume-held` with a
+  programmer command, or `--negative-no-bitstream` for a deliberate absent-HW test.
+- [program_fpga.tcl](../../vivado/eci/program_fpga.tcl): exact-target programming,
+  `--probe`, or `--capture-ila LTX EXACT_CELL OUTPUT.csv` instead of the bitstream.
+
+For a negative test, boot with `--negative-no-bitstream`, mount using `cpu.sh`,
+then run `cpu.sh load` through `run.py` with expectations
+`'Internal error: synchronous external abort:'` and `'pc : probe_versions\+'`.
+The observed failure was an oops at shell version register `0x97effffffff8`, not
+a full kernel panic. Preserve the failure before any reset. ECI links being up does not establish
+working register accesses or RPCs. See [recorded results](../../agents/hardware-state.md#early-boot-and-artifact-evidence)
+for known failures and repeatability limits; historical results are not a new test.
+
+## Use a second Enzian as the traffic generator
+
+Acquire an available machine with `emg acquire MACHINE`; `-g 2025-07-28`
+selects the newer golden image if needed. Do not copy the DUT's isolated-core
+kernel arguments to the client machine. Verify its reservation, boot Linux,
+and check `ip route get DUT_FPGA_IP`: `cpu40g1` is in the FPGA NIC VLAN.
+Use `cpu40g1` for traffic/capture on the client and `lauberhorn0` on the DUT;
+keep management/root storage on `cpu40g0`.
+
+Build `.#trafficGeneratorImage` on the build host and deploy that runtime-only
+image to the client. Cross-build all client binaries and tools; do not ship
+compilers, build on Enzian, or rely on Ubuntu userspace packages for measurement.
+Keep host kernel/modules provisioned through `emg` and record their versions.
+
+For the reusable polling client and VF restoration runner, see the
+[DPDK generator](../../../microbenchmarks/client/README.md) and
+[measurement contract](../research/latency-measurement.md). The [benchmark guide](benchmark-campaign.md#dpdk-traffic-generator) explains
+the generator, kernel/PMD requirements and calibration limits. Its pcap replay
+checks are functional tests; require physical packet validation before collecting
+network latency data.
+
+The controlled [worker-issued GSYNC reproduction](../hardware/gsync-worker-reproduction.md)
+uses a separate instrumented RPC probe to test whether worker-local permission
+changes wait behind peer RX holds. Its socket client measures reproduction
+outcomes; it is not a replacement for the DPDK latency benchmark.
+
+The client does not need a programmed FPGA or the Lauberhorn kernel module.
+`boot.py --machine MACHINE --negative-no-bitstream` can boot it without
+programming. This mode's log label describes the absent FPGA image; no negative
+module-load test is implied. For an uninitialized-device error during power
+sequencing, follow [BMC recovery](#bmc-recovery-and-powered-off-starts); inspect
+voltages and use the helper's powered-off sequence rather than calling
+`init_driver()` as a repair. Do not treat `is_up` in the
+reservation listing as proof of Linux readiness.
+
+For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.
+Keep every test's client machine, software and capture paths in its manifest.
+Never count peer boot/setup failures as runtime test failures.
+
+## Historical compatibility
+
+Current application tests use maintained application images and the
+[Dandelion workflow](../research/dandelion.md). Retired student packaging and
+B4 recovery runners require their original checkout and ABI; they must not be
+combined with cooperative DESCHED images. Historical provenance is in the
+[imported-runtime](../../agents/runtime-applications.md#historical-imported-runtime-probes)
+and [B4 recovery](../../agents/runtime-applications.md#historical-b4-parking-and-recovery)
+records. Current unsupported exit/fatal faults fence the domain; complete
+resource recovery is a separate contract in the
+[scheduling interface](../software/scheduling-control-interface.md).
+
+## Serial command integrity
+
+The console runner paces input in small UART bursts, acknowledges shell input
+lines and verifies the complete decoded script with SHA-256 before execution.
+Its interactive-shell tests cover long payloads, literal shell characters, exit
+status, noninteractive stdin and corrupted-payload rejection. Interrupted input
+framing cancels only the unexecuted compound command; a running board command is
+not automatically interrupted or retried. Preserve the failed console log and
+check whether a requested setting was actually programmed before resuming.
+
+## ECI receive-stall calibration
+
+Use [RX stall-timeout calibration](../hardware/eci-implementation.md#calibrating-the-rx-stall-timeout-before-nack)
+to compare the NIC's NACK timer with observed CPU/ECI timeout behavior. It covers
+parameter readback, TAD/kernel checks, contention, trace analysis and the limits
+of finite measurements. Use the normal preservation and boot gates above.
+
+For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
+verified cold power sequence and BDK handling, skips FPGA programming, and
+requires Linux login. This is not FPGA/ECI acceptance. Provision its kernel and
+isolation arguments through EMG first. For the 32-core echo generator, use
+CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
+and temporarily corrects device IRQ, RPS and unbound-workqueue placement.
+
+## Local checks and simulation
+
+Select the smallest relevant check for the changed component. These checks
+complement board acceptance; they do not establish physical ECI behavior.
+
+### Select the smallest relevant check
 
 ```sh
 # All untagged/fast Lauberhorn tests (broader than CI).
@@ -70,8 +419,7 @@ model builds. Read compressed simulation transcripts with `less`, `vim` or
 
 ## Coverage limits that affect claims
 
-- `OncRpcSim` has registered but empty TODO test bodies: `rx-preempt-no-leaking` and `rx-sched-crit-timeout`. A passing suite does **not** validate those properties.
-- `rx-tx-interleaved` is tagged `Slow` with an address-map FIXME; fast CI excludes it. RX size scans and TX scan tests also use `Slow`.
+- `rx-tx-interleaved` exercises independent RX/TX control colors in the regular suite. RX/TX size scans include `Slow` tests; check the selected test tags when reporting coverage.
 - `PacketAllocSim` explicitly leaves multi-configuration and block-until-free checks incomplete.
 - The Scala host model approximates software IRQ/scheduling behavior. Passing RTL simulation does not validate the actual Linux module, aarch64 atomics, or real ECI cache behavior.
 - `model/legacy/tla/lauberhorn.tla` and Toolbox models describe isolation/preemption; the checked-in small model config names type, cacheline-exclusion, preemption and isolation invariants plus temporal properties. Generated model outputs are historical artifacts, not proof that current RTL/software satisfies the model. The separate steady-state model now has a Nix check; it does not validate this older scheduling model. Reconcile source and model snapshots before using results in a paper.
@@ -167,8 +515,9 @@ actual TSU/tag RAM and its reset wrapper, using a test XPM RAM primitive model.
 `directory-summary.json` and `directory-events.log` record naturally reached
 full-set absent-LCI stalls, successful hit invalidation, and UL-enabled recovery.
 These checks establish directory-component reachability, not the complete
-Lauberhorn/THX execution. Auto-lock remains selected; the nonlocking diagnostic
-is retained only as a regression of the unsafe wholesale-swap experiment.
+Lauberhorn/THX execution. These auto-lock checks retain their historical protocol scope. The selected
+Lauberhorn ROM has separate checks described below; passing the old-controller
+diagnostic does not validate that selected protocol.
 
 ### Generated Lauberhorn DCS ROM
 
@@ -229,7 +578,7 @@ latter must block completion until B is released. The test uses synthetic
 returned data, manual initial DC read completion, test XPM RAM and direct
 LCIA-to-`invDone` wiring. It excludes the full slice data buffer/crossbar, THX
 and higher-level RX protocol. The [return-half design note](../hardware/rx-writeback.md)
-describes the current discard policy and possible future uses.
+describes the current payload replay shadow and proposed response-channel uses.
 
 The independent-channel test also runs in the fast ECI CI suite:
 
@@ -288,8 +637,8 @@ headers to make a configuration compile.
 
 ### Payload isolation across cooperative ownership changes
 
-Run the focused router and full-engine checks before building a replacement for
-pipeline 515944:
+Run the focused router and full-engine checks when changing payload isolation
+or cooperative ownership:
 
 ```sh
 nix develop -c mill gen.test.testOnly \

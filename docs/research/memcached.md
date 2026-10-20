@@ -95,7 +95,7 @@ Worker-notification-dependent administration, crawler dump/watch connections,
 warm restart, idle connection timers and graceful worker teardown are outside
 acceptance. Do not infer unrestricted maintenance from bounded GET/SET success.
 Use the existing [fenced process lifecycle](../software/process-recovery.md) and
-[Enzian harness](../development/hardware-test.md); killing instances does not make
+[Enzian harness](../development/validation.md#board-validation); killing instances does not make
 resources safely reusable without the documented coherence reset.
 
 ## Acceptance and measurements

@@ -372,7 +372,7 @@ and temporary demand representation, HOST_WORK ABI and persistence/acknowledgeme
 integration, P acquisition/wake races, response routing, bounded receive-service
 policy and measured latency target. Exact public APIs are not selected here.
 Use the existing [validation](../development/validation.md),
-[CI](../development/ci.md) and [board-test](../development/hardware-test.md)
+[CI](../development/ci.md) and [board-test](../development/validation.md#board-validation)
 workflows when implementation is authorized. Timing optimization, arbitrary
 endpoint mobility and complete kill/exit recovery remain outside this stage.
 

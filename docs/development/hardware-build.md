@@ -81,4 +81,4 @@ The [CI guide](ci.md) records the stable artifact paths and report gate.
 
 Project creation validates input portability and tool setup. It does not prove
 implementation success, timing closure or board functionality. Use the
-[hardware-test routine](hardware-test.md) for matching-artifact board validation.
+[hardware-test routine](validation.md#board-validation) for matching-artifact board validation.

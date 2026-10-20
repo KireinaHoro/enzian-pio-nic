@@ -1,6 +1,6 @@
 # Physical implementation: checkpoint-first timing closure
 
-Use this for routed timing failures; use the [hardware routine](../development/hardware-test.md)
+Use this for routed timing failures; use the [hardware routine](../development/validation.md#board-validation)
 for reset/program/load/RPC tests. A successful CI job or RPC run does not establish
 setup/hold closure. The [checkpoint findings](physical-findings.md) distinguish
 measured paths from possible explanations of board failures.

@@ -501,7 +501,7 @@ successful CI status or one improved global WNS. Board validation remains later.
 
 Updated 2026-09-15. The Nix packaging/shared interactive-test prerequisite is
 complete: see [the validation record](../development/nix-refactor-validation.md)
-and [the new workflow](../development/interactive-testing.md). Board tests used
+and [the new workflow](../development/validation.md#interactive-image-testing). Board tests used
 matched historical CI hardware; they do not validate final-master timing or
 hardware. No new timing candidate or PnR run was launched during the refactor.
 
