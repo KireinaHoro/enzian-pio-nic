@@ -2,7 +2,9 @@
 #include "server_trace.h"
 #include <sched.h>
 #include "lauberhorn/trace.h"
+#ifndef SERVER_TRACE_CUSTOM_CONTEXT
 #include "fiber/scheduler.h"
+#endif
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,8 +17,24 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+#ifndef SERVER_TRACE_SIGNAL
+#define SERVER_TRACE_SIGNAL SIGUSR2
+#endif
+#ifndef SERVER_TRACE_GUARD_BEGIN
+#define SERVER_TRACE_GUARD_BEGIN() ((void)0)
+#define SERVER_TRACE_GUARD_END() ((void)0)
+#endif
+
+/* Keep pthread-TLS accesses inside the guarded call for migrating runtimes. */
+#ifdef SERVER_TRACE_CUSTOM_CONTEXT
+#define TRACE_IMPL_ATTR __attribute__((noinline))
+#else
+#define TRACE_IMPL_ATTR
+#endif
 bool server_trace_enabled;
+#ifndef SERVER_TRACE_CUSTOM_CONTEXT
 __thread struct server_trace_row *server_trace_inline;
+#endif
 __thread struct server_activation_trace server_activation;
 /* Append-only, single-producer buffers. Registration and export happen off path. */
 #define TRACE_MAX_THREADS 64
@@ -126,7 +144,7 @@ done:
 static void *dump_control(void *unused) {
     (void)unused;
     sigset_t set;
-    sigemptyset(&set); sigaddset(&set, SIGUSR2);
+    sigemptyset(&set); sigaddset(&set, SERVER_TRACE_SIGNAL);
     for (;;) {
         int signo;
         if (sigwait(&set, &signo)) abort();
@@ -214,7 +232,7 @@ void server_trace_init(void) {
     /* Reserve the dump signal before creating workers; they inherit the mask.
      * No signal handler or I/O on workers; allocation/locks are startup-only. */
     sigset_t set;
-    sigemptyset(&set); sigaddset(&set, SIGUSR2);
+    sigemptyset(&set); sigaddset(&set, SERVER_TRACE_SIGNAL);
     if (pthread_sigmask(SIG_BLOCK, &set, NULL)) abort();
     if (pthread_create(&dump_thread, NULL, dump_control, NULL)) abort();
     dump_thread_started = true;
@@ -230,6 +248,7 @@ static void write_header(void) {
     fputs("request_id,xid,worker_id,ok,request_bytes,response_bytes,", output);
 #define TRACE_HEADER(name) fputs("server_" #name "_ns,", output);
     SERVER_TRACE_TIMES(TRACE_HEADER)
+    SERVER_TRACE_EXTRA_TIMES(TRACE_HEADER)
 #undef TRACE_HEADER
     fputs("timestamp_overhead_ns,timestamp_call_count,request_id_valid,request_context,"
           "tx_worker_id,execution_kind,reply_status,transport_status,rx_cpu_id,tx_cpu_id,"
@@ -251,7 +270,7 @@ void server_trace_fini(void) {
     dump_records();
     atomic_store(&stopping, true);
     if (dump_thread_started) {
-        pthread_kill(dump_thread, SIGUSR2);
+        pthread_kill(dump_thread, SERVER_TRACE_SIGNAL);
         pthread_join(dump_thread, NULL);
     }
     for (size_t i=0;i<registered;i++) {
@@ -270,13 +289,17 @@ void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
     r->rx_enter_ns = server_trace_stage(r, LH_PMU_rx_enter);
 }
 static struct server_trace_row *current_trace(void) {
+#ifdef SERVER_TRACE_CUSTOM_CONTEXT
+    return server_trace_inline;
+#else
     return fiber_in_context() ? current_fiber->trace : server_trace_inline;
+#endif
 }
 bool lauberhorn_trace_events_enabled(void) { return event_path != NULL; }
 uint64_t lauberhorn_trace_new_id(void) {
     return event_path ? atomic_fetch_add_explicit(&next_trace_id,1,memory_order_relaxed) : 0;
 }
-void server_trace_event(struct server_trace_row *r, unsigned event, uint64_t a, uint64_t b) {
+static TRACE_IMPL_ATTR void trace_event_impl(struct server_trace_row *r, unsigned event, uint64_t a, uint64_t b) {
     if (!event_path || !r || !r->enabled) return;
     struct trace_buffer *buf = local_buffer;
     if (!buf) { atomic_fetch_add_explicit(&unregistered_drops,1,memory_order_relaxed); return; }
@@ -288,6 +311,11 @@ void server_trace_event(struct server_trace_row *r, unsigned event, uint64_t a, 
     *e = (struct trace_event){.ns=server_trace_stamp(r),.request_id=r->request_id,
         .context=r->request_context,.cpu=sched_getcpu(),.event=event,.arg0=a,.arg1=b};
     atomic_store_explicit(&buf->events_published,++buf->event_count,memory_order_release);
+}
+void server_trace_event(struct server_trace_row *r, unsigned event, uint64_t a, uint64_t b) {
+    SERVER_TRACE_GUARD_BEGIN();
+    trace_event_impl(r, event, a, b);
+    SERVER_TRACE_GUARD_END();
 }
 void lauberhorn_trace_event(enum lauberhorn_trace_event event, uint64_t a, uint64_t b) {
     server_trace_event(current_trace(),event,a,b);
@@ -311,7 +339,7 @@ void server_trace_run_end(struct server_trace_row *r) {
         r->run_start_ns = 0;
     }
 }
-void server_trace_write(struct server_trace_row *r) {
+static TRACE_IMPL_ATTR void trace_write_impl(struct server_trace_row *r) {
     if (!r || !r->enabled) return;
     r->enabled = false; /* terminal event: never write this ownership twice */
     struct trace_buffer *b = local_buffer;
@@ -323,6 +351,11 @@ void server_trace_write(struct server_trace_row *r) {
     b->rows[b->count] = *r;
     atomic_store_explicit(&b->published,++b->count,memory_order_release);
 }
+void server_trace_write(struct server_trace_row *r) {
+    SERVER_TRACE_GUARD_BEGIN();
+    trace_write_impl(r);
+    SERVER_TRACE_GUARD_END();
+}
 static void write_row(const struct server_trace_row *r) {
     uint64_t elapsed = r->handler_exit_ns - r->handler_enter_ns;
     uint64_t active = r->handler_active_ns < elapsed ? r->handler_active_ns : elapsed;
@@ -332,6 +365,7 @@ static void write_row(const struct server_trace_row *r) {
             r->ok, r->request_bytes, r->response_bytes);
 #define TRACE_VALUE(name) fprintf(output, "%" PRIu64 ",", r->name##_ns);
     SERVER_TRACE_TIMES(TRACE_VALUE)
+    SERVER_TRACE_EXTRA_TIMES(TRACE_VALUE)
 #undef TRACE_VALUE
     fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64,
             overhead_ns, r->timestamp_calls, r->id_valid, r->request_context,
