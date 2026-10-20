@@ -18,6 +18,9 @@ HARNESS = r'''
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#ifndef SERVER_TRACE_SIGNAL
+#define SERVER_TRACE_SIGNAL SIGUSR2
+#endif
 __thread struct fiber *current_fiber, *main_fiber;
 static void *produce(void *arg) {
     server_trace_thread_init();
@@ -39,7 +42,7 @@ int main(int argc, char **argv) {
     for(int i=0;i<2;i++) pthread_join(threads[i],NULL);
     assert(access(getenv("LAUBERHORN_EVENT_TRACE_CSV"),F_OK));
     assert(access(argv[1],F_OK)); /* no output while collecting */
-    kill(getpid(),SIGUSR2);
+    kill(getpid(),SERVER_TRACE_SIGNAL);
     for(int i=0;i<1000 && access(argv[2],F_OK);i++) usleep(1000);
     assert(!access(argv[2],F_OK));
     server_trace_fini();
@@ -48,11 +51,17 @@ int main(int argc, char **argv) {
 '''
 
 class BufferedTraceTests(unittest.TestCase):
+    def test_realtime_export(self):
+        self.check_export(["-DSERVER_TRACE_SIGNAL=(SIGRTMIN+4)"])
+
     def test_export_and_overflow(self):
+        self.check_export([])
+
+    def check_export(self, flags):
         with tempfile.TemporaryDirectory() as tmp:
             d=Path(tmp); (d/'main.c').write_text(HARNESS)
             subprocess.run([os.environ.get('CC','cc'),'-std=gnu11','-Wall','-Wextra','-Werror',
-                            '-pthread',*shlex.split(subprocess.check_output(['pkg-config','--cflags','libtirpc'],text=True)),
+                            '-pthread',*flags,*shlex.split(subprocess.check_output(['pkg-config','--cflags','libtirpc'],text=True)),
                             '-I'+str(ROOT/'sw/include'),
                             '-I'+str(ROOT/'sw/rt'),str(d/'main.c'),
                             str(ROOT/'sw/rt/server_trace.c'),str(ROOT/'sw/rt/pmu.c'),'-o',str(d/'test')],check=True)

@@ -7,6 +7,12 @@
 #if LH_ENABLE_TRACING
 #define LH_TRACE_PTR(value) (value)
 #include "pmu.h"
+/* Transport adapters may add timestamp columns and supply a migrating
+ * request-context slot. The writer also accepts SERVER_TRACE_SIGNAL and
+ * SERVER_TRACE_GUARD_BEGIN/END; defaults preserve the pthread/fiber path. */
+#ifndef SERVER_TRACE_EXTRA_TIMES
+#define SERVER_TRACE_EXTRA_TIMES(X)
+#endif
 #define SERVER_TRACE_TIMES(X) \
     X(rx_enter) X(rx_unblock) X(rx_exit) \
     X(unmarshal_enter) X(unmarshal_exit) X(handler_enter) X(handler_exit) \
@@ -30,6 +36,7 @@ struct server_trace_row {
     unsigned kind, timestamp_calls; /* kind bits: deferred=1, forwarded=2 */
 #define TRACE_FIELD(name) uint64_t name##_ns;
     SERVER_TRACE_TIMES(TRACE_FIELD)
+    SERVER_TRACE_EXTRA_TIMES(TRACE_FIELD)
 #undef TRACE_FIELD
     uint64_t defer_enqueue_ns, forward_submit_ns, forward_complete_ns;
     uint64_t entry_enter_ns, entry_exit_ns;
@@ -38,7 +45,12 @@ struct server_trace_row {
     uint64_t handler_active_ns, run_start_ns;
 };
 extern bool server_trace_enabled;
+#ifdef SERVER_TRACE_CUSTOM_CONTEXT
+struct server_trace_row **server_trace_inline_slot(void);
+#define server_trace_inline (*server_trace_inline_slot())
+#else
 extern __thread struct server_trace_row *server_trace_inline;
+#endif
 void server_trace_init(void);
 /* Call once per worker before registration/activation; allocates and prefaults. */
 void server_trace_thread_init(void);
