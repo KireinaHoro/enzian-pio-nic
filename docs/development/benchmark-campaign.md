@@ -85,6 +85,9 @@ telemetry changed together, so the comparison does not isolate either effect.
 
 ## Shared echo server implementation
 
+The [DPDK baseline design](../research/dpdk-baseline.md) explains the comparison
+with LH and its distinction from Caladan directpath.
+
 LH and DPDK share the synchronous runtime request, handler and reply path
 (`sw/rt/rpc_{request,call,reply}.h`), the `oncrpc.c` XDR adapter, schema-generated
 codecs, and the separately compiled `echo_handler.c`. Both allocate/decode arguments, dispatch the registered
@@ -108,7 +111,7 @@ Loaded cases retain uninstrumented client RTT with no packet trace capture.
 
 Normal acquisition keeps FPGA recording frozen and collects no FPGA MAC or
 NIC PTP timestamps.
-The [mlx5 readiness workflow](mlx5-readiness.md) exercises software stages and
+The [DPDK readiness workflow](validation.md#dpdk-baseline-readiness) exercises software stages and
 loaded RTT independently of switch capture. The unloaded adapter uses
 [campaign/tofino.py](../../tools/paper/campaign/tofino.py) to bridge the sibling
 `tofino-hw-timestamping/tools/capture-session.py run` automation. That CLI owns

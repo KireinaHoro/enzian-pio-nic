@@ -24,6 +24,12 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 **Caladan is the selected primary baseline, labeled SH-A64 for the AArch64 port alongside DPDK and LH.** Follow the [current Enzian port plan](caladan-enzian.md): ConnectX-5 networking, the simple scheduler, and bounded hot, core-reclamation and memcached experiments. Pin implementation, application versions and resource budgets; ARM port and measurement acceptance remain pending. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and load generation comparable. Full Caladan interference-control claims are outside scope.
 
+The [DPDK microbenchmark baseline](dpdk-baseline.md) uses ConnectX-5 polling
+and the shared echo RPC software path to compare CPU-side networking with LH.
+Its configured workers provide a transport/CPU-processing baseline; SH-A64
+separately evaluates Caladan's runtime-managed scheduling. Both use the common
+[hot measurement methodology](hot-measurement.md).
+
 | Planned application | Purpose in the evaluation / integration starting point |
 | --- | --- |
 | Dandelion | Bounded Enzian composition/four-worker and aligned atomic measurements complete; paused. Scope is programming-model support and communication overhead, with lightweight-isolation projections distinguished from measurements. [Closeout and two deferred extensions](roadmap.md#dandelion-closeout-limited-scope-and-deferred-work--october-8). |

@@ -46,7 +46,8 @@ mbuf construction and TX reclamation wherever actually executed. Attribute
 batched/deferred work explicitly; do not omit it or claim a per-packet duration
 by dividing a batch without identifying that convention. The unloaded queue
 path must be exercised by acceptance tests before collection. See the
-[mlx5 implementation and readiness workflow](../development/mlx5-readiness.md).
+[DPDK baseline instrumentation](dpdk-baseline.md#software-probes) and
+[board readiness](../development/validation.md#dpdk-baseline-readiness).
 
 For Lauberhorn use CPU receive return through transport return as the outer
 interval; retain RPC/handler boundaries and the exact doorbell read/return interval.

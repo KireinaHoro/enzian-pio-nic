@@ -348,6 +348,49 @@ isolation arguments through EMG first. For the 32-core echo generator, use
 CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
 and temporarily corrects device IRQ, RPS and unbound-workqueue placement.
 
+## DPDK baseline readiness
+
+Build the [ConnectX-5 image](workflow.md#dpdk-microbenchmark-baseline-images)
+and follow the board reservation/provisioning checks above. The
+[DPDK baseline design](../research/dpdk-baseline.md) defines the workload and
+scalar-PMD restrictions. This CPU-NIC path does not require a Lauberhorn FPGA
+image or module; use CPU-only boot for a fresh baseline host.
+
+Use the [deployment skill](../../tools/enzian/skills/enzian-deploy/SKILL.md),
+`tools/enzian/run.py`, and the hash-verified private image launcher in
+`tools/enzian/image.py`. Stage the image and helper through the existing transfer
+service; the host interpreter only verifies and enters the image.
+
+Inside the image, run `tools/paper/campaign/mlx5_readiness.py` with an unused
+server IP, the peer's actual source IP and both explicit MAC addresses. This
+maintained helper uses the canonical runner for every role and produces a fresh
+output directory. It exercises 8/128/1432-byte echo, instrumented and
+uninstrumented single-outstanding calls, and short aggregate loaded traffic with
+one/four responders. The local NICVF generator occupies CPUs 16–19 and mlx5
+responders CPUs 44–47. Shared hugepages are reserved before either role starts
+and restored after both finish. This is functional readiness, not a throughput
+or saturation result. Full campaigns require a separate generator machine.
+
+Archive the helper, command manifest, image hash, per-role outputs and
+restoration summaries. Import unloaded observations through
+`campaign.import_unloaded.dpdk`; absent Tofino data produces `wire_ns: null`,
+`wire_available: false`, `paper_inputs: false`. Import loaded observations through
+the ordinary aggregate validator; validate actual worker activity and full
+payload replies. Paper CDF/breakdown validation rejects missing wire durations.
+Full collection uses the [campaign wire-acceptance gate](benchmark-campaign.md#canonical-measurement-contract).
+Caladan directpath has its [own acceptance plan](../research/caladan-enzian.md).
+
+The helper CLI, run inside the staged image, is:
+
+```sh
+python3 tools/paper/campaign/mlx5_readiness.py --output NEW_READINESS_RUN \
+  --server-ip UNUSED_SERVER_IP --client-ip ACTUAL_CLIENT_IP \
+  --server-mac ACTUAL_MLX5_MAC --client-mac ACTUAL_NICVF_MAC
+```
+
+The current helper fixes the server interface to `enP5p144s0np0` and local peer
+to `cpu40g1`; verify those names and their connectivity before running it.
+
 ## Local checks and simulation
 
 Select the smallest relevant check for the changed component. These checks

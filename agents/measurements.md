@@ -163,3 +163,33 @@ only its public vDSO. No traffic or reset was performed for that probe. Evidence
 `out/static-hot-count/`, shared `/scratch/pengxu/static-hot-count/`, and the
 [summary](../data/eci/board-evidence/hot-static-516232-summary.json). Full original
 record: `9ece0489:docs/development/hot-static-instructions.md`.
+
+## October 16 DPDK baseline readiness
+
+Recorded inventory: zuestoll07, PCI `0005:90:00.0`, netdev `enP5p144s0np0`,
+MAC `b8:ce:f6:87:c2:9e`, kernel `6.8.0-146-generic`, firmware `16.35.8002`,
+100 Gb/s. These are dated observations, not live reservations or current inventory.
+
+The twelve-case zuestoll07 matrix passed: 256 measured + 16 warmup requests
+for each unloaded payload/mode, and 25,000 measured loaded requests per
+payload/worker configuration (100 kRPC/s, 50 ms warmup + 250 ms measurement).
+All 150,000 measured loaded requests returned on time, with zero generator
+misses or TX admission failures. Each four-worker case recorded 6,250 measured
+calls on each worker. All six unloaded cases completed their 256 measured calls,
+with ordered queue probes in all three instrumented cases. Every role restored
+its NIC/resources. Total case execution was 110.4 seconds, excluding staging.
+
+The instrumented RX-queue medians were 200/200/210 ns and TX-submission medians
+410/405/430 ns for 8/128/1432 bytes. These include probe overhead and only
+establish working software interval capture; they are not unloaded wire latency
+or full-dataset results. This matrix collected no Tofino durations and tested no Caladan runtime.
+
+Local checks passed: 51 campaign unit tests, 16 schema packet replays, seven
+open-loop replay scenarios, native wire/schema/aggregate/probe-state checks,
+and runtime regressions including compiled-out tracing and sanitizer checks.
+
+Evidence: `out/mlx5-readiness/acceptance.json`, `validated-v2.json`, and the complete
+`mlx5-ready-01.tar.gz` role archive. Image SHA256: `61367fc00f65379416de0168776a6bd74653afdf4b930a5876d8e523d1107dfb`.
+Archive SHA256: `401ecdd1a2abbb52c15fc335aad58070c18290d960e3824b1dacc772e559f324`.
+The archive manifest records both PMD package paths and each role's executable
+hash, arguments, raw observations, NIC counters and restoration results.

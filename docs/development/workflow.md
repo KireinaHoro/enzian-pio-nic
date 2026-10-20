@@ -258,3 +258,18 @@ wanted. `platform.mkDeploymentEnvironment { applications; extraContents = []; }`
 constructs just the stable environment; `mkApplicationImage` includes it and its closure.
 Extra packages contribute bin/sbin tools with collision checking; applications
 retain all their executables below their own named link.
+
+## DPDK microbenchmark baseline images
+
+Build the maintained ConnectX-5 responder and board image for the
+[DPDK research baseline](../research/dpdk-baseline.md):
+
+```sh
+nix build .#dev.x86_64-linux.software.mlx5ServerNative -o out/mlx5-native
+nix build .#mlx5BenchmarkImage -o out/mlx5-image
+```
+
+The shared `traffic-generator.nix` image includes both responder instrumentation
+variants and the generator. Continue with
+[DPDK board readiness](validation.md#dpdk-baseline-readiness); building the native
+responder alone does not validate the target NIC or the AArch64 image.
