@@ -54,7 +54,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 
 - [Packet processing](../hardware/packet-processing.md) and [tracing](../development/tracing.md): source-oriented mechanism detail.
 - [Nested RPC](../software/nested-rpc.md): descriptor/RTL paths; the [runtime](../software/runtime.md) and [endpoint contract](../software/nested-rpc.md#registered-endpoints) describe software integration.
-- [Go toward etcd](../proposals/go-etcd.md): design-only G/M/P/L scheduling, HOST_WORK and native null-RPC stage; no implementation yet.
+- [Go runtime](../proposals/go-runtime.md) and [HOST_WORK](../proposals/host-work.md): separate scheduler and notification proposals; [Raft/etcd](../applications/etcd.md) is a planned application.
 - [Applications](../applications/README.md): application integration and evaluation; Dandelion is bracketed for the paper.
 - [TCP/Protobuf and gRPC roadmap](../proposals/grpc.md): finished external projects and lower-priority integration scope.
 - [Hot-path measurement](../research/hot-measurement.md): shared methodology; [hardware tracing](../hardware/tracing.md) defines FPGA instrumentation and correlation.

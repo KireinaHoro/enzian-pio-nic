@@ -2,7 +2,7 @@
 
 This unimplemented alternative describes long-lived, runtime-managed services
 using raft-rs as an example. The selected next direction is
-[Go toward etcd](go-etcd.md), also a design rather than a deployed Go interface.
+[Go toward etcd](go-runtime.md), also a design rather than a deployed Go interface.
 The [managed request API](../software/programming-model.md) does not supply the
 service-event and timer facilities proposed here.
 
@@ -103,5 +103,5 @@ Pin the chosen revision before implementation and recheck those contracts.
 
 The former resident-worker memcached proposal is superseded by the
 [native UDP design](../research/memcached.md). Its maintenance requirements and
-[HOST_WORK proposal](go-etcd.md#host_work) are distinct from implementing the
+[HOST_WORK proposal](host-work.md) are distinct from implementing the
 service-event API above.

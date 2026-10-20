@@ -2,9 +2,9 @@
 
 ## Go toward etcd and HOST_WORK — October 13
 
-The [Go runtime design](../proposals/go-etcd.md) records the new direction: adapt Go, implement
-HOST_WORK, validate memcached hash expansion, and run native Go null-RPC with
-nested calls before porting Go Raft and full etcd/client functionality. The
+The [Go runtime design](../proposals/go-runtime.md) records the new direction: adapt Go, implement
+[HOST_WORK](../proposals/host-work.md), validate memcached hash expansion, and run native Go null-RPC with
+nested calls before the [Raft/etcd application integration](../applications/etcd.md). The
 current instruction is **documentation only; stop before implementation**.
 No runtime, kernel, RTL, CI or board change accompanies this design record.
 

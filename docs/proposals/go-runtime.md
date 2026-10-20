@@ -1,16 +1,10 @@
-# Go runtime integration toward etcd
+# Go runtime and goroutine scheduling
 
-Status: **design only**, October 13, 2026. This records the maintainer discussion;
-it is not an implemented Go port, HOST_WORK interface or board result. The
-current task covers a pinned upstream Go checkout and a source-grounded patch
-plan below. No runtime, kernel or RTL implementation is authorized by this
-planning handoff alone.
-
-The first implementation stage will adapt Go, implement HOST_WORK, demonstrate
-memcached hash expansion, and run a native Go null-RPC demo with goroutines and
-nested calls. Porting the Go Raft core and then etcd itself, including its client
-interface, are later stages. The older [raft-rs service proposal](service-execution.md)
-is historical design context, not the selected Go implementation.
+**Proposal; not implemented.** Integrate native RPC with Go's goroutine scheduler
+while preserving GC, ordinary Go synchronization and Lauberhorn endpoint ownership.
+[HOST_WORK](host-work.md) is a separate shared mechanism required for pending
+native work to interrupt assigned RX waits. [Raft and etcd](../applications/etcd.md)
+are later applications of this runtime, not prerequisites for its design.
 
 ## Scope and baseline
 
@@ -21,12 +15,9 @@ not selected for this stage. Ordinary Linux tasks still do not share the isolate
 worker cores. Scheduling Gs within an assigned application's Go runtime is a
 separate operation from Linux scheduling or hardware DESCHED.
 
-Build Go bindings to **Lauberhorn native RPC**, not standard-library `net/rpc`
-or grpc-go compatibility. [etcd/raft](https://github.com/etcd-io/raft) leaves
-network and disk I/O to its embedding. Etcd's
-[peer transport](https://github.com/etcd-io/etcd/tree/main/server/etcdserver/api/rafthttp)
-and [gRPC client interface](https://etcd.io/docs/v3.6/dev-guide/api_grpc_gateway/)
-are later adapter work; this demo does not establish either transport's support.
+Build Go bindings to Lauberhorn native RPC. Standard-library `net/rpc` and
+grpc-go compatibility are outside this proposal. The [Raft/etcd application
+plan](../applications/etcd.md) describes the later embedding and transport work.
 
 The [current scheduling contract](../software/scheduling-control-interface.md)
 and [transport ownership contract](../software/runtime.md) remain authoritative
@@ -38,9 +29,8 @@ loop underneath each handler.
 ## G, P, M and L
 
 The design extends Go's G/M/P model, not the meaning of P. Implementation
-references are now the pinned Go 1.27.2 `src/runtime/proc.go` and
-`src/runtime/runtime2.go` described below; floating upstream source is not the
-patch baseline.
+references are the pinned Go 1.27.2 `src/runtime/proc.go` and
+`src/runtime/runtime2.go` described below.
 
 | Entity | Meaning |
 | --- | --- |
@@ -150,43 +140,6 @@ must also make progress under sustained active work, including observing DESCHED
 bounded service opportunity is required; the precise budget/polling or arrival
 notification mechanism remains to be designed. Prioritizing active work over a
 **blocking** RX wait must not become permission to starve all RX indefinitely.
-
-## HOST_WORK
-
-**HOST_WORK replaces the proposed name HOST_WAKE.** Historical records and model
-names retain their original spelling; they do not define this interface. No
-existing ioctl, register, descriptor or trace event is renamed or introduced by
-this document.
-
-HOST_WORK means: **software work is pending; complete an assigned endpoint's RX
-wait so the runtime can service it**. Examples include a pending response TX, a
-timer continuation and memcached worker-maintenance notifications. Hardware
-does not select a Go continuation or execute a callback. The assignment remains
-valid; this is not DESCHED or a direct wake of a thread inside `lh_yield()`.
-
-In the Go binding, child/timer readiness alone does not imply endpoint demand.
-A normal continuation can run on M, then publish demand and signal HOST_WORK at
-native entry. Runtime policy may also request host work to service a local
-continuation, but such a locality hint is not persistent 2F2F priority.
-
-The current transport can return an ordinary payload-free NACK. Whether HOST_WORK
-uses that completion or a distinct reason is an open ABI decision, not permission
-to add a placeholder. Timers need a software source that can publish work even
-when application workers are waiting; RX timeout polling alone does not establish
-timer progress for an unassigned domain.
-
-Publish work before notifying. Persist/coalesce demand across notification,
-wait-entry and acknowledgement races, so a notification just before RX cannot
-be lost. If a real packet wins, handle its ownership before dispatching other
-work and retain the host demand. If DESCHED wins, preserve work through
-relinquishment; do not send through the old assignment.
-
-When a domain has no L, making host work eligible for allocation is a **separate
-scheduler obligation**. Preserve pending work until an eligible assignment can
-service it. The complete stage needs both domain-level demand and targeted
-registered-worker notification for memcached, plus host-only pause/resume
-parking. Target identities are not Go P IDs or Linux CPU IDs. The targeting,
-allocation and retirement interfaces remain open.
 
 ## Execution cases
 
@@ -338,8 +291,7 @@ Future implementation proceeds through these gates:
    targeted pause notifications and host-only resume, including all workers parked.
 3. Run native Go null-RPC receive/reply and nested-call demos on matched hardware,
    with concurrent handlers and both locality and saturated-compute controls.
-4. Later: port Go Raft, then etcd and its client interface. Durability, snapshots,
-   bulk transport, compatibility and failure semantics need their own designs.
+4. Later: follow the [Raft/etcd application plan](../applications/etcd.md).
 
 Future tests must cover every matrix cell, more native callers than Ls, excess
 receive demand, all handlers awaiting children/nested replies, and continued RX/TX under
@@ -367,37 +319,26 @@ latency under compute saturation separately from assignment and admission delay.
 Show unloaded parent/child locality without promoting a preference to a guarantee.
 Use tracing-off controls; no historical run establishes these new properties.
 
-The Go revision is pinned below. Before implementation, settle the proposed hooks
-and temporary demand representation, HOST_WORK ABI and persistence/acknowledgement rules, targeting and allocation
-integration, P acquisition/wake races, response routing, bounded receive-service
+Before implementation, settle the proposed hooks
+and temporary demand representation, the [HOST_WORK ABI and allocation semantics](host-work.md), P acquisition/wake races, response routing, bounded receive-service
 policy and measured latency target. Exact public APIs are not selected here.
 Use the existing [validation](../development/validation.md),
 [CI](../development/ci.md) and [board-test](../development/validation.md#board-validation)
 workflows when implementation is authorized. Timing optimization, arbitrary
 endpoint mobility and complete kill/exit recovery remain outside this stage.
 
-## Pinned source and concrete patch series — October 13
+## Proposed runtime integration
 
-The planning checkout is `../go`, cloned from
-`https://go.googlesource.com/go` with `--depth 1 --branch go1.27.2`.
-The [official release index](https://go.dev/dl/?mode=json) listed this release
-as stable when checked on October 13. The checkout is clean, detached at
-`022c8636110ebac86a9b88724cda168ed713c21f`; `VERSION` records `go1.27.2`
-and `2026-10-02T20:28:03Z`. This is an upstream baseline, not a patched toolchain
-or a submodule. Create a feature branch there before implementation; deepen
-history if an upstream change needs investigation. Do not push to upstream Go.
-Platform source was surveyed at `1496b097` for this plan.
+The source baseline is Go `go1.27.2`, commit
+`022c8636110ebac86a9b88724cda168ed713c21f`. Paths below are relative to that
+source tree; platform paths are relative to this repository. New filenames and
+APIs are proposed. Package the patched toolchain by immutable revision through
+Nix; builds must not depend on an untracked sibling checkout. The baseline's
+`src/cmd/dist/buildtool.go` requires bootstrap Go `go1.24.6` or newer.
+Linux/arm64 is the native target; Linux/amd64 hosts the simulated backend.
+No compiler, language or general-purpose `net` API change is proposed.
 
-Go paths below are relative to that checkout; platform paths are relative to
-this repository. New filenames are proposed, not existing interfaces. Keep Go
-patches in a separate series and pin their resulting commit in a platform Nix
-package when integrating; a build must not depend on an untracked sibling tree.
-`src/cmd/dist/buildtool.go` sets `minBootstrap` to `go1.24.6`. Package a compatible
-bootstrap and build the unchanged baseline before attributing failures to the
-port. The intended native target is Linux/arm64; Linux/amd64 hosts the simulated
-backend. No compiler, language or general-purpose `net` API change is planned.
-
-### 1. Runtime state and deterministic simulated backend
+### Runtime state and deterministic simulated backend
 
 Add proposed `src/runtime/lauberhorn.go`, platform-specific backend files and
 runtime tests. Extend `m` in `runtime2.go` with registration identity, assignment
@@ -423,7 +364,7 @@ Start with tests for every dispatch-matrix cell, cancellation versus claim,
 notification before park, stale assignment generation and over-capacity queues.
 Keep the backend disabled for ordinary programs and unsupported platforms.
 
-### 2. ML dispatch, P handoff and prompt preemption
+### ML dispatch, P handoff and prompt preemption
 
 Patch `proc.go`: `schedule`/`findRunnable` select native demand only on eligible
 ML; `execute` checks claimed operation eligibility before user execution.
@@ -453,7 +394,7 @@ Audit `procresize`, `checkdead`, runtime tracing and thread accounting: external
 deliverable work must prevent false deadlock without hiding a real deadlock.
 Keep ordinary channel, timer, syscall, cgo and GC regression coverage.
 
-### 3. Registered M lifecycle and GC-safe transport waits
+### Registered M lifecycle and GC-safe transport waits
 
 Create a fixed registered M pool matching the kernel's declared worker count.
 Use runtime thread initialization (`newm`/`mstart`, Linux `minit` in
@@ -490,72 +431,14 @@ verify no stale access. Validate affinity of worker, ordinary, sysmon and cgo
 threads. A simulated wait does not validate ARM64 coherence or instruction
 ordering; review against `sw/core/eci/core.h` before real transport integration.
 
-### 4. HOST_WORK contract, assigned wake and unassigned allocation
+### Shared notification dependency
 
-First commit an ABI/state-machine specification and executable race tests; then
-implement kernel, RTL and generated collateral together. Use a domain lifetime
-identity plus registered pool-thread index for targeting, and an assignment
-generation for resolving a live worker. Never accept an arbitrary physical
-worker/CPU/P number from userspace as notification authority. Specify publication,
-coalescing, acknowledgement, cancellation, retirement, and sequence-wrap rules.
+The [HOST_WORK proposal](host-work.md) specifies assigned RX completion,
+host-driven allocation, targeted maintenance and pause/resume. Go must preserve
+its publication and assignment rules; its scheduler cannot substitute a
+userspace pending bit for hardware allocation.
 
-The starting proposal is sticky pending software work with publish-before-notify
-ordering and acknowledgement of the observed sequence after draining eligible
-work. An older acknowledgement must not clear a newer publication. An assigned
-RX wait returns without changing L; packet-first completion keeps its ownership
-and leaves work pending. DESCHED-first completion preserves demand through
-reallocation. Choose plain NACK versus a distinct RX reason only after writing
-these transitions; neither choice is an existing ABI. A plain NACK requires a
-separate authoritative pending-work check and must preserve parity/replay rules.
-
-Patch `Scheduler.scala` for host-driven eligibility of domains without packets,
-with fairness against packet demand and fixed-pool capacity accounting. Patch
-`EciInterfacePlugin.scala`, `EciDecoupledRxTxProtocol.scala` and
-`DcsRxAxiRouter.scala` for assigned wake persistence and RX completion, and
-`EciDeschedulingControlPlugin.scala` for interactions with handoff. Paths are
-under `hw/src/lauberhorn/` (the ECI files under `host/eci/`). Reuse owner checks;
-do not conflate an assigned wake with `DeschedInfo` read authorization. Add kernel
-validation/control in `sw/kmod/` and public wrappers in `sw/rt/`, plus generated
-register/descriptor/version updates through `devHdrs` if the chosen ABI needs them.
-
-Add simulation cases for notification before RX, repeated/coalesced publications,
-acknowledgement races, packet and DESCHED competition, stale targets, wrong-domain
-access, no assigned L and multiple tenants contending. Extend cooperative
-allocation/handoff tests; preserve ordinary no-IRQ handoff. A user-space pending
-bit alone cannot allocate an unassigned domain.
-
-### 5. Targeted maintenance and host-only pause/resume
-
-This is a separate change from ending assigned RX waits. In `sw/kmod/sched.c`,
-`activate` currently chooses the first enabled waiting thread. Introduce target
-claims and eligibility accounting so each registered worker can acknowledge its
-own maintenance notification even when there are more registered threads than
-physical workers. Specify whether servicing an unassigned target temporarily
-allocates L or resumes it on a host CPU without L; this is an unresolved design
-choice and cannot be inferred from HOST_WORK. Host-only execution must not use
-the mailbox or consume an assignment slot.
-
-Add a voluntary pause/relinquishment protocol with kernel/RTL agreement; existing
-`worker_yield` rejects an assigned yield without `yieldRequested`. Do not bypass
-that check or issue speculative `DeschedInfo` reads. Define pause epochs,
-all-target acknowledgement, parked eligibility, resume-before-park and duplicate
-resume handling. Keep a host-side maintenance/timer source runnable when every
-worker is paused, with no dependence on receiving a packet or owning P/L on a
-worker. Retain fail-closed teardown rather than claiming complete recovery.
-
-Wire C controls before the Go demonstration. The adapter is a separate repository:
-`../memcached` is at `b376490d303da13ba15ed0295190893c64d1d324`, matching the
-`memcached` input in `flake.nix`. Patch `thread.c` (`pause_threads`, worker
-notification/dispatch) and the native worker loop there; `assoc.c` calls the
-pause/resume pair during expansion. Advance the platform input/lock to the
-tested adapter commit and update `nix/checks/memcached.nix`, measurement tools
-and `tools/memcached/mock-runtime.c` tests. Replace the unsupported-pause guard
-only after actual hash expansion succeeds: include more worker targets than Ls,
-all workers paused, domain initially unassigned, repeated resize, and no new
-network traffic needed for resume. Record item/hash statistics and protocol
-events, not merely successful mock notifications.
-
-### 6. Owned-data Go RPC binding and native null-RPC
+### Owned-data Go RPC binding and native null-RPC
 
 Add a platform Go module (proposed `sw/go/lauberhorn`) and demo packages, backed
 by a narrow fork-runtime API for register, native entry/settlement and wait. Keep
@@ -595,7 +478,7 @@ preserve the current small-table admission workaround until replacement is
 validated. Run simple reply, concurrent parent/child, nested RPC, rejection,
 timeout and oversubscribed-handler cases through the same receive dispatcher.
 
-### 7. Reproducible builds and acceptance sequence
+### Reproducible builds and acceptance sequence
 
 Add a pinned Go source/patch derivation and checks alongside
 `nix/software/runtime.nix` and `nix/checks/runtime.nix`, exposed through the
@@ -617,29 +500,23 @@ G/M/TID/CPU/P/worker/domain identifiers; compare tracing-on/off cohorts.
 Report demand-to-dispatch distributions separately from admission and assignment
 delay. Set a numerical target after obtaining a baseline; “below a Go quantum”
 is an objective, not an acceptance threshold. Raft/etcd adapters, persistence,
-snapshot/bulk transfer and gRPC remain a later patch series. This plan does not
-authorize a CI launch or board access now.
+snapshot/bulk transfer and gRPC remain a later patch series. 
 
-### Conflict and shortcoming register
+## Design constraints and open decisions
 
-| Finding from this survey | Consequence / required resolution |
+| Constraint | Consequence / required resolution |
 | --- | --- |
-| A hardware RX load can stall while Go expects its running G to reach a safe point. Go signal preemption cannot itself complete the load. | Stage 3 must release P and expose a scannable stack before potentially blocking transport; test STW without waiting for incoming traffic. |
+| A hardware RX load can stall while Go expects its running G to reach a safe point. Go signal preemption cannot itself complete the load. | The wait path must release P and expose a scannable stack before potentially blocking transport; test STW without waiting for incoming traffic. |
 | `exitsyscallNoP` can place G on the global queue and stop its M. | Install activation on M before exit; use an M-specific return path while transport ownership remains live. A syscall wrapper alone is insufficient. |
 | Registered threads acquire FIFO policy in `register_worker_thread`; activation pins them to isolated CPUs. New Go Ms inherit creator affinity. | Audit OS policy/affinity for every thread class; host-only wake needs an explicit policy transition. Never let an ordinary M inherit a worker CPU accidentally. |
 | Go may change the P count; an assigned ML may have no P. | Test explicit P handoff and `procresize`; increasing GOMAXPROCS is not a correctness fix or an endpoint allocation mechanism. |
 | Current kernel chooses any waiting thread; registration is fixed and all-ready. | Dynamic Go M creation is not dynamic worker registration. Use a dedicated registered pool and add targeted claims separately. |
 | Existing DESCHED yield is conditional on hardware handoff, and returning yield always installs L. | Host-only pause/resume cannot be implemented by casually calling existing `lh_yield`; define new transitions before implementation. |
 | Assigned HOST_WORK does not activate an unassigned domain or guarantee a particular thread runs. | Allocation, targeted maintenance and a host-side timer source are mandatory distinct pieces. |
-| The pinned memcached adapter still prints `requires HOST_WAKE` in its native pause failure. | This is an existing unsupported-path diagnostic, not an interface implementation. Rename it when updating that separate repository; the platform note's terminology change did not modify it. |
-| Active demand priority conflicts with indefinite RX starvation; blocking RX can in turn delay TX. | Stage 6 needs a measured fairness budget and wake race tests, including already queued work at RX entry. |
-| Historical `reply-contexts.md` says no owner check; current RTL checks trusted owner and token. | Use current source for the binding; the old note describes its September scope. Validate same-domain cross-worker replies and cross-domain rejection. |
+| Active demand priority conflicts with indefinite RX starvation; blocking RX can in turn delay TX. | Receive service needs a measured fairness budget and wake race tests, including already queued work at RX entry. |
+| Current reply-context RTL checks trusted owner and token. | Validate same-domain cross-worker replies and cross-domain rejection. |
 | Hardware handler metadata currently follows C dispatch conventions; Go stacks move and Go function values are not C function pointers. | Define stable dispatch handles and ownership/rooting before registering a Go service. |
 | Current C small-table workaround, finite credits and failed-retirement fencing remain real constraints. | Do not equate many goroutines with unbounded RPC concurrency or full cancellation/exit recovery. |
 | Standard Go `LockOSThread`/cgo callbacks can impose competing M affinity. | Specify native entry on an externally locked G: initially reject incompatible calls explicitly; do not silently move it or deadlock waiting for L. Test nested runtime/internal locking separately. |
 | Exact wake ABI, host-only target execution, fairness budget and latency threshold are still open. | These are implementation gates, not settled contracts; resolve them in the relevant specification commits with simulator evidence. |
 
-Planning validation: upstream tag/commit and clean checkout verified; Go and
-platform source paths/hooks inspected; documentation links and whitespace
-checked. No Go build, runtime test, RTL simulation, hardware CI or board test
-was run for this documentation-only survey.

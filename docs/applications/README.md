@@ -6,4 +6,5 @@ application use cases linking to them. Etcd/Raft and other application-specific 
 System microbenchmark methodology remains in [research](../research/hot-measurement.md).
 
 - [Dandelion](dandelion.md): bracketed for the paper; integration and retained evidence.
+- [Raft and etcd](etcd.md): planned Go application and transport/persistence dependencies.
 - [Paper goals](../research/paper-goals.md)

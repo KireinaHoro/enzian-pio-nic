@@ -44,4 +44,4 @@ independent workers and simultaneous bypass RX/TX progress. Finite observations
 do not prove infinite-stall progress.
 
 Complete exit recovery, deadline activation and PCIe scheduling are deferred.
-HOST_WORK is a [separate design](../proposals/go-etcd.md#host_work); it is not part of this implemented contract.
+HOST_WORK is a [separate design](../proposals/host-work.md); it is not part of this implemented contract.

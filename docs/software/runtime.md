@@ -131,7 +131,7 @@ NACK timing lets an assigned worker regain control. Parked-domain deadline
 activation and execution-watchdog integration are deferred; the former deadline
 housekeeping thread is removed. HOST_WORK (formerly proposed as HOST_WAKE) and
 its interface are not implemented. The [failure policy](scheduler.md#failure-and-reset-boundary)
-retains unresolved resources. The [Go toward etcd design](../proposals/go-etcd.md)
+retains unresolved resources. The [Go toward etcd design](../proposals/go-runtime.md)
 records the next runtime/HOST_WORK direction, currently documentation only.
 The earlier [raft-rs service proposal](../proposals/service-execution.md) remains
 historical design context, not a Go integration API.

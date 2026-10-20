@@ -8,7 +8,8 @@ implementation or establish acceptance; each proposal states its scope.
 - [Service execution and resident applications](service-execution.md): event-driven service lifetime; raft-rs alternative.
 - [TX completion extensions](tx-completion.md): operation results and completion boundaries.
 - [Lookup scaling and software spill](lookup-spill.md): hot tables, ownership and slow paths.
-- [Go runtime integration toward etcd](go-etcd.md): selected design direction, including HOST_WORK.
+- [Go runtime and goroutine scheduling](go-runtime.md): native demand, assignment, preemption and GC-safe waits.
+- [HOST_WORK](host-work.md): assigned RX completion, host-driven allocation and targeted maintenance.
 - [TCP/Protobuf integration toward gRPC](grpc.md): follow-on protocol scope.
 - [RX-return response transmission](rx-return-responses.md): coupled response submission and receive.
 

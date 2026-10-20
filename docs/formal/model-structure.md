@@ -34,7 +34,7 @@ configurations for today's model.
 
 The graph below records the earlier modeling round. Its host-wake, kill and
 combined scheduling harnesses are retained evidence, not interfaces implemented
-by the cooperative scheduler. The [October 13 HOST_WORK design](../proposals/go-etcd.md#host_work)
+by the cooperative scheduler. The [October 13 HOST_WORK design](../proposals/host-work.md)
 uses a new name and distinguishes assigned RX notification from allocation for
 unassigned domains; it is not implemented. Historical `HostWake` model names and
 their recorded results are unchanged and do not validate the new contract.

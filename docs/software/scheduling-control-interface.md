@@ -137,7 +137,7 @@ see the [failure policy](scheduler.md#failure-and-reset-boundary). Hardware/soft
 ## Unsupported interfaces and open design
 
 HOST_WORK (formerly proposed as HOST_WAKE) is outside this implemented contract.
-The [Go design](../proposals/go-etcd.md#host_work) specifies its intended role:
+The [HOST_WORK proposal](../proposals/host-work.md) specifies its intended role:
 complete an assigned RX wait for software work while retaining the assignment.
 Allocation for unassigned domains is a separate requirement. Host-work fields,
 cookies, RX discriminators and subscription APIs are not implemented. Existing

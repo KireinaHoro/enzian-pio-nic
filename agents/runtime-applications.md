@@ -2,7 +2,7 @@
 
 ## Accepted direction
 
-The [October 13 Go/etcd design](../docs/proposals/go-etcd.md) selects HOST_WORK
+The [October 13 Go/etcd design](../docs/proposals/go-runtime.md) selects HOST_WORK
 (formerly HOST_WAKE) to return assigned RX waiters to host work. Allocation for
 unassigned domains is separate. Preserve worker-core–endpoint affinity.
 The handoff authorizes documentation and naming only, not runtime/kernel/RTL
@@ -266,3 +266,25 @@ live-state assertions. No board access or new measurements accompanied this scru
 
 Preserved fan-out failure records: `out/dandelion-resume/wide-failure-trace/`, `out/dandelion-resume/retry-failure-trace/`.
 Capture SHA-256 identities: `13cb7df01abfdc8fa09053f73c684d3c9f578ada30ef5570aad0e9cf9856c5b3`, `afdd4109dfc12155a0707a19d52e68440506988c47d9b87b4a55c5247723d43c`.
+
+## Go and HOST_WORK implementation handoff
+
+The former combined design is split into [Go scheduling](../docs/proposals/go-runtime.md),
+[HOST_WORK](../docs/proposals/host-work.md) and [Raft/etcd](../docs/applications/etcd.md).
+All remain unimplemented. Documentation work does not authorize runtime/kernel/RTL
+changes, CI launches or board access. Before implementation, settle notification
+ABI and targeting, host-only pause/resume, GC-safe wait/P-return hooks, receive
+fairness and the demand-to-dispatch acceptance threshold.
+
+The October 13 survey used platform `1496b097` and sibling `../go` at upstream
+`022c8636110ebac86a9b88724cda168ed713c21f` (`go1.27.2`). The documentation scrub
+rechecked that commit and the scheduler hooks/bootstrap requirement; it did not
+build Go or run tests. Recheck checkout cleanliness before creating a feature
+branch. Keep patches separate and pin the resulting source in Nix; do not push
+to upstream Go. The original survey is preserved at
+`18a5c89b:docs/proposals/go-etcd.md`.
+
+The memcached input remains `b376490d303da13ba15ed0295190893c64d1d324`.
+Its unsupported-pause diagnostic still says `requires HOST_WAKE`; rename that
+message when implementing the separate adapter change. Do not remove the guard
+until real hash expansion and targeted pause/resume acceptance pass.
