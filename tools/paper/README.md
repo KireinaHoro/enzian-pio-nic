@@ -8,9 +8,23 @@ with New TX math. Axis text is 9 pt, ticks and legends 8 pt. The paper class is
 `\documentclass[sigconf,screen,10pt,dvipsnames]{acmart}`. No captions, titles,
 footnotes or annotations are emitted unless requested. The default aspect ratio is 0.68.
 
-The reusable skill is [paper-chart](skills/paper-chart/SKILL.md). Its installed
-copy lives at `~/.codex/skills/paper-chart/SKILL.md`; keep it in sync with this
-tracked source when updating the skill.
+The project-independent [paper-chart skill](../../../../skills/paper-chart/SKILL.md)
+is tracked in `~/work-local/skills`. The installed `~/.codex/skills/paper-chart`
+links to that source. This page defines the Lauberhorn-specific chart contract.
+
+Import `tools/paper/paper_chart.py` before pyplot. Track source observations and
+provenance under `data/paper/`, plotting and acquisition scripts under
+`tools/paper/`, and the active chart inventory in `tools/paper/charts.json`.
+Track emitted paper PDFs in `../paper/plots/`; retain active figures until their
+replacements are validated. Check the paper source for actual TeX inclusion.
+
+Use the [hot measurement contract](../../docs/research/hot-measurement.md):
+unloaded totals are paired Tofino wire durations; loaded latency is client RTT.
+Software-only readiness data with null wire durations cannot supply a paper CDF
+or CPU–wire residual. Preserve historical measurements' original boundaries.
+For acquisition, follow the platform hardware-test and failure-preservation
+rules. Distinguish requested worker pools from observed active workers and
+resolve cold-workload semantics before collecting a dependent curve.
 
 
 Comparison charts use **DPDK**, **SH-A64**, and **LH** for the DPDK control,

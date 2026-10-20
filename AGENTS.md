@@ -5,6 +5,21 @@ This repository builds an OS-integrated smart NIC on Enzian. Start with
 for your task. These notes were surveyed at `b86c68c` on 2026-09-08; check the
 relevant source and subsequent changes before relying on implementation details.
 
+## Skills and documentation conventions
+
+Use these tracked skills for their respective workflows:
+
+- [documentation-discipline](../../skills/documentation-discipline/SKILL.md): inspect affected documentation on every change and update it in place. README and `docs/` serve human readers; `agents/` holds agent work context and progress.
+- [paper-chart](../../skills/paper-chart/SKILL.md): reproducible publication figures; apply the [local chart contract](tools/paper/README.md).
+- [benchmark-campaign](tools/paper/skills/benchmark-campaign/SKILL.md): RPC measurement campaigns.
+- [enzian-deploy](tools/enzian/skills/enzian-deploy/SKILL.md): Enzian deployment and acceptance.
+- [lauberhorn-trace](tools/enzian/skills/lauberhorn-trace/SKILL.md): FPGA trace preservation and capture.
+- [tofino-capture](../tofino-hw-timestamping/skills/tofino-capture/SKILL.md): Tofino MAC timestamp capture.
+
+Shared skills are tracked in `~/work-local/skills`; Tofino capture is tracked in
+`../tofino-hw-timestamping`. Installed entries under `~/.codex/skills/` link to
+these canonical sources. Edit the tracked source rather than keeping local copies.
+
 ## Task routing
 
 - Routed timing / STA / pipelining / floorplanning: [physical implementation](docs/hardware/physical-implementation.md), [checkpoint findings](docs/hardware/physical-findings.md), [active CI experiments](docs/hardware/physical-experiments.md); run `tools/physical/checkpoint.tcl` on enzian-ba2, read the `tools/physical/summarize.py` digest first.
