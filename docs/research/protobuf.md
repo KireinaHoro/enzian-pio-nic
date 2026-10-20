@@ -1,8 +1,16 @@
 # Protobuf student decoder
 
-Surveyed 2026-09-08. External workspace `../elena-protobuf/`, relative to the platform root. Report: **Elena von Känel, _Unmarshaling unit for the Lauberhorn smart NIC_**, bachelor thesis 606b, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected report `1e4e907`, platform `7a202c3`, spinal-blocks `98870e3`, standalone Protoacc source `8cd3aa596`. The platform gitlink pins `deps/blocks` to `526ee1b4da729fa6394330c6725a784254df2abb`, but that submodule directory is empty here; the separately inspected spinal-blocks checkout is a different revision. Reconcile these before reproducing builds. Its black box loads the tracked `spinal-blocks/deps/protoacc-ae/rtl/generated.v` resource.
+The external implementation in `../elena-protobuf/` provides UDP-fed Protobuf
+receive decoding; it is not integrated into this platform. Elena von Känel's
+*Unmarshaling unit for the Lauberhorn smart NIC*, bachelor thesis 606b (2026),
+describes its design and evaluation. The evidence below refers to report
+`1e4e907`, platform `7a202c3`, spinal-blocks `98870e3` and standalone Protoacc
+`8cd3aa596`. Dependency revisions and the modified schema compiler must be
+reconciled before reproduction; see [integration prerequisites](../../agents/runtime-applications.md#tcp-and-protobuf-integration-prerequisites).
 
-Maintainer priority: preserve and integrate this finished student project soon to limit bit rot, **below active first-full-system-paper applications**. Together with the TCP project, it supports a possible later paper on fully offloaded gRPC. This artifact implements UDP-fed protobuf receive decoding, not a complete gRPC stack. No code has been merged by this documentation survey.
+Integration has lower priority than active first-paper applications. The
+[gRPC proposal](../proposals/grpc.md) describes the additional transport,
+framing and response work beyond this decoder.
 
 ## Source entry map
 
@@ -16,7 +24,7 @@ Paths below are relative to `../elena-protobuf/`; these siblings are not vendore
 | Buffer allocation and direct writes | `platform/hw/src/lauberhorn/{PacketAllocService,PacketBuffer,PacketBufferMem,DmaControlPlugin}.scala` |
 | Routing and host ABI | `platform/hw/src/lauberhorn/net/udp/UdpDecoder.scala`, `Scheduler.scala`, `host/package.scala`, `host/eci/EciHostRxCtrlInfo.scala` |
 | Standalone Protoacc black box and wrapper | `spinal-blocks/blocks/src/jsteward/blocks/protoacc/{ProtoAccelStandAlone,InterfaceWrapped}.scala` |
-| Standalone generation and modified compiler | `protoacc/README.md`; `protobuf-library-for-accel-ae/` (report-listed modified protoc artifact; absent from this local workspace, must recover for ADT generation) |
+| Standalone generation and modified compiler | `protoacc/README.md`; `protobuf-library-for-accel-ae/` (modified protoc artifact required for ADT generation) |
 | Correctness and host reconstruction model | `platform/hw/test/src/lauberhorn/host/eci/ProtoaccSim.scala`; `spinal-blocks/blocks/test/src/jsteward/blocks/protoacc/` |
 | Evaluation | `platform/hw/test/src/lauberhorn/host/eci/ProtoaccEvaluationSim.scala`, `platform/scripts/{run-protoacc-evaluation.sh,aggregate-protoacc-evaluation.py}`, `platform/evaluation-results/` |
 
@@ -43,12 +51,12 @@ Reproduction commands in the sibling platform, after satisfying its build prereq
 ./scripts/run-protoacc-evaluation.sh
 ```
 
-The script runs 22 cases in each of `protoacc` and `baseline` modes and aggregates CSVs; the report estimates about 30 minutes. Historical artifacts were inspected; no simulation, synthesis or hardware test was rerun for this survey.
+The script runs 22 cases in each of `protoacc` and `baseline` modes and aggregates CSVs; the report estimates about 30 minutes. These are historical simulation results, not platform board acceptance.
 
 ## Porting gaps and decisions
 
-- Port the decoder, memory-producer interface, allocation/AXI changes, metadata enums, scheduler and ECI changes together; regenerate matched descriptors/headers. Audit incidental ECI and submodule changes in the student branch rather than importing its entire delta blindly. Preserve the standalone RTL source/generation recipe and compatible spinal-blocks revision.
+- Port the decoder, memory-producer interface, allocation/AXI changes, metadata enums, scheduler and ECI changes together; regenerate matched descriptors/headers against the [current HW/SW interface](../architecture/hw-sw-interface.md). Audit incidental ECI and submodule changes in the student branch rather than importing its entire delta blindly. Preserve the standalone RTL source/generation recipe and compatible spinal-blocks revision.
 - Define the production host ABI: schema registration, synthetic-pointer access or relocation, slot ownership/freeing, completion and failure recovery. Decide how all fragments reach one application invocation when workers are isolated and descriptors can be scheduled separately. The current test's global collector is not that protocol.
 - Establish bounded malformed-input behavior, ADT validation, output bounds and allocation-failure recovery before asserting isolation. Address/index truncation and fixed windows need explicit scrutiny; global ADT/PID state must not change beneath an active message. Test large, sparse and mixed layouts, stale buffer contents/presence bits and writes crossing boundaries. These are review requirements, not reproduced failures.
-- Reconcile multi-slot receive critical sections with 2F2F progress, task timeout/kill and buffer reclamation. Existing simulation success does not establish OS security or recovery guarantees.
+- Reconcile multi-slot receive lifetimes with the [borrowed-buffer APIs](../software/programming-model.md), [scheduling contract](../software/scheduling-control-interface.md), 2F2F progress, task timeout/kill and buffer reclamation. Existing simulation success does not establish OS security or recovery guarantees.
 - The later gRPC direction still needs integration with TCP stream reassembly, HTTP/2 multiplexing/flow control and gRPC framing/method/schema selection; this project supplies unmarshaling, not those layers or a response serializer. Keep that work separate from the first full system's application/evaluation milestones; see the [gRPC integration roadmap](../proposals/grpc.md), [paper goals](paper-goals.md) and [roadmap](roadmap.md).

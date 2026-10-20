@@ -340,3 +340,34 @@ Do not equate control-array routing tests with full payload/THX integration.
 Preserve the model bounds and environmental assumptions in the formal topics.
 Timing optimization remains paused. Go/HOST_WORK implementation, new model runs,
 CI and board access are not authorized by documentation migration.
+
+## TCP and Protobuf integration prerequisites
+
+Integration remains below active first-paper applications; no source merge is
+part of this documentation scrub. The canonical [TCP](../docs/research/tcp.md),
+[Protobuf](../docs/research/protobuf.md) and [gRPC proposal](../docs/proposals/grpc.md)
+retain contracts, evidence and design gaps. Select merge order from a concrete
+application dependency rather than an old generic priority sentence.
+
+The scrub rechecked external platform HEADs: TCP
+`9bedb13602ca6273d927f42fb1e0f3b6ae0502b7`, Protobuf
+`7a202c3a601fa1eb7992a4b7b51f28a9b164bba0`. Their reports were originally surveyed
+at `e39bf00` and `1e4e907` respectively. TCP routed metadata identifies
+`46bc64784c484fc0`; do not attribute its timing/area result to a different tree.
+The TCP `eciTcpOn`/`eciTcpOff` and Make targets exist despite the old sibling
+FUTURE-WORK note saying otherwise. Keep the software owner model distinct from
+a production host implementation.
+
+Before reproducing Protobuf, reconcile the platform blocks gitlink
+`526ee1b4da729fa6394330c6725a784254df2abb` with separately surveyed spinal-blocks
+`98870e3`. The local submodule was empty at the original survey; the gitlink was
+rechecked during this scrub. The standalone Protoacc source was `8cd3aa596`;
+the black box loads tracked `spinal-blocks/deps/protoacc-ae/rtl/generated.v`.
+Recover the report-listed `protobuf-library-for-accel-ae` modified protoc artifact,
+which is absent locally, and preserve its ADT generation recipe. Do not silently
+replace these dependencies with mismatched sibling checkouts.
+
+No simulation, synthesis, build or board tests ran during this documentation
+pass. External trees and data artifacts were not modified. Earlier survey text
+is available at `dae27996:docs/research/tcp.md` and
+`dae27996:docs/research/protobuf.md`.
