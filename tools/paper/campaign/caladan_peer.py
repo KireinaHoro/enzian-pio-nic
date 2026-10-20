@@ -14,6 +14,14 @@ import time
 import urllib.request
 
 
+def nic_errors_unchanged(before, after):
+    before=before.get('stats64',before.get('stats',{}))
+    after=after.get('stats64',after.get('stats',{}))
+    return all('errors' in before.get(direction,{}) and
+               after.get(direction,{}).get('errors')==before[direction]['errors']
+               for direction in ('rx','tx'))
+
+
 def run(config, peer):
     root=Path(config['output']);root.mkdir(parents=True,exist_ok=False)
     (root/'request.json').write_text(json.dumps(config,indent=2)+'\n')
@@ -35,6 +43,8 @@ def run(config, peer):
     original={p:Path(p).read_text().strip() for p in settings}
     nic=json.loads(command('ip','-j','addr','show','dev',interface))[0]
     baseline=command('dmesg').splitlines()
+    nic_before=json.loads(command('ip','-j','-s','link','show','dev',interface))[0]
+    save('nic-before.json',nic_before)
     processes=[];modules=[];changed=False;error=None;restored=False;isolation=None
     manifest=json.loads(Path(config['manifest']).read_text())
     (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
@@ -140,6 +150,10 @@ def run(config, peer):
         after={p:Path(p).read_text().strip() for p in settings}
         faults=[line for line in command('dmesg').splitlines() if line not in baseline and
                 any(word in line for word in ('BUG:','Oops:','Call trace:','Internal error','soft lockup'))]
+        nic_after=json.loads(command('ip','-j','-s','link','show','dev',interface))[0]
+        save('nic-after.json',nic_after)
+        if not nic_errors_unchanged(nic_before,nic_after):
+            error=(error or '')+'; NIC error counters changed or unavailable'
         restored=not cleanup and after==original
         if faults: error=(error or '')+'; kernel fault'
         if not restored:error=(error or '')+'; restoration failed: '+str(cleanup)

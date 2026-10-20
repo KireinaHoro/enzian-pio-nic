@@ -42,14 +42,15 @@ def render(source,output, *, rehearsal=False):
             median,p99=np.percentile(values,[50,99])
             ax.plot(median,.5,'o',color=chart.COLORS[i],markersize=3)
             ax.plot(p99,.99,'D',color=chart.COLORS[i],markersize=3)
-            ax.text(.75 if size==1432 else .97,.73-i*.30,
+            ax.text(.03 if len(systems)==1 else (.75 if size==1432 else .97),.73-i*.30,
                     f'{system}: median {median:.3f}, P99 {p99:.3f} '+r'$\mu$s',
-                    transform=ax.transAxes,ha='right',va='center',fontsize=6,
+                    transform=ax.transAxes,ha='left' if len(systems)==1 else 'right',va='center',fontsize=6,
                     color=chart.COLORS[i])
 
         ax.set_xscale('log')
         ax.set_yticks([0,.5,1],['0','.5','1'])
-        ax.text(.97,.16,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)
+        ax.text(.03 if len(systems)==1 else .97,.16,str(size)+' B',transform=ax.transAxes,
+                ha='left' if len(systems)==1 else 'right',fontsize=8)
     from matplotlib.ticker import NullFormatter
     axes[-1].set_xticks([3,5,10,20,30],['3','5','10','20','30'])
     axes[-1].xaxis.set_minor_formatter(NullFormatter())
@@ -82,7 +83,7 @@ def render(source,output, *, rehearsal=False):
                 combined[label]=mean
                 ax.barh(len(systems)-1-i,mean,left=bottom,height=.45,color=colors[j],label=label if not i else None)
                 center=bottom+mean/2
-                if mean>=1.8:
+                if mean>=max(1.8,panel_max*.12):
                     ax.text(center,len(systems)-1-i,f'{mean:.3f}',ha='center',va='center',fontsize=7)
                 elif mean>=.5:
                     ax.text(center,len(systems)-1-i,f'{mean:.3f}',ha='center',va='center',fontsize=6.5,rotation=90)

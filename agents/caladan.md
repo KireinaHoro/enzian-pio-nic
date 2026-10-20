@@ -175,7 +175,10 @@ is `e05e580` on `enzian-port`. Campaign Python tests: 80 passed in
 `out/caladan-integration/tests-launch.log`; the AArch64 image build includes the
 shared RPC/QEMU checks and probe-free symbol gate.
 
-Current acceptance root: `out/caladan-wire-acceptance-20261020-r2`.
+Accepted wire matrix: `out/caladan-wire-acceptance-20261020-r2` (six cohorts,
+100 measured + 128 warmup requests each). Both instrumentation modes passed
+exact Tofino pairing, trace-loss/partition checks and restoration. Reviewed
+previews and PDF/font checks are in `out/caladan-integration/preview-reviewed/`.
 Matched hardware manifest: `out/caladan-integration/hardware-fixed.json`.
 The first root preserves a rejected traced export: an activity helper inherited
 an unblocked trace-export signal. The backend now blocks both export signals
@@ -192,8 +195,17 @@ are guaranteed/resident; this does not establish competing-tenant preemption,
 zero-core wakeup or reclamation. Counter export includes warmups and runs after
 client drain; software timing is compiled out for loaded trials.
 
-Next: finish six off/breakdown wire acceptance cohorts, inspect their previews,
-then launch the full CS-A64-only frozen grid. Full unloaded collection/plots must
-finish before loaded acquisition. Keep baseline-only previews in their archive
+Prepared full configuration: `out/caladan-integration/full.json`, with six
+10,000-request unloaded cohorts and twelve loaded configurations (three payloads,
+one through four workers). The frozen grid has 120 initial points, geometric
+extensions through overload and sustained confirmations. Full unloaded
+collection/plots must finish before loaded acquisition. Loaded acceptance is
+enforced by the actual acquisition/import/activity gates; no loaded result is
+claimed yet. Keep baseline-only previews in their archive
 (`publish_plots: false`) until a combined comparison is reviewed. The original
 LH/DPDK paper figures remain in place.
+
+The NIC health guard also rejects missing or changed RX/TX error counters; its
+six targeted Caladan tests passed (`out/caladan-integration/tests-health.log`).
+The full launch root is `out/caladan-hot-full-20261021`; check a terminal callback
+before inspecting progress.
