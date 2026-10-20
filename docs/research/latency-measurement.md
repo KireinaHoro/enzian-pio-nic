@@ -19,7 +19,10 @@ The reusable [traffic generator](../../../microbenchmarks/client/README.md)
 replaces the client UDP/RPC stack with direct polling through a DPDK PMD.
 The common engine owns timing, warmup, request IDs, timeouts and CSV output;
 benchmark codecs supply payload encoding/validation. Add and multiply use the
-existing `bench.x` wire contract. Echo is a transport diagnostic. See the [Enzian validation results](../development/dpdk-benchmark-results.md) for the physical client evidence and remaining comparison.
+existing `bench.x` wire contract. The historical UDP echo loopback is a transport diagnostic; schema-defined
+echo RPCs are the active microbenchmark workload. See the
+[benchmark guide](../development/benchmark-campaign.md#dpdk-traffic-generator)
+for generator operation and calibration limits.
 
 For each **matched request**, compute the external residual as:
 

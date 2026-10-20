@@ -94,3 +94,53 @@ extension stopped at 2,688 requests on client ENOSPC and is a failed campaign,
 with frozen trace and software records preserved. Full pool-size/performance
 measurements require separate acceptance; the finite switching results are in
 [runtime/application context](runtime-applications.md).
+
+## October 4 traffic-generator validation reference
+
+Client: Ubuntu `6.8.0-146-generic`, patched DPDK 23.11.4, ThunderX
+`0002:01:00.2` / `cpu40g1`, 40 Gb/s, PA/no-IOMMU, Linux CPU 6. Management/root
+storage stayed on `cpu40g0`. The isolated configuration uses NO_HZ_FULL and
+moves ordinary scheduling/IRQs away from CPU 6; DPDK telemetry is disabled.
+
+All numbers in this table are **raw**, with no clock-probe subtraction.
+Loopback echoes a 64-byte UDP payload through the client's own NIC; it does
+not traverse a Lauberhorn server or measure link/switch/transceiver costs.
+
+| Configuration | Measured / warmup | Median E2E | P99 E2E | Maximum E2E | Median client software | P99 client software |
+|---|---:|---:|---:|---:|---:|---:|
+| Initial loopback | 10,000 / 100 | 2.140 µs | 4.840 µs | 36.850 µs | — | — |
+| Isolated trial 1 | 100,000 / 1,000 | 2.080 µs | 2.430 µs | 7.790 µs | 0.570 µs | 0.580 µs |
+| Isolated trial 2 | 100,000 / 1,000 | 2.080 µs | 2.420 µs | 7.780 µs | 0.570 µs | 0.580 µs |
+| Isolated trial 3 | 100,000 / 1,000 | 2.140 µs | 2.440 µs | 7.940 µs | 0.560 µs | 0.580 µs |
+
+Client software is a **per-request sum** of encode, PMD enqueue and validation,
+not a sum of percentiles. The polling interval includes NIC latency and polling
+observation delay. All attempts succeeded; warmup is explicitly marked and
+excluded only from reported distributions. First/last-quarter corrected medians
+are respectively 2.050/2.030, 2.070/2.020 and 2.090/2.090 µs. Residual tails remain;
+do not replace the distribution by a constant or subtract this echo calibration
+from a differently sized RPC workload.
+
+A gateway UDP echo test also passed **10,100/10,100 exchanges** over the real
+switch path. Its raw median was 35.580 µs, P99 63.231 µs; the gateway's software
+response is included, so those values are functional evidence, not a fixed
+network-cost calibration. Each test restored the data VF. A final short test
+also checked exact IPv4/broadcast, MAC and MTU restoration.
+
+Raw CSVs, summaries and the standalone `client-calibration.pdf`/`.png` are under
+`out/benchmark-zs07/`; remote originals are under
+`/scratch/pengxu/dpdk-benchmark/`. CSV hashes and compact distributions are
+retained in the [calibration ledger](../data/eci/board-evidence/dpdk-client-20261004.json). Different sample counts and both CPU isolation
+and telemetry changes distinguish the initial and final configurations; this
+is not an isolated causal estimate of the effect of one kernel option.
+
+Physical testing used the Ubuntu-native patched DPDK 23.11.4 binary. Native
+x86 and cross AArch64 Nix packages pinned 26.03; their final expressions built
+against pinned nixpkgs after full flake snapshotting exhausted storage. The
+cross build is not physical execution of that package. Five pcap replay cases
+(add, multiply, wrong result, stale ID, timeout) passed on patched Enzian and
+x86 packages; eight trace-accounting and five summary tests also passed.
+These are recorded October 4 results, not tests run during the documentation
+scrub. No FPGA was programmed for client validation. Full historical record:
+`e7820314:docs/development/dpdk-benchmark-results.md`. The obsolete server-side
+2F2F comparison plan is not part of generator validation or a new campaign task.

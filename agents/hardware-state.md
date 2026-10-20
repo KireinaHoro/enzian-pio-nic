@@ -118,3 +118,17 @@ blindly. Principal evidence:
 Full investigation history, including earlier diagnostic pipelines and probes,
 is in Git at `f3e1ddaa:docs/development/cmac-trace-diagnosis.md`. No outstanding
 CMAC experiment or CI launch is implied by these historical records.
+
+## October 4 shared-root release observation
+
+The traffic-generator campaign accidentally reserved zuestoll10 with the same
+named root as zuestoll14; 10 was never booted or mounted. EMG release removed
+shared export configuration and attempted target deletion without checking the
+other reservation. Check root/export sharing before releasing a reservation;
+use EMG exclusively rather than editing exports or backing volumes manually.
+The maintainer subsequently authorized release of all boards. Reservations
+14/10/12/07 were removed; generated roots for 07/12 were deleted and named
+`lauberhorn-linux-6.8` retained. The active target refused deletion; no manual
+cleanup was forced. This is a dated closeout, not current reservation state.
+Evidence: `out/benchmark-zs07/release-all-final.txt` and the
+[ledger closeout](../data/eci/board-evidence/dpdk-client-20261004.json).

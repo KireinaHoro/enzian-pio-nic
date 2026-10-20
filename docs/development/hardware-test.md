@@ -234,7 +234,8 @@ Keep host kernel/modules provisioned through `emg` and record their versions.
 
 For the reusable polling client and VF restoration runner, see the
 [DPDK generator](../../../microbenchmarks/client/README.md) and
-[measurement contract](../research/latency-measurement.md). The [client validation report](dpdk-benchmark-results.md) records kernel/PMD requirements and measured jitter. Its pcap replay
+[measurement contract](../research/latency-measurement.md). The [benchmark guide](benchmark-campaign.md#dpdk-traffic-generator) explains
+the generator, kernel/PMD requirements and calibration limits. Its pcap replay
 checks are functional tests; require physical packet validation before collecting
 network latency data.
 

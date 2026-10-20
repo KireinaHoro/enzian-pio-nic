@@ -18,6 +18,62 @@ topology, not live reservations; verify reservations and placement at preflight.
 Never relabel NICVF observations as ConnectX-5 results. Full collection requires
 the hash-bound real-workload capture acceptance described below.
 
+## DPDK traffic generator
+
+The separate client runs `bench_dpdk` from `../microbenchmarks/client/`. It
+constructs Ethernet/IPv4/UDP/ONC-RPC packets and polls the NIC directly through
+a DPDK PMD. The common engine owns request IDs, pacing, warmup, timeouts,
+response validation and observations; schema-derived codecs supply the echo
+payloads. The same generator drives both Lauberhorn and DPDK responders.
+The client needs neither a programmed FPGA nor the Lauberhorn kernel module.
+
+Unloaded acquisition uses one outstanding request and Tofino server-facing
+wire timestamps. Loaded acquisition uses response-independent paced batches
+across generator CPUs and aggregate client RTT observations. Warmup is excluded
+from reported distributions but retained in detailed records where required for
+correlation. Request IDs distinguish matching replies from stale or unrelated
+traffic; failed requests and admission failures remain explicit outcomes.
+Use the campaign controller below to select the workload and observation mode.
+
+The generator takes explicit client/server IP addresses, UDP port and next-hop
+MAC; it does not implement ARP, DHCP, ICMP or routing. Provision the client
+through `emg`, deploy the packaged generator, and bind only its data VF. Keep
+management/root storage on its existing interface. The
+[VF runner](../../tools/enzian/dpdk_run.py) snapshots and restores the driver,
+addresses, routes, hugepage settings and VFIO mode, and reports restoration in
+`summary.json`. Verify generator CPU isolation separately from DUT worker-core
+placement. Build commands, standalone invocation and packet-replay tests are in
+the [generator instructions](../../../microbenchmarks/client/README.md).
+
+ThunderX NICVF requires the patched PMD receive-filter setup: `ADD_MCAST`
+populates the Linux PF CAM list before `SET_XCAST` applies mailbox mode flags.
+The runner uses legacy hugepage allocation for physically contiguous DMA rings
+in PA/no-IOMMU mode and disables telemetry. The historical physical validation
+used Ubuntu 6.8.0-146 and patched DPDK 23.11.4; the corresponding Nix packages
+pinned DPDK 26.03. Preserve kernel, PMD and NIC identity in measurement provenance;
+these NICVF requirements and observations do not describe the ConnectX-5 baseline.
+
+### Generator timing and calibration
+
+Client RTT spans encoding/framing, PMD enqueue, receive polling and response
+validation. Enqueue and receive timestamps are software boundaries. The
+client-software metric sums encoding, enqueue and validation **per request**;
+summarize that sum rather than adding percentiles. Detailed records retain
+warmup and failures, and recording avoids file writes inside the measured RPC.
+The [measurement methodology](../research/latency-measurement.md) defines the
+legacy raw/corrected timestamp accounting; the active campaign boundaries are
+specified below.
+
+Hardware loopback checks the client's own NIC path. The October 4 64-byte UDP
+echo calibration measured raw median RTTs of 2.080–2.140 µs and P99s of
+2.420–2.440 µs in three isolated-CPU trials. It excludes the server and external
+switch path. Gateway echo includes the gateway's software response. Neither
+calibration supplies a constant network cost to subtract from RPC results, and
+pcap replay supplies functional checks rather than physical latency evidence.
+The [calibration ledger](../../data/eci/board-evidence/dpdk-client-20261004.json)
+retains configurations, sample counts, hashes and distributions. Isolation and
+telemetry changed together, so the comparison does not isolate either effect.
+
 ## Shared echo server implementation
 
 LH and DPDK share the synchronous runtime request, handler and reply path
