@@ -125,8 +125,7 @@ For DPDK hardware timestamp runs, `lh-dpdk-run --ptp-bgx 4` requires
 `--manifest /nix/store/lauberhorn-client/manifest.json`. Before rebinding the data
 VF it checks the running kernel, benchmark package, installed module hashes,
 loaded module source versions, and active PHC. Its `before.json` records this
-provenance. The old standalone test driver and exploratory probe recipes have
-been retired; all supported builds use the shared package input.
+provenance. Supported builds use the shared package input.
 
 The sibling README documents PHC fallback activation, BGX/LMAC selection,
 packet-kind mapping, API scope, and the outstanding board acceptance. For local iteration before
@@ -134,8 +133,7 @@ local changes are published, override the pinned Git input with the local siblin
 checkout. Refresh it after sibling edits with
 `nix flake lock --override-input thunderx-ptp path:"$(realpath ../thunderx-dpdk-ptp)"`.
 After publishing that repository, restore the Git pin using
-`nix flake update thunderx-ptp`. The no-commit/no-push iteration rule applies
-to plotting changes; keep those separate from driver and measurement commits.
+`nix flake update thunderx-ptp`.
 
 ## Microbenchmark sources
 
@@ -145,17 +143,17 @@ memcached. DPDK responder builds receive the filtered platform
 RPC/tracing sources explicitly; client builds are independent of that runtime; the Lauberhorn server receives the matching
 runtime package. Recovery tests use the schema from that same input.
 For local edits use `--override-input microbenchmarks path:../microbenchmarks`;
-published builds use the Git revision in `flake.lock`. Caladan support is
-reserved for a later change in the benchmark repository.
+published builds use the Git revision in `flake.lock`. The Caladan echo server
+has its own `server/caladan/package.nix`; the platform exposes `mkCaladan`
+for integration. See the [Caladan baseline](../research/caladan-enzian.md) for
+the selected configuration and acceptance scope.
 
-The benchmark repository now separates `server/lauberhorn`, `server/dpdk`,
+The benchmark repository separates `server/lauberhorn`, `server/dpdk`,
 and the DPDK-only `client`. Each has its own Makefile and Nix package.
 `trafficGenerator{,Native}` contains only `bench_dpdk`; `dpdkServer{,Native}`
 contains the two responder instrumentation variants. The mlx5 equivalents are
-`mlx5TrafficGenerator{,Native}` and `mlx5Server{,Native}`, replacing the bundled
-`mlx5Benchmark{,Native}` outputs. Deployment images explicitly compose client
-and responder packages. The socket client is retired; historical reproduction
-recipes remain pinned to their original revisions.
+`mlx5TrafficGenerator{,Native}` and `mlx5Server{,Native}`. Deployment images
+explicitly compose client and responder packages.
 
 ## Application packaging
 
