@@ -1,26 +1,23 @@
-# Caladan Enzian baseline design and progress
+# CS-A64: Caladan Simple on AArch64
 
-Use **SH-A64** as the chart label for the AArch64 Caladan baseline, alongside
-**DPDK** and **LH**. Add its series only after implementation and acceptance.
+**CS-A64 (Caladan Simple)** is the paper's Caladan baseline, alongside **DPDK**
+and **LH**. It runs Caladan's simple scheduling policy and mlx5 directpath on
+Enzian ThunderX with ConnectX-5. It is a Caladan port, not a Shenango simulation.
+IAS and full Caladan interference-control claims are outside the selected scope.
 
-**Scope: ARMv8 + mlx5 directpath; focused native CPU, kernel/runtime and CX-5 packet checks pass; broader acceptance pending.**
-Updated October 20, 2026. Port the maintained Caladan tree to Enzian AArch64
-with ConnectX-5 directpath and the simple policy. This is the baseline for
-Lauberhorn hot latency/throughput, core reclamation and bounded multi-instance
-memcached. It does not reproduce IAS or full Caladan interference-control claims.
-
-The previous centralized NICVF datapath, DSCP/VNIC directpath investigation and
-x86 calibration experiments are superseded and outside the implementation plan.
-Preserve upstream x86 code and default behavior; no separate x86 calibration
-recipes, deployments or measurements are required.
+The [paper goals](paper-goals.md#planned-applications-and-baseline) distinguish
+DPDK's transport/CPU-processing control from CS-A64's runtime-managed core
+allocation and networking. Native Lauberhorn versus Caladan
+[memcached](../applications/memcached.md) is a main application comparison.
+Add measured series only after the relevant benchmark acceptance; functional
+checks do not establish latency, throughput, power or scheduling guarantees.
 
 ## Selected setup
 
 | Setting | Target |
 | --- | --- |
-| Source | `../caladan`, branch `enzian-port`, upstream base `bdb4ddebc2198cd95991079ed20e44a5f210d6d3` |
+| Source | Maintained AArch64 Caladan port in `../caladan`, upstream base `bdb4ddebc2198cd95991079ed20e44a5f210d6d3` |
 | CPU and NIC | Enzian ThunderX ARMv8 with Mellanox ConnectX-5 |
-| Selected boards | **zuestoll07** DUT with CX-5; **zuestoll14** peer/load generator, authorized October 20. Live reservations checked before testing. |
 | Datapath | Existing mlx5 directpath backend, adapted for ARM; runtime RX/TX bypass IOKernel packet forwarding |
 | Scheduling | Actual Caladan runtime and IOKernel simple-policy core allocation/preemption |
 | IOKernel arguments | `simple noht nobw no_hw_qdel nicpci <CX-5 PCI-address>` |
@@ -35,74 +32,29 @@ cooperative workers. Exclude UINTR, IAS/Intel PCM/PMCs and SPDK from this select
 build, without deleting their upstream implementations. No NICVF/PF, DSCP
 classification, custom VNIC ownership or ThunderX PTP work is required.
 
-## Packaging and deployment
 
-Caladan owns `package.nix`, `ksched/package.nix`, and the mlx5 DPDK/patched
-rdma-core recipes. Platform `mkCaladan { source = ...; }` supplies the AArch64
-toolchain, prepared kernel and standalone SquashFS image. Reuse the platform
-flake lock and DPDK-baseline deployment routines; no Lauberhorn runtime or RTL
-build is required. The image exposes `/nix/store/caladan`, a provenance manifest,
-Caladan tools and its scheduler modules. Mellanox host kernel drivers must match
-the selected boot kernel; the image does not currently package replacements.
+## Port and build
 
-```sh
-# From ../caladan; board acceptance remains separate from these builds.
-nix build --impure --file default.nix runtime
-nix build --impure --file default.nix image
-nix develop --impure --file default.nix shell
-nix build --impure --file default.nix checks
-```
-
-The DPDK recipe selects mlx5 and its PCI/auxiliary dependencies and retains
-Caladan's memseg setting. rdma-core is pinned to
-`53ee89b4abb1463e7ae713103f552b2bef1307ce` with Caladan's five existing patches.
-The ARM dependency cross-builds now pass. MMIO/DMA behavior still requires
-hardware acceptance; historical x86 builds do not establish that result. The calibration wrapper and centralized-build feature switch
-have been removed. Native x86 architecture code remains intact.
-
-Use the [deployment skill](../../tools/enzian/skills/enzian-deploy/SKILL.md), EMG
-and the platform harness. Check live reservations and preserved experiment state
-before deployment. The October 20 instruction authorizes zuestoll07/14 for focused
-Caladan tests, superseding the earlier instruction to leave zuestoll07 untouched.
-Record PCI address, firmware, link,
-NUMA placement, kernel and source/image identity before acceptance.
-
-The earlier reservation of **zuestoll04** with volume
-`caladan-enzian-z04-20261016`, cloned from golden `2025-07-28`, is historical
-provisioning evidence, not the selected CX-5 target. It was acquired powered off
-with boot bundle `pengxu/lauberhorn-6.8.0-146-ptp/{vmlinuz,initrd.img}`; no Caladan
-boot or deployment was performed. No release or reassignment is implied by this
-scope update. Recheck its state before cleanup. For a new board use an explicitly
-selected golden image and a checked-unused, distinct root-volume name: EMG can
-silently reuse names and couple active exports. Never reuse the z04 volume for
-another active board. The deploy skill's golden-image/name safeguards remain.
-
-## Remaining port and acceptance stages
-
-| Stage | Required evidence | Status |
-| --- | --- | --- |
-| ARM build and primitives | Libraries/tests build; AAPCS64 context/SIMD preservation, stack ownership, TLS/migration, atomics/barriers and timing work | ARM/x86 builds, QEMU checks and native ARM mechanism checks pass; sustained stress pending |
-| Kernel handoff | Matched ARM modules; repeated yield, signal/IPI preemption of a busy process, resume and idle handling | Matching modules load; API/shared mapping and one-/two-kthread runtime checks pass; busy-owner signal/IPI preemption still pending |
-| mlx5 directpath | Patched rdma-core/DPDK cross-build; DMA/MMIO ordering, queue creation, RX/TX/completions, buffer ownership, ARP and steering | CX-5 initialization, flow steering and three peer ICMP replies pass; sustained traffic/ownership stress pending |
-| Scheduling integration | Arrival to zero-core process wakes it; core reassignment and busy-owner reclamation preserve packet and runtime progress | Pending |
-| Hot baseline | Correct UDP request/reply at selected workers/loads; unloaded and loaded controls; validated clocks and instrumentation | Pending |
-| Memcached | Pinned runtime-native port, bounded single/multi-instance GET workload and actual scheduling progress | Not started; beyond the current stages 1–3 request |
-
-Architecture work includes raw syscalls, signal-frame/restoration semantics,
-GS/FS-dependent state, checksum/CRC helpers and ARM acquire/release barriers.
-Preserve Linux signal/IPI handoff while gating x86 UINTR/PMC paths. Validate page
-sizes, fixed-address assumptions, PCI MMIO barriers, DMA visibility and the
-mlx5 directpath backend's architecture assumptions. The existing non-MWAIT
-fallback polls in microsecond steps; record and measure any tighter polling
-choice rather than claiming power-efficient idle.
+The [ARM port differences](caladan-arm-port.md) describe TLS access, context
+switching, signal preemption, memory ordering, idle polling, DPDK alignment and
+clock restrictions relative to x86. ARM idle handoff uses up to 64 acquire polls
+per callback. It keeps the CPU executing and may favor baseline activation
+latency at the cost of idle CPU/power; no power saving is established.
 
 The simple policy preempts an owner above its guarantee for a requester below
 its guarantee. Use feasible guarantees and burstable allocations. Continuously
-busy zero-guarantee tenants are not automatically assured time-sharing. Test
-idle wakeup and busy-owner preemption separately and verify actual allocation,
-not merely successful process startup.
+busy zero-guarantee tenants are not automatically assured time-sharing. Idle
+wakeup and busy-owner preemption require separate allocation/progress checks.
 
-## Measurement contract
+Caladan owns its build recipes; platform `mkCaladan { source = ...; }` composes
+the AArch64 toolchain, matched kernel modules and SquashFS image. No Lauberhorn
+RTL build is required. Host mlx5 drivers must match the boot kernel. See
+[build, validation and tracing](../development/caladan.md) for commands and
+[board validation](../development/validation.md#board-validation) for deployment.
+Our human documentation and agent context are maintained in this platform
+repository; the port tree contains navigation links only.
+
+## Paper measurement contract
 
 Use the port directly on Enzian; **no x86 calibration experiments** are planned.
 Match Lauberhorn payload/handler semantics, worker counts and offered loads.
@@ -119,113 +71,68 @@ clock domains. Use the existing generator when it can express the workload.
 
 Pin the memcached revision and pre-size its table: the published runtime port
 lists hash expansion as unfinished. Bound operations, keys/values, dataset and
-maintenance to match [Lauberhorn's memcached scope](memcached.md). New TCP,
+maintenance to match [Lauberhorn's memcached scope](../applications/memcached.md). New TCP,
 general-purpose tracing and portability beyond the selected ARM/kernel/NIC
 configuration remain outside this port.
 
-## Current implementation checkpoint — October 20, 2026
+## Bounded functional evidence
 
-Caladan `586a5a1` on `enzian-port` adds focused hardware fixtures and fixes the
-shared RX object layout. The separate
-[AArch64 port approach](../../../caladan/docs/arm-port-approach.md) compares the
-implementation and machine-level costs with x86; progress belongs here.
+The October 20 checks used zuestoll07's ThunderX-88XX (48 CPUs, one NUMA node,
+4 KiB pages, CRC32, 100 MHz architectural counter), kernel `6.8.0-146-generic`,
+and CX-5 `0005:90:00.0`, firmware `16.35.8002`. IOKernel used simple policy and
+normal mlx5 flow steering, control CPU 44 and dataplane CPU 45; runtime workers
+used 46/47 with one guaranteed kthread. Zuestoll14 was the peer (NICVF for the
+functional checks, not a substitute for the DUT's CX-5). These are recorded test
+placements, not required or live reservations.
 
-### Tested setup
+### CPU, kernel and packet path
 
-- DUT zuestoll07: ThunderX-88XX, 48 CPUs/one NUMA node, 4 KiB pages,
-  CRC32 available, architectural counter 100 MHz. Kernel `6.8.0-146-generic`.
-- CX-5 `0005:90:00.0`, `enP5p144s0np0`, MAC `b8:ce:f6:87:c2:9e`,
-  firmware `16.35.8002`, kernel `mlx5_core`/`mlx5_ib`; link/RDMA ACTIVE in test.
-- IOKernel: `simple noht nobw no_hw_qdel 44-47 nicpci 0005:90:00.0`,
-  control CPU 44, dataplane 45, runtime workers 46/47. Normal mlx5 flow steering.
-- Runtime: `enable_directpath 1`, one then two kthreads, one guaranteed kthread,
-  BE priority; IP `192.168.128.207/18`, gateway `192.168.128.1`.
-- Peer zuestoll14: existing `cpu40g1`, `192.168.129.193`, used only for three
-  ICMP probes. No benchmark or peer configuration change.
-- Existing root volumes `lauberhorn-linux-6.8` (07) and
-  `echo-generator32-20261015` (14) retained; no provisioning, reboot or FPGA work.
-  DUT root hostname misleadingly says zuestoll14; console identity, iSCSI
-  initiator, management address and PCI/MAC establish that it is zuestoll07.
+At Caladan `586a5a1`, all eight CPU checks passed natively: 10,000 CRC reference
+comparisons; checksum alignment/tail/carry checks; 10,000 signal-frame switches
+preserving integer/SIMD state; 20,000 direct switches; 999 signal-frame
+migrations; 100,000 ordered LRPC messages; 10,000 nested signals; and five million
+TLS-read iterations with 821 asynchronous poisoned-register PC restarts.
+QEMU and native x86 build checks also passed. These are finite mechanism checks,
+not busy-owner scheduler preemption or ARM weak-memory stress.
 
-### Results
+Matched `fake_idle`/`ksched` modules loaded with API version 2 and shared mapping;
+ARM UINTR returned EOPNOTSUPP. One- and two-kthread fixtures completed 512
+mutex-protected increments with yields/timer sleeps. Three peer ICMP requests
+received replies through runtime directpath, with the Linux stack holding no
+runtime IP. These establish a basic RX/TX path, not sustained traffic capacity.
+Target-derived RX object sizes corrected the 128-byte ThunderX alignment case
+(9472 bytes versus x86's 9408), retaining x86 layout and reconstruction checks.
 
-All eight CPU mechanism checks passed natively, plus the platform requirements
-probe: 10,000 CRC reference comparisons; checksum alignment/tails/carries;
-10,000 signal-frame context switches preserving integer/SIMD state; 20,000
-direct switches; 999 live signal-frame migrations; 100,000 ordered LRPC messages;
-10,000 nested signal deliveries; and five million TLS-read iterations across
-four widths with 821 actual asynchronous poisoned-register PC restarts.
-These are finite mechanism checks, not production ksched preemption stress.
+### Shared echo and stage tracing
 
-Matched `fake_idle`/`ksched` modules loaded. Scheduler/user API versions were
-both 2, shared state mapped, and the ARM UINTR ioctl returned EOPNOTSUPP.
-The normal runtime/directpath fixture passed with both one and two kthreads:
-four user threads completed 512 mutex-protected increments with yields and
-short timer sleeps. Holding the runtime alive then yielded **3/3 ICMP replies**
-from zuestoll14; neighbor resolution matched the CX-5 MAC, and the DUT Linux
-stack had no runtime IP. This establishes a basic peer-to-runtime RX/TX path,
-not a throughput, latency or weak-memory stress result. No new kernel faults
-were found in the postflight diagnostic comparison.
+The shared backend uses Caladan's UDP spawner, one user thread per datagram,
+and user-thread-specific request context. Schema, handler, XDR codecs and the
+synchronous RPC path are shared with DPDK. The probe-free build removes software
+trace hooks; it does not replace Caladan scheduling with a cooperative loop.
 
-The first actual IOKernel startup exposed x86-only RX layout constants:
-ThunderX DPDK aligns objects to 128 bytes, giving a 9472-byte object instead of
-9408. Sizes now derive from target DPDK types/alignment, retaining x86's layout.
-Initialization checks reconstruct the mbuf from both ends of every buffer.
-ARM hardware startup and the native x86 userspace regression build pass.
+Caladan `ba303c6` records functional echo0/8/128/1432 acceptance: each case passed
+16 checked requests plus four warmups using the shared DPDK generator. Backend
+source was microbenchmarks `8d87fb0`. This is correctness smoke coverage.
 
-Startup needed more than the initially available 768 hugepages for the fixed
-2 GiB ingress pool. The successful tests temporarily reserved 4096 × 2 MiB
-pages and allowed 45 seconds for readiness (DPDK initialization took about
-16 seconds). Scratch quota/root-space constraints were handled by staging
-images in gateway `/tmp` and DUT `/dev/shm`, without deleting existing data.
+Caladan `d6a6be2` adds optional packet-stage tracing. RX timestamps follow the
+mbuf through regular/strided CQ consumption and UDP spawning; TX uses a persistent
+request slot through overflow and finishes at mlx5 submission. Dedicated
+`SIGRTMIN+4` export leaves runtime preemption signals unchanged. The tracing
+workflow and collector-source requirement are in the [development guide](../development/caladan.md).
 
-### Reproduction and artifacts
+Recorded traced checks produced 144 echo8 rows (128 plus 16 warmups) and 20 rows
+each for echo0/128/1432 (16 plus four warmups): all 204 paired exactly with client
+XIDs, had monotonic boundaries and conserved CPU partitions, with zero collector
+drops. Their cohorts explicitly have `paper_inputs=false`; no Tofino capture was
+collected. These results do not establish a wire-latency distribution or a
+performance comparison. Exact images and evidence paths are in
+[port continuation](../../agents/caladan.md).
 
-`nix build --impure --file default.nix testImage` packages the runtime/modules
-and native checks at `/nix/store/caladan-checks/bin`. The maintained
-`test_runtime_smoke CONFIG [HOLD_MS]` fixture exercises threads/mutexes/timers;
-its optional bounded hold permits external packet probes through the existing
-network stack. It adds no echo benchmark.
+## Remaining evaluation scope
 
-Final tested image (including the network hold):
-`/nix/store/5m0c4lx4yh8hzyfl4i1d99rzmmmnixln-caladan-focused-tests.img`, SHA256
-`3b17d60e6df857b7ca106d05eac3a950ff765e05ac793b7c87c20f3b522e95e0`.
-The one-/two-kthread layout checks used
-`/nix/store/6pbcd0w7v3h3gv1k1f20j98br4zn7jdr-caladan-focused-tests.img`, SHA256
-`58dbcaaa123d4591114ee03ea1f36ca55f04d532db499d787a18bf7f362a9da6`.
-Builds include all eight QEMU checks; the final native x86 build also passed.
-These artifacts were built before committing their source as `586a5a1`.
-
-Local evidence: `../caladan/out/hardware-20261020-01/`, including
-`cpu-tests.json`, `module-smoke.json`, `layout-smoke.json`, `peer-ping.json`,
-`peer-neighbor.json`, `postflight.json`, `reclaim.json`, image provenance and
-build logs. Failed startup diagnostics are retained alongside successful runs.
-
-Postflight stopped owned test processes and the temporary image server,
-unloaded both scheduler modules, restored CX-5 down, restored
-`nr_hugepages=0` and `shm_rmid_forced=0`, and reclaimed only test-prefixed DPDK
-hugepage files (final Hugetlb zero). cpuidle returned to `none`. The read-only
-test image remains mounted at `/nix/store`; diagnostic files remain in `/tmp`.
-
-**Review gate:** focused board checks are now available for review. Busy-owner
-signal/IPI preemption, zero-core wakeup and core reclamation under contention
-remain separate acceptance work. Finish/review stages 1–3 before stage 4.
-Wait for the user's shared platform echo microbenchmark extraction; no echo
-integration or measurement campaign has started. No timing/power claims or
-memcached results are established by these tests.
-
-### ThunderX masked-SGI/WFE probe — October 20
-
-On zuestoll07 CPU 46, a temporary matched-kernel probe masked IRQs
-(`DAIF=0xc0`), disabled the architectural timer event stream, and executed
-`LDAXR/WFE` on a separately allocated, otherwise untouched page. CPU 45 sent
-an asynchronous Linux cross-call SGI after approximately 25 ms and a rescue
-SEV at approximately 133 ms. In all three SGI trials the waiter remained asleep
-until SEV; the SGI callback ran after IRQ restoration. Three SEV-only controls
-also woke at rescue. Thus masked SGIs do not provide the required WFE wakeup
-on this ThunderX configuration. The module was unloaded and per-core timer/IRQ
-state restored; no new kernel diagnostics appeared. Source/build/results are in
-`../caladan/out/wfe-sgi/`, with definitive evidence in `result-3.json`.
-Earlier attempts are retained: immediate returns required retry handling and
-ordered timestamps, and shared probe bookkeeping caused false monitor wakeups
-until the watched word was isolated on its own page.
+Sustained CPU/queue/ownership stress, busy-owner signal/IPI preemption, zero-core
+wakeup and core reclamation under contention remain separate acceptance work.
+Shared echo correctness is established at the finite scope above; unloaded and
+loaded paper measurements still require campaign integration and validated wire
+collection. Caladan memcached integration/evaluation has no result in this record.
+Use the same bounded maintenance scope as Lauberhorn before comparing it.

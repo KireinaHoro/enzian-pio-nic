@@ -5,22 +5,22 @@ description: Deploy matched Lauberhorn artifacts to reserved Enzian boards, run 
 
 # Enzian deployment
 
-Work in the Lauberhorn platform repository. Read `docs/development/hardware-test.md`
-for manifests and acceptance, `docs/development/workflow.md` for matching build
-products, and the [lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) when
+Work in the Lauberhorn platform repository. Read [validation](../../../../docs/development/validation.md)
+for manifests and acceptance, [workflow](../../../../docs/development/workflow.md) for matching build
+products, and the [lauberhorn-trace skill](../lauberhorn-trace/SKILL.md) when
 failure preservation is needed. Both manual preservation and benchmark capture
 use `tools/enzian/trace_capture.py` / `trace.session.capture()`; do not generate
 separate VIO or dump Tcl.
 Keep execution in the shared deployment scripts (paths relative to the repository
-root): [test.py](tools/enzian/test.py) orchestrates acceptance,
-[boot.py](tools/enzian/boot.py) implements expect-based power/BDK/program/boot,
-[console.py](tools/enzian/console.py) owns reservation and console attachment,
-and [run.py](tools/enzian/run.py) runs bounded CPU scripts. Do not duplicate this
+root): [test.py](../../test.py) orchestrates acceptance,
+[boot.py](../../boot.py) implements expect-based power/BDK/program/boot,
+[console.py](../../console.py) owns reservation and console attachment,
+and [run.py](../../run.py) runs bounded CPU scripts. Do not duplicate this
 state machine in a skill or introduce a benchmark-specific boot implementation.
 
-The [benchmark-campaign skill](tools/paper/skills/benchmark-campaign/SKILL.md)
-uses these same scripts through [campaign/hardware.py](tools/paper/campaign/hardware.py)
-and [campaign/harness.py](tools/paper/campaign/harness.py). Those adapters supply
+The [benchmark-campaign skill](../../../paper/skills/benchmark-campaign/SKILL.md)
+uses these same scripts through [campaign/hardware.py](../../../paper/campaign/hardware.py)
+and [campaign/harness.py](../../../paper/campaign/harness.py). Those adapters supply
 matched manifests and benchmark role scripts; deployment and expect handling stay
 in `tools/enzian/`. Deployment fixes belong in the shared scripts so acceptance
 and benchmark acquisition both inherit them.
@@ -33,22 +33,10 @@ Dated board notes are provenance, not current reservations or current state.
 
 ## Fresh reservations and root-volume names
 
-For a new test machine, derive a fresh root volume from an explicitly selected
-available golden image (`emg acquire MACHINE -g DATE -n NEW_NAME ...`). Inspect
-`emg list-machines` and `emg list-images` immediately before acquisition; confirm
-the machine is unreserved and NEW_NAME is absent from the user's existing volumes.
-Use a purpose/machine/date-specific name. EMG does not reject an existing name:
-`-n` reuses that volume, so `-g` alone does not guarantee a fresh golden-image clone.
-Do not reuse a golden image's name or another experiment's root-volume name.
-If the name exists, choose another and recheck; do not delete or overwrite it.
-
-Named volumes persist after release. Their iSCSI export is shared by user and
-volume name, not reservation; using the same name on two boards can couple their
-root disks, and releasing either reservation can disrupt the other. Never share
-an active root-volume name. Keep user-designated busy boards and their volumes
-untouched. Confirm acquisition with both inventory commands and retain the board,
-new volume name, golden-image date, boot bundle and kernel arguments in run
-provenance. Reservation is not evidence of boot or hardware acceptance.
+Follow [fresh root-volume safeguards](../../../../docs/development/validation.md#fresh-root-volume-safeguards).
+Check both inventories immediately before acquiring a reservation; existing names
+reuse volumes, and active volume names must not be shared. Retain acquisition
+provenance and recheck live state rather than relying on dated notes.
 
 Use `tools/enzian/test.py CASES.json --logs NEW_DIR --repeats N` for the shared
 reset/program/boot/module/RPC acceptance flow. Require verified rails off before

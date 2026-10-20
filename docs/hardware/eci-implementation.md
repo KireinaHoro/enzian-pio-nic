@@ -1,45 +1,14 @@
-# ECI implementation and evidence
+# ECI implementation
 
-**October 8 consolidation:** the latest recorded board campaign uses pipeline
-516232 with corrected module `af0f64fe`: two fresh cold boots, controlled GSYNC
-early-NACK tests and buffered hot/cold measurements passed. See the
-[consolidated evidence and remaining claims](../research/roadmap.md#current-status--october-8-consolidation).
-Expanded adversarial isolation, four-worker contention and stall-limit
-qualification remain open. The dated candidate notes below are historical;
-their launch/frozen-state instructions are not current tasks.
+ECI is the active Enzian transport. The [queue-pair design](queue-pair-design.md)
+defines address-space encoding and DCU coloring; the
+[HW/SW interface](../architecture/hw-sw-interface.md) defines cache-line contents,
+payload placement, ownership cleanup and replay. The
+[scheduling contract](../software/scheduling-control-interface.md) defines
+cooperative DESCHED and activation. These contracts require matching generated
+headers, software and FPGA artifacts.
 
-**Corrected-build baseline (October 4):** pipeline 516112 (`b2117e96`)
-includes the payload-isolation and multi-PA fault corrections and passed all CI
-jobs. Two verified cold boots each passed module/version checks and 100 correct
-RPCs. See the [matched board result](../development/hardware-test-results.md#isolation-correction-baseline--516112--2026-10-04).
-Adversarial domain-isolation and contention acceptance remain outstanding; this
-functional baseline does not discharge those obligations. Timing also remains
-open: WNS −0.396 ns, 7,227 failing setup endpoints. The old vulnerable 515944
-image must not be substituted for this corrected build.
-
-October 2, 2026, branch `feat/cooperative-yield`. The selected address map and
-cooperative DESCHED ABI are the sole ECI implementation. Acceptance remains
-incomplete: pipelines 515941 and 515944 both passed all gates, preparation and
-hardware/report jobs. Candidate 515944 is `8cc9ad58`, with WNS −0.089 ns and
-474 failing setup endpoints; no timing closure is claimed. Its first verified
-cold boot passed all ECI lanes, then driver initialization failed before RPCs:
-the kernel used datapath indices 1–4 for a four-entry, zero-based preemption
-register table. UBSAN diagnosed index 4, followed by the MMIO bounds BUG.
-The failed trial was frozen before reset with no trace loss/DMA error. Its full
-132,491,136-byte F_MAC1 capture matches the write pointer and peer/local SHA-256
-`f5b27ef4b1e65c40df6b9d802fcd0d901127c1622e6d01b1d6265cef81c61e99`.
-No RX-hold threshold was measured. The corrected kernel uses the physical worker
-index and executes a generated-register selection check before every module
-build. Retain candidate refs while acceptance remains incomplete.
-
-
-## Implementation
-
-Contract/model commit `514d446` names the capacity schema
-`lauberhorn.eci-address-map.v1` and checks simultaneous cross-worker claims.
-RTL commit `2fd67e37` removes the thread router and preemption control line.
-Kernel/runtime commit `952b9301` installs the matched pool and activation ABI.
-Earlier preparatory and naming commits remain in branch history.
+## Address ownership and integration
 
 `EciAddressMap` and `eci_address_map.h` are generated from the selected 8 KiB
 configuration. Seven physical-worker aliases share a color-neutral 19-bit
@@ -48,16 +17,16 @@ Slots, lifetime codes, Linux PIDs, thread indices and CPU IDs are distinct.
 
 `EciAxiIngress` checks fresh access ownership and retains accepted full addresses
 in AXI USER metadata. Outstanding R/B responses remain charged to their physical
-worker. Late RX writeback has an independent sink. LCI commands retain their
+worker. RX writeback has an independent replay-shadow path. LCI commands retain their
 full addresses through LCIA matching; owner changes cannot retag them. Final
-control invalidation completes before reuse. TX descriptors and reply-context
+control invalidation completes before transport-slot reassignment; lifetime codes
+are not recycled. TX descriptors and reply-context
 tokens are checked against the trusted assignment.
 
 `EciDomainAllocator` saturates after 524288 codes. FPGA initialization owns its
 reset boundary; application reset and driver reload cannot recycle codes.
 Application reset after allocation or a fatal lifetime fault requires a full
-coherence reset. Unauthorized fresh reads fault the requesting domain, as
-approved by the maintainer; DCS does not propagate AXI errors as a safe application
+coherence reset. Unauthorized fresh reads fault the requesting domain; DCS does not propagate AXI errors as a safe application
 fault. Sticky domain faults fence claims and trigger domain termination. Old
 cleanup traffic is still serviced. Complete resource-recycling recovery is deferred.
 
@@ -71,204 +40,99 @@ The kernel shares activation handling between pinned idle-dispatch threads and
 ordinary yield. The immutable pool is declared before creation and advertised
 only after every thread registers following initialization. Mapping only maps
 aliases. Runtime yield replaces the physical alias and both local parity bits.
-No shared parity page, kernel parity programming, ordinary cache flush or
-activation commit write remains.
+The kernel does not program parity or flush caches for an ordinary handoff;
+there is no separate activation commit write.
 
 After the committed response, the outgoing thread becomes claimable before the
 helper waits for an incoming thread. This prevents simultaneous A→B/B→A claim
 waits. Unrelated wakeups cannot return an old activation; failed delivery kills
 and fences the affected domain. Ordinary syscall sleep retains assignment.
 
-## Checks completed in this implementation round
+## RX writeback and permission changes
 
-| Check | Observed result and limits |
-| --- | --- |
-| Generated address collateral and independent capacity utility | Five tests passed; all 524288 codes round-trip on all seven workers (3,670,016 combinations). Both parities, twelve overflow lines per direction, basis/high bits and rejection are checked. |
-| `EciAddressMapTest`, `EciAddressDecoderSim`, `EciAxiIngressSim` | Four tests passed, including real AXI crossbar backpressure, ownership changes and retained addresses. These do not instantiate actual DCS slices. |
-| `EciDomainFaultsSim` | Sticky fault and concurrent notification-consumption test passed. |
-| `EciDomainAllocatorSim` | Both tests passed, including all 524288 allocations, saturation, fatal fencing and application reset. |
-| `CooperativeYieldSim` | Delayed cleanup, shared control contention and repeated A→B→A passed with one initial scheduling IRQ and zero ordinary IRQs. Fatal-domain control/IRQ test passed while an independent owner continued. Host coherence model, not silicon. |
-| `RpcReplyContextsSim` | Live-token owner mismatch rejected; test passed. |
-| Fast ECI regression | Initial run: 36 passed, three failed. Initialization-baseline and interrupt-model fixes made all three pass on targeted reruns. The first committed rerun passed 42 tests. After the idle-first and same-edge ingress fixes, all 44 tests in 13 suites passed (one existing ignored test). The additional cross-worker migration test passed separately. |
-| Actual DCU/RX writeback | Four directed checks passed with the selected ROM and new RX layout, including delayed B, WDDA, LCIA and next-control release. This is not a full DCS slice. |
-| Production DCS slice control routing | 812 address trials passed through the 32-DCU array, production routers and arbiters: seven workers plus bypass, both parities, every overflow line, high lifetime bits and A→B→A. Read/dirty-write addresses and IDs, delayed completion and backpressured LCIA checked. A follow-up holds three worker reads plus bypass RX while an independent worker and bypass TX complete three rounds; delayed responses then drain by retained ID. Test RAM/passive trace sinks; payload datapath and ThunderX are not instantiated. |
-| Stalled-worker/bypass progress | Three expanded tests passed: one, two and three held worker reads while an independent worker progresses and bypass RX/TX transfer concurrently across both parities. Finite 50000-cycle hold setting in the host coherence model; no silicon timeout claim. The separately run RX/TX interleaving test passed and is restored to the regular suite. |
-| Worker configurations | Production ECI composition and matched headers generated for every count 1–7; all seven kernel modules and seven runtimes cross-built successfully. The one-worker scalar preemption-register macro needed a kernel fix; the default four-worker path is unchanged. |
-| Generated wrapper interfaces | 295 NicEngine ports, 439 trace-DMA ports and 16 ILA connections matched. |
-| Native runtime tests | Passed, including real `lh_yield` alias/parity replacement, ioctl failure, invalid-result termination, descriptor bitfields and C ABI assertions. |
-| Matched cross builds | Runtime, kernel, deployment and Vivado-input builds passed with the correctness fixes and probe controls. The final compiler memory-barrier change passed runtime and native interface checks. Dandelion’s matching adapter cross-build passed. |
-| Pinned cooperative TLC | Thirteen outcomes passed: five positives, seven expected faults and one delayed-idle-kick reachability witness. Includes duplicate/lost kicks, ordinary IRQ, cleanup/control cycle, concurrent claim exchange, failed copying, unrelated wakeups, delayed bootstrap parking and initialization failure. |
-| TLA module boundaries/SANY | All 44 inventoried modules passed. Parsing/import checks are not exhaustive model verification. |
+An exclusive RX load can return data when invalidated even without a CPU store.
+The selected R12→RA3 path grants exclusive permission (`PEMD`); its invalidation
+uses `FLDX_EH` and can receive data-bearing `HAKD`. The earlier shared RX path
+used `PSHA` / RA2 and `SINV_H` with no returned data. A data-bearing acknowledgment
+does not by itself establish that software modified the line.
 
-`HandoffClaims` reuses `ThreadClaim` uniqueness and capacity invariants. Its
-late-release negative reproduces the simultaneous exchange deadlock. This is a
-bounded claim/delivery composition, not verification of Linux scheduling or
-full transport refinement. `IdleDispatch` assumes eventual autonomous cleanup;
-finite simulation delays do not establish an infinite-stall silicon guarantee.
+DCS waits for AXI write completion before issuing WDDA/LCIA. RX must therefore
+complete AW/W/B independently of its read FSM: the next RX control read can be
+waiting for the very invalidation whose writeback is arriving. Blocking writes
+behind that read creates a circular wait. The
+[historical failure and intervention](../../agents/hardware-state.md#rx-writeback-regression-evidence)
+record this boundary with board traces and a directed DCU/router reproducer.
 
-The blocks dependency uses `1eddae0` for configured AXI USER widths and
-`a21d410` for controlled LCIA delay in simulation. The dependency remains on its
-own feature branch. The unrelated pre-existing `deps/thx-fsms` revision change
-is preserved and excluded from platform commits.
+The [cache-line interface](../architecture/hw-sw-interface.md#rx-contiguous-payload-and-replay)
+defines the independent writeback service and mutable replay shadow. Returned
+payload bytes are private replay data, not commands or writes to the backing RX
+packet allocation. See [validation](../development/validation.md#rx-writeback-regression-reproducer)
+for the directed DCU/router checks.
 
-## Outstanding acceptance
+## One-shot early NACK implementation
 
-- Actual Linux concurrency and failure handling remain board checks. The
-  slice control-array check, separate migration simulation and initialization-
-  failure model do not constitute a full DCS/NIC/ThunderX composition proof.
-- Transport settled-entry and freshness remain conditional model obligations.
-  Delayed-LCIA, retained-address, final-control invalidation and A→B→A tests
-  check the corresponding concrete boundaries separately; they do not prove
-  full-system refinement or infinite-stall silicon progress.
-- A matched corrected image is already available (516232 with module overlay).
-  Inspect current artifacts/state before duplicating builds. Any future hardware
-  CI follows the 30-minute/five-hour workflow and retains active refs.
-- Recheck Enzian reservation. Record artifacts, clocks, programmed RX hold and
-  every exposed L2C_TAD status. Find the exception boundary or register limit at
-  implemented timer resolution; preserve trace/fault evidence before reset.
-- Repeat the highest tested exception-free setting under contention across two
-  cold boots, recording exposure and nearest failing bound. Include one/multiple
-  stalled peers, all-but-one stalls, active-peer cooperative handoffs and
-  simultaneous bypass RX/TX. Verify hold durations and peer completions in traces.
+The GSYNC monitor observes accepted VC6/VC7 requests from **all PPVIDs** without
+changing either immediate GSDN responder. A coalescing request/acknowledgement
+CDC transfers notifications from the system clock to the application clock;
+each delivery emits one application-clock pulse. Arrivals during a CDC
+handshake are retained/coalesced for a subsequent delivery, not counted as
+individual GSYNC responses. The handshake never backpressures the responder.
 
-No certified RX stall threshold, complete adversarial board acceptance or timing
-closure is claimed; the finite functional and GSYNC campaigns above did pass.
-Host-event interface design, deadline activation, full exit recovery, PCIe
-scheduling and timing optimization remain outside this stage.
+All RX routers (bypass and four workers in the default configuration) use that pulse alongside their
+normal timeout condition, **only in `waitDesc`**. An available descriptor still
+wins, just as at timeout. Otherwise the router selects an ordinary NACK with
+zero payload, retaining the existing invalidation and AXI response sequencing.
+No per-router sticky release is retained: idle notifications, accepted
+responses and same-line replays are unaffected, and later RX reads retain the
+configured timeout. DESCHED/fatal-release priority is unchanged.
 
-## Follow-up correctness checks
+This addresses the observed case of peers already waiting for RX descriptors.
+It does not promise to catch a read that only reaches `waitDesc` after the pulse,
+or bound DCS/AXI/invalidation backpressure. CPU global synchronization retirement
+is still not directly observed. The [controlled before/after experiment](../research/eci-progress.md#corrected-module-early-nack-measurement--october-5)
+observed the hold-dependent millisecond waits disappear on its tested requests.
+That result covers one/two simultaneously observed stalled peers, not every
+possible timing of a GSYNC pulse or CPU synchronization event.
 
-A directed watermark test reproduced selection of an occupied, RX-ready worker
-while another physical worker was idle. Selection now gives the idle set priority.
-The test passes after the correction. Ingress busy tracking also includes AR/AW
-acceptance on the current edge, so owner installation cannot race the first
-accepted old-address writeback. Directed assertions cover this boundary and
-attribute rejected reads to their requesting lifetime, without faulting old RX
-writeback cleanup.
+## Calibrating the RX stall timeout before NACK
 
-The host model now publishes an outgoing thread only after the committed info
-response, matching the kernel. Four focused tests passed after these corrections,
-including duplicate kicks during blocked ordinary handoff, foreign-PID and
-oversized TX rejection, and subsequent valid TX progress. The corrected full regression passed all 44 tests. A separate six-handoff
-migration test moved single-thread domains between workers and back, with only
-the three initial scheduling IRQs. Dandelion's matched adapter build and the pinned
-transport/AXI model checks passed; these are separate from board evidence.
+The NIC can hold a receive request while waiting for work, then return NACK
+when its programmable stall timer expires. Calibrate that setting against the
+actual CPU/ECI timeout behavior on matched hardware: an overly long pending
+coherent read can trigger a ThunderX L2C_TAD/LFB timeout before the response
+completes. The programmable NIC timer is not the CPU's architectural timeout.
+Never disable or extend architectural protection to obtain a passing result.
 
-The pinned workflow check also passes three real loopback UDP client tests: concurrent
-validated RPC/bypass completions, corruption rejection and timeout without retry.
-These validate the measurement tool, not the board. The obsolete B4 recovery
-runner is removed because it uses the superseded control/recovery ABI.
+The [RX router](../../hw/src/lauberhorn/host/eci/DcsRxAxiRouter.scala) can leave
+the wait early for a descriptor, yield, fatal release or GSYNC release. Its timer
+covers waiting for work; invalidation and response delivery can add latency.
+Therefore measure the actual request-to-NACK interval and verify that a trial
+exercised the intended stall rather than an early-release path. A register
+setting alone is not an end-to-end coherence deadline guarantee.
 
-The exact `8cc9ad58` deployment image built from the committed flake and was
-staged on the shared filesystem. Local and remote SHA-256 agree:
-`97bdf4a14350ffe5a1c3f8fecb40de03d1ac2f501b3ff0d11d2007d73034ac13`.
-DUT zuestoll14 and capture peer zuestoll12 were both reserved by `pengxu` at the
-October 2 preparation check. Neither board was reset or reprogrammed in this
-preparation. The campaign runner now stops on CPU/client failure before any
-subsequent cold reset; three focused tests and the pinned workflow gate passed.
+Use the [validation procedure](../development/validation.md#eci-receive-stall-calibration)
+for parameter readback, fault preservation, trace pairing, contention and TAD
+assessment. The [progress evaluation](../research/eci-progress.md) records finite
+operating points and their limits; no historical screening bracket is an
+architectural timeout constant or a setting transferable to another image.
 
-The worker-count matrix initially exposed a test generator's one-per-JVM
-Mackerel guard, then the kernel's scalar-versus-indexed base mismatch for one
-worker. Both are corrected. `GenWorkerConfigurations` emits each configuration's
-headers/devices, and `nix/hardware/worker-configurations.nix` cross-builds them.
-These are configuration/interface checks; the Enzian candidate remains the
-four-worker `8cc9ad58` artifact. No board result for seven workers is claimed.
+## Verification boundaries
 
-The pinned workflow check passed the expanded four-case hold-analysis suite
-and four TAD assessment cases. Simultaneous-stall counts exclude bypass and
-initial activation; log loss, missing units, nonzero interrupts, changed TIMEOUT
-state and logged EDAC faults prevent a clean assessment. The assessment remains
-limited to the recorded finite exposure.
+[Validation](../development/validation.md#cooperative-scheduling-and-slice-routing)
+covers generated address collateral, ownership/fault handling, cooperative
+handoff, worker-count interfaces and production slice routing. The selected map
+was checked across all 524288 lifetime codes on seven workers (3,670,016
+combinations). Production slice control-array tests exercise 812 address trials
+and held reads alongside independent worker/bypass progress. Their RAM and trace
+sinks are test models; they do not instantiate the full payload datapath or
+ThunderX. Generating and cross-building worker counts 1–7 is an interface check,
+not seven-worker board acceptance.
 
-The refined idle model keeps notification set through response consumption and
-allows an earlier idle kick to arrive while ordinary handoff owns the reader and
-control bus. The pinned cooperative check passed all thirteen outcomes, including
-a reachability witness for that overlap. This changes model coverage only;
-the hardware candidate already passed the corresponding delayed-kick simulation.
-
-The corrected-module image uses hardware/runtime/application revision `8cc9ad58`
-and module revision `336c65d6`, explicitly recorded together in its manifest.
-Its SHA-256 is `8dac17d20850e5edae297a3a414cfd0cb512f611e9a8cae2246fad0d97ed8adc`.
-The [recorded Nix recipe](../../data/eci/board-evidence/cooperative-20261003-module-image.nix)
-reproduces the exact image store path. Production RTL, runtime, application and
-ABI sources were unchanged between those two revisions; the module uses the
-original generated headers. All seven module configurations passed the added
-UBSAN register-selection check and cross-build. Restoring the old `+1` index in
-the native check reproduces its assertion failure.
-
-The corrected cold-boot baseline passed 100 RPCs and all eight TAD assessments.
-The application clock is 200 MHz (5 ns), from the candidate's post-route clock
-report and generated configuration; no independent oscillator measurement is
-claimed. Initial finite probes through 10,000,000 cycles passed. A bounded
-64 MiB tail contains 832 completed worker holds of 10,000,003–10,000,004 cycles,
-including protocol overhead. The 100,000,000-cycle probe logged an uncorrected
-LFB-entry timeout at TAD4 and fenced the domain. Its full newly appended trace
-region was preserved; it contains one completed 100,000,003-cycle hold and a
-loss marker associated with the earlier freeze/resume gap. No continuous-history
-claim spans that gap. A fresh cold-boot 55,000,000-cycle probe also failed;
-refinement and final contention/two-boot acceptance are still in progress.
-
-Subsequent five-second screens were insufficient: 27,204,589 cycles passed the
-first snapshot but faulted during the following RPC check, and 27,193,602 cycles
-faulted after its short checks finished. Those passes were withdrawn. The search
-now uses sixty-second exposure, another 100 RPCs and a post-client assessment of
-all eight TAD units and the continuous kernel log. It has observed a passing
-26,924,951-cycle screen and failing 26,992,113-cycle screen; these are provisional
-observations, not an accepted maximum. Full failure buffers and their SHA-256
-digests are retained under `out/board/cooperative-515944-refine/` and on the shared
-scratch filesystem before each reset. No architectural timeout protection was
-changed.
-
-One cold-boot baseline also stopped in `lscpu` before application startup, with a
-kernel soft lockup in `find_inode_fast`. Its complete 132,696,064-byte trace has
-SHA-256 `de51121b463c8ac129a8cba416488979cc8b79fb3152dbef8dfcdcf48898b054`.
-It contains no application activation, only bypass traffic, 347 LCI requests and
-347 completions, no decoded loss and no reported DCS errors. A post-failure
-all-TAD snapshot was unavailable. Forty stock-Linux `lscpu` queries at concurrency
-four passed after a full power cycle without an FPGA image or driver; that
-bounded control does not establish the lockup's cause. The following matched
-cold-boot baseline, including the same `lscpu` operation, passed. This remains an
-unresolved observation. Acceptance checks now reject kernel BUG/Oops, UBSAN,
-lockup and RCU-stall diagnostics as well as TAD exceptions.
-
-The matched cold boot reports firmware RCLK 2000 MHz and SCLK 800 MHz. Routed
-constraints specify ECI at 322.265625 MHz and the application at 200 MHz; these
-are provenance and firmware reports, not instantaneous oscillator measurements.
-
-`tools/enzian/analyze_rx_holds.py` now also checks each fully observed activation
-snapshot against its first RX/TX access and counts domain migration and A→B→A
-reuse. Trace loss clears pending comparisons and history. Six focused cases and
-the pinned `workflow-tools` check passed after this addition. These counters are
-coverage evidence; observing reuse alone is not proof of cache freshness.
-
-Longer observation also withdrew a fresh-boot 26,925,213-cycle pass: the
-sixty-second probe, 100 RPCs and post-client checks passed, but a preflight check
-before contention setup found an LFB timeout at approximately 84.45 seconds
-after programming. No contention services were started on that failing boot.
-The full 147,335,360-byte trace was preserved without loss; SHA-256 is
-`619876b45b2142c2e0bcf0b3bb405afe2dc987a55c36dcfb9e94b570b88a7cd0`.
-The campaign therefore pauses fine-resolution screening to qualify a lower
-setting with longer exposure and contention. A narrow interval between a short
-pass and a later failure does not establish a usable timeout boundary. No
-maximum exception-free setting is accepted yet.
-
-The [finite contention record](../../data/eci/board-evidence/cooperative-20261003-contention.json)
-now records 26,656,301 cycles (133.281505 ms) across two verified cold boots.
-One- and two-peer measured intervals passed RPC/bypass correctness, three-minute
-control-register readers and all eight TAD/kernel checks. The fresh-boot
-all-but-one trial completed 2,964 add, 2,963 echo and 54,629 bypass replies without
-retries. Its loss-free measured trace contains 5,926 ordinary handoffs and no
-scheduling IRQ counter change. Of these, 4,710 handoffs overlap three other
-full-length stalled worker reads, alongside independent RX/TX and bypass
-progress. All 5,926 first-RX and first-TX parity comparisons match, with repeated
-A→B→A reuse. The complete fresh-boot trace also has no decoded loss.
-
-The same live add thread on the first boot was observed on Linux CPUs 44 and 47;
-the later trace delivers its domain on NIC datapath 4 (worker index 3), with
-matching first-access parity and a correct response. The intervening capture
-gap prevents a continuous-history claim. The audit now requires a fully observed
-departure before reporting domain migration, so concurrent expansion to multiple
-workers does not count as migration. Seven focused cases and the pinned workflow
-gate pass. Boundary refinement above this qualified finite setting remains open;
-these results do not establish an infinite-stall guarantee or resolve the earlier
-baseline kernel lockup.
+The [formal models](../formal/README.md) state resource, fairness, ownership and
+endpoint-service assumptions separately. Concrete delayed-LCIA, retained-address,
+final-control invalidation and A→B→A tests check corresponding boundaries; they
+do not establish full-system refinement or infinite-stall silicon progress.
+[Board evaluation](../research/eci-progress.md) preserves actual finite contention
+and GSYNC coverage, with matched artifacts and trace limitations. Remaining
+application-driven validation and recovery work are tracked in the
+[roadmap](../research/roadmap.md#evidence-and-remaining-claims).

@@ -58,7 +58,7 @@ not an unattended script that programs a board without rechecking its state.
    immediately. If it failed, diagnose and report rather than queue a board test.
 4. At the five-hour check, collect hardware results and matching bitstream,
    software and trace-map artifacts. On success, follow the
-   [Enzian test procedure](hardware-test.md): recheck reservation, preserve any
+   [Enzian test procedure](validation.md#board-validation): recheck reservation, preserve any
    frozen failure evidence before reset, and run matched-artifact RPC tests with
    at least two repeats and tracing through module load. Report compact results;
    capture and diagnose a failure before resetting. Do not claim timing closure
@@ -69,16 +69,14 @@ not an unattended script that programs a board without rechecking its state.
    cancel any obsolete timers when replacing/canceling a pipeline or test.
 
 **Retain the pipeline branch until every job has finished**, even after merging
-its commit into master. Jobs can fetch the branch when they start. Deleting
-`fix-rx-writeback` prematurely caused pipeline 515796's prepare job to fail;
-restoring the same `a51139e` ref launched replacement pipeline 515802. Delete the
+its commit into master. Jobs can fetch the branch when they start. Delete the
 merged temporary ref only after its jobs finish. The read-only project token
 must not be used to retry or mutate CI; use the authorized Git workflow or a
 separately authorized write-capable interface.
 
 ## Explicit transport-only application scope
 
-For transport work while the memcached adapter is being migrated, launch with
+For an explicitly selected transport-only pipeline, launch with
 `git push -o ci.variable=LAUBERHORN_SKIP_MEMCACHED=1 gitlab BRANCH`.
 This opt-in omits only `memcached-adapter` and the memcached deployment image;
 all other test gates, matching RPC software, RTL and hardware reporting remain
@@ -89,13 +87,16 @@ The default remains the full pipeline. Values other than 0 or 1 fail preparation
 ## Pipeline and handoff
 
 1. `fast-tests-eci`, `dcs-rom-thx`, `dcs-lauberhorn`, `blocks-tests`, `trace-tests`, `trace-fifo-tests`,
-   `interactive`, `runtime-interface`, `runtime-tests`, `eci-address-map`,
-   `scheduling-cooperative`, and `workflow-tools` run
-   `checks.x86_64-linux.<job>` in the Nix image. All gate preparation.
+   `eci-toolkit-rx`, `output-interface`, `interactive`, `runtime-interface`,
+   `runtime-tests`, `eci-address-map`, `scheduling-cooperative`,
+   `memcached-adapter`, and `workflow-tools` run
+   `checks.x86_64-linux.<job>` in the Nix image. All gate preparation;
+   `memcached-adapter` is omitted only by the explicit transport-only scope.
    Mill runs offline against the locked Ivy cache. The FIFO test exercises both
    output-stage settings at the real trace width/depth under stalls and reset.
-2. `prepare-eci` builds `eciVivadoInputs` and `deployFs`. Both share `genVerilog`,
-   so the bitstream inputs, ABI headers and software use the same generation.
+2. `prepare-eci` builds `eciVivadoInputs`, `microbenchmarksImage` and, unless
+   explicitly omitted, `memcachedImage`. They share generated RTL and headers,
+   so bitstream inputs, ABI headers and software use the same generation.
    It verifies the embedded revision marker against `CI_COMMIT_SHA`.
 3. `build-hw-eci` uses the hosted Vivado image, with `GIT_STRATEGY: empty` and
    submodule checkout disabled. It consumes the previous job's artifacts and
@@ -122,6 +123,7 @@ and fixed-output fetches prevent implicit dependency updates.
 | --- | --- |
 | prepare-eci | `out/eci/vivado-inputs/`: relocatable sources, generated RTL/XDC/headers/devices/trace map, Tcl, static-shell DCP, lockfile and revision/derivation metadata |
 | prepare-eci | `out/deploy.img`: matching aarch64 kernel module, runtime/application closure and provenance manifest |
+| prepare-eci | `out/memcached-deploy.img`: matching memcached image unless explicitly omitted; `out/ci-scope.json` records revision and omission |
 | build-hw-eci | `out/eci/generateVerilog.dest/`: ABI/trace collateral at the existing downloader path |
 | build-hw-eci | `out/eci/vivadoProject.dest/shell_lauberhorn-eci.{bit,ltx}`, `shell_lauberhorn-eci_routed.dcp` |
 | build-hw-eci / report-hw-eci | `out/physical/` raw STA reports / `summary.json` |
@@ -131,6 +133,20 @@ The bundle materializes internal source symlinks for ZIP portability and omits
 broken links in unused DCS examples. Every actual project input must still resolve
 in Vivado. No `/nix/store` dependency is needed on the Vivado host. The recorded
 RTL derivation path is provenance text, not a runtime dependency.
+
+### Report scheduling after hardware retries
+
+Reporting uses `on_success` with an explicit same-pipeline hardware-artifact
+dependency. Hardware and report jobs retain `artifacts: when: always` for useful
+failure diagnostics; artifact-upload policy does not control job scheduling.
+
+GitLab snapshots CI configuration when creating a pipeline. Existing pipelines
+retain their original configuration; an already-failed report needs its own
+retry after hardware succeeds. Do not restart an expensive hardware build solely
+to adopt changed report scheduling.
+See GitLab's [job run conditions](https://docs.gitlab.com/ci/yaml/#when),
+[artifact dependencies](https://docs.gitlab.com/ci/yaml/#needsartifacts), and
+[job retries](https://docs.gitlab.com/ci/jobs/#retry-jobs).
 
 ## Local validation and maintenance
 
@@ -153,8 +169,8 @@ also refuses existing published artifacts before starting either build. Choose a
 new name/workspace or explicitly remove old outputs; failures retain diagnostics
 and never silently publish a previous result. The failure collector follows the
 `keeping build directory` path reported by that Nix invocation, including recent
-`/nix/var/nix/builds/` locations. See the [seed investigation](simulation-seeds.md)
-for the pipeline 516080 evidence-loss correction.
+`/nix/var/nix/builds/` locations. See [simulation reproducibility](validation.md#simulation-reproducibility)
+for seed and reproducer handling.
 
 After changing Mill or Maven dependencies, resolve from an **empty XDG cache**
 before generating the lock. `mif codegen` inventories everything in that cache,
@@ -180,13 +196,12 @@ checks offline; a warm interactive build is not evidence of lock completeness.
 Private application inputs must allow the platform project (30605) in the
 application repository’s **Settings → CI/CD → Job token permissions** allowlist.
 The CI setup uses the ephemeral job token for Nix Git fetches; local SSH access
-does not establish this permission. For memcached (project 38276), job 2879237
-failed before compilation because platform job-token access was denied. Keep the
+does not establish this permission. Keep the
 read-only diagnostic token out of source-fetch credentials.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
 Hardware runs take hours; use the [30-minute / five-hour follow-up](#scheduled-hardware-build-follow-up) above rather than frequent polling.
-Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
-and results, and [hardware testing](hardware-test.md) for verified-reset RPC trials.
+Use the [physical evaluation](../hardware/physical-implementation.md#evaluation-provenance) for SHAs
+and results, and [hardware testing](validation.md#board-validation) for verified-reset RPC trials.
 
 Mackerel uses the standard Nixpkgs Cargo vendoring implementation. The Nixpkgs
 pin includes the upstream switch from the rate-limited crates.io API to
@@ -210,8 +225,8 @@ fresh `lauberhorn-context/` artifact. Kaniko uses only that context; credentials
 and the bootstrap checkout are not included. The image repository owns registry
 authentication, scheduling and publication, while this repository owns the build
 recipe, Nix configuration and warmup targets.
-The current image was published by [job 2824055](https://gitlab.inf.ethz.ch/project-openenzian/tools/ci-images/-/jobs/2824055),
-with the environment from platform revision `2aaa537`.
+The selected image digest is in `.gitlab-ci.yml`; its warmed platform revision
+is provenance, while jobs build the current checkout.
 
 The prewarmed image builds two targets:
 
@@ -273,16 +288,9 @@ Preparation requires a fresh output directory and fetches the pinned remote
 flake, including submodules. `LAUBERHORN_FLAKE` may override that URL for local
 testing; use the same commit as `LAUBERHORN_REV` to keep provenance accurate.
 
-## Image dependency audit, September 16
+## Image dependency audit
 
-[prepare-eci job 2832057](https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform/-/jobs/2832057)
-rebuilt the prepared kernel tree and cross-built libtirpc, fetched the static-shell
-checkpoint, and realized `nuke-refs` and the cross toolchain's `rpcgen` variant.
-The kernel source fetch took roughly eight minutes; it was not a full kernel
-compilation. The previous warmup's `targetTirpc` shell input had selected native
-libtirpc, leaving the actual cross-built dependency uncached.
-
-`ciDependencies` now shares the kernel derivation, static-shell pin and deployment
+`ci.x86_64-linux.dependencies` shares the kernel derivation, static-shell pin and deployment
 package list with their consumers. It roots the exact cross stdenv, pkg-config,
 rpcgen (including its development output), libtirpc library/headers, `nuke-refs`,
 native jq headers, minimal ShellCheck, build-environment support and target
@@ -318,9 +326,6 @@ source-dependent Lauberhorn derivations from their external inputs. It counts
 runtime closures plus build inputs guaranteed by non-substitutable warmup
 builders, since the image retains those inputs. It does not assume that exporting
 a derivation, or substituting a package, realizes that package's build dependencies.
-Local validation passed with **48/48 external dependency outputs cached**, both
-warmup targets realized, and all 12 workflow tests passing. This is local cache
-coverage evidence; image publication and digest adoption are separate steps.
 The graph must include every CI target; new project-derived package names must
 follow the `lauberhorn-` prefix or be classified explicitly in the audit tool.
 
@@ -334,8 +339,17 @@ It gates preparation alongside the existing packaging checks.
 status without NIC access. `runtime-interface` cross-compiles the standalone demo
 against installed runtime headers and pkg-config. Both gate preparation alongside
 the existing regressions. `workflow-tools` checks shell scripts and tests artifact
-freshness and hardware-runner failure handling with fake tools. `ciEnvironment` retains native toolchain and wrapper
+freshness and hardware-runner failure handling with fake tools. `ci.x86_64-linux.environment` retains native toolchain and wrapper
 dependencies for image warming; wrappers themselves come from each job checkout. These checks do not replace board evidence.
+
+### ECI toolkit RX regression gate
+
+`eci-toolkit-rx` is a Nix/GHDL check and a prerequisite of `prepare-eci`.
+It runs the high-VC pipeline's eight directed/random-stall comparison cases
+from the pinned private toolkit feature commit. This does not validate physical
+timing or board behavior. Low-VC staging and its additional tests remain on the
+unmerged experiment branch. See the [timing continuation](../../agents/physical-implementation.md#retained-experiment-inputs)
+for the private pin and outstanding upstream owner review.
 
 ## Deployment script builder architecture
 
@@ -345,57 +359,12 @@ The helper derivation must use the build host's system; an evaluation assertion
 checks this even if outputs are cached. Using `target.writeShellScriptBin`
 incorrectly requires an AArch64 builder merely to write the script.
 
-This caused both September 16 timing pipelines to fail in `prepare-eci`
-(jobs 2831283/2831304), after all test gates passed. Hardware jobs were skipped;
-the report jobs then failed because no timing artifacts existed. The correction
-built a full local image and passed the image link/ELF checks (3,497 links), with
-the helper derivation confirmed as x86_64 and its packaged Bash interpreter as
-AArch64. The local attempt to disable extra platforms was ignored by the daemon;
-the architecture claim comes from inspecting the derivation and image, not that
-ignored option. CI remains the check under the runner's actual restrictions.
+## Vivado license configuration
 
-
-## License-server recovery, September 16
-
-After the deployment-helper fix, pipelines 511715/511716 passed every regression
-and `prepare-eci`, then failed Vivado synthesis in jobs 2831913/2831924 on ba1/ba4:
-`Common 17-345`, no Synthesis/xcvu9p license. Their report-job errors were secondary.
-The pinned image points only at `2100@hacc-lic-01.inf.ethz.ch`, which a read-only
-license query could not reach. The working local build inherited host settings
-including `8181@lic-xilinx.ethz.ch`; that server reported available Synthesis
-licenses. This was a license-service/configuration failure, not an RTL failure.
-
-The shared container configuration now tries the ETH server first, then HACC.
-The local launcher explicitly passes the same default when the host has no
-override, rather than inheriting the image's stale single-server setting.
-A fresh bridge-network Docker container with the pinned image completed actual
-Vivado 2025.1 synthesis for xcvu9p using the ETH server (`LICENSE_SYNTHESIS_PASS`).
-Workflow tests cover both default inheritance and explicit host overrides.
-No license files or runner-wide configuration were changed.
-
-### Report scheduling after hardware retries
-
-Job 2832753 (pipeline 511831) demonstrated the old `when: always` behavior:
-hardware attempt 2832752 was runner-interrupted, so reporting started without
-`out/physical/metadata.txt` and failed. Retried hardware 2833057 later succeeded,
-but the already-failed report was not automatically retried. Reporting now uses
-`on_success`, preserving the explicit same-pipeline artifact dependency. Hardware
-and report artifact uploads still use `artifacts: when: always` to retain useful
-failure diagnostics; artifact-upload policy does not control job scheduling.
-
-GitLab snapshots CI configuration when creating a pipeline. This change applies
-to new pipelines; existing pipelines retain their original configuration, and an
-already-failed report still needs its own retry after hardware succeeds. Do not
-restart an expensive hardware build solely to apply this scheduling change.
-See GitLab's [job run conditions](https://docs.gitlab.com/ci/yaml/#when),
-[artifact dependencies](https://docs.gitlab.com/ci/yaml/#needsartifacts), and
-[job retries](https://docs.gitlab.com/ci/jobs/#retry-jobs).
-
-### ECI toolkit RX regression gate
-
-`eci-toolkit-rx` is a Nix/GHDL check and a prerequisite of `prepare-eci`.
-It runs the high-VC pipeline's eight directed/random-stall comparison cases
-from the pinned private toolkit feature commit. This does not validate physical
-timing or board behavior. Low-VC staging and its additional tests remain on the
-unmerged experiment branch. See the [timing closeout](../hardware/physical-experiments.md#paused-after-consolidation--september-17)
-for the private pin and outstanding upstream owner review.
+The shared [container configuration](../../vivado/eci/container.yml) tries the
+ETH license server before HACC. The local Docker launcher passes the same
+default when the host has no override. Host `XILINXD_LICENSE_FILE` and
+`LM_LICENSE_FILE` overrides are forwarded explicitly; see the
+[hardware-build guide](hardware-build.md). Diagnose license acquisition separately
+from RTL errors; no runner-wide configuration or license-file edits are needed
+for the shared default.

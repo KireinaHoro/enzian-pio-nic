@@ -1,41 +1,106 @@
 # Packet processing
 
-RX: CMAC → Ethernet → IPv4 → UDP → ONC-RPC call **or reply** decoder → `DecoderSink` → `DmaControlPlugin`. The most specific decoder emits metadata plus the remaining payload; supported RPC requests/replies become scheduler-visible host requests, while bypass descriptors go through `BypassCmdSink` to datapath 0. `PacketBuffer` DMA stores residual payload in FPGA RAM; decoded/inline data lives in metadata. The host receives control/inline fields plus overflow data through its datapath protocol.
+The generated datapath supports native UDP and ONC-RPC calls/replies over
+Ethernet/IPv4/UDP. Unsupported traffic can use the kernel bypass path. General
+software-backed RPC table spill remains a [proposal](../proposals/lookup-spill.md).
 
-TX: host writes payload/control → `DmaControlPlugin` → packet-buffer DMA → `EncoderSource` → ONC-RPC reply **or call** encoder → UDP → IPv4 → Ethernet → CMAC. Nested outbound calls and inbound replies are installed in the current generator. See [nested RPC details](../software/nested-rpc.md).
+## Receive and transmit paths
 
-The IP encoder queries a software-populated neighbor table. On a missing or incomplete neighbor it emits a packet-bearing `neighborMiss` through `DecoderSink`/`DmaControlPlugin` into bypass; it does not implement ARP itself. `sw/kmod/bypass.c::rx_handle_neighbor_miss` reconstructs IPv4 and calls Linux routing/`ip_local_out`, while software updates reachable hardware neighbors. This replaces the older notification-only/drop behavior. Allocation/routing/output failures can still drop, and general RPC table spill remains a proposal.
+RX: CMAC → Ethernet → IPv4 → UDP → native UDP or ONC-RPC call/reply decoder →
+`DecoderSink` → `DmaControlPlugin`. The most specific decoder emits metadata and
+its remaining payload. Admitted application requests enter scheduler process
+queues; bypass descriptors go through `BypassCmdSink` to datapath 0.
+
+`PacketBuffer` DMA stores residual payload in FPGA RAM. Parsed headers and
+extracted RPC bytes travel in metadata. ECI reconstructs the logical payload
+from metadata prefixes and stored bytes, then exposes contiguous inline or
+overflow placement according to the [HW/SW cache-line interface](../architecture/hw-sw-interface.md).
+Internal parser extraction sizes are not the host payload-placement boundary.
+
+TX: host descriptor/payload → `DmaControlPlugin` admission and packet-buffer DMA
+→ `EncoderSource` → native UDP or ONC-RPC reply/call encoding → UDP → IPv4 →
+Ethernet → CMAC. Outgoing nested calls reserve completion-routing state before
+DMA/encoding. Native UDP TX validates the endpoint against its owner and obtains
+the local port from the listener table. See [nested RPC](../software/nested-rpc.md)
+and the [programming model](../software/programming-model.md).
 
 ## Source navigation and ownership
 
-All paths below are relative to `hw/src/lauberhorn/`:
+Paths below are relative to `hw/src/lauberhorn/`:
 
 | Stage | Contract |
 | --- | --- |
-| `MacInterface.scala` | CMAC clock crossings, frame boundaries/lengths, network AXI-Stream |
-| `net/Decoder.scala`, `net/ProtoState.scala` | Decoder registration, protocol metadata, final/bypass output |
-| `net/ethernet/`, `net/ip/`, `net/udp/` | Header parsing/encoding; selected traffic advances to the next protocol |
-| `net/oncrpc/OncRpcCallDecoder.scala` | Service lookup selects PID/function, extracts inline arguments, records reply-routing session |
-| `net/oncrpc/OncRpcReplyDecoder.scala` | Matches nested replies by XID and network tuple; emits PID/cookie and inline reply data |
-| `net/DecoderSink.scala` | Prioritizes the most specific descriptor and selects its matching payload stream |
-| `DmaControlPlugin.scala` | Allocates/stores residual RX payload, dispatches host metadata, collects RX acknowledgments and TX requests |
+| `MacInterface.scala` | CMAC clock crossings, frame boundaries/lengths and network AXI-Stream |
+| `net/Decoder.scala`, `net/ProtoState.scala` | Decoder registration, metadata and final/bypass output |
+| `net/ethernet/`, `net/ip/`, `net/udp/` | Header parsing/encoding and listener-based protocol selection |
+| `net/udp/NativeUdpDecoder.scala` | Buffers one datagram, checks lengths/checksum and supported IPv4 shape before admission, trims Ethernet padding and drains malformed input |
+| `net/oncrpc/OncRpcCallDecoder.scala` | Service lookup, enabled-state check, reply-context reservation and extraction of RPC argument bytes |
+| `net/oncrpc/OncRpcReplyEncoder.scala`, `RpcReplyContexts.scala` | Per-invocation routing tokens, owner/generation validation, reply retirement and bounded full-table rejection |
+| `net/oncrpc/OncRpcReplyDecoder.scala` | Outgoing-request reservations and reply matching by XID/network tuple, recovering PID/cookie |
+| `net/DecoderSink.scala` | Selects the most specific descriptor and its matching payload stream |
+| `DmaControlPlugin.scala` | RX allocation/storage and dispatch; acknowledgment/discard cleanup; TX admission and collection |
 | `PacketBuffer.scala` | FPGA RAM with AXI DMA, separate RX allocation region and per-datapath TX buffers |
-| `net/EncoderSource.scala` | Selects TX encoder by descriptor type and pairs its residual payload |
+| `net/EncoderSource.scala` | Selects the TX encoder and pairs its residual payload |
 
-The RX pipeline serializes packet admission through acknowledgment. Metadata and payload travel separately: do not independently arbitrate them or remove acknowledgment gating without preserving their association. Inline bytes do not imply the whole packet lives in the descriptor. RX acknowledgment releases allocated residual payload; queue-full/drop paths need explicit ownership handling (see [status](implementation-status.md)).
+Metadata and payload travel separately. RX admission is acknowledgment-gated;
+independent arbitration must preserve their association. A transport RX
+acknowledgment releases allocated residual storage. Scheduler discards also
+return buffers through DMA cleanup and retire incoming ONC-RPC reply contexts.
+A request rejected before packet allocation must not acquire a release obligation
+for a nonexistent buffer.
 
 The shared `AxiStreamExtractHeader` requires `outputAck` for every emitted header,
-including header-only/partial packets with no residual payload. Consumers must
-acknowledge dispatch; leaving this input undriven stalls later headers. Packets
-shorter than `minHeaderLen` emit neither header nor payload and increment
-`incompleteHeader` in the discard path without waiting for acknowledgment.
-The standalone blocks tests model both kinds of accepted packet and check delayed
-acknowledgment plus deterministic short-packet boundaries.
+including header-only/partial packets with no residual payload. Leaving it
+undriven stalls later headers. Packets shorter than `minHeaderLen` emit neither
+header nor payload and increment `incompleteHeader` without waiting for an
+acknowledgment. Standalone blocks tests cover accepted packets, delayed
+acknowledgment and deterministic short-packet boundaries.
 
-## Current protocol limits
+## Lookup and capacity behavior
 
-ONC-RPC uses fixed protocol structures and inline byte arrays (48 bytes for normal RX inline data, 24 for nested-call inline data in `Global.scala`). This is not arbitrary IDL deserialization. The call decoder explicitly leaves argument bytes in network order and assumes a little-endian host when programming selected service fields. Follow the generated host descriptors and runtime serialization when changing formats.
+Defaults come from `Global.scala`; each resource has a different failure policy.
 
-Unmatched ONC-RPC services currently drop; nested reply misses/malformed replies also have drop paths. IPv4 options/validation and default-gateway behavior remain incomplete. Hardware TCP, HTTP and gRPC are placeholders. See [lookup spill proposal](lookup-spill.md) before treating a miss as a software-owned request: the proposed typed slow paths are not the current behavior.
+| Resource | Default capacity | Miss/full behavior |
+| --- | ---: | --- |
+| UDP listeners, `UdpDecoder.listenDb` | 16 | Unselected traffic follows ordinary packet bypass. Native UDP entries also identify PID/endpoint. |
+| ONC-RPC services, `OncRpcCallDecoder.serviceDb` | 8 | Unmatched or disabled service requests are dropped; there is no runtime registry spill. |
+| Scheduler processes, `Scheduler.procDb` | 16 | Unmatched, disabled or full-queue requests enter explicit discard/cleanup. A full process queue is not a software queue. |
+| Incoming reply contexts, `OncRpcReplyEncoder.contexts` | 16 | No live overwrite. Full capacity prevents handler admission and queues a best-effort `SYSTEM_ERR`; the bounded rejection FIFO may itself drop. Replies require a live slot/generation and matching owner; stale/invalid replies are dropped. |
+| Outgoing nested requests, `OncRpcReplyDecoder.requestDb` | 16 | Admission precedes TX DMA/encoding. Exact live retransmissions retain their reservation; full/conflicting admission fails without replacing an active entry. Unmatched or invalid incoming replies are dropped. |
+| IPv4 neighbors, `IpEncoder.neighborDb` | 8 | Absent/incomplete entries produce packet-bearing `neighborMiss`. An absent entry with no free slot still replaces index 0 and increments `neighTblFull`; safe explicit replacement is not implemented. |
 
-See [architecture](architecture.md) for ECI delivery and [implementation status](implementation-status.md) for capability/verification boundaries.
+The two 16-entry RPC resources are separate tables, not a common session pool.
+Hardware retirement also differs from application consumption of a completion;
+see [receive-side backpressure](../software/programming-model.md#loopback-composition-receive-side-backpressure).
+The [reply-context topic](../software/reply-contexts.md) describes per-invocation
+routing identity; generated descriptors and the cache-line interface define the
+current host layout.
+
+## Kernel bypass and neighbor misses
+
+`BypassCmdSink` arbitrates typed requests into a FIFO for the bypass datapath.
+`sw/core/eci/core.h` decodes them; `sw/kmod/bypass.c` polls them through NAPI.
+`TY_BYPASS` injects a packet into Linux netdev RX. `TY_NEIGHBOR_MISS` reconstructs
+IPv4 and submits retained payload to Linux routing/`ip_local_out`; software also
+updates reachable hardware neighbors.
+
+The IP encoder does not implement ARP. Its packet-bearing neighbor miss travels
+through `DecoderSink` and RX DMA, preserving bytes for Linux output. Allocation,
+routing and output failures can still drop. This existing kernel-owned fallback
+does not implement application-owned service/process/context spills.
+
+## Protocol limits
+
+ONC-RPC uses fixed structures and parser extraction arrays: 48 bytes for normal
+RPC extraction and 24 for nested-call TX inline metadata in `Global.scala`.
+These are not arbitrary IDL deserialization or the ECI 64-byte inline-placement
+rule. Argument bytes remain wire-native; numeric descriptor fields follow the
+[host-boundary endianness contract](../software/nested-rpc.md#endianness-at-the-host-boundary).
+Use generated descriptors and runtime serialization when changing formats.
+
+Native UDP validates its supported datagram shape before publishing host work;
+that does not make the entire IPv4/ONC-RPC parser a complete malformed-packet
+validator. IPv4 options, hardware default-gateway handling and malformed ONC-RPC
+handling remain incomplete. Hardware TCP/HTTP/gRPC are placeholders in this
+checkout. See [hardware status](implementation-status.md) for capability limits
+and [validation](../development/validation.md) for test selection.

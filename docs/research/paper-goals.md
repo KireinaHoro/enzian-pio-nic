@@ -1,18 +1,8 @@
 # Full systems paper: goals and evidence
 
-Survey: 2026-09-08, base `b86c68c`. The system objective, application portfolio, baseline and scheduling scope below are maintainer-confirmed. Experiments are proposals; venue/cycle and exact application versions remain unspecified.
-
-## Evaluation status — October 8 consolidation
-
-The [current evidence index](roadmap.md#current-status--october-8-consolidation)
-records completed hot/cold DPDK microbenchmarks, GSYNC mitigation and CPU-work
-analysis. The [Dandelion campaign](dandelion-measurement.md) adds checked
-atomic/composition execution and correlated waterfalls, including three parallel
-children on real hardware. These are bounded results, not the full paper
-evaluation: loaded four-worker tails, broader application workloads, Caladan controls,
-recovery and broader adversarial acceptance remain open. HOST_WAKE/events and
-complete resource recovery are still follow-on implementation work. The
-experiment matrix below is an evidence plan, not a list of completed features.
+The paper evaluates an OS-integrated RPC system built on published 2F2F.
+The claims and experiment matrix are goals; completed evidence and unresolved
+decisions are indexed in the [research roadmap](roadmap.md#evidence-and-remaining-claims).
 
 ## Starting claim
 
@@ -22,21 +12,44 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 ## Planned applications and baseline
 
-**Caladan is the selected primary baseline, labeled SH-A64 for the AArch64 port alongside DPDK and LH.** Follow the [current Enzian port plan](caladan-enzian.md): ConnectX-5 networking, the simple scheduler, and bounded hot, core-reclamation and memcached experiments. Pin implementation, application versions and resource budgets; ARM port and measurement acceptance remain pending. Conventional Linux RPC and static Lauberhorn can serve as additional controls. Keep application semantics and load generation comparable. Full Caladan interference-control claims are outside scope.
+**Caladan and DPDK are explicit paper baselines.** **CS-A64 (Caladan Simple)**
+is the AArch64 Caladan port using the simple scheduler and ConnectX-5 mlx5
+directpath; **DPDK** is the polling transport/CPU-processing baseline. CS-A64
+evaluates runtime-managed networking and core allocation, not a Shenango
+simulation. Compare both with **LH** under matched workload semantics and
+resource budgets. The [Caladan baseline](caladan-enzian.md) records finite ARM,
+packet-path and shared-echo acceptance; controlled paper measurements and
+memcached comparison remain pending. Conventional Linux RPC and static
+Lauberhorn are additional controls. Full Caladan IAS/interference-control
+claims are outside the selected scope.
+
+**Native Lauberhorn memcached versus Caladan memcached is a main paper goal.**
+Use the [Caladan baseline plan](caladan-enzian.md) and
+[memcached application evidence](../applications/memcached.md) to define comparable application
+versions, operation mixes, concurrency, skew and worker/core budgets. The existing
+Linux-over-FPGA-bypass comparison is a separate control, not the Caladan baseline.
+
+The [DPDK microbenchmark baseline](dpdk-baseline.md) uses ConnectX-5 polling
+and the shared echo RPC software path to compare CPU-side networking with LH.
+Its configured workers provide a transport/CPU-processing baseline; CS-A64
+separately evaluates Caladan's runtime-managed scheduling. Both use the common
+[hot measurement methodology](hot-measurement.md).
 
 | Planned application | Purpose in the evaluation / integration starting point |
 | --- | --- |
-| Dandelion | Bounded Enzian composition/four-worker and aligned atomic measurements complete; paused. Scope is programming-model support and communication overhead, with lightweight-isolation projections distinguished from measurements. [Closeout and two deferred extensions](roadmap.md#dandelion-closeout-limited-scope-and-deferred-work--october-8). |
 | RPC server | Basic request dispatch, payload/handler sweeps and multi-service load; current microbenchmarks are a starting point |
 | Userspace NFS server | Stateful service and larger data movement; implementation/version and filesystem semantics to select |
-| memcached | Next application, in a new thread: key-value service, mixed operations, concurrency and skew; port remains planned |
-| Consensus, e.g. etcd/Raft | Chained peer RPCs and stateful coordination; exact implementation and durability/failure semantics to select |
+| memcached | Main paper comparison: native Lauberhorn versus Caladan (CS-A64), covering key-value service latency, throughput and dynamic worker allocation under comparable workloads and resource budgets. Native bounded integration results exist; the controlled baseline comparison remains pending. |
+| [Go Raft/etcd](../applications/etcd.md) | Chained peer RPCs and stateful coordination; proposed Go runtime integration first, with transport, durability and failure semantics still to define |
 
-These are planned applications, not claims that five ports run on the current FPGA. The historical Dandelion student report evaluates a software mock. The newer Enzian reports establish bounded implementation results, not a controlled end-to-end speedup over vanilla Dandelion or measured CHERI gains.
+Application inclusion does not imply a completed port or evaluation.
+[Dandelion is bracketed](../applications/dandelion.md): process-sandbox overhead
+dominates enough that Lauberhorn cannot make a meaningful end-to-end difference.
+Its retained results are outside the active paper goals.
 
 ## Follow-on scope
 
-The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than Dandelion and the other applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](grpc-roadmap.md); do not expand the first paper into that agenda by default.
+The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should be integrated soon to avoid drift, with lower priority than the active applications above. Fully offloaded gRPC is a potential later paper. See [protocol integration roadmap](../proposals/grpc.md); do not expand the first paper into that agenda by default.
 
 ## Proposed evidence plan
 
@@ -44,26 +57,29 @@ The finished [TCP](tcp.md) and [Protobuf](protobuf.md) student projects should b
 | --- | --- | --- |
 | Coherent delivery reduces host RPC overhead | Sweep payload and handler sizes; compare equivalent transports and report CPU work separately from end-to-end latency | `../microbenchmarks/`, `sw/core/eci/core.h` |
 | Scheduling integration helps changing demand | More services than workers, bursts, idle-to-active transitions, skew, competing RPC services within isolated workers; report tail latency, throughput, core occupancy, fairness and transition cost | `Scheduler.scala`, `sw/kmod/sched.c`, `../microbenchmarks/client/bench_dpdk.c` |
-| Using the RX return half improves application performance | After baseline application measurements, compare independent TX with a coupled RX-return prototype; measure fitting-response fraction, latency/tails, throughput, CPU work and coherence contention, including large-response fallback | [Evaluation placement and decision criteria](roadmap.md#application-performance-and-coupled-rxtx-analysis); [protocol design questions](../hardware/rx-writeback.md) |
+| Using the RX return half improves application performance | After baseline application measurements, compare independent TX with a coupled RX-return prototype; measure fitting-response fraction, latency/tails, throughput, CPU work and coherence contention, including large-response fallback | [Evaluation and decision criteria](../proposals/rx-return-responses.md#evaluation-and-decision-criteria); [protocol design questions](hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses) |
 | Benefits come from integration | Ablate dynamic scheduling, compare pinned service workers, separate coherent transport effects from scheduling effects | Same workload and hardware across configurations; implementations of controls still need auditing |
-| Mechanism scales beyond tiny tables | Sweep services/processes/in-flight calls through capacity; account for spills, queueing, drops and hardware area/timing | `docs/hardware/lookup-spill.md`, hardware status doc |
-| RPC composition is practical | Remote nested calls, concurrent continuations, reply reordering, saturation, local calls if supported | `hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala`; generic runtime completion has historical board validation; application composition on the replacement scheduling ABI remains separate acceptance |
+| Mechanism scales beyond tiny tables | Sweep services/processes/in-flight calls through capacity; account for spills, queueing, drops and hardware area/timing | [Lookup/spill proposal](../proposals/lookup-spill.md), [hardware limits](../hardware/implementation-status.md) |
+| RPC composition is practical | Remote nested calls, concurrent continuations, reply reordering, saturation, local calls if supported | [Nested RPC contract](../software/nested-rpc.md), component simulations and application-specific evidence; bounded Dandelion functionality is outside the active paper goals |
 | Coherence and isolation remain correct | Worker handoff at protocol boundaries, stale mappings, process exit, receive-critical-section timeout and overload; model plus directed simulation and board stress | `model/`, router/preemption RTL, ECI simulations |
 
 Security/flexibility evidence must accompany latency: define the trusted NIC/kernel boundary, per-process mappings and registration authority, validate cross-process isolation and stale-pointer/ownership handling, and show resource reclamation on exit and timeout. Bound exhaustion effects across services. These are proof and test obligations for the system claim, not guarantees already demonstrated by the prototype. Run-to-finish does not promise bounded latency for an unbounded handler; the application timeout policy remains open.
 
-## Measurement rules
+## Measurement and correctness contracts
 
-- Use `docs/research/latency-measurement.md` and the actual plotting implementation together. Client RPC wall time, CMAC-to-CMAC service time, and blocking receive duration are different measurements.
-- Do not assign the residual latency bucket entirely to the wire. It includes uninstrumented client/kernel/network work and correlation gaps.
-- CPU/FPGA alignment and directional ECI timing include estimates. State the alignment method and timestamp overhead; retain raw captures and generated trace map.
-- Narrow trace IDs wrap; correlate using order, time, core and event relationships. Never join solely by numeric ID.
-- Existing latency examples are historical captures, not fresh results or a throughput/scheduling evaluation. Report provenance: git and submodule commits, bitstream/header pairing, kernel, worker/CPU configuration, load generator, offered load, payloads, duration, repetitions, correctness/drop counts and instrumentation settings.
-- Measure energy or CPU availability before claiming that blocked loads save either at system level.
+Use the [hot-path methodology](hot-measurement.md) and
+[campaign workflow](../development/benchmark-campaign.md) for workload boundaries,
+instrumentation controls, clock uncertainty, provenance and reproduction.
+Separate wire latency, client RTT, CPU work and scheduler intervals. Measure
+energy or CPU availability before claiming system-level savings from blocked loads.
 
-## Correctness scope
-
-`model/legacy/tla/lauberhorn.tla` models caches, FPGA handlers, services, kernel state and core assignment. Toolbox configurations include type, cache-line exclusion, preemption and isolation invariants plus temporal properties. Checked-in `MC.out` files report historical successful model checks; they are not a proof that today's RTL refines that model. Reconcile model assumptions with decoupled RX/TX, routing, nested RPC and DCU progress, and rerun a recorded configuration before making new correctness claims.
+The [formal topics](../formal/README.md) distinguish selected bounded results,
+negative controls and environment assumptions from concrete RTL correspondence.
+The legacy model and its historical outputs are not a proof of today's system.
+Use [validation](../development/validation.md) for targeted checks and matched
+board testing; finite acceptance does not establish full-system refinement or
+unbounded progress. Complete recovery and adversarial isolation obligations
+remain explicit in the [roadmap](roadmap.md#progress-isolation-and-recovery).
 
 ## Suggested paper structure
 

@@ -1,8 +1,14 @@
 # TCP student project
 
-Surveyed 2026-09-08. External sibling workspace: `../flavian-tcp/`, not vendored here. Report: **Flavian Kaufmann, _Reliable transport for the Lauberhorn smart NIC_**, bachelor thesis 607b, February–August 2026, supervised by Pengcheng Xu and Timothy Roscoe. Inspected revisions: platform `9bedb136`, report `e39bf00`. Routed-build metadata records a different source revision, `46bc64784c484fc0`; historical results are not tests of today's tree.
+The external implementation in `../flavian-tcp/` provides partial TCP offload;
+it is not integrated into this platform. Its source and evaluation are described
+in Flavian Kaufmann's *Reliable transport for the Lauberhorn smart NIC*, bachelor
+thesis 607b (2026). The evidence below refers to platform `9bedb136` and report
+`e39bf00`; routed-build metadata instead identifies `46bc64784c484fc0`.
 
-Maintainer priority: merge this finished student project's work soon to limit bit rot, **below Dandelion and the other first-full-system-paper applications**. TCP and the [protobuf decoder](protobuf.md) are components for a possible subsequent paper on fully offloaded gRPC. This project implements partial TCP offload, not that complete system. No TCP code was merged during this documentation survey.
+Integration has lower priority than active first-paper applications. The
+[gRPC proposal](../proposals/grpc.md) records the shared integration direction
+and additional protocol layers required beyond TCP and Protobuf.
 
 ## Architecture and host contract
 
@@ -23,11 +29,11 @@ Reported RX worker-descriptor latency is 43/68 cycles for 32/536-byte payloads; 
 
 ## Integration work and unresolved design
 
-The report's discussion is more critical and current than the sibling's brief architecture/future-work notes. Before freezing a production host ABI, address its documented gaps:
+Before selecting a production host ABI, resolve these design gaps:
 
 1. Enforce advertised receive-window admission and unify advertised windows. Currently even zero-window in-order payload can advance receive state. Report piggybacked ACK/window progress to the software owner even when a hardware consumer claims the payload.
 2. Guard indexed invalidate/window-update maintenance against slot reuse. Define per-command results, reinjection drain completion and capacity-exhaustion responses; aggregate counters cannot establish one command's outcome. Validate or explicitly constrain reinjection tuple/tokens/sequence ordering and the resync receive frontier.
-3. Reconcile four-bit descriptor types, generated Mackerel/C headers, ECI routing and cache-line ownership with this tree and Dandelion's runtime changes. Add ABI version/capability rules and an independently implemented codec check. Establish isolation for privileged TCP-owner commands before claiming security guarantees.
+3. Reconcile descriptor types, generated Mackerel/C headers and ECI routing with the current [HW/SW interface](../architecture/hw-sw-interface.md), [borrowed-buffer APIs](../software/programming-model.md) and [scheduling contract](../software/scheduling-control-interface.md). The same four-bit type width does not establish ABI compatibility. Add ABI version/capability rules and an independently implemented codec check. Establish isolation for privileged TCP-owner commands before claiming security guarantees.
 4. Build the real software owner: receive reordering/window policy, active open, retransmission/RTT/congestion policy, close/half-close/TIME-WAIT, tuple reuse and errors. The single-connection model lacks an RTT estimator, timeout backoff, adaptive congestion control, fast retransmit and a SACK scoreboard. Negotiation, fixed listener ISN/initial window and table/packet exhaustion also need production behavior.
 5. Decide retention of unacknowledged **NIC-encoded** reply bytes. The report design discusses host regeneration, NIC-to-host copying and bounded NIC storage without selecting one; current retransmission descriptors source host TX-buffer bytes. This remains a real design question for reliable fully offloaded replies.
 6. Close timing or revise the clock target; validate real ECI operation, multi-connection pressure, recovery failures and end-to-end applications before extending claims to hardware or gRPC. TCP record dispatch does not provide HTTP/2, gRPC framing, protobuf integration or TLS.
@@ -47,4 +53,4 @@ All paths below are relative to `../flavian-tcp/`.
 | Historical measurements and routed reports | `platform/data/evaluation/tcp/`; `platform/data/eci/tcp/tcp_handshake_payload.pcap` |
 | Commands and build flags | `platform/Makefile`, `platform/build.mill`, `platform/scripts/tcp-tap-docker.sh` |
 
-In that sibling platform's development environment, `make test-tcp` runs unit/model and engine suites; `make test-tcp-host` isolates the owner model; `make test-tcp-tap-docker` runs the privileged Linux interop suite. `mill eciTcpOn.generateVerilog` and `mill eciTcpOn.generateEvaluationReports` select TCP; `eciTcpOff` supplies the comparison. **The inspected build file already exposes these targets**, despite `FUTURE-WORK.md` saying TCP build targets are missing. Ordinary `eci` remains TCP-disabled. These commands are sibling-specific; no build, simulation or synthesis was run for this survey.
+In that sibling platform's development environment, `make test-tcp` runs unit/model and engine suites; `make test-tcp-host` isolates the owner model; `make test-tcp-tap-docker` runs the privileged Linux interop suite. `mill eciTcpOn.generateVerilog` and `mill eciTcpOn.generateEvaluationReports` select TCP; `eciTcpOff` supplies the comparison. The sibling build file exposes these targets; ordinary `eci` remains TCP-disabled. These are sibling-specific commands, not platform build targets. Use the [platform validation workflow](../development/validation.md) when integrating the port.

@@ -1,6 +1,6 @@
-# FPGA architecture: agent map
+# FPGA architecture
 
-Scope: current source tree, inspected 2026-09-08. Source paths below are relative to the repository root. This is a navigation guide, not a claim of measured performance. See [implementation status](implementation-status.md) before making capability claims.
+Source paths below are relative to the repository root. See [implementation status](implementation-status.md) for supported features and limitations.
 
 ## Composition and boundaries
 
@@ -16,6 +16,15 @@ Scope: current source tree, inspected 2026-09-08. Source paths below are relativ
 | Coherent CPU link | `hw/src/lauberhorn/host/eci/`: ECI routing, per-worker 2F2F RX/TX, preemption |
 | Physical ECI integration | `vivado/eci/rtl/lauberhorn_eci.vhd`: NicEngine, even/odd DCS, ECI transport, interrupts, CMAC, trace DMA/DDR |
 
+The DCS slices use the [Lauberhorn-specific ROM](lauberhorn-rom.md). That topic
+explains how nonlocking local invalidation removes directory-pressure blocking,
+the required ordering contracts, and the area/timing evaluation.
+
+F_MAC0's CMAC is configured over AXI-Lite through a 64 KiB register window,
+including its RS-FEC controls. F_MAC1 uses autonomous control for the trace link.
+See [tracing architecture](tracing.md#hardware-collection) for
+producer wiring, recorder/map generation and timestamp semantics.
+
 ## Packet paths
 
 See [packet processing](packet-processing.md) for ingress/egress stages, metadata/payload ownership and bypass behavior. Both ONC-RPC call and reply paths are installed.
@@ -26,16 +35,11 @@ See [packet processing](packet-processing.md) for ingress/egress stages, metadat
 
 `EciDecoupledRxTxProtocol.scala` implements alternating control lines and twelve overflow lines per direction. The selected 8 KiB layout places RX controls at `0x300/0x380`, TX controls at `0x1300/0x1380`, and overflow at `0x400/0x1400`. `EciAddressMap` and the generated C helper encode color-neutral 19-bit lifetime codes separately from worker identities.
 
-Transport version 3 uses the control CL upper half only for complete
-payloads up to 64 bytes. Larger RX payloads start at overflow byte zero, including
-reconstructed RPC prefixes and bypass headers. TX uses explicit inline placement
-(bit 23), allowing a short commit from a large reservation. Normal invalidation
-uses actual length; byte 56 is reserved. Inline bytes take priority over overflow
-writebacks during commit. Full invalidation remains at preemption. Mutable RX writebacks are retained privately for replay until
-retirement. See [RX writeback](rx-writeback.md) and the
-[runtime ownership contract](../software/runtime.md#request-and-transport-ownership).
+The [hot-path HW/SW interface](../architecture/hw-sw-interface.md) defines the
+version-3 RX/TX control and overflow layouts, reservation-fixed TX placement,
+inline restoration and RX replay ownership.
 
-`EciDeschedulingControlPlugin.scala` delivers payload-free DESCHED through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md); board acceptance remains outstanding.
+`EciDeschedulingControlPlugin.scala` delivers payload-free DESCHED through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md) for recorded board coverage and remaining acceptance boundaries.
 
 ## Defaults and invariants
 
@@ -82,7 +86,7 @@ Mill targets in `build.mill`.
    and fetched by Nix, then runs `vivado/eci/create_bitstream.tcl` to produce the routed checkpoint,
    bitstream, and probes file.
 
-The Nix package `.#genVerilog` runs the same `eci.generateVerilog` flow offline
+The Nix output `.#dev.x86_64-linux.hardware.rtl` runs the same `eci.generateVerilog` flow offline
 with the locked Mill dependency set and installs the generated RTL, headers, and
 device descriptions as Nix outputs.
 

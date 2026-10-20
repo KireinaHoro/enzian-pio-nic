@@ -1,10 +1,10 @@
 # Scheduler and Linux integration
 
-The sole ECI design is physical-worker address decoding with cooperative
-DESCHED/yield. Source integration is in progress on `feat/cooperative-yield`;
-[implementation evidence](../hardware/eci-implementation.md) separates passing
-checks from outstanding board acceptance. The [control contract](scheduling-control-interface.md)
-is authoritative. Superseded implementations are available in Git history.
+ECI uses physical-worker address decoding with cooperative DESCHED/yield.
+The [control contract](scheduling-control-interface.md) defines the detailed
+handoff protocol; this page describes Linux responsibilities and the failure
+boundary. [ECI evaluation](../research/eci-progress.md) records finite board
+coverage separately from implementation.
 
 ## Responsibilities and identities
 
@@ -51,15 +51,41 @@ its own fresh activation, regardless of unrelated wakeups. The returned worker
 index selects its mapped alias, and both local parity bits are replaced before
 transport access. Ordinary blocking syscalls retain assignment.
 
-## Failure boundary
+## Failure and reset boundary
 
-Unauthorized fresh reads kill the requesting domain, not the installed owner
-of the addressed worker. SGI 9 reports sticky domain faults to housekeeping.
-Old-address writebacks and LCIA remain cleanup obligations. Unsupported exit,
-fatal activation failure and failed result copying after relinquishment fence
-claims and require a coherence reset; unresolved identities and resources are
-retained. Full recovery and parked-domain deadline activation are deferred.
-See [failure policy](process-recovery.md).
+Complete kill/exit recovery is deferred in the cooperative ECI implementation.
+This stage kills and fences failed domains; it does not reclaim unresolved
+resources or recycle their identities. Historical recovery campaigns describe
+older ABIs and do not establish acceptance of this implementation.
+
+An unauthorized fresh read is attributed to the requesting PA lifetime. Kernel
+fault handling kills that domain and forbids later activation. It must not kill
+the current owner merely because an old domain addressed the same physical
+worker. Legitimate old-address writebacks and LCIA remain serviceable.
+
+Unsupported exit, individual pool withdrawal, fatal activation failure and a
+failed activation-result copy after relinquishment have the same reset-required
+boundary. Claims are fenced, task and resource references retained, and unresolved
+slots, mappings and endpoint identities are not offered to another domain.
+The persistent lifetime allocator resets only at full coherence reset. Application
+reset or module reload cannot silently restart the PA namespace.
+
+Ordinary scheduling does not use recovery machinery. Idle activation uses its
+sticky notification and pinned dispatcher; ordinary DESCHED uses `lh_yield()`
+and one autonomous-cleanup `DeschedInfo` transaction with no scheduling IRQ.
+
+Per-call cancellation/timeout retirement remains a separate existing operation.
+Parked-domain deadline activation and execution-watchdog integration are outside
+this stage; their control ioctls return `EOPNOTSUPP`. No HOST_WORK interface is
+implemented; the [new design](../proposals/host-work.md) uses that name instead
+of HOST_WAKE and does not change recovery. See the [control contract](scheduling-control-interface.md) and
+[evidence ledger](../hardware/eci-implementation.md).
+
+`lauberhorn_stop()` requests failure fencing, not a successful drain/reclaim
+operation. `STOP_PROCESS` and the legacy `WAKE_ALL_WORKERS` ioctl call
+`fail_domain` and return `ESHUTDOWN`. `KICK_PROCESS` and `WATCHDOG` return
+`EOPNOTSUPP`; even a zero watchdog limit is rejected by the current kernel.
+Per-call retirement remains available through `RETIRE_CALL`.
 
 Sources: [scheduler](../../hw/src/lauberhorn/Scheduler.scala),
 [ECI handoff](../../hw/src/lauberhorn/host/eci/EciDeschedulingControlPlugin.scala),

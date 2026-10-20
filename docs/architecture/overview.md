@@ -1,16 +1,7 @@
 # System map
 
-For current implementation, board results and remaining acceptance, start with
-the [October 8 consolidated status](../research/roadmap.md#current-status--october-8-consolidation).
-It supersedes stale campaign-stop language in dated evidence, without promoting
-historical finite tests into full-system guarantees.
-
-**Historical integration status (2026-09-23):** the nested RPC runtime is approved for
-master after the recorded Enzian functional campaign. See
-[integration scope and follow-up work](../software/nested-rpc-integration.md).
-Descriptions below of the former synchronous runtime are historical.
-
-Repository survey: 2026-09-08, base commit `b86c68c`. Read this once, then use the topic documents. Source paths are relative to the repository root. Implementation statements describe this checkout, not all Lauberhorn branches.
+Use this map to find the system components and their topic documentation.
+Source paths below are relative to the repository root.
 
 ## Intent and boundary
 
@@ -19,7 +10,9 @@ Lauberhorn is a smart NIC integrated with OS scheduling, prototyped on Enzian. I
 ## Current composition
 
 ```text
-Ethernet CMAC → Ethernet/IP/UDP/ONC-RPC decode → packet storage + metadata
+Ethernet CMAC → Ethernet/IP/UDP decode → native UDP / ONC-RPC decode
+                                                     ↓
+                                          packet storage + metadata
                                                      ↓
                                           FPGA Scheduler
                                                      ↓
@@ -27,7 +20,7 @@ Ethernet CMAC → Ethernet/IP/UDP/ONC-RPC decode → packet storage + metadata
                                                      ↓
                     Linux worker scheduling ↔ userspace runtime/handler
                                                      ↓
-                     host TX → RPC/UDP/IP/Ethernet encode → CMAC
+                     host TX → native UDP / ONC-RPC → UDP/IP/Ethernet encode → CMAC
 
 Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 ```
@@ -35,7 +28,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 - `hw/src/lauberhorn/GenEngineVerilog.scala` composes SpinalHDL plugins; normal generation creates four workers plus bypass datapath 0. These are logical NIC datapaths, not the machine's entire CPU population.
 - `hw/src/lauberhorn/Scheduler.scala` owns NIC request placement; `sw/kmod/sched.c` implements the Linux-side worker transitions. Do not conflate these two schedulers.
 - `hw/src/lauberhorn/host/eci/` implements coherent transport and preemption; `vivado/eci/rtl/lauberhorn_eci.vhd` integrates generated RTL with DCS, ECI and CMAC.
-- `sw/kmod/` manages protected resources and worker activation; `sw/rt/` dispatches RPCs in userspace. The current C runtime still performs XDR work.
+- `sw/kmod/` manages protected resources and worker activation; `sw/rt/` dispatches inline handlers, explicitly deferred fiber work and nested-call completions. ONC-RPC codecs perform XDR in software. See the [runtime](../software/runtime.md) and [programming model](../software/programming-model.md) for ownership and API details.
 - `sw/include/`, generated configuration/Mackerel headers, and `sw/core/eci/core.h` form a coupled hardware/software ABI. Regenerate collateral after hardware layout changes.
 - `data/eci/sys_trace/` and the microbenchmark client tools explain observed behavior; the [model index](../../model/README.md) separates current resource/scheduling models from the original historical correctness model.
 
@@ -48,21 +41,24 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 | Implemented hardware and gaps | [Hardware status](../hardware/implementation-status.md) |
 | Preemption, worker lifetime, Linux policy | [Scheduler integration](../software/scheduler.md) |
 | Runtime transport and dispatch | [Runtime](../software/runtime.md) |
+| RX/TX cache-line layout and payload handoff | [HW/SW interface](hw-sw-interface.md) |
 | Write an application | [Programming model](../software/programming-model.md) |
 | Build and deploy | [Workflow](../development/workflow.md) |
+| Model contracts, assumptions and bounded results | [Formal verification](../formal/README.md) |
 | Select verification | [Validation](../development/validation.md) |
 | Full-paper evidence and experiments | [Paper goals](../research/paper-goals.md) |
+| Unimplemented designs and alternatives | [Open proposals](../proposals/README.md) |
 | Unfinished work and decisions | [Roadmap](../research/roadmap.md) |
 
 ## Detailed references
 
 - [Packet processing](../hardware/packet-processing.md) and [tracing](../development/tracing.md): source-oriented mechanism detail.
-- [Nested RPC](../software/nested-rpc.md): implemented descriptor/RTL paths and remaining runtime integration plan.
-- [Go toward etcd](../research/etcd.md): design-only G/M/P/L scheduling, HOST_WORK and native null-RPC stage; no implementation yet.
-- [Dandelion](../research/dandelion.md): external student report, mock-based application/runtime and porting boundaries.
-- [TCP/Protobuf and gRPC roadmap](../research/grpc-roadmap.md): finished external projects and lower-priority integration scope.
-- [Latency measurement](../research/latency-measurement.md): measurement definitions, correlation and historical examples.
-- [Lookup spill](../hardware/lookup-spill.md): proposed software-backed table scaling.
-- [Coherence progress](../hardware/coherence-progress.md) and [queue-pair design](../hardware/queue-pair-design.md): unresolved DCU layout and ownership choices.
+- [Nested RPC](../software/nested-rpc.md): descriptor/RTL paths; the [runtime](../software/runtime.md) and [endpoint contract](../software/nested-rpc.md#registered-endpoints) describe software integration.
+- [Go runtime](../proposals/go-runtime.md) and [HOST_WORK](../proposals/host-work.md): separate scheduler and notification proposals; [Raft/etcd](../applications/etcd.md) is a planned application.
+- [Applications](../applications/README.md): application integration and evaluation; Dandelion is bracketed for the paper.
+- [TCP/Protobuf and gRPC roadmap](../proposals/grpc.md): finished external projects and lower-priority integration scope.
+- [Hot-path measurement](../research/hot-measurement.md): shared methodology; [hardware tracing](../hardware/tracing.md) defines FPGA instrumentation and correlation.
+- [Lookup spill](../proposals/lookup-spill.md): proposed software-backed table scaling.
+- [Queue-pair design and HoL blocking](../hardware/queue-pair-design.md): selected 8 KiB layout, domain aliases, ownership and the coloring rationale. Coloring alone does not establish full-system progress.
 
-The older top-level notes have been consolidated into these topics. Read status labels before using a proposal as an implementation contract. Resolve conflicts against current source while keeping maintainer intent separate.
+- [ECI progress evaluation](../research/eci-progress.md): matched contention and GSYNC experiments, timeout interpretation and finite coverage.

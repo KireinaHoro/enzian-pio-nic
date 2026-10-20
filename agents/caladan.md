@@ -1,0 +1,168 @@
+# Caladan baseline continuation
+
+Maintain all port documentation here in platform. The sibling Caladan repository
+keeps source and navigation only. **CS-A64 means Caladan Simple on AArch64**,
+using mlx5 directpath, not a Shenango simulation. Upstream x86 behavior remains
+preserved; no x86 calibration campaign is requested. Current source at collection
+was `d6a6be20f78ae0dac14c033cb427126f1f62159b` on `enzian-port`.
+
+Human references: [baseline](../docs/research/caladan-enzian.md),
+[ARM differences](../docs/research/caladan-arm-port.md),
+[build/tests/tracing](../docs/development/caladan.md).
+
+## Next checks and integration constraints
+
+Complete busy-owner signal/IPI preemption, zero-core wakeup and contention/core
+reclamation before treating loaded campaigns as accepted. The shared echo backend
+and bounded tracing checks below supersede the earlier wait-for-extraction gate.
+Integrate backend/importer selection and rehearse Tofino pairing for probe-free
+and breakdown cohorts before paper acquisition. Caladan memcached is a main
+paper comparison, with implementation/evaluation still pending in this record.
+Recheck source revisions and live reservations before resuming. This documentation
+migration launches no build, CI, deployment or measurement.
+
+The platform composition manifest still labels acceptance `pending-arm-port`;
+that static package field does not summarize the later finite evidence below.
+Update it deliberately with packaging changes rather than treating it as a test
+receipt. Controller/plotting integration may still use the retired baseline label;
+select CS-A64 when integrating those changes. No source-code relabeling was part
+of this documentation migration.
+
+## Provisioning safeguards
+
+The earlier reservation of **zuestoll04** with volume
+`caladan-enzian-z04-20261016`, cloned from golden `2025-07-28`, is historical
+provisioning evidence, not the selected CX-5 target. It was acquired powered off
+with boot bundle `pengxu/lauberhorn-6.8.0-146-ptp/{vmlinuz,initrd.img}`; no Caladan
+boot or deployment was performed. No release or reassignment is implied by this
+scope update. Recheck its state before cleanup. For a new board use an explicitly
+selected golden image and a checked-unused, distinct root-volume name: EMG can
+silently reuse names and couple active exports. Never reuse the z04 volume for
+another active board. The deploy skill's golden-image/name safeguards remain.
+
+## Focused-check artifact provenance
+
+Final tested image (including the network hold):
+`/nix/store/5m0c4lx4yh8hzyfl4i1d99rzmmmnixln-caladan-focused-tests.img`, SHA256
+`3b17d60e6df857b7ca106d05eac3a950ff765e05ac793b7c87c20f3b522e95e0`.
+The one-/two-kthread layout checks used
+`/nix/store/6pbcd0w7v3h3gv1k1f20j98br4zn7jdr-caladan-focused-tests.img`, SHA256
+`58dbcaaa123d4591114ee03ea1f36ca55f04d532db499d787a18bf7f362a9da6`.
+Builds include all eight QEMU checks; the final native x86 build also passed.
+These artifacts were built before committing their source as `586a5a1`.
+
+Local evidence: `../caladan/out/hardware-20261020-01/`, including
+`cpu-tests.json`, `module-smoke.json`, `layout-smoke.json`, `peer-ping.json`,
+`peer-neighbor.json`, `postflight.json`, `reclaim.json`, image provenance and
+build logs. Failed startup diagnostics are retained alongside successful runs.
+
+Postflight stopped owned test processes and the temporary image server,
+unloaded both scheduler modules, restored CX-5 down, restored
+`nr_hugepages=0` and `shm_rmid_forced=0`, and reclaimed only test-prefixed DPDK
+hugepage files (final Hugetlb zero). cpuidle returned to `none`. At that postflight observation the read-only test image was still mounted at
+`/nix/store`, with diagnostic files in `/tmp`; later echo cleanup is recorded below.
+
+## Masked-SGI probe
+
+On zuestoll07 CPU 46, a temporary matched-kernel probe masked IRQs
+(`DAIF=0xc0`), disabled the architectural timer event stream, and executed
+`LDAXR/WFE` on a separately allocated, otherwise untouched page. CPU 45 sent
+an asynchronous Linux cross-call SGI after approximately 25 ms and a rescue
+SEV at approximately 133 ms. In all three SGI trials the waiter remained asleep
+until SEV; the SGI callback ran after IRQ restoration. Three SEV-only controls
+also woke at rescue. Thus masked SGIs do not provide the required WFE wakeup
+on this ThunderX configuration. The module was unloaded and per-core timer/IRQ
+state restored; no new kernel diagnostics appeared. Source/build/results are in
+`../caladan/out/wfe-sgi/`, with definitive evidence in `result-3.json`.
+Earlier attempts are retained: immediate returns required retry handling and
+ordered timestamps, and shared probe bookkeeping caused false monitor wakeups
+until the watched word was isolated on its own page.
+
+## Echo and trace evidence
+
+Target: ARMv8 ThunderX + mlx5 directpath, simple policy, with continuous bounded
+idle polling retained. Shared workload lives in `../microbenchmarks/server/caladan`.
+Canonical documentation now lives in platform.
+
+The adapter uses Caladan's UDP spawner, one user thread per datagram, and
+`get_uthread_specific()` for request context. Handler, schema, XDR codecs and
+synchronous RPC path are shared with DPDK. Software probes are compiled out.
+No kernel socket fallback or substitute scheduling loop is introduced.
+
+October 20 functional check: zuestoll07 DUT/CX-5 `0005:90:00.0`, control44,
+dataplane45, two runtime kthreads on46/47, one guaranteed core, BE priority.
+Runtime IP `192.168.128.207`, UDP9000. Peer zuestoll14 NICVF data interface
+`cpu40g1`, IP `192.168.129.193`, generator lcore16. Static runtime ARP entry
+points to peer MAC `0c:53:31:03:01:c1`; generator targets CX-5 MAC
+`b8:ce:f6:87:c2:9e`. No root-volume or boot changes.
+
+Shared DPDK generator passed echo0/8/128/1432, each 16 checked requests plus
+four warmups. This is a correctness smoke test, not performance data. ARM and
+native x86 builds pass shared RPC payload/XID/failure/ownership checks; ARM
+checks run under QEMU. The package checks that software trace hooks are absent.
+
+Evidence and one-off scripts: `../caladan/out/echo-integration/`. ARM image:
+`/nix/store/7bfpr5f0pq72dimc9dy9vdqf1cg73gn9-caladan-echo.img`;
+client image `/nix/store/66m20vqd012adn7aw7as6vaadkndmyg3-lauberhorn-client.img`.
+See `hashes.json`, `image-2.json`, `native-2.json`, and extracted final result
+JSON files. Native x86 remains a build regression check, not a calibration target.
+
+Next work: exercise multi-request concurrency and busy-owner preemption/core
+reclamation before loaded campaigns. Select the actual measurement protocol and
+instrumentation with the user; no latency/throughput conclusions follow from the
+small functional runs. Recheck live reservations before further board use.
+
+Shared backend source: microbenchmarks `8d87fb0` on `caladan-backend`.
+
+Postflight: the generator's network/isolation changes were restored by the
+shared runner (all four case summaries report `restored=true`). DUT server and
+IOKernel stopped, modules unloaded, CX-5 returned down, hugepage/sysctl values
+restored to zero, no new kernel faults. DUT's previous read-only image mount
+was restored; peer's temporary image unmounted; staging HTTP server stopped.
+`dut-stop.json` and `peer-stop.json` contain cleanup and client provenance. The
+client manifest hashes match the shared schema, codec and generator sources.
+
+
+## Stage tracing
+
+Trace-enabled runtime/backend and shared collector adapter are implemented.
+`echoTraceImage` uses the platform collector hooks from branch
+`caladan-breakdown`, isolated at `/tmp/platform-caladan-breakdown`; select its
+`sw` with `--arg rpcSource /tmp/platform-caladan-breakdown/sw`. The main platform
+checkout remains on its docs-scrub branch and was not edited. The new importer
+is `tools.paper.campaign.import_caladan` in the isolated branch.
+
+RX timestamps follow the mbuf through regular/strided CQ consumption and UDP
+spawning; TX uses a persistent request slot through overflow and completes at
+mlx5 submission. Shared RPC probes/collector are reused, with user-thread-owned
+inline context and short, non-inlined publication guards around pthread TLS.
+SIGRTMIN+4 exports quiescent captures; runtime preemption signals are unchanged.
+The probe-free build removes packet fields and timestamp calls at compile time.
+
+Evidence: `../caladan/out/echo-trace/` (echo8) and its `0/`, `128/`, `1432/` subdirectories.
+On z07/z14, echo8 produced 144 rows (128+16 warmup); other sizes each produced
+20 (16+4 warmup). All 204 rows pair exactly with client XIDs, have monotonic
+boundaries and conserved CPU partitions, with zero collector drops. Export used
+the dedicated real-time signal. Each case restored both boards; no new kernel
+faults. `cohort.json` files deliberately have `paper_inputs=false`: no Tofino
+capture was collected. Tested image:
+`/nix/store/ma9s63qqz7wpphz419ykz4k1bhv4jldd-caladan-echo-trace.img`.
+
+Final builds also add explicit worker IDs and a package manifest with trace mode
+and source hashes. `release-build.json` identifies the packaged image and
+probe-free backend; `native-final.json` records the x86 trace build. Shared RPC
+checks pass on ARM/QEMU and native x86. Collector tests cover original/realtime
+signals, overflow and duplicate publication; importer tests reject bad XIDs,
+stage ordering and lossy export. No performance conclusion follows from these
+functional captures.
+
+Next: integrate the new backend/importer into platform campaign selection and
+rehearse Tofino pairing for off/breakdown cohorts. The controller/plotting still
+assume LH/DPDK; update their system selection for CS-A64 before paper acquisition.
+Busy-owner/core-reclamation stress is separate from the unloaded-hot campaign.
+
+All postflight statements above are dated October 20 observations, not current
+board state. Preserve original artifacts and failure diagnostics; recheck
+[hardware state](hardware-state.md) and reservations before any board action.
+The original platform note is retained at `f247539c:docs/research/caladan-enzian.md`;
+the imported notes are retained in Caladan Git at `d6a6be2`.

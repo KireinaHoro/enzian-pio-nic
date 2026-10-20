@@ -8,20 +8,20 @@ description: Prepare, launch, inspect, or recover unattended Lauberhorn hot echo
 Work in the Lauberhorn platform repository. Read
 `docs/development/benchmark-campaign.md` for implementation status, the adapter
 contract and validation commands. Read `AGENTS.md` and the
-[enzian-deploy skill](tools/enzian/skills/enzian-deploy/SKILL.md) before touching a
-board, including its BMC rail-state and D-Bus recovery guidance. All linked paths
-are relative to the platform repository root. The benchmark adapter
-[campaign/hardware.py](tools/paper/campaign/hardware.py) invokes the same
-[test.py](tools/enzian/test.py) and expect-based [boot.py](tools/enzian/boot.py)
-used for ordinary hardware acceptance; [campaign/harness.py](tools/paper/campaign/harness.py)
-uses [run.py](tools/enzian/run.py) and shared [console.py](tools/enzian/console.py).
+[enzian-deploy skill](../../../enzian/skills/enzian-deploy/SKILL.md) before touching a
+board, including its BMC rail-state and D-Bus recovery guidance. Commands and
+code paths are relative to the platform repository root. The benchmark adapter
+[campaign/hardware.py](../../campaign/hardware.py) invokes the same
+[test.py](../../../enzian/test.py) and expect-based [boot.py](../../../enzian/boot.py)
+used for ordinary hardware acceptance; [campaign/harness.py](../../campaign/harness.py)
+uses [run.py](../../../enzian/run.py) and shared [console.py](../../../enzian/console.py).
 Keep deployment fixes in these shared scripts, never a parallel benchmark boot
 or console workflow. Benchmark peer roles and trace receiver/exporter roles share
 `tools/enzian/image.py`: verify the staged Nix image hash, mount it read-only in
 a private namespace, and execute its pinned Python. Host Python only bootstraps
 the verifier; never launch trace code against a private path from the host namespace. Use `paper-chart` for figure generation and final review.
 For trace preservation use the shared
-[lauberhorn-trace skill](tools/enzian/skills/lauberhorn-trace/SKILL.md) and
+[lauberhorn-trace skill](../../../enzian/skills/lauberhorn-trace/SKILL.md) and
 `tools.enzian.trace.session.capture()`. The adapter uses the same session API as
 the manual CLI, including existing CMAC/JTAG readers; never generate trial Tcl
 or implement a paper-specific dump/export/restore path.
@@ -48,7 +48,7 @@ before resetting. Provision through EMG and use the repository hardware harness.
 Never promote a fixture, an unvalidated adapter, or historical measurements into
 passing rehearsal evidence.
 
-For the authorized bounded switch integration, use `scope: "unloaded-rehearsal"`:
+For an explicitly requested bounded switch integration, use `scope: "unloaded-rehearsal"`:
 12 unloaded cohorts, 128 warmups and 100 measured requests each, ending after
 validated CDF/breakdown previews and a terminal callback. It never starts loaded
 or full collection. The same maintained controller owns locking and resume.
@@ -88,11 +88,13 @@ capture. Full collection uses resident-worker chunks with 128 warmups after each
 rearm. Existing integration evidence is checked without launching extra trials.
 Preserve compatible prior acquisitions through the explicit review path.
 For bounded software-only board acceptance use
-`docs/development/mlx5-readiness.md`, the shared NIC runner and
+`docs/research/dpdk-baseline.md` and
+`docs/development/validation.md#dpdk-baseline-readiness`, the shared NIC runner and
 `tools/paper/campaign/mlx5_readiness.py`; validate its archive with
 `tools/paper/validate_mlx5_readiness.py`. Missing wire durations stay null and
-readiness outputs are excluded from paper inputs. Do not resume the NICVF adapter as the new baseline. Caladan-simple
-hot cases wait for its port. Loaded cases retain compiled-out probes and client
+readiness outputs are excluded from paper inputs. Do not resume the NICVF adapter
+as the new baseline. Caladan-derived hot cases require benchmark acceptance beyond the partial
+native ARM/MLX5 mechanism checks. Loaded cases retain compiled-out probes and client
 RTT, with no Tofino capture, FPGA readout or NIC PTP.
 Boot/module failures still require
 the repository's diagnostic capture before reset. If Ethernet capture fails,

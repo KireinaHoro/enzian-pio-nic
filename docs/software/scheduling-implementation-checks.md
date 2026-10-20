@@ -37,11 +37,11 @@ exhaustion, migration and full-address completion through actual DCS slices.
 Kernel/runtime tests must cover initialization failure, concurrent claims,
 unrelated wakeups and failed activation delivery.
 
-The Enzian campaign must independently find the highest tested exception-free
+For RX-stall acceptance, independently find the highest tested exception-free
 RX hold setting, preserve fault traces, inspect every exposed L2C_TAD unit and
 repeat under contention across two cold boots. Include stalled peers while
 independent workers and simultaneous bypass RX/TX progress. Finite observations
 do not prove infinite-stall progress.
 
 Complete exit recovery, deadline activation and PCIe scheduling are deferred.
-No host-work notification interface is specified or implemented in this stage.
+HOST_WORK is a [separate design](../proposals/host-work.md); it is not part of this implemented contract.

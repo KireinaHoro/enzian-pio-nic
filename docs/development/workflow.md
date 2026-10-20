@@ -1,6 +1,9 @@
 # Development workflow
 
-Run commands from the repository root. Build checks and real-board validation are separate; record which checks ran.
+Run commands from the repository root. This guide builds images and their
+matching collateral. Continue with [validation](validation.md#board-validation)
+for board provisioning, automated orchestration and interactive testing. Record
+which checks actually ran.
 
 ## Environment and ownership
 
@@ -10,9 +13,17 @@ Run commands from the repository root. Build checks and real-board validation ar
 - `build.mill` owns Scala compilation, simulation and RTL/ABI generation; `flake.nix` composes the functionality groups under `nix/` for reproducible RTL/header/software packaging. `sw/*/Makefile` are lower-level builds. Vivado is separately installed/licensed; it is not supplied by the flake. The shared Docker runner uses Vivado 2025.1.
 - `nix develop` sets `XDG_CACHE_HOME=$PWD/out/xdg-cache-home/`. After changing Mill dependencies, follow the [clean-cache lock regeneration procedure](ci.md#local-validation-and-maintenance): clear the XDG cache, resolve targets with fresh Mill outputs, then run `update-mill-lock`. The tool captures stale versions if the cache is not cleaned; review removals as well as additions in `project-lock.nix`. Use `--no-daemon` when changed environment variables must reach Mill subprocesses.
 
+## IDE setup
+
+Generate an IntelliJ IDEA project from the repository root:
+
+```sh
+nix develop -c mill mill.idea.GenIdea/idea
+```
+
 ## Build commands and outputs
 
-See the [Nix output inventory](../../nix/README.md) for deployment products,
+See the [Nix output inventory](nix.md) for deployment products,
 `dev.SYSTEM` build conveniences, `checks`, `apps`, and CI cache closures.
 
 | Intent | Command | Output / prerequisites |
@@ -35,25 +46,21 @@ Do not invoke plain `make` after RTL generation and assume all prerequisites exi
 
 ## Deployment and debugging
 
-The deprecated `sw/utils/run_container.sh` and `sw/kmod/reload_kmod.sh` have been
-removed. Use `nix develop` for development and the shared image's `lh-test load`
-for module loading. If replacing a loaded module is intended, stop applications
-and explicitly unload it first; the helper never unloads a working module.
-See [interactive testing](interactive-testing.md) for helper and manual equivalents.
-
-- For reservation, automated BDK hold, JTAG programming and RPC smoke testing, see [automated hardware test quickstart](hardware-test.md).
-- Keep FPGA image, generated headers, module and runtime from a matching revision/configuration. Generation embeds a shortened Git revision; dirty Nix builds use an unknown-version marker. Preserve provenance separately for experiments.
-- The module build must pass Ubuntu's `KERNELRELEASE=6.8.0-146-generic` during kernel preparation and module compilation; the source Makefile's upstream version is not the boot kernel release. The flake checks the built module's vermagic. Verify it against `uname -r` before loading.
-- On the target, `insmod lauberhorn.ko` initializes `/dev/lauberhorn` and bypass netdev `lauberhorn0`. Follow [kernel module usage](../../sw/kmod/README.md) for interface setup; MAC addresses in examples are machine-specific. Hardware access and module loading require target access/privilege.
-- For trace acquisition/export, use [trace tool instructions](../../data/eci/sys_trace/README.md) and [trace architecture](tracing.md). Pair dumps with the trace-map JSON from the matching FPGA build. The Nix `genVerilog` default output retains this map.
+After building an image, continue with [board validation](validation.md#board-validation).
+That guide owns provisioning, matching-artifact checks, automated orchestration,
+interactive `lh-test` commands, boot acceptance and failure preservation.
+For application-only iteration, use the [package interface](#package-interface)
+and [local input overrides](#compose-an-external-repository) below. Keep generated
+hardware/ABI inputs fixed unless the change intentionally updates that contract.
 
 ## CI and documentation drift
 
 See [the CI handoff contract](ci.md): Nix runs regression checks, generates RTL and
 builds matching software in a pinned Nix container. A separate hosted Vivado job
 consumes the portable source/checkpoint bundle without a checkout or regeneration.
-Full slow suites and TLA+ are not CI gates. See [interactive testing](interactive-testing.md) for the installed application
-contract, shared images, local overrides and helper/manual commands.
+See the CI guide for gated checks and opt-in suites. The
+[application packaging contract](#application-packaging) defines images and local
+overrides; [validation](validation.md) defines how to exercise them.
 
 Evidence: [`build.mill`](../../build.mill), [`flake.nix`](../../flake.nix), [CI](../../.gitlab-ci.yml), [generator](../../hw/src/lauberhorn/GenEngineVerilog.scala), [static-shell bitstream writer](../../vivado/eci/static-shell/write_bitstream_app.tcl), [runtime Makefile](../../sw/rt/Makefile), [kernel Makefile](../../sw/kmod/Makefile).
 
@@ -118,8 +125,7 @@ For DPDK hardware timestamp runs, `lh-dpdk-run --ptp-bgx 4` requires
 `--manifest /nix/store/lauberhorn-client/manifest.json`. Before rebinding the data
 VF it checks the running kernel, benchmark package, installed module hashes,
 loaded module source versions, and active PHC. Its `before.json` records this
-provenance. The old standalone test driver and exploratory probe recipes have
-been retired; all supported builds use the shared package input.
+provenance. Supported builds use the shared package input.
 
 The sibling README documents PHC fallback activation, BGX/LMAC selection,
 packet-kind mapping, API scope, and the outstanding board acceptance. For local iteration before
@@ -127,8 +133,7 @@ local changes are published, override the pinned Git input with the local siblin
 checkout. Refresh it after sibling edits with
 `nix flake lock --override-input thunderx-ptp path:"$(realpath ../thunderx-dpdk-ptp)"`.
 After publishing that repository, restore the Git pin using
-`nix flake update thunderx-ptp`. The no-commit/no-push iteration rule applies
-to plotting changes; keep those separate from driver and measurement commits.
+`nix flake update thunderx-ptp`.
 
 ## Microbenchmark sources
 
@@ -138,14 +143,131 @@ memcached. DPDK responder builds receive the filtered platform
 RPC/tracing sources explicitly; client builds are independent of that runtime; the Lauberhorn server receives the matching
 runtime package. Recovery tests use the schema from that same input.
 For local edits use `--override-input microbenchmarks path:../microbenchmarks`;
-published builds use the Git revision in `flake.lock`. Caladan support is
-reserved for a later change in the benchmark repository.
+published builds use the Git revision in `flake.lock`. The Caladan echo server
+has its own `server/caladan/package.nix`; the platform exposes `mkCaladan`
+for integration. See the [Caladan baseline](../research/caladan-enzian.md) for
+the selected configuration and acceptance scope.
 
-The benchmark repository now separates `server/lauberhorn`, `server/dpdk`,
+The benchmark repository separates `server/lauberhorn`, `server/dpdk`,
 and the DPDK-only `client`. Each has its own Makefile and Nix package.
 `trafficGenerator{,Native}` contains only `bench_dpdk`; `dpdkServer{,Native}`
 contains the two responder instrumentation variants. The mlx5 equivalents are
-`mlx5TrafficGenerator{,Native}` and `mlx5Server{,Native}`, replacing the bundled
-`mlx5Benchmark{,Native}` outputs. Deployment images explicitly compose client
-and responder packages. The socket client is retired; historical reproduction
-recipes remain pinned to their original revisions.
+`mlx5TrafficGenerator{,Native}` and `mlx5Server{,Native}`. Deployment images
+explicitly compose client and responder packages.
+
+## Application packaging
+
+Linux deployment images contain target AArch64 binaries and their runtime closure.
+Use the following contract for external applications, then follow
+[board validation](validation.md#board-validation) to test the built image.
+
+### Package interface
+
+An application repository supplies a root `package.nix` accepting named arguments:
+
+```nix
+{ stdenv, pkg-config, lauberhornRuntime }:
+stdenv.mkDerivation {
+  pname = "my-service";
+  version = "0.1";
+  src = ./.;
+  nativeBuildInputs = [ pkg-config ];
+  buildInputs = [ lauberhornRuntime ];
+  buildPhase = ''
+    $CC $CFLAGS $( $PKG_CONFIG --cflags lauberhorn) main.c \
+      $LDFLAGS $( $PKG_CONFIG --libs lauberhorn) -o my-service
+  '';
+  installPhase = ''
+    install -Dm755 my-service $out/bin/my-service
+    mkdir -p $out/share/my-service
+    cp -r assets/. $out/share/my-service/
+  '';
+  meta.mainProgram = "my-service";
+}
+```
+
+The platform supplies the target compiler, libraries and matching runtime through
+`platform.callPackage`. Do not select `pkgsCross` inside the application. Runtime
+`out/lib/liblauberhorn.so` and `dev/include`/`dev/lib/pkgconfig/lauberhorn.pc` form
+the public interface; libtirpc is propagated and declared in pkg-config. Generated
+headers are private runtime/module inputs from the same RTL generation. The
+[in-tree demo](../../sw/apps/nix-build-demo/package.nix) compiles and links against
+the installed public interface, without handwritten ABI declarations.
+The [microbenchmarks recipe](../../../microbenchmarks/server/lauberhorn/package.nix) also lives
+in the sibling repository and owns source selection and its standalone Makefile. `nix/platform.nix` supplies the matching runtime and composes
+the applications into deployment images.
+
+Return one derivation. Install executables in `$out/bin`, immutable assets in
+`$out/share/<application>`, and set `meta.mainProgram` for the default executable.
+Resolve assets from their installed paths: execution must work without a checkout
+or a particular working directory. Accept writable state, configuration overrides
+and log destinations outside `$out` (arguments or documented environment variables).
+Optional `passthru.interactiveTests = { smoke = testPackage; };` contains runnable
+packages; images include them only when explicitly selected.
+
+### Compose an external repository
+
+In a consumer flake, pin the platform and applications as inputs. Commit the lock
+file. Keep substantial applications in their own repositories; hardware libraries
+and simple in-tree demos stay here. Example input and output fragments:
+
+```nix
+inputs.platform.url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/platform?submodules=1";
+inputs.application = { url = "git+https://YOUR-SERVER/YOUR-APPLICATION"; flake = false; };
+
+# Inside outputs, with a build-machine pkgs imported from the pinned nixpkgs:
+platform = inputs.platform.lib.mkPlatform { inherit pkgs; };
+application = (platform.callPackage (inputs.application + "/package.nix") {}).overrideAttrs (old: {
+  passthru = (old.passthru or {}) // { sourceIdentity = {
+    revision = inputs.application.rev or null;
+    local = !(inputs.application ? rev);
+    narHash = inputs.application.narHash or null;
+  }; };
+});
+# Expose these in packages.${system}:
+service = application;
+image = platform.mkApplicationImage {
+  name = "my-service";
+  applications = { my-service = application; };
+  extraContents = [];
+};
+# Expose in devShells.${system}; target compilation, native build tools:
+shell = platform.target.mkShell { inputsFrom = [ application ]; };
+```
+
+Use a complete flake's usual `let ... in`/output structure around these fragments.
+An optional standalone application flake reuses its root recipe. Input source
+identity is explicit because a derivation's `src` alone cannot establish its Git
+revision or whether a local checkout was used. Absent metadata is recorded as
+unknown, never assumed clean. The manifest records source paths and package paths,
+platform revision/local status, collateral store identities and kernel release.
+
+Local overrides affect application packages, their shells and images together:
+
+```sh
+nix build .#service --override-input application path:/absolute/application --no-write-lock-file
+nix develop .#shell --override-input application path:/absolute/application --no-write-lock-file
+nix build .#image --override-input application path:/absolute/application --no-write-lock-file
+```
+
+Do not change platform or hardware inputs to iterate on an application. Select
+`application.interactiveTests.smoke` under a separate image application name when
+wanted. `platform.mkDeploymentEnvironment { applications; extraContents = []; }`
+constructs just the stable environment; `mkApplicationImage` includes it and its closure.
+Extra packages contribute bin/sbin tools with collision checking; applications
+retain all their executables below their own named link.
+
+## DPDK microbenchmark baseline images
+
+Build the maintained ConnectX-5 responder and board image for the
+[DPDK research baseline](../research/dpdk-baseline.md):
+
+```sh
+nix build .#dev.x86_64-linux.software.mlx5ServerNative -o out/mlx5-native
+nix build .#mlx5BenchmarkImage -o out/mlx5-image
+```
+
+The shared `traffic-generator.nix` image includes both responder instrumentation
+variants and the generator. Continue with
+[DPDK board readiness](validation.md#dpdk-baseline-readiness); building the native
+responder alone does not validate the target NIC or the AArch64 image.

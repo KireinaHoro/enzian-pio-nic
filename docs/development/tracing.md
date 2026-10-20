@@ -1,19 +1,15 @@
 # Lauberhorn Tracing
 
-Detailed reference, source-reviewed on 2026-09-08. Start with [validation](validation.md)
-for test selection or the [trace tools README](../../data/eci/sys_trace/README.md)
-for exporter commands. Commands below run from the repository root. Hardware defaults
+Start with [validation](validation.md)
+for test selection, [capture configuration](#capture-configuration-and-commands)
+for FPGA preservation, or the [trace tools README](../../data/eci/sys_trace/README.md)
+for low-level exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
-
-The F_MAC1 comparison image `5cda901` passed a matched board test with 300 RPCs
-and three identical full 322,322,624-byte UDP trace reads without retransmission.
-See the [board evidence and limits](cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
-This is a single-boot validation; routed timing remains open.
 
 ## Default agent capture pipeline
 
 Use the [lauberhorn-trace skill](../../tools/enzian/skills/lauberhorn-trace/SKILL.md)
-and [canonical capture workflow](../../tools/enzian/trace/README.md). Manual and
+and [canonical capture workflow](tracing.md). Manual and
 unattended benchmark capture share `tools/enzian/trace_capture.py` and its session
 API. They reuse the existing CMAC receiver and JTAG reader rather than maintaining
 separate paper-specific capture scripts or per-run Tcl.
@@ -35,10 +31,113 @@ See the canonical workflow for transfer prerequisites, recording-only controls,
 partial failure evidence and export-only recovery. Historical address examples
 below describe particular board experiments, not implicit defaults for new runs.
 
-Measured payload throughput was **6.9 MiB/s** with the current single-outstanding
-1408-byte Python reader, versus roughly 0.01–0.02 MiB/s for the observed
-Vivado/Tcl JTAG dumper. This is implementation throughput, not CMAC line rate.
-The board validation does not establish long-duration reliability or timing closure.
+## Shared capture implementation
+
+The workflow reuses the existing low-level implementations:
+
+- `data/eci/sys_trace/dump_trace_udp.py`: CMAC/UDP receiver, bounded retries and
+  partial output. Its readiness marker is created only after socket bind.
+- `data/eci/sys_trace/dump_trace_hw_axi.tcl`: JTAG reader, called only for two
+  4 KiB head/tail integrity checks after a successful full Ethernet dump.
+- `tools/enzian/trace/control.tcl`: one parameterized VIO/snapshot/trigger/check
+  script staged from source, never generated per trial.
+- `tools/enzian/run.py` and `console.py`: shared expect-based peer execution,
+  reservation checks and console ownership. No alternative login implementation.
+
+Workload-specific event counts, joins and latency analysis remain in paper tools;
+transport integrity does not claim those measurements are valid.
+
+## Capture configuration and commands
+
+Use a JSON configuration with `gateway`, `programmer`, `dut`, `peer`, `vivado`,
+`hw_server`, `cable`, `ltx`, `remote_artifacts` (remote bitstream/LTX paths mapped
+to SHA256), `trace_map`, `trace_map_sha256`, `pipeline` (provenance), `peer_ip`,
+`peer_mac`, `peer_management_ip`, `export_port`, `peer_image`, `peer_image_sha256`, `transfer_root`,
+and `transfer_url`. `cable` accepts an exact `Digilent/SERIAL` ID or bare
+alphanumeric serial; the shared controller normalizes it once. Select addresses and artifacts for the actual reservation.
+The transfer endpoint must be running and reachable from the peer, with adequate
+space. The existing `tools/paper/transfer_results.py` service supplies this during
+campaigns; do not provision another server on an occupied endpoint. `tools/enzian/image.py` verifies the staged Nix image hash and mounts it read-only
+in a private namespace for the receiver and exporter, using the same launcher
+as benchmark roles. Host Python only bootstraps image verification; capture and
+export execute with the image-pinned Python. Downloaded role scripts are hashed
+before execution. The peer image must already be staged through the shared harness.
+Capture does not reconfigure NICs, boot, reset, or change provisioning.
+
+For a compatible campaign hardware manifest, resolve the explicit configuration
+before capture:
+
+```sh
+python3 tools/enzian/trace_capture.py campaign-config --config HARDWARE.json > TRACE.json
+python3 tools/enzian/trace_capture.py capture --config TRACE.json --output NEW_DIRECTORY
+```
+
+The CLI refuses to overwrite a capture. Each session saves configuration, source
+hashes, the matching map, original VIO outputs, pre/post-freeze status, stable
+write pointer, receiver logs, complete raw bytes and SHA256, JTAG comparisons,
+restoration state and a relative-file hash manifest. A per-target lock serializes
+canonical control operations. Trace recording remains frozen after restoration.
+Only nonempty, unwrapped captures are supported. For traces shorter than
+4096 bytes, both bounded JTAG checks cover the complete trace. Wrapped buffers
+fail explicitly rather than silently persisting a prefix.
+
+`capture.json` is durable progress/failure state. `summary.json` exists only after
+successful persistence, integrity and restoration. `manifest.json` retains partial
+failure evidence too. Stored trace loss/event-count validation belongs to the
+matched analysis tool; recorder flags are preserved without interpreting a sticky
+post-freeze loss bit as pre-freeze loss.
+
+Ethernet failure is terminal: retain local/peer partial files, restore controls
+when a saved snapshot exists, keep tracing frozen, and do not reset or fall back
+to a full JTAG read. A primary failure remains visible if cleanup also fails.
+If the receiver completed but export failed, explicitly retry export only:
+
+```sh
+python3 tools/enzian/trace_capture.py recover-export --config TRACE.json --output EXISTING_DIRECTORY
+```
+
+This requires a saved receiver-complete receipt and unchanged frozen recorder.
+Each export attempt retains prior partial files. It does not trigger another dump.
+Successful remote RAM copies are retained until the caller chooses to release
+those resources after validating local persistence.
+
+For recording-off controls without a dump, `freeze --config TRACE.json --output
+CONTROL_DIRECTORY` saves the original controls and freezes only; `preserve` on
+that same directory restores saved values while keeping recording frozen.
+`status` reads the current recorder. Never call restore under a fresh label:
+the session directory owns its snapshot, not an independently invented name.
+
+## Capture-tool validation
+
+```sh
+nix develop -c python3 -m unittest discover -s tools/enzian/tests -p test_trace_capture.py
+nix develop -c python3 -m unittest discover -s data/eci/sys_trace/tests -p test_dump_trace_udp.py
+```
+
+Normal echo campaigns freeze FPGA recording and collect unloaded wire
+timestamps through Tofino; neither loaded nor unloaded normal cohorts dump FPGA
+traces. Full FPGA capture preserves exceptional boot/module failures. Campaign
+tests enforce the recording/capture boundary. Source changes require a reviewed compatible campaign resume, not a new
+hardware acquisition of every completed cohort.
+
+
+## Vivado crash recovery
+
+All six control operations use one bounded runner: at most three attempts for
+SIGSEGV (exit 139 or signal 11), with a separate retained log per attempt.
+Ordinary Tcl errors, other exit statuses and timeouts remain terminal. A crash
+never counts as success; a subsequent invocation must finish successfully and
+the normal capture integrity checks still apply.
+
+Operations are replayable: freeze/configure atomically save the original VIO
+snapshot before mutation and never replace it on retry; trigger asserts the
+existing control without creating a second rising edge; status and integrity
+reads are read-only; preserve reapplies the original saved controls. No retry
+resets the board or starts a full JTAG dump.
+
+Nonempty diagnostic traces shorter than 4 KiB are captured in full; both JTAG
+integrity reads cover the complete short trace. Empty recorders are reported
+explicitly rather than represented as successful captures.
 
 ## Overview
 
@@ -61,203 +160,10 @@ uses the embedded trace map for interactive decoding. Python also has a separate
 state, and the latency plotter decodes Lauberhorn events. Do not apply the pcapng
 transport boundary as a blanket restriction on Python analysis code.
 
-## Hardware Collection
+## Hardware instrumentation
 
-### TracePlugin
-
-`TracePlugin` lives in `hw/src/lauberhorn/TracePlugin.scala` and is used by
-SpinalHDL plugins inside `NicEngine`.
-
-Its role is to collect Lauberhorn event trace declarations while the NIC engine
-elaborates:
-
-- `makePort(sourceSlr)` creates one Lauberhorn event source port.
-- `trace(name, TraceData...)` allocates or reuses an event ID and returns a
-  `Bool` trigger.  The caller drives that trigger when the event fires.
-- Event IDs are deduplicated by event signature: event name plus the ordered list
-  of trace-data key names.  Multiple trace ports can call
-  `trace("RxCoreCommit", CoreID(...))` and get the same event ID.
-- A duplicate event name with a different trace-data layout is rejected during
-  elaboration.
-- Trace data keys, such as `CoreID` and `PacketDropped`, define only a name and
-  bit width.  The emitted payload packs the event ID in the low bits, followed by
-  the event's declared trace data in order.
-
-`TracePlugin` also records each port's source SLR.  It converts that source SLR
-to a pipeline-stage count using the same five-stages-per-SLR-crossing rule used
-by the trace DMA.  The final per-port pipeline-stage list is passed to
-`LauberhornTraceDma` when the separate trace DMA RTL is elaborated.
-
-### LauberhornTraceDma
-
-`LauberhornTraceDma` lives in
-`hw/src/lauberhorn/LauberhornTraceDma.scala`.  It is generated as a separate RTL
-module, `lauberhorn_trace_dma`, after `NicEngine` has finished elaborating.
-
-Its role is to adapt all trace sources to `TraceBufferDMA`:
-
-- DCS event trace sources from the even and odd directory-controller slices.
-- ECI app-clock trace sources after DCS/app clock crossing.
-- ECI sys-clock trace sources before app clock crossing, plus GSYNC and
-  interrupt-controller ECI channels.
-- ECI sys-clock trace sources at the post-gateway dynamic/static boundary.
-- Returned-credit pulses from the static shell back into the dynamic gateway.
-- Lauberhorn event trace sources produced by `TracePlugin`.
-
-It assigns source IDs, inserts source-specific `Flow.delay(...)` pipeline stages
-before `TraceBufferDMA`, and records the latency in the trace map as
-`pipeline_stages`.  Fixed DCS/ECI sources derive their stage count from the
-floorplan.  Lauberhorn event sources inherit stage counts from the `makePort`
-source SLR declarations.
-
-`LauberhornTraceDma` also writes `lauberhorn_trace_dma_map.json`.  This map is
-the contract between hardware and software.  It contains:
-
-- sample layout: payload width, source width, timestamp width, sample width,
-  lost-source ID, and AXI data width;
-- source metadata: source ID, port, type, clock domain, DCS/channel/local-source
-  information, and `pipeline_stages`;
-- payload metadata used by tooling: DCS fields, ECI fields, returned-credit
-  fields, Lauberhorn event names, trace-data key widths, and per-event
-  trace-data key lists.
-
-For Lauberhorn events, the map deliberately separates definitions from use:
-
-```json
-"trace_data_keys": {
-  "CoreID": { "width": 3 },
-  "PacketDropped": { "width": 1 }
-},
-"event_data": {
-  "7": ["CoreID"],
-  "12": ["PacketDropped"]
-}
-```
-
-Events with no trace data are omitted from `event_data`.
-
-### ECI Message Trace Points
-
-ECI message tracing deliberately records the same logical traffic at multiple
-points.  The goal is to distinguish "the directory controller produced this
-message" from "the message crossed the last dynamic/static boundary toward the
-static shell and CPU".
-
-Current fixed ECI-related source allocation is:
-
-- sources `4..15`: app-clock DCS ECI channels, after the DCS/sys-to-app clock
-  crossing;
-- sources `16..27`: sys-clock DCS ECI channels, before the app-clock crossing;
-- sources `28..31`: sys-clock GSYNC request/response channels;
-- sources `32..33`: sys-clock interrupt-controller VC12 request/response
-  channels;
-- sources `34..37`: post-gateway dynamic/static boundary channels
-  `link{1,2}_out_{lo,hi}`;
-- sources `38..39`: post-gateway returned-credit vectors
-  `link{1,2}_out_credit_return`.
-
-The generated `lauberhorn_trace_dma_map.json` is the authoritative source list;
-the numbers above document the current layout to make trace inspection easier.
-
-For ECI sources, the payload contains the 64-bit header, VC number, `accepted`
-bit, and a 3-bit ECI channel `size`.  Hardware emits a stalled sample with
-`accepted = 0` when `valid && !ready`, and an accepted sample with
-`accepted = 1` when `valid && ready`.
-
-The meaning of `accepted = 1` depends on the trace point:
-
-- App-clock DCS ECI sources prove that the frame crossed into the app-clock DCS
-  side and was consumed there.
-- Sys-clock DCS, GSYNC, and interrupt-controller sources prove acceptance by
-  the local sys-clock stream endpoint being traced.  They do not prove that the
-  frame has left the dynamic gateway toward the static shell.
-- Post-gateway boundary sources prove that the corresponding top-level
-  `link*_out_{lo,hi}` stream handshaked at the dynamic/static boundary.  This is
-  after the dynamic gateway's VC-level credit tracking, so the frame has made it
-  past the dynamic-side point where VC credits can still withhold it.
-
-DCS event sources are generated from the DCU debug interface.  A stalled input
-request is traced as a bounded burst of up to 16 events for each continuous
-stall, then suppressed until the stall resolves.  This keeps deadlock captures
-from being overwritten by a single stuck DCU debug condition while still showing
-that the stall persisted.  The DCS event `error_code` field carries the DCU
-error code, with `ERR_REQ_STALLED` used for these request-stall trace events.
-The original single-bit DCS `error` field remains in bit 0 for compatibility
-with old captures and old decoders; `error_code` follows the DCS `request`
-field in payload bits `[60:57]`.
-
-The boundary trace point is therefore the right place to answer "did an FPGA
-ECI message really leave toward the CPU?"  It still is not a CPU-retirement
-trace: after this point the traffic is in static-shell/TLK/link-layer logic, and
-the trace does not observe the ThunderX L2C accepting or retiring the request.
-Under the normal assumption that the lower-level link remains healthy, however,
-an accepted boundary sample is the dynamic-design evidence that the frame was
-sent far enough that it should be visible to the CPU side.
-
-The boundary channels carry link blocks rather than the original higher-level
-DCS channel identity.  The trace records the VC and the first 64-bit header word:
-`link*_out_lo_data` for the low path and `link*_out_hi_data(63 downto 0)` for
-the high path.  The high path also records `link*_out_hi_size`, which lets the
-software-side credit model charge multiword high-channel sends correctly.  The
-trace is still not a full multiword payload capture.
-
-Returned-credit sources record nonzero `link*_out_credit_return(12 downto 2)`
-vectors in payload bits `[10:0]`.  These sources are not ECI messages; they are
-there to correlate boundary sends with VC credit return behavior when checking
-whether a frame could be stuck behind dynamic-gateway credit accounting.
-
-The Wireshark dissector reconstructs the dynamic gateway's TLK transmit-credit
-state from the boundary ECI samples and returned-credit samples.  The model
-follows `tlk_credits.vhd`: returned-credit bits add eight credits to VC2..VC12,
-accepted boundary sends subtract credits according to the selected link/path/VC,
-and high-path sends use the traced ECI channel `size`.  The model is only as
-complete as the exported trace window; include sources `34..39` when using it.
-If a pcapng window starts after the beginning of the trace, reconstructed
-credits can be higher than the real hardware count because earlier sends are
-missing.  The `eci-state` CSV exporter therefore requires a full, unwrapped,
-lossless trace before adding TX boundary-acceptance latency and remaining-credit
-columns to the `addr_*.csv` output.
-
-When debugging a suspected missing FPGA-to-CPU message, use the trace points as
-a narrowing ladder:
-
-1. If the frame appears at the relevant sys-clock DCS/GSYNC/interrupt source but
-   not at sources `34..37`, it was still inside the dynamic gateway/static
-   boundary path.
-2. If the frame appears at sources `34..37` with `accepted = 1`, then the
-   dynamic gateway and VC-level credit tracking accepted the send.  Look past
-   the dynamic boundary unless credit-return behavior suggests a broader
-   static-shell accounting issue.
-3. Use sources `38..39` to check whether credits for that link/VC continue to
-   return around the suspect interval.
-
-### TraceBufferDMA
-
-`TraceBufferDMA` is the generic sample recorder used by
-`LauberhornTraceDma`.  It owns the outer trace-sample envelope:
-
-- payload bits;
-- source ID;
-- hardware timestamp;
-- marker/lost samples using the reserved all-ones source ID;
-- AXI writes into the circular trace buffer in trace DDR.
-
-TraceBufferDMA does not know DCS, ECI, or Lauberhorn event semantics.  It records
-fixed-width samples and marker records.  In the current ECI build samples are
-128 bits, so four samples pack into each 512-bit AXI beat.
-
-## Floorplanning And Pipeline Latency
-
-The ECI floorplan constrains only the inner `TraceBufferDMA` instance to the
-trace-DDR SLR.  The surrounding `LauberhornTraceDma` wrapper and its input
-pipeline registers are intentionally allowed to cross SLRs.
-
-Pipeline latency is part of the trace metadata.  The hardware inserts the delay
-before `TraceBufferDMA`, then Python subtracts the recorded `pipeline_stages`
-from each sample timestamp before sorting/exporting.  The raw hardware timestamp
-is still preserved in the pcapng envelope.
-
-The current rule of thumb is five stages per SLR crossing to the trace DMA SLR.
+[Hardware tracing](../hardware/tracing.md) defines event producers, source maps,
+ECI boundary semantics, recorder timestamps and latency correlation.
 
 ## Trace Storage And Readout
 
@@ -267,24 +173,16 @@ samples to that DDR through the `trace_ddr_axi` AXI port.  The same MIG address
 space is also reachable from the Vivado debug path: the block design connects
 `jtag_axi_0/M_AXI` through the AXI smartconnect to the DDR4 memory map.
 
-This gives the tracing system an out-of-band readout path:
-
-1. Trace samples are written continuously into the circular DDR buffer while the
-   design runs.
-2. After stopping or snapshotting the workload, Vivado hardware manager can use
-   the JTAG-to-AXI master to issue AXI reads into the trace DDR address space.
-3. A Vivado Tcl flow can dump the requested DDR address range to a raw binary
-   file on the host.
-4. Python tooling consumes that raw dump and converts it to pcapng.
-
-This readout path is intentionally separate from the normal ECI/NIC datapath.  It
-does not require software running on the host CPU to understand the trace buffer;
-Vivado reads the MIG-backed trace storage directly over JTAG AXI.
+Readout is independent of the host driver and the normal ECI/NIC datapath.
+Use F_MAC1 UDP for the full frozen buffer. The JTAG AXI connection supports
+bounded independent head/tail integrity reads after successful Ethernet capture;
+it is not a full-dump fallback. The
+[shared capture workflow](tracing.md) owns freezing,
+readout, persistence and restoration.
 
 ### UDP Readout
 
-Large trace dumps should use the lightweight UDP readout path instead of the
-JTAG AXI dumper.  `lauberhorn_trace_dma` reuses the read side of the same AXI
+Full trace dumps use the lightweight UDP readout path.  `lauberhorn_trace_dma` reuses the read side of the same AXI
 DMA that writes the trace buffer and streams bounded trace-DDR reads out through
 a dedicated trace CMAC.  The path is intentionally small: it strips one combined
 Ethernet/IPv4/UDP request header, parses the trace command in the UDP payload,
@@ -308,15 +206,13 @@ With all override-valid bits left at zero, the hardware defaults are:
 Both active ports use GT RX/TX polarity mask `0011`: F_MAC0 for RPC and
 F_MAC1 for trace. This matches the engineer's
 [interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L549).
-On zuestoll14, F_MAC1 is leaf1 Ethernet100 (ZS14-FPGA2). The main RPC
-interface remains `0c:53:31:03:01:c8` / `192.168.129.200`; the capture peer
-remains zuestoll12 `cpu40g1`, `192.168.129.129`.
+The recorded zuestoll14 mapping is leaf1 Ethernet100 (ZS14-FPGA2); its main
+RPC identity is `0c:53:31:03:01:c8` / `192.168.129.200`. Select peer addresses
+and confirm port mappings for the actual board reservation.
 
 Historical F_MAC3 images used `0c:53:31:03:01:d4` / `192.168.129.201` and
 polarity `1100`. Use the address and port for the actual bitstream; do not
 apply old F_MAC3 capture filters or neighbor overrides to an F_MAC1 image.
-The F_MAC1 move is awaiting routed and board validation; earlier successful
-captures in this document were on F_MAC3.
 
 The VIO exposes a six-bit override-valid mask plus the six override values, a
 `dump over network` boolean output, and a `trace stop` boolean output:
@@ -332,7 +228,7 @@ Asserting `trace stop` freezes trace collection into DDR by preventing
 `TraceBufferDMA` from issuing new write descriptors.  If a descriptor is already
 in flight when the bit is asserted, that descriptor can still complete before
 `writeSlot` stops advancing.  The trace dump/read path remains active, so the
-frozen buffer can be dumped with the normal UDP or JTAG tools.
+frozen buffer remains readable over UDP and available for bounded JTAG checks.
 
 The dump-capture machine runs the Python script as a UDP server.  When the VIO
 `dump over network` output rises, the FPGA sends a zero-data metadata packet to
@@ -348,8 +244,10 @@ needs to forward traffic on the FPGA-facing network.  The FPGA does not run an
 ARP client for the gateway.
 
 ARP occupies the 42-byte extracted Ethernet/ARP header. Any trailing Ethernet
-padding is discarded before the UDP command aligner. Retaining that padding
-would associate it with the next UDP header and reject a valid read command.
+padding is discarded before the UDP command aligner. ARP replies are zero-padded
+to 60 bytes excluding FCS. The trace response header occupies the high end of
+its stream beat so DMA data follows without an internal `TKEEP` gap; the TX
+aligner removes the leading gap before delivery to CMAC.
 
 The software request format requires 64-byte-aligned offsets and lengths.  A
 single hardware response carries at most 1440 bytes of trace data: 1500-byte
@@ -370,48 +268,19 @@ a zero UDP checksum; sequence/length checks alone are not an independent
 content-integrity check.
 
 For completeness, freeze and verify a stable write pointer, read the entire
-valid range (and handle wrapping), then inspect recorded loss markers with the
+valid range, then inspect recorded loss markers with the
 matching map. `sampleLost` is sticky and can become asserted after freezing
 because trace inputs continue while DDR writes stop. A set flag alone cannot
-date the loss relative to freeze.
+date the loss relative to freeze. The canonical capture flow rejects wrapped
+buffers; offline parser support for wrap does not make a partial dump complete.
 
-Example status query:
-
-```sh
-python3 data/eci/sys_trace/dump_trace_udp.py \
-  --bind-ip 129.132.102.8 \
-  --status
-```
-
-Example dump:
-
-```sh
-python3 data/eci/sys_trace/dump_trace_udp.py \
-  --bind-ip 129.132.102.8 \
-  --bytes 0x80000000 \
-  --chunk-bytes 1408 \
-  --out trace-dram.bin
-```
-
-The Python default is 1408 bytes, the largest 64-byte-aligned payload within
-the hardware's 1440-byte limit. Older tools defaulted to 1440 and need an
-explicit `--chunk-bytes 1408` to avoid hardware alignment errors. UDP
-port 55555 uses an ordinary socket and does not itself require `sudo`; the bind
-address must be assigned to the capture machine and reachable in the configured
-network.
-
-Start the tool before toggling the VIO `dump over network` bit.  The tool uses a
-normal UDP socket and waits for the FPGA metadata packet; it does not need the
-FPGA MAC address or private FPGA IP address.
-
-For capture on another Enzian's FPGA-facing CPU interface, bind to that
-interface's IPv4 address. Set VIO override bits 3 and 4 (`0x18`) and supply
-the capture interface's MAC as `trace_dump_gateway_mac` and its IPv4 address
-as `trace_dump_server_ip`. On the same subnet the next hop is the capture
-host itself. Check reservations and current interface addresses first.
-Assert `trace_stop`, wait for `writeSlot` to stabilize, start the receiver,
-then toggle `trace_dump_over_network` from zero to one. Preserve the original
-VIO values for restoration after the experiment.
+The standard reader chunk is 1408 bytes, the largest 64-byte-aligned payload
+within the 1440-byte hardware limit. Capture orchestration starts the receiver
+before triggering metadata, supplies the actual peer's next-hop MAC/IP through
+VIO overrides, and preserves the original controls. Use the
+[configuration and commands](#capture-configuration-and-commands)
+for full capture and export-only recovery. Low-level receiver options remain in
+the [trace tools reference](../../data/eci/sys_trace/README.md).
 
 Before debugging UDP, check the VIO at `hier_trace_cmac_ctrl_stat/vio_0`:
 `stat_rx_aligned` and `stat_rx_status` must be one, with local/remote faults
@@ -420,16 +289,11 @@ and indication high, with no AXI register interface. The external peer must
 use compatible FEC. Internal PMA loopback can check the local CMAC/GT path;
 restore `loopback=0` before trying network capture.
 
-### Command-path diagnostics (CMAC investigation branch)
+### Command-path diagnostics
 
-The `fix/cmac-trace-readout` branch adds read-only inputs to `vio_trace_status`.
-They have local simulation/elaboration coverage and board validation. Pipeline
-514053 (`c5be158`) captured one MiB using normal ARP and UDP after fixing short
-ARP replies and a mid-packet TKEEP gap. The first and last four KiB matched
-independent frozen JTAG reads. External link operation is still intermittent;
-FPGA RX alignment alone does not establish a usable link. Check leaf1's
-Ethernet108 / ZS14-FPGA4 status through `python3 ../tofino-hw-timestamping/tools/leaf.py leaf1` before
-capture. See [the CMAC diagnosis](cmac-trace-diagnosis.md#framing-fix-image-udp-capture-validated-link-intermittent).
+Read-only inputs to `vio_trace_status` expose the receive, parser and transmit
+boundaries. FPGA RX alignment alone does not establish a usable external link;
+compare FPGA counter deltas with peer captures and switch-port status.
 Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
 when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
 VIO reads are not an atomic snapshot. RX/TX domain counters cross to the app
@@ -462,19 +326,35 @@ localizes a different failure from a generated response that fails to reach
 CMAC TX or the peer. Switch counters and packet capture remain necessary for
 link and forwarding diagnosis.
 
-The intended offline flow is:
+For switch inspection, use
+`python3 ../tofino-hw-timestamping/tools/leaf.py leaf1 -- show interfaces status`.
+The helper handles the gateway/agg0/leaf1 SSH chain; credentials remain outside
+this repository. Identify the port for the actual board and bitstream before
+querying counters. On zuestoll14, F_MAC1 maps to Ethernet100 / front-panel 26/0;
+the historical F_MAC3 path maps to Ethernet108 / front-panel 28/0.
 
-1. Program and run the design.
-2. Stop or snapshot the workload.
-3. Dump the trace DDR buffer to a raw binary file through the UDP trace CMAC.
-   Use the Vivado hardware-manager JTAG AXI path as a fallback when Ethernet
-   readout is unavailable.
-4. Convert the raw dump to pcapng with `export_trace_pcap.py`.
-5. Open the pcapng in Wireshark or TShark with `lauberhorn_trace.lua`.
+SONiC FEC counters reported as N/A are unavailable, not zero. Vendor diagnostics
+are accessible through `docker exec -it syncd /opt/bfn/install/bin/bfshell`,
+then `ucli`, `pm`. For an identified front-panel port, use bounded `show -p`,
+`port-pcs`, `port-ctrs ... fec` and `port-error-get` queries. Compare ordered
+counter deltas when switch and peer clocks differ. Do not clear counters or
+change link settings merely to diagnose a missing response.
 
-The exporter starts from a raw dump file produced by either UDP or JTAG AXI
-readout.  See [the trace parser README](../../data/eci/sys_trace/README.md) for the concrete exporter
-and Wireshark commands.
+A controlled internal near-end PMA loopback can isolate the local stream path.
+Save VIO controls, use a metadata destination IP different from the trace local
+IP to avoid a response loop, and trigger one metadata frame. Expect one frame
+through TX queued, CMAC TX/RX, RX-after-CDC and header counters, no accepted
+command, no overflow and an idle parser. Restore all controls afterward.
+This checks the local stream path; it does not establish external signal
+integrity or DDR-read correctness. Fabric timing margins and legal CMAC/GT
+placement likewise do not establish serial-link health.
+
+For offline analysis, start with the persisted raw buffer and matching map from
+the [capture workflow](tracing.md). Convert to pcapng and
+open it with the Lua dissector using the
+[exporter and Wireshark commands](../../data/eci/sys_trace/README.md). Ethernet
+failure leaves partial evidence and stops; it does not authorize reset or full
+JTAG readout. The exporter can also read historical JTAG-produced files.
 
 ## Python Tooling
 
@@ -536,7 +416,7 @@ decode logic in the Lua dissector.
 
 - [Event declarations](../../hw/src/lauberhorn/TracePlugin.scala), [DMA/map generation](../../hw/src/lauberhorn/LauberhornTraceDma.scala), [UDP responder](../../hw/src/lauberhorn/LauberhornTraceDump.scala).
 - [UDP capture tool](../../data/eci/sys_trace/dump_trace_udp.py), [exporter](../../data/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../data/eci/sys_trace/eci_state_output.py).
-- [Latency measurement and attribution](../research/latency-measurement.md).
+- [Latency measurement and attribution](../research/hot-measurement.md).
 
 ## Cooperative activation events
 
@@ -544,11 +424,13 @@ The current ECI preemption ports emit `YieldAccepted`, `ActivationCommitted`
 and `ActivationDelivered`, with physical core, PA domain code and scheduler
 slot; committed activation also records RX/TX parity. Idle dispatch is identified
 at acceptance. Use the matching generated trace map. Kernel `worker_switch`
-records outgoing and incoming task/lifetime identities at activation delivery.
+records outgoing and incoming task/lifetime identities at phase 2, when activation
+is published before waking the incoming task. Current code does not emit the
+legacy phase 0/1 switch or `process_recovery` sequence described below.
 
 ## Historical B4 scheduling and recovery events
 
-The B4 source extends `SchedulerDeschedCore` with `PreviousProcessID` and
+For historical B4 captures, the source extends `SchedulerDeschedCore` with `PreviousProcessID` and
 `EciTxSubmit` with `ExecutionCommand` (0 unchanged, 1 end, 2 begin, 3 end/begin).
 Incoming `SchedulerRequestDispatched` begins an inline interval; completion RX
 does not imply a resumed fiber. `SchedulerWatchdogExpired` marks expiry once,
@@ -570,7 +452,8 @@ Recovery reason values are 0 close, 1 explicit stop/unmap, 2 hardware kill and
 The kernel assigns a monotonically increasing lifetime at registration so PID
 or process-slot reuse does not silently merge separate applications.
 
-Enable `events/lauberhorn/enable` in tracefs for a recovery campaign, and preserve
+When reproducing that historical ABI, enable `events/lauberhorn/enable` in
+tracefs and preserve
 its trace, per-CPU loss/overrun statistics, kernel log, hardware raw capture and
 matching generated trace map. Kernel timestamps and NIC cycles are separate
 clock domains: correlate the worker/PID switch sequence before fitting offsets;
@@ -581,7 +464,7 @@ analysis; they are not themselves measured scheduling results.
 
 ## Directory allocation stalls
 
-The trace-only `trace-directory-allocation` DCS branch adds nonfatal
+The allocation-trace variant of DCS defines nonfatal
 `ERR_RTG_ALLOC_FULL` (code 7). It identifies an allocating miss with no free RTG
 way and preserves the blocked request's opcode/address even though it was not
 accepted. `state=s1__1`, `action=STALL` are diagnostic values on this pre-ROM path.
@@ -594,42 +477,15 @@ local locks waiting for UL. At most sixteen reports for a repeated header/VC are
 emitted until a different request or successful request service rearms reporting.
 Do not infer stall clearance from absent samples. Correlate LC/LCI, LCIA, UL and
 CPU eviction events, preserving pre-freeze loss status and incomplete-history
-limitations. See the [allocation-trace contract and regression](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred).
+limitations. See the [allocation-trace contract and regression](../hardware/lauberhorn-rom.md#allocation-full-tracing).
 
 ## Timestamp capture point and legacy queue bias
 
-The October 11 memcached campaign found that dependency `5845335` and earlier
-`TraceBufferDMA` implementations sampled `cycleCount` when a trace batch left
-the input FIFO. Serialization/backpressure could therefore add a variable delay
-to timestamps even when every sample was retained. A loss-free dump alone does
-not establish event-time accuracy. The preserved 518836 capture demonstrates
-contradictory CPU/DCS timing bounds under concurrent bursts; see the
-[memcached evidence](../research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
+See the [hardware timestamp contract](../hardware/tracing.md#timestamp-capture-point-and-legacy-queue-bias)
+for recorder queue bias and asynchronous ECI-source uncertainty, and
+[latency correlation](../hardware/tracing.md) for event selection and clock joins.
 
-Correction `e24f2ef` captures the timestamp together with the batch at input and
-carries it through the queue. The generated map now declares
-`sample.timestamp_point = "trace_dma_input_before_batch_queue"`. Maps without
-that field describe legacy dequeue timestamping. The sample bit layout is
-unchanged, but maps and provenance must distinguish these contracts. The
-regression checks ingress-cycle spacing under multi-source serialization and
-rejects the original implementation.
+### Vivado control recovery
 
-System-domain ECI sources still cross an untimestamped asynchronous FIFO before
-reaching the trace recorder. Fixed pipeline-delay subtraction does not bound
-variable CDC residence. Report CPU/FPGA fit uncertainty as conditional on that
-path and reject inconsistent fits; do not widen the acceptance threshold merely
-to obtain a breakdown. App-domain NIC/MAC events with the corrected recorder
-avoid the global batch-queue bias. New hardware validation is required before
-claiming corrected measurements; historical fine hardware intervals, including
-nullrpc comparisons, retain this newly identified limitation until reassessed.
-CPU-only intervals and client RTTs are unaffected by the recorder correction.
-
-### Vivado freeze shutdown recovery
-
-The shared trace controller handles the known Vivado exit-139 shutdown crash
-only for a completed `freeze`: the log must show `trace_stop=1`, target closure,
-`exit 0`, and Vivado shutdown without Tcl errors. It then performs one independent
-read-only status operation, requiring a successful exit and identical VIO outputs.
-A failed or mismatched readback remains terminal. The original freeze snapshot
-and crash log are preserved; freeze is not repeated, so restoration state is not
-overwritten. This does not relax Ethernet dump validation or enable JTAG fallback.
+See [Vivado crash recovery](#vivado-crash-recovery) for bounded retries,
+replayable operations and preserved snapshots.

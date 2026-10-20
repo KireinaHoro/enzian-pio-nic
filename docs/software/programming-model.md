@@ -1,10 +1,9 @@
 # Application programming model
 
-Branch contract: `feat/nested-rpc`, September 17, 2026. Managed requests use
-explicit outcomes; the API is intentionally incompatible with the earlier
-incoming execution-mode and nested-callback declarations. Real ECI deployment
-requires matching regenerated hardware, device headers, kernel and runtime.
-See [blockers and validation status](nested-rpc-blockers.md).
+Managed requests use explicit outcomes, borrowed transport storage and owned
+asynchronous state. Deploy matching generated hardware, device headers, kernel
+and runtime. The installed public headers define API declarations; the behavior
+and supported lifecycle below describe the ECI implementation.
 
 ## Registration and execution
 
@@ -62,7 +61,8 @@ wire encodings. Successful child bytes are relayed locally with the original
 parent reply context (hardware retains the wire XID); supported accepted errors propagate, and other failures
 become `SYSTEM_ERR`. No application callback or result
 transformation occurs. This is a supported tail-call ownership pattern, not
-direct downstream-to-original-client routing.
+direct downstream-to-original-client routing. That tail-call protocol is not
+fully designed; see [nested RPC](nested-rpc.md#runtime-integration).
 
 ## Opaque request context
 
@@ -79,7 +79,8 @@ address/port, local endpoint, original XID, or transport/connection information.
 No such application query API is implemented. A UDP peer address or a TCP
 connection reference would identify a transport peer, not a persistent logical
 client; applications needing persistent client identity can carry it in their
-own request protocol. See [reply-context layout and lifecycle](reply-contexts.md).
+own request protocol. See [reply-context layout and lifecycle](reply-contexts.md) and the
+[metadata-query proposal](../proposals/request-context-metadata.md).
 
 ## Nested calls and waiting
 
@@ -112,16 +113,13 @@ already won; it is not reported as a safe-to-retry admission failure. Inspect th
 future's RPC status before accessing its result and free successful results with
 `lauberhorn_free_result`.
 
-The ECI TX doorbell now returns 1 for accepted/consumed, 2 for rejection before
-reservation, and 3 for DMA error. Accepted indicates the per-worker TX buffer
-may be reused. These values require the new matching bitstream; old bitstreams
-returning arbitrary saved descriptor bytes are incompatible. The runtime does
-not promise bounded latency under every downstream network/coherence stall.
+The [local TX result](../architecture/hw-sw-interface.md#tx-completion-status)
+reports admission and source-buffer consumption, not peer delivery. Error status
+is broader than DMA failure and does not provide a general safe-retry guarantee.
 
 Public arbitrary nested callbacks have been removed. Futures do not depend on
-that API. Service-owned async work and transport-only resident applications are
-specified in the [follow-on design](service-execution-design.md); neither
-interface is implemented in this run. This does not remove application-internal
+that API. Service-owned async work is
+specified in the [follow-on design](../proposals/service-execution.md); these service-event interfaces are not implemented. This does not remove application-internal
 callbacks or registration/init/cleanup function pointers.
 
 ## Scheduling and remaining limits
@@ -131,21 +129,17 @@ fibers can resume on another worker; do not retain worker-local state across a
 wait or rely on CPU affinity. Incoming inline handlers must not issue nested
 future calls. Long computation and blocking I/O still occupy their worker.
 
-Timeout sweeps precede ready-fiber draining before RX polling. An internal
-housekeeping thread asks hardware to activate a service for expired calls,
-without requiring network traffic. Public application timers remain deferred.
+Workers sweep timeouts and drain ready fibers before RX polling. The NIC's
+finite NACK timeout lets an assigned worker regain control; it does not activate
+a parked domain for an expired call. Parked-domain deadline activation and public
+application timers are unsupported.
 
-`lauberhorn_set_watchdog(ctx, limit_us)` must precede worker creation. Zero (the
-default) disables execution monitoring and watchdog-only TX. When enabled, actual
-fiber resumption starts a fresh approximate execution interval; an already-ready
-await does not refresh it. Limits beyond half the hardware's 32-bit cycle range
-return `ERANGE`. This is a debugging watchdog, not CPU billing.
-
-`lauberhorn_stop(ctx)` forcibly terminates the application's workers after
-hardware drain; callers should expect process termination. SIGINT/SIGTERM and
-fatal process exits also initiate cleanup, including parked workers. See the
-[recovery contract](process-recovery.md). Matching-bitstream recovery and module
-startup reliability remain explicit [acceptance gates](nested-rpc-blockers.md).
+`lauberhorn_set_watchdog()` is declared but the current kernel rejects its ioctl
+with `EOPNOTSUPP`, including a zero limit. Do not rely on execution-watchdog
+activation from this API. `lauberhorn_stop()`, unsupported exit and fatal
+activation failures terminate/fence the domain while retaining unresolved
+resources until coherence reset; they do not provide reusable teardown.
+See [failure and reset behavior](scheduler.md#failure-and-reset-boundary).
 
 ### Loopback composition receive-side backpressure
 
@@ -170,7 +164,7 @@ by a full process RX queue; therefore the current bound includes ready but
 unconsumed futures. It is not a general reliability guarantee for arbitrary
 concurrent incoming traffic, packet loss, or deeply nested compositions.
 
-See the existing [lookup-table scaling and spill design](../hardware/lookup-spill.md):
+See the existing [lookup-table scaling and spill design](../proposals/lookup-spill.md):
 these limits should eventually be lifted through scalable table backing, explicit
 ownership on spill, and reliable end-to-end admission/backpressure. Hardware
 capacity should affect fast-path hit rate and latency rather than impose permanent
@@ -190,12 +184,12 @@ Application readiness/delivery flags do not own or release transport storage.
 Initialize workers before `lauberhorn_udp_attach`. At the worker's idle boundary,
 after runnable work and pending responses have drained, call
 `lauberhorn_udp_receive_view`. It waits for network RX and handles DESCHED through
-the existing yield contract; [HOST_WORK](../research/etcd.md#host_work) (formerly
+the existing yield contract; [HOST_WORK](../proposals/host-work.md) (formerly
 HOST_WAKE) is not implemented. A return of 1 lends
 one contiguous mutable datagram, including a zero-length datagram; 0 is NACK,
 and -1 reports an error through `errno`.
 
-Finish every use of `packet.data` before `lauberhorn_udp_release`. Release ends
+Finish every use of `packet->data` before `lauberhorn_udp_release`. Release ends
 its lifetime; copying the pointer or queueing it does not transfer ownership.
 Another receive or assignment-releasing yield while borrowed fails with EBUSY.
 The application may retain its own readiness flag while it holds the packet.

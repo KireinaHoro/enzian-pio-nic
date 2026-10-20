@@ -1,16 +1,617 @@
-# Validation and simulation
+# Validation
 
-Real-machine setup and execution are covered by [automated hardware test quickstart](hardware-test.md).
+Use this guide to test a Nix-built application image on an Enzian board, select
+local checks, and choose an automation flow. Build images, boot bundles and
+matching FPGA inputs with the [development workflow](workflow.md); application
+package recipes and local overrides are documented there. Run host commands
+from the repository root in the Nix development environment.
 
-Scope: source-inspected test entry points and coverage limitations, 2026-09-08. No simulation or hardware build was run to create this document.
+## Board validation
 
-## Select the smallest relevant check
+A successful build supplies an artifact, not board acceptance. A passing RPC
+test requires externally routed correct replies through `lauberhorn0`, with
+matching bitstream, generated ABI, runtime, kernel module and client protocol.
+Record the image manifest and hashes alongside the board result. For captured
+evidence, use the [tracing reference](tracing.md) to interpret source IDs, loss
+markers and clock boundaries; successful transport alone does not validate a
+workload measurement.
+
+| Flow | Use it for | Entry point and result |
+| --- | --- | --- |
+| Automated board acceptance | Repeated reset → program → boot → mount/load/verify → application/client cases | [test.py orchestration](#automated-board-orchestration); compact stage output and `summary.json` |
+| Interactive image testing | Inspect or run a packaged application on a prepared board using the same target environment | [lh-test and manual equivalents](#interactive-image-testing); manifest, application/client output |
+| Focused boot/console diagnosis | Boot gating, programming handoff or bounded commands for a reported failure | [boot.py, run.py and cpu.sh](#focused-debugging); stage summaries and failed-stage evidence |
+| Benchmark acquisition | Coordinated DUT/generator setup, workload sweeps, capture, resume and result validation | [benchmark campaigns](benchmark-campaign.md); campaign receipts and summaries, with the board prerequisites here |
+| Trace preservation | Preserve a failed or completed measurement before board reuse | [capture workflow](tracing.md); matched capture/map and preservation result |
+| Local regression | Software, RTL and bounded model checks before deployment | [local checks and simulation](#local-checks-and-simulation) |
+
+For a Nix-built image: select matching artifacts, reserve/provision the board and
+peer through EMG, then use either the automated case manifest or interactive
+commands below. Both paths require the same boot gates and failure preservation.
+Dandelion and other application images use this same environment; select their
+packaged fixture and workload from the application's documentation rather than
+assuming an image build exercises it. See [Dandelion](../../sw/apps/dandelion/README.md)
+and its [evaluation scope](../applications/dandelion.md).
+
+## Check access and reserve
+
+Use `emg` exclusively for Enzian provisioning, including reservations, boot-image
+and kernel selection, kernel arguments, and root-volume setup. Never edit PXE/GRUB
+configuration or iSCSI/TGT exports directly, or manage their backing volumes by
+hand. This applies to both DUTs and traffic-generator/capture peers. If the needed
+operation is unclear, inspect the supported `emg` workflow rather than bypassing
+it. Continue to use the repository harness for BMC power sequencing, FPGA
+programming, boot validation and tests.
+
+Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
+`enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
+assume the previous reservation persists. For an unreserved zuestoll14, select an available golden image and a
+checked-unused volume name using the [safeguards below](#fresh-root-volume-safeguards).
+Build and rsync `bootFiles` using the
+[boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then run on
+the gateway:
+
+```sh
+emg acquire zuestoll14 -n NEW_UNUSED_VOLUME \
+  -a 'isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force' \
+  -k "$USER/lauberhorn-6.8.0-146-ptp/vmlinuz" \
+  -i "$USER/lauberhorn-6.8.0-146-ptp/initrd.img" \
+  -g SELECTED_GOLDEN_DATE
+```
+
+### Fresh root-volume safeguards
+
+For a new test machine, derive a fresh root volume from an explicitly selected
+available golden image (`emg acquire MACHINE -g DATE -n NEW_NAME ...`). Inspect
+`emg list-machines` and `emg list-images` immediately before acquisition; confirm
+the machine is unreserved and NEW_NAME is absent from the user's existing volumes.
+Use a purpose/machine/date-specific name. EMG does not reject an existing name:
+`-n` reuses that volume, so `-g` alone does not guarantee a fresh golden-image clone.
+Do not reuse a golden image's name or another experiment's root-volume name.
+If the name exists, choose another and recheck; do not delete or overwrite it.
+
+Named volumes persist after release. Their iSCSI export is shared by user and
+volume name, not reservation; using the same name on two boards can couple their
+root disks, and releasing either reservation can disrupt the other. Never share
+an active root-volume name. Keep user-designated busy boards and their volumes
+untouched. Confirm acquisition with both inventory commands and retain the board,
+new volume name, golden-image date, boot bundle and kernel arguments in run
+provenance. Reservation is not evidence of boot or hardware acceptance.
+
+### Kernel and console matching
+
+Match the kernel release in the selected boot bundle and deployment manifest.
+The documented boot bundle uses `6.8.0-146-generic`; older artifacts can require
+`6.8.0-64-generic`. Never combine an old module with a different boot kernel.
+CPU credentials `enzian/enzian`
+(`ENZIAN_PASSWORD` overrides the console password); BMC root password `0penBmc` (`ENZIAN_BMC_PASSWORD` supplies it noninteractively).
+The BMC helper prompts if login is needed and that environment variable is absent.
+Supply it for unattended boot: the remote login prompt expires after 60 seconds. CPU console is `zuestoll14-console`,
+BMC console is `zuestoll14-bmc`; detach with Ctrl-E, c, period. Do not force
+another console user off. See the [quickstart](https://gitlab.inf.ethz.ch/project-openenzian/documentation/userguide/-/jobs/artifacts/main/raw/enzian_quickstart.pdf?job=build)
+and [machine/JTAG inventory](https://enzian.systems/generated/cluster-info.html).
+
+## BMC recovery and powered-off starts
+
+The discoverable [enzian-deploy skill](../../tools/enzian/skills/enzian-deploy/SKILL.md)
+is the agent workflow entry point. In `enzian-shell bringup`, inspect
+`print_voltage_all()` before choosing the power sequence. An uninitialized-device
+error suggesting `init_driver()` can mean CPU rails are off: do not call that
+function as a repair. Use `common_power_up()` followed by `cpu_power_up()` through
+the boot helper, which catches BDK before FPGA programming. Missing voltage
+readings are not numeric proof of off rails; the helper verifies actual core
+voltages after restoring common monitor power.
+
+For this powered-off starting state, pass `--cold-start-first` to `test.py`.
+It forwards `--cold-start` only to the first boot: skip the redundant
+`power_down()`, restore common power, require CPU/FPGA core rails below 0.2 V,
+then continue normal bring-up. Subsequent cases and bounded ECI retries use a full
+cold reset. Never use this option to bypass a failed rail check.
+
+A D-Bus `NoReply` timeout is different from a normal API/state error. Preserve
+the failing log, reboot the DUT BMC, verify its return, inspect voltages, then retry
+the appropriate sequence. If a timeout recurs after one reboot and bounded
+retry, stop and report evidence. Do not steal an occupied console or replace
+EMG provisioning with manual export/boot configuration changes.
+
+## Prepare matching artifacts
+
+Select a successful hardware job and its matching software preparation output
+from the same clean revision. Follow the
+[CI artifact contract](ci.md#pipeline-and-handoff) and the
+[scheduled hardware follow-up](ci.md#scheduled-hardware-build-follow-up) when a
+new build is authorized. Record the full revision, job IDs, bitstream/LTX/trace
+map hashes, deployment-image manifest and client protocol together. Verify the
+module's kernel release against the provisioned boot bundle; never force-load
+an incompatible module. Hardware and functional acceptance do not imply timing
+closure.
+
+The project token at `../.gitlab_token` is for read-only CI queries and artifact
+downloads; keep it local. For an already completed job:
+
+```sh
+python3 tools/enzian/ci_artifacts.py HARDWARE_JOB_ID --token-file ../.gitlab_token \
+  --download /tmp/hw-UNIQUE_RUN
+```
+
+Fetch the corresponding deployment image from the preparation job using the
+[artifact paths](ci.md#pipeline-and-handoff). For a local build, use the
+[hardware build workflow](hardware-build.md) and matching software image from
+the same clean revision. Stage programmer inputs on the Docker/Vivado host and
+the deployment image on CPU-visible shared storage; record their exact paths
+in the case manifest. `/scratch/USER` is shared between gateway and CPU.
+
+Build the matching client through the maintained Nix package/image workflow;
+see the [traffic generator](benchmark-campaign.md#dpdk-traffic-generator).
+Historical packaging overlays require their original checkout, runner and ABI
+comparison. A patch-builder allowlist is not evidence of ABI compatibility.
+The old 2812450 walkthrough is retained in Git at
+`a7970b8b:docs/development/hardware-test.md`; it is not the current acceptance
+baseline.
+
+Recheck tool versions: the tested gateway hardware server is 2023.2 on port
+3121, matching `/opt/Xilinx/Vivado/2023.2/bin/vivado` on ba2. For offline 2025.1
+checkpoint analysis, ba2 has `/opt/Xilinx/2025.1/Vivado/bin/vivado`.
+
+## Automated board orchestration
+
+Copy [adder.example.json](../../tools/enzian/adder.example.json) to your case
+file. This is a historical 2812450 template: replace its revision, image,
+programmer/artifact paths and client command with the matched selection above.
+Replace `UNIQUE_RUN` with a fresh experiment label (also used for remote logs). Inspect current CPU routes before using its `cpu40g1 down`
+command: this removes the overlapping FPGA-subnet route; management/root storage
+must remain on `cpu40g0`. The example is specific to zuestoll14: JTAG
+`Digilent/210357B4B301A`, MAC `0c:53:31:03:01:c8`, IP `192.168.129.200/18`.
+
+```sh
+cp tools/enzian/adder.example.json /tmp/cases.json
+# Edit the unique case name and review the machine-specific settings.
+python3 tools/enzian/test.py /tmp/cases.json --logs /tmp/test-UNIQUE_RUN --repeats 2
+cat /tmp/test-UNIQUE_RUN/summary.json
+```
+
+`cpu load` disables Linux RT bandwidth throttling by setting
+`kernel.sched_rt_runtime_us=-1` and checking readback before loading the module.
+This prevents the default 950 ms-per-second budget from pausing the SCHED_FIFO
+workers for roughly 50 ms. The setting applies to the DUT for the current boot;
+it is reapplied by the routine after every cold reset and recorded in
+`summary.json` as `rt_bandwidth`. It does not change the matched deployment image
+or ordinary scheduler/worker synchronization locks.
+
+The manifest is a list of cases: `name`, full `revision`, CPU-visible `image`,
+programmer argv `program`, post-verification shell commands `cpu`, and
+shell command `client` (gateway by default). Set `client_machine` (for example `zuestoll12`) to
+execute that command as root through the reserved peer CPU console instead of
+on the gateway. Peer logs are retained in `client-cpu/console.log`. The `cpu` function exposes all `cpu.sh` steps. `{run}`
+expands to round/case name in CPU/client commands. Cases alternate each round;
+the gateway client must exit nonzero on incorrect replies. The example checks
+100 add calls per trial, including arithmetic and echoed request IDs.
+
+Launch once, wait for compact stage/results output, then read `summary.json`.
+For standalone `boot.py`, read its compact output and `--logs/summary.json`.
+**Agents must not read raw logs unless a reported error needs diagnosis.**
+Do not open, tail, or search console, BMC, programmer, or CPU transcripts to
+monitor normal progress, recheck boot markers, or confirm a successful run.
+The expect-based flow validates QLM/ECI initialization and handles retries;
+use its structured results. A recovered retry needs no raw-log inspection
+unless its underlying error is being investigated. For diagnosis, start with
+the summary's error and read only a bounded excerpt of the relevant failed
+stage, expanding only if needed. Automated parsing and retaining logs on disk
+continue normally; avoid loading routine transcripts into the conversation
+to save tokens. Do not issue one tool call per setup step.
+Full logs, manifest and executed CPU script
+are retained; client CSVs are at the manifest's shared paths. Reset failures
+stop the campaign as infrastructure failures. CPU or client failures also stop
+the entire campaign before another reset, preserving hardware state for capture. Timeouts
+interrupt/reap local child processes. The final successful server stays running.
+
+Each normal boot shuts down CPU/FPGA rails and main PSU, waits five seconds,
+restores common power to access monitors, and requires CPU/FPGA core readings
+≤0.2 V **before** enabling either core. It then catches BDK automatically,
+powers/programs the FPGA, and releases boot only after programming succeeds.
+The BMC remains powered. Use `boot.py --cold-start --hold-only` only for recovery
+from a confirmed already-off board; normal comparison trials require full resets.
+
+After releasing BDK, `boot.py` requires CDR lock on QLM8..13 and the complete
+`N0.CCPI Lanes([] is good):[0]...[23]` report before accepting Linux boot.
+Missing or incomplete initialization triggers another full verified cold reset
+and reprogramming, up to ten attempts (`--boot-attempts` overrides the limit).
+The first attempt keeps the usual log paths; retries use `retry-02/`, etc., and
+`boot/summary.json` records each outcome. Exhaustion is an infrastructure
+failure; do not load the driver anyway. The explicit `--negative-no-bitstream`
+test bypasses this gate because absent ECI initialization is intentional.
+
+If `probe_versions` still fails after validated bring-up, freeze and dump trace
+DDR using the [CMAC-first capture procedure](tracing.md#default-agent-capture-pipeline)
+before resetting. If Ethernet capture fails, retain partial output and stop
+without reset or a full JTAG fallback. Retain partial captures
+and the matching map, VIO status, and image
+provenance. Keep tracing active through module load. The shell-version read is
+handled inside the static shell, so arm the static ECI edge ILA before the
+attempt when possible; the application DDR trace alone may not show that read.
+
+## Interactive image testing
+
+Build the application image using the [development workflow](workflow.md).
+After the reservation, artifact and boot checks above, use the same target
+commands as the automated harness. Stage the selected Nix image:
+
+```sh
+rsync -L result enzian-gateway:/scratch/USER/deploy-UNIQUE.img
+# On the CPU, as root; refuses to replace an existing mount:
+bash cpu.sh mount /scratch/USER/deploy-UNIQUE.img
+export LH=/nix/store/lauberhorn
+export PATH="$LH/bin:$LH/sbin:$PATH"
+```
+
+Run `cpu.sh` from a staged copy of `tools/enzian/cpu.sh` on the CPU, or use
+`run.py --script` from the host. The automated harness stages it itself.
+`lauberhorn` links to a hashed environment in the mounted closure. Applications
+never install into that stable location themselves.
+
+| Operation | Helper | Manual equivalent |
+| --- | --- | --- |
+| Inspect | `lh-test info --json` | `jq . "$LH/manifest.json"` |
+| Load | `lh-test load` | Check `modinfo -F vermagic "$LH/modules/lauberhorn.ko"` against `uname -r`, ensure module is absent, then `insmod "$LH/modules/lauberhorn.ko"` |
+| Configure | `lh-test configure MAC CIDR` | `ip link set lauberhorn0 address MAC`; `ip link set lauberhorn0 mtu 1500`; `ip addr add CIDR dev lauberhorn0`; `ip link set lauberhorn0 up` (helper retries link-up three times) |
+| Run | `lh-test run microbenchmarks -- add 4 /scratch/pengxu/run/server.csv` | `"$LH/apps/microbenchmarks/bin/microbenchmarks" add 4 /scratch/pengxu/run/server.csv` |
+| Select executable | `lh-test run NAME --executable PROGRAM -- ARGS` | `"$LH/apps/NAME/bin/PROGRAM" ARGS` |
+
+Create a fresh writable result directory before launching. For example, create
+`/scratch/pengxu/run` before using the illustrative paths in the table. Start Ubuntu's
+`rpcbind` service with `systemctl start rpcbind`; inspect with `rpcinfo -p localhost`.
+The tools environment includes rpcinfo, IP tools, kmod, mount tools, Bash, jq and
+coreutils. Ubuntu owns system services. No helper unloads modules, kills workers,
+or replaces a mount. `run` preserves argument boundaries and the program's exit
+status. `load` validates kernel vermagic; it does not prove FPGA ABI compatibility.
+Check hardware identity with `cpu.sh verify`, then require an externally routed
+correctness client. Use `LH_DIRECT=1 cpu serve ...` for the manual application path
+in the same test harness. Collect server/client logs from the writable directory
+with host-side rsync, along with image hashes and the manifest.
+
+
+## Focused debugging
+
+- [run.py](../../tools/enzian/run.py): run a command or local shell script over
+  the CPU console; `--expect REGEX` asserts ordered output instead of exit zero.
+  Script transfer uses short base64 lines and waits for the shell's continuation
+  prompt after each line; fixed pacing alone lost input during kernel logging.
+- [cpu.sh](../../tools/enzian/cpu.sh): independent `mount IMAGE`, `load`, `verify`,
+  `configure MAC CIDR`, `serve add/mul WORKERS NEW_LOG_DIR` steps.
+- [boot.py](../../tools/enzian/boot.py): `--hold-only`, `--resume-held` with a
+  programmer command, or `--negative-no-bitstream` for a deliberate absent-HW test.
+- [program_fpga.tcl](../../vivado/eci/program_fpga.tcl): exact-target programming,
+  `--probe`, or `--capture-ila LTX EXACT_CELL OUTPUT.csv` instead of the bitstream.
+
+For a negative test, boot with `--negative-no-bitstream`, mount using `cpu.sh`,
+then run `cpu.sh load` through `run.py` with expectations
+`'Internal error: synchronous external abort:'` and `'pc : probe_versions\+'`.
+The observed failure was an oops at shell version register `0x97effffffff8`, not
+a full kernel panic. Preserve the failure before any reset. ECI links being up does not establish
+working register accesses or RPCs. See [recorded results](../../agents/hardware-state.md#early-boot-and-artifact-evidence)
+for known failures and repeatability limits; historical results are not a new test.
+
+## Use a second Enzian as the traffic generator
+
+Acquire an available machine with `emg acquire MACHINE`; `-g 2025-07-28`
+selects the newer golden image if needed. Do not copy the DUT's isolated-core
+kernel arguments to the client machine. Verify its reservation, boot Linux,
+and check `ip route get DUT_FPGA_IP`: `cpu40g1` is in the FPGA NIC VLAN.
+Use `cpu40g1` for traffic/capture on the client and `lauberhorn0` on the DUT;
+keep management/root storage on `cpu40g0`.
+
+Build `.#trafficGeneratorImage` on the build host and deploy that runtime-only
+image to the client. Cross-build all client binaries and tools; do not ship
+compilers, build on Enzian, or rely on Ubuntu userspace packages for measurement.
+Keep host kernel/modules provisioned through `emg` and record their versions.
+
+For the reusable polling client and VF restoration runner, see the
+[DPDK generator](../../../microbenchmarks/client/README.md) and
+[measurement contract](../research/hot-measurement.md). The [benchmark guide](benchmark-campaign.md#dpdk-traffic-generator) explains
+the generator, kernel/PMD requirements and calibration limits. Its pcap replay
+checks are functional tests; require physical packet validation before collecting
+network latency data.
+
+The controlled [worker-issued GSYNC reproduction](../research/eci-progress.md#controlled-gsync-results)
+uses a separate instrumented RPC probe to test whether worker-local permission
+changes wait behind peer RX holds. Its socket client measures reproduction
+outcomes; it is not a replacement for the DPDK latency benchmark.
+
+The client does not need a programmed FPGA or the Lauberhorn kernel module.
+`boot.py --machine MACHINE --negative-no-bitstream` can boot it without
+programming. This mode's log label describes the absent FPGA image; no negative
+module-load test is implied. For an uninitialized-device error during power
+sequencing, follow [BMC recovery](#bmc-recovery-and-powered-off-starts); inspect
+voltages and use the helper's powered-off sequence rather than calling
+`init_driver()` as a repair. Do not treat `is_up` in the
+reservation listing as proof of Linux readiness.
+
+For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
+verified cold power sequence and BDK handling, skips FPGA programming, and
+requires Linux login. This is not FPGA/ECI acceptance. Provision its kernel and
+isolation arguments through EMG first. For the 32-core echo generator, use
+CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
+and temporarily corrects device IRQ, RPS and unbound-workqueue placement.
+
+For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.
+Keep every test's client machine, software and capture paths in its manifest.
+Never count peer boot/setup failures as runtime test failures.
+
+## Historical compatibility
+
+Current application tests use maintained application images and the
+[Dandelion workflow](../applications/dandelion.md). Retired student packaging and
+B4 recovery runners require their original checkout and ABI; they must not be
+combined with cooperative DESCHED images. Historical provenance is in the
+[imported-runtime](../../agents/runtime-applications.md#historical-imported-runtime-probes)
+and [B4 recovery](../../agents/runtime-applications.md#historical-b4-parking-and-recovery)
+records. Current unsupported exit/fatal faults fence the domain; complete
+resource recovery is a separate contract in the
+[scheduling interface](../software/scheduling-control-interface.md).
+
+## Serial command integrity
+
+The console runner paces input in small UART bursts, acknowledges shell input
+lines and verifies the complete decoded script with SHA-256 before execution.
+Its interactive-shell tests cover long payloads, literal shell characters, exit
+status, noninteractive stdin and corrupted-payload rejection. Interrupted input
+framing cancels only the unexecuted compound command; a running board command is
+not automatically interrupted or retried. Preserve the failed console log and
+check whether a requested setting was actually programmed before resuming.
+
+## ECI receive-stall calibration
+
+The [ECI timeout rationale](../hardware/eci-implementation.md#calibrating-the-rx-stall-timeout-before-nack)
+distinguishes the NIC NACK timer from CPU protection and end-to-end response
+latency. Use the normal preservation and boot gates above. These procedures
+support an authorized, matched-image test; they do not reopen the closed
+standalone scheduling campaign.
+
+The matched module exposes root-only parameters:
+
+- `/sys/module/lauberhorn/parameters/rx_hold_cycles`: write the NIC hold interval
+  in application-clock cycles; read returns the programmed hardware value.
+  The implemented timer is 64 bits with one-cycle resolution. Convert using the
+  matched bitstream's actual clock, and verify durations in traces.
+- `/sys/module/lauberhorn/parameters/l2c_tad_snapshot`: read all eight mapped
+  units' BAR, INT, STAT and TIMEOUT values. Reads do not acknowledge interrupts
+  or modify timeout protection. A clean snapshot alone is insufficient: the
+  normal EDAC handler can clear INT, so retain kernel exception logs too.
+
+For an authorized calibration, first establish a passing setting on the matched
+image. Increase the stall duration within the planned test bounds to locate a
+failure, then refine the pass/fail interval at timer resolution. Preserve
+traces and fault state before every failing-trial reset. Repeat the highest
+passing candidate under contention across two cold boots; record exposure,
+nearest failing bound, actual hold durations and peer completions. The boot
+summary retains available firmware clock declarations verbatim; distinguish
+these and the matched routed clock constraints from an independent frequency
+measurement. Include
+one/multiple stalled peers and all-but-one stalls, active-peer handoffs and
+simultaneous bypass RX/TX. Report the highest **tested** exception-free setting;
+do not substitute a historical threshold. Choose an operating setting below
+the observed failure boundary with margin for exposure, contention and response
+latency. Finite tests establish a tested operating envelope, not the exact
+architectural timeout or a universal safe maximum.
+
+Check TAD state and kernel logs again **after** the follow-up RPC check. A clean
+short idle probe can fault later at the same setting. A timed-out client is not a passing probe;
+preserve its trace and subsequent fault state before continuing or resetting.
+Bound the client process and its cleanup as well as the RPC deadline. Confirm
+that the next value was actually programmed before attributing a fault to it:
+a fault before a parameter write still belongs to the preceding setting. Withdraw such a short pass and
+re-establish the lower bound with a longer exposure; do not keep narrowing
+around a lower bound that has already failed.
+
+Use the matched generated trace map to quantify intervals and overlapping peer
+transport events:
+
+```sh
+python3 tools/enzian/analyze_rx_holds.py RUN/trace-dram.bin \
+  --map RUN/lauberhorn_trace_dma_map.json --clock-hz ACTUAL_APP_CLOCK_HZ \
+  --minimum-hold-cycles PROGRAMMED_HOLD \
+  --output RUN/rx-holds.json
+```
+
+The report includes capture/map hashes, loss and incomplete-pair counts. Its
+request-to-NACK intervals include protocol/response overhead; pending handoffs
+are marked. Peer RX/TX, CMAC and activation events are supporting transport
+evidence. Confirm application completions independently using client results.
+
+For finite concurrent peer load, `tools/enzian/cooperative_client.py` supports
+`add`, `mul`, the packaged `nested-validation` fixture's `echo`, and kernel UDP
+`bypass` streams. It checks every response and source, records individual send/
+receive timestamps in `completions.csv`, and fails without retry on loss or
+corruption. Start its `--bypass-server` mode on a non-worker DUT CPU, binding
+only the DUT NIC address; this is an ordinary kernel UDP echo service on 32345.
+Create fresh output directories for each run. For example, on the reserved peer:
+
+```sh
+python3 cooperative_client.py --bind 192.168.129.129 --nic 192.168.129.200 \
+  --streams add,echo,bypass --seconds 60 --window 1 --output NEW_PEER_RUN
+```
+
+Activate services in a recorded order and verify actual worker placement from
+traces. Additional workers still require the existing queue watermark; declaring
+three threads or sending three sequential calls does not allocate three workers.
+To exercise all-but-one stalls, first place an active service on worker 0, then
+use a bounded burst to allocate the three-thread stalled service on the other
+workers. Alternate the two one-thread active services to require cooperative
+handoffs while bypass traffic continues. Verify the resulting placement in the capture before interpreting the trial.
+
+Save plain `l2c_tad_snapshot` output and complete kernel logs before and after
+each trial. `tools/enzian/assess_tad.py --before TAD_BEFORE --after TAD_AFTER
+--kernel-before DMESG_BEFORE --kernel-after DMESG_AFTER --output NEW_REPORT.json`
+requires exactly eight distinct units, checks their interrupt/timeout state,
+and rejects kernel fault diagnostics or missing log continuity. It only reads
+saved files. EDAC may clear a hardware interrupt before a snapshot, so neither
+register snapshots nor logs alone suffice. Preserve the board state on failure.
+
+The hold analyzer additionally groups independent transport events by the number
+of **simultaneously** stalled workers whose completed intervals meet
+`--minimum-hold-cycles`. Bypass is excluded from the stalled-worker count;
+ordinary `YieldAccepted` events are distinguished from initial activation.
+The report also separates idle/ordinary activation counts by physical worker
+and PA domain, and request dispatch counts by Linux PID and physical worker.
+Trace `CoreID` is the NIC datapath ID: zero is bypass, and application worker
+index is `CoreID - 1`; it is not a Linux CPU ID. Keep these identity spaces
+distinct. Preserve a full capture, then analyze a
+recorded byte range for each measured trial so earlier phases cannot inflate
+its counts.
+Use these overlap counts together with client completions and TAD assessment.
+They do not prove progress outside the recorded window.
+
+For the active-peer handoff phase, `cooperative_client.py --streams add,echo,bypass
+--alternate-rpc --rpc-gap-us 2000` keeps one application RPC in flight and rotates
+its destination after each validated reply. Bypass retains an independent window.
+The completion CSV records the actual request spacing. This workload encourages
+cooperative handoffs; verify physical-worker placement and simultaneous holds in
+the trace before counting it as an all-but-one-stalled-worker result. Pool sizes
+alone do not establish that placement. The loopback regression exercises RPC alternation, minimum spacing and bypass
+completions; board placement still comes from the measured trace.
+
+### Controlled GSYNC and early-NACK checks
+
+The historical experiment built [gsync_probe.c](../../tools/enzian/gsync_probe.c)
+with the exact tested runtime and public headers. It extracted `liblauberhorn.so` from the 516112 deployment image and cross-compiled
+only the probe; public headers had no diff from the pipeline revision. It uses
+the deployment's existing AArch64 glibc and runtime paths. Build with `-O2 -g
+-pthread -Wall -Wextra -Werror`, the matched public and libtirpc includes, and
+`-L MATCHED_RUNTIME/lib -llauberhorn` plus its DUT-visible rpath. Do not pass a
+relative shared-library filename directly: that library has no SONAME and the
+linker would embed the relative path as DT_NEEDED. Verify dependencies before
+staging. The probe must match the deployed module/runtime ABI.
+
+The probe registers port 22346 and one worker. Start it once; individual domain
+teardown still requires the documented recovery policy. Allocate the peer mul
+workers with a bounded burst before sending probe RPCs, then verify actual
+placement from tracing. Prefault the probe's private page and thread-local
+message buffer before activation. Once the peer holds are configured and tracing
+is armed, run on the reserved traffic board:
+
+```sh
+python3 gsync_probe_client.py --bind 192.168.128.225 --count 20 \
+  --modes 0,1,2 --output NEW_RUN
+```
+
+The client saves every completed reply's CPU, operation/restore timestamps and
+E2E interval; timeout or malformed response fails the run without retries.
+These socket-client E2E values are reproduction evidence, not DPDK
+latency measurements. Repeat with 10,000,000, 2,000,000 and 200,000 hold cycles at
+200 MHz, then repeat the first setting. Preserve failures before any reset and
+use the same dmesg implementation for both health snapshots.
+
+The [progress evaluation](../research/eci-progress.md#controlled-gsync-results)
+records the historical matched builds, before/after distributions and trace
+limits. Use a matched current runtime/header pair for a new experiment; use the
+recorded 516112 pair only to reproduce that historical experiment.
+
+Local RTL checks include `GsyncReleaseSim` for one-shot release, descriptor
+priority, replay and response backpressure; the GHDL CDC test in `eci-toolkit-rx`
+checks clock phases and burst coalescing. Full-engine
+`OncRpcSim` independent-progress cases require held peers to return within
+1000 cycles after a pulse instead of their configured 50000-cycle timeout.
+These finite model timings do not bound the real CPU/ECI synchronization path.
+
+## DPDK baseline readiness
+
+Build the [ConnectX-5 image](workflow.md#dpdk-microbenchmark-baseline-images)
+and follow the board reservation/provisioning checks above. The
+[DPDK baseline design](../research/dpdk-baseline.md) defines the workload and
+scalar-PMD restrictions. This CPU-NIC path does not require a Lauberhorn FPGA
+image or module; use CPU-only boot for a fresh baseline host.
+
+Use the [deployment skill](../../tools/enzian/skills/enzian-deploy/SKILL.md),
+`tools/enzian/run.py`, and the hash-verified private image launcher in
+`tools/enzian/image.py`. Stage the image and helper through the existing transfer
+service; the host interpreter only verifies and enters the image.
+
+Inside the image, run `tools/paper/campaign/mlx5_readiness.py` with an unused
+server IP, the peer's actual source IP and both explicit MAC addresses. This
+maintained helper uses the canonical runner for every role and produces a fresh
+output directory. It exercises 8/128/1432-byte echo, instrumented and
+uninstrumented single-outstanding calls, and short aggregate loaded traffic with
+one/four responders. The local NICVF generator occupies CPUs 16–19 and mlx5
+responders CPUs 44–47. Shared hugepages are reserved before either role starts
+and restored after both finish. This is functional readiness, not a throughput
+or saturation result. Full campaigns require a separate generator machine.
+
+Archive the helper, command manifest, image hash, per-role outputs and
+restoration summaries. Import unloaded observations through
+`campaign.import_unloaded.dpdk`; absent Tofino data produces `wire_ns: null`,
+`wire_available: false`, `paper_inputs: false`. Import loaded observations through
+the ordinary aggregate validator; validate actual worker activity and full
+payload replies. Paper CDF/breakdown validation rejects missing wire durations.
+Full collection uses the [campaign wire-acceptance gate](benchmark-campaign.md#canonical-measurement-contract).
+Caladan directpath has its [own acceptance plan](../research/caladan-enzian.md)
+and [build/check commands](caladan.md).
+
+The helper CLI, run inside the staged image, is:
+
+```sh
+python3 tools/paper/campaign/mlx5_readiness.py --output NEW_READINESS_RUN \
+  --server-ip UNUSED_SERVER_IP --client-ip ACTUAL_CLIENT_IP \
+  --server-mac ACTUAL_MLX5_MAC --client-mac ACTUAL_NICVF_MAC
+```
+
+The current helper fixes the server interface to `enP5p144s0np0` and local peer
+to `cpu40g1`; verify those names and their connectivity before running it.
+
+## Runtime tracing
+
+Use the [runtime tracing guide](runtime-tracing.md) for compiled variants, request/event
+buffers, one-shot SIGUSR2 export and loss checks. Keep traces disabled or enabled
+according to the [campaign contract](benchmark-campaign.md); tracing and PMU
+profiling are separate instrumentation choices.
+
+## Runtime PMU profiling
+
+The runtime image includes `lh-pmu-probe`. Read the
+[PMU boundaries and instruction-counter blocker](../research/hot-path-performance.md#pmu-measurement-boundaries)
+before interpreting counts. Independent instruction validation failed on the
+October 5 setup; do not publish instruction counts or IPC from those cohorts.
+
+After checking reservations and staging the cross-built, matched deployment:
+
+1. Enable `/proc/sys/kernel/perf_user_access` as root for the experiment. Record
+   its previous value. Do not disable access while a profiling worker is still
+   executing counter reads; restore it after that process has stopped or rebooted.
+2. Run `taskset -c 0 lh-pmu-probe` before launching workers. It checks a known
+   instruction loop, 100,000 adjacent snapshot pairs, and small/large memory
+   footprints, including comparison against kernel perf `read()` counts.
+   Exit 2 means instruction validation failed while the cache-response check
+   passed; exit 1 means another validation failed. This is not an RPC failure.
+3. For a buffered traced service, set `LAUBERHORN_PMU=1` and the existing
+   `LAUBERHORN_SERVER_TRACE_CSV`/application CSV path. Initialization happens
+   before worker registration. Unavailable or unscheduled counters fail closed.
+4. `LAUBERHORN_PMU_SKIP_ROWS=N` skips snapshots for the first N completed rows
+   of each thread. `LAUBERHORN_PMU_WHOLE_ROWS=M` then takes only RX-entry,
+   RX-return and TX-return snapshots for M rows; subsequent rows have detailed
+   snapshots. Counts are per thread, include warmups, and do not count unsuccessful
+   RX polls. Set both to zero for detailed profiling throughout.
+5. Stop traffic, then export once with SIGUSR2. Never dump while measuring.
+   Retain CSV, status, calibration, client timings and software/FPGA provenance.
+
+`tools/enzian/pmu_breakdown.py DIRECTORY` validates three consecutive cohorts
+(`off.csv`, `coarse.csv`, `detailed.csv`, plus `server/server.csv` and its status).
+Defaults are 1,000 measured requests and 16 warmups per cohort. It checks IDs,
+CPU/worker identity, success, snapshot masks and additive conservation. Negative
+counts are errors. Only after independent instruction validation fails may
+`--exclude-instructions` withhold that entire event while retaining every request
+for cycles/cache statistics. It never clamps negatives or silently drops samples.
+
+## Local checks and simulation
+
+Select the smallest relevant check for the changed component. These checks
+complement board acceptance; they do not establish physical ECI behavior.
+
+### Select the smallest relevant check
 
 ```sh
 # All untagged/fast Lauberhorn tests (broader than CI).
 nix develop -c mill gen.test -l org.scalatest.tags.Slow
 
-# Exact CI scope: only ECI package, exclude Slow.
+# ECI package portion of the fast CI check, excluding Slow.
 nix develop -c mill gen.test -l org.scalatest.tags.Slow -m lauberhorn.host.eci
 
 # One suite / one test.
@@ -23,6 +624,11 @@ nix develop -c mill gen.test
 # Dependency regression when touching/updating blocks.
 nix develop -c mill 'blocks[2.13.12].test'
 ```
+
+The `fast-tests-eci` CI check also runs `RecoveryStreamBufferSim`,
+`RecoveryInFlightSim`, `ExecutionWatchdogSim` and `RpcReplyContextsSim` in the
+`lauberhorn` package. See the [check definitions](../../nix/checks/default.nix)
+for the complete selection.
 
 | Changed area | Start with suite(s) |
 | --- | --- |
@@ -45,23 +651,47 @@ Set `REPEAT_TEST_LIMIT=100` for a bounded campaign. Compiled Verilator models
 are cached outside Mill's disposable test sandbox in
 `out/repeat-test-verilator-cache` (`LAUBERHORN_VERILATOR_CACHE` overrides it);
 each repetition still starts a fresh test JVM. Mill module-level test
-parallelism being disabled does not serialize `ParallelTestExecution` suites:
-CI logs show overlapping simulations. Start with one reproducer, then verify
+parallelism being disabled does not serialize `ParallelTestExecution` suites.
+Simulations can overlap. Start with one reproducer, then verify
 that selecting sibling tests does not alter its stimulus.
+
+To request eight ScalaTest suite runners:
+
+```sh
+nix develop -c mill gen.test -- -P8
+```
+
+Mill module-level test parallelism remains disabled to avoid repeated Verilator
+model builds. Read compressed simulation transcripts with `less`, `vim` or
+`zcat`; use the workspace path printed by the suite.
+
+### AXI decode-error regression
+
+When changing AXI crossbar decode or completion accounting, run:
+
+```sh
+nix build .#checks.x86_64-linux.axi-decerr
+```
+
+The [read/write regression](../../deps/blocks/deps/verilog-axi/tb/axi_crossbar/test_decerr.sv)
+completes an unmapped transaction through the internal DECERR responder, then
+requires a mapped transaction to progress. Internal error responses must not
+release a transaction count that address admission never acquired. This is a
+crossbar simulation check; it does not validate kernel worker parking or establish
+what response occurred in a historical board capture.
 
 ## Evidence to retain from a failure
 
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.
-- The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Seed format 2 passes `simSeed` directly to Spinal; DCS stimulus uses that simulation's `simRandom`, not the JVM-global RNG. Invocation-local configuration prevents sibling suites from overwriting seed/log settings. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. A seed is not a substitute for matching source/toolchain inputs.
-- `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts. Pipeline 516080 lost its simulation artifacts because the old collector searched only the former location.
+- The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. Follow the [seed and stimulus contract](#simulation-reproducibility) when replaying.
+- `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts.
 - ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../data/eci/sys_trace/README.md).
 - PCAP replay tests load `data/eci/iladata/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
 - For simulator changes in dependencies, inspect/update the submodule rather than copying its implementation into the platform. Blocks regression gates every pipeline; see the [CI checks](ci.md#pipeline-and-handoff).
 
 ## Coverage limits that affect claims
 
-- `OncRpcSim` has registered but empty TODO test bodies: `rx-preempt-no-leaking` and `rx-sched-crit-timeout`. A passing suite does **not** validate those properties.
-- `rx-tx-interleaved` is tagged `Slow` with an address-map FIXME; fast CI excludes it. RX size scans and TX scan tests also use `Slow`.
+- `rx-tx-interleaved` exercises independent RX/TX control colors in the regular suite. RX/TX size scans include `Slow` tests; check the selected test tags when reporting coverage.
 - `PacketAllocSim` explicitly leaves multi-configuration and block-until-free checks incomplete.
 - The Scala host model approximates software IRQ/scheduling behavior. Passing RTL simulation does not validate the actual Linux module, aarch64 atomics, or real ECI cache behavior.
 - `model/legacy/tla/lauberhorn.tla` and Toolbox models describe isolation/preemption; the checked-in small model config names type, cacheline-exclusion, preemption and isolation invariants plus temporal properties. Generated model outputs are historical artifacts, not proof that current RTL/software satisfies the model. The separate steady-state model now has a Nix check; it does not validate this older scheduling model. Reconcile source and model snapshots before using results in a paper.
@@ -74,31 +704,44 @@ Evidence: [test build graph](../../build.mill), [simulation config](../../hw/src
 For routed checkpoint analysis and source-level timing closure, use the
 [physical implementation guide](../hardware/physical-implementation.md).
 
-### Trace DMA reset-startup regression (September 17)
+## Simulation reproducibility
 
-Combined timing pipeline 511830 failed `TraceBufferDMATests`'s “writes events to
-DRAM” case with setup seed −383376567 and simulation seed −348068956.
-The shared `sleepCycles` waits for clock edges, including synchronous-reset
-edges. Setup returned after ten edges while the stimulus reset lasts sixteen
-cycles; producers accumulated batches before the FlowDrivers began sampling.
-A local instrumented reproduction observed capture occupancy 4 and overflow.
-The blocks test fix waits for ten reset-qualified sampling cycles instead,
-leaving RTL, traffic generation and all data/loss assertions unchanged.
+The shared fixture records seed format 2 in `simulation-seeds.txt` and passes
+`simSeed` directly to Spinal. Precedence is explicit `-DsimSeed`, then
+`SPINAL_SIM_SEED`, then a deterministic derivation from the setup seed and test
+name. Preserve both seeds and the seed-format version. Format 1 used a different
+contract and requires its original fixture; its numbers are not sequence-compatible
+with format 2. The native backend normalizes seed zero to one.
 
-At that revision the fixture seeded Scala's global RNG; Spinal derived its
-default simulator seed from it (1193543006 for this reproducer). The printed
-fixture seed was not the simulator's displayed seed. That historical reproducer
-uses seed format 1; format 2 deliberately changes this contract to remove
-shared-RNG interference. See the [October seed investigation](simulation-seeds.md).
+Keep stimulus on the per-simulation `simRandom` stream or an explicitly seeded
+local stream. Fixture configuration and simulation mutexes must belong to the
+test invocation/model instance. ScalaTest `ParallelTestExecution` can overlap
+simulations even when Mill's module-level parallelism is disabled. Replaying
+alone and among sibling tests should not change stimulus.
+
+A seed is only part of the reproducer: retain source/submodule revisions, Nix
+lock, generated RTL/input hashes and runtime/toolchain metadata. Hash iteration
+and library implementation details are not cross-version contracts. Audit
+randomized branches when enabling additional simulation helpers; the ECI
+fixture's isolation does not imply library-wide determinism. In particular,
+Spinal's separate `AxiMemorySim` and Wishbone helpers have global-RNG paths
+outside this fixture's seeded stimulus contract.
+
+Wait for the full host-model operation before reusing its QP/cache line or
+ending a test. Network packet completion alone does not mean `txSendSingle`
+has finished its control reads and voluntary reload checks. Similarly, setup
+that depends on reset completion must wait for reset-qualified sampling cycles,
+not merely count clock edges while reset is asserted. Preserve concurrent RX/TX
+and eviction coverage rather than masking a test-ownership error by disabling
+stimulus or weakening assertions.
 
 ### Settled progress checks
 
-See the [verification contract and reproducible commands](../hardware/steady-state-verification.md).
-`OncRpcSim` tests `rx-independent-progress-1-stalls` and
-`rx-independent-progress-2-stalls` replace the historical empty RX HoL test with
-finite observations of active peer and bypass RX progress. They do not prove
-infinite-stall liveness, full-duplex bypass safety or the new decoder. Python
-capacity tests and the independent TLC runner live under `tools/progress/`.
+See the [verification contract and reproducible commands](../formal/resource-progress.md).
+`OncRpcSim` tests `rx-independent-progress-{1,2,3}-stalls` exercise finite
+independent-worker and simultaneous bypass RX/TX progress while peers stall.
+They do not prove infinite-stall liveness or establish silicon timeout bounds.
+Python capacity tests and the independent TLC runner live under `tools/progress/`.
 
 The steady-state model uses **`tlaplus18` from the locked nixpkgs**, with Python
 and Java supplied by Nix. No external jar download is needed:
@@ -114,17 +757,18 @@ when TLC reports the intended property failure; parser errors and timeouts do no
 The extended cases are opt-in finite bounds, not a proof for all worker counts or
 undocumented THX resource behavior. See the report for current results.
 
-The [Goal 2 scheduling contract checks](../hardware/scheduling-verification.md)
+The [Goal 2 scheduling contract checks](../formal/scheduling.md)
 are separate from the steady-state regression:
 
 ```sh
 nix build .#checks.x86_64-linux.scheduling-progress --out-link out/scheduling/nix-check
 ```
 
-They model the proposed cooperative handoff, pending wake ownership and interrupt
-ordering. They do not test the current kernel scheduler or instantiate DCS RTL.
-The optional stalled-third-worker case and remaining composition work are
-listed in the report.
+These historical models cover handoff, pending wake ownership and interrupt
+ordering, including scenarios outside the current implementation. They do not
+test the kernel scheduler or instantiate DCS RTL. The report defines the
+optional stalled-third-worker bound. For the implemented IRQ-free protocol, use
+the [cooperative scheduling checks](#cooperative-scheduling-and-slice-routing).
 
 For the focused concurrent-race subset, run
 `nix build .#checks.x86_64-linux.scheduling-races --out-link out/scheduling/races-nix`.
@@ -136,12 +780,12 @@ For retained-cache pressure and the combined scheduling race model, run
 This checks combined state invariants, cache liveness and expected faults. The
 larger `scheduling-composed` target additionally checks combined temporal
 properties; its result must be reported separately.
-See [bounds and assumptions](../hardware/retained-cache-composition.md); this is
+See [bounds and assumptions](../formal/resource-progress.md#directory-accounting-and-replacement); this is
 separate from the original component baseline.
 
 For monotonic-prefix kill/exit checks, run
 `nix build .#checks.x86_64-linux.scheduling-kill-exit --out-link out/scheduling/kill-exit-nix`.
-The [kill/exit report](../hardware/kill-exit-verification.md) describes three
+The [kill/exit report](../formal/kill-exit.md) describes three
 positive temporal cases, five deliberate faults, three ordering/reachability
 witnesses, and the endpoint assumptions still requiring hardware correspondence.
 
@@ -149,7 +793,7 @@ For the cache/directory admission contracts and full-set LCI counterexample, run
 `nix build .#checks.x86_64-linux.scheduling-cache-contracts`.
 `nix build .#checks.x86_64-linux.dcs-pressure` checks actual controller/table,
 arbiter and data-gate RTL with controlled surroundings. See the
-[directory-pressure report](../hardware/directory-pressure.md) for scope and the
+[directory-pressure report](../hardware/lauberhorn-rom.md#directory-pressure-and-the-nonlocking-contract) for scope and the
 distinction between a passing diagnostic and a reproduced design progress failure.
 
 The `dcs-pressure` target also runs the reset-to-full auto-lock sequence through
@@ -157,8 +801,9 @@ actual TSU/tag RAM and its reset wrapper, using a test XPM RAM primitive model.
 `directory-summary.json` and `directory-events.log` record naturally reached
 full-set absent-LCI stalls, successful hit invalidation, and UL-enabled recovery.
 These checks establish directory-component reachability, not the complete
-Lauberhorn/THX execution. Auto-lock remains selected; the nonlocking diagnostic
-is retained only as a regression of the unsafe wholesale-swap experiment.
+Lauberhorn/THX execution. These auto-lock checks retain their historical protocol scope. The selected
+Lauberhorn ROM has separate checks described below; passing the old-controller
+diagnostic does not validate that selected protocol.
 
 ### Generated Lauberhorn DCS ROM
 
@@ -169,25 +814,28 @@ replace whole-slice routing tests or hardware validation.
 
 ## TLA+ source and module checks
 
-Start with the [model index](../../model/README.md) and
-[module review](../hardware/model-review.md). The active model is LCI-only;
+Start with [formal verification topics](../formal/README.md), the
+[model source index](../../model/README.md) and
+[module review](../formal/model-structure.md#module-review-evidence-and-historical-sources). The active model is LCI-only;
 source, configuration, address data and historical evidence are separate.
 `nix build .#checks.x86_64-linux.tla-modules` checks the inventory/import boundaries
 and SANY semantics. `scheduling-transport` checks focused transport/handoff cases;
 `steady-progress`, `scheduling-races` and `scheduling-kill-exit` retain their
-separate scopes. Full combined temporal verification remains open.
+separate scopes. The historical wake/close composition targets below include
+behavior outside the implemented cooperative protocol; their bounded results
+do not establish full-system progress.
 
-The [AXI/coherence response suite](../hardware/axi-response-contract.md) runs with
+The [AXI/coherence response suite](../formal/axi-response-contract.md) runs with
 `nix build .#checks.x86_64-linux.scheduling-axi` or the scheduling runner
 `--axi-only`. It checks earlier and buffered reads, stop fencing and response
 service with deliberate faults. These are bounded contract checks, not RTL refinement.
 
-The [kill/transport composition](../hardware/kill-transport-composition.md) runs
+The [kill/transport composition](../formal/kill-exit.md#resource-backed-kill-cleanup) runs
 with `nix build .#checks.x86_64-linux.scheduling-kill-transport` or the scheduling
 runner `--kill-transport-only`. It joins existing control/resource properties,
 RX/TX cleanup, packet ownership and stalled/live peers.
 
-The [joined scheduling composition](../hardware/scheduling-composition.md) runs
+The [joined scheduling composition](../formal/scheduling.md#joined-scheduling-wake-and-transport) runs
 with `nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full` or the scheduling runner
 `--full-only`. It composes the focused wake/claim models with kill/transport,
 checks cross-component relations, and retains per-case TLC logs and configs in
@@ -198,12 +846,12 @@ validation status and finite bounds.
 
 ### RX writeback regression reproducer
 
-The October 2 board failure is reproduced by connecting the actual generated RX
-AXI router to the actual DCU and `axi_wr_cl` using the selected ROM. Run from the
+The RX writeback regression connects the generated RX AXI router to the DCU
+and `axi_wr_cl` using the selected ROM. Run from the
 repository root; output directories must be new:
 
 ```sh
-nix build .#dcsRom --out-link out/rx-writeback-rom
+nix build .#dev.x86_64-linux.hardware.dcsRom --out-link out/rx-writeback-rom
 nix develop -c mill gen.test.runMainLocal \
   lauberhorn.host.eci.GenRxWritebackFixture "$PWD/out/rx-writeback-rtl"
 nix develop -c python3 tools/progress/check_dcs_pressure.py \
@@ -212,14 +860,15 @@ nix develop -c python3 tools/progress/check_dcs_pressure.py \
   --output out/rx-writeback-check
 ```
 
-The regression now requires the production RX sink to accept both write beats,
+The regression requires the production RX sink to accept both write beats,
 return B and release WDDA, LCIA and the next RX control read. Controls check a
 no-data HAKD and an independent test sink which deliberately withholds B: the
 latter must block completion until B is released. The test uses synthetic
 returned data, manual initial DC read completion, test XPM RAM and direct
 LCIA-to-`invDone` wiring. It excludes the full slice data buffer/crossbar, THX
-and higher-level RX protocol. The [return-half design note](../hardware/rx-writeback.md)
-describes the current discard policy and possible future uses.
+and higher-level RX protocol. The [cache-line interface](../architecture/hw-sw-interface.md#independent-rx-writeback-service)
+defines the implemented replay shadow; the [performance analysis](../research/hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses)
+discusses proposed response-channel uses.
 
 The independent-channel test also runs in the fast ECI CI suite:
 
@@ -228,15 +877,14 @@ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.RxWritebackSim
 ```
 
 It checks W-before-AW, delayed W, queued IDs, zero/partial strobes, stable B under
-backpressure and quiescence. The historical failing diagnostic and board
-comparison remain in the [October 2 report](hardware-test-results.md#rx-regression-comparison-ra2-to-ra3--2026-10-02).
+backpressure and quiescence. See the [writeback and permission-change contract](../hardware/eci-implementation.md#rx-writeback-and-permission-changes).
 
 ## Layered coherence contracts
 
 Run `nix build .#checks.x86_64-linux.coherence-layers` for generated DC/THX
 line exchanges, repeated worker operations, fault cases and the detailed
 steady-state projection. `tla-modules` enforces layer imports and parses every
-module. See [bounds, optional products and remaining obligations](../hardware/layered-verification.md).
+module. See [bounds, optional products and remaining obligations](../formal/model-structure.md#layers-and-boundaries).
 
 ## Cooperative scheduling and slice routing
 
@@ -276,10 +924,40 @@ The helper resets the descriptor-emission guard between elaborations because
 the production CLI normally elaborates only once per JVM. Do not hand-edit
 headers to make a configuration compile.
 
+### Remaining DCS integration coverage
+
+The production slice control-array check above supersedes the earlier plan to
+start routing verification only after replacement RTL becomes available. Its
+812 address trials and held-read accounting do not instantiate the full slice
+payload datapath or ThunderX. The full-engine Scala suites use `DcsAppMaster`
+in [`NicSim.scala`](../../hw/test/src/lauberhorn/host/eci/NicSim.scala); they are
+not a substitute for actual DCS RTL integration.
+
+Extend targeted integration when changing the corresponding paths:
+
+- Exercise even/odd slices, scrambled DCU colors, worker/domain identities,
+  both control parities and overflow lines through actual routing and payload
+  paths. Preserve full response/invalidation addresses.
+- Hold one and multiple reads while peers and full-duplex bypass progress;
+  include retained TX/overflow responses, same-DCU and independent-DCU traffic.
+- Apply shared backpressure across VC arbitration, transaction managers, data
+  buffers, RTG occupancy, CDC and AXI queues. Determine whether a blocked DCU
+  prevents an eligible peer's admission or completion.
+- Check allocation/release, occupancy, beat counts, transaction identity and
+  LCI/LCIA handshakes. Map model counterexamples to directed sensitivity tests,
+  including delayed release and ownership changes.
+
+Record exact RTL/configuration revisions and environmental readiness assumptions.
+Finite passing traces bound observed progress; they do not prove infinite-stall
+silicon liveness or undocumented ThunderX behavior. Retain explicit resource
+and fairness obligations from [formal verification](../formal/README.md), and
+select further board cases through application validation rather than reopening
+the closed standalone scheduling campaign.
+
 ### Payload isolation across cooperative ownership changes
 
-Run the focused router and full-engine checks before building a replacement for
-pipeline 515944:
+Run the focused router and full-engine checks when changing payload isolation
+or cooperative ownership:
 
 ```sh
 nix develop -c mill gen.test.testOnly \
@@ -297,8 +975,8 @@ A→B→A reuse, every TX alias, RX tails and DMA transmission of unwritten succ
 bytes through the neighbor-miss path. The coherent host model alone does not
 exercise partial AXI write strobes; keep the direct fixture too.
 
-These tests belong to the normal fast ECI suite. See the [isolation correction
-and board-acceptance boundary](../hardware/payload-isolation-blocker.md#source-correction--october-3-follow-up).
+These tests belong to the normal fast ECI suite. See the [payload isolation contract](../architecture/hw-sw-interface.md#payload-cleanup-across-owners)
+and [recorded board scope](../research/eci-progress.md#builds-and-interpretation).
 
 ## Hot echo RPC generator and campaign
 
@@ -309,3 +987,6 @@ zero-length bodies, MTU boundaries and absolute schedule/deadline rules.
 stall through the real DPDK pcap PMD. Campaign fixtures cover rate-prefix
 selection, overload extensions, sustained fallback, resume integrity and
 notification retries. These local checks do not establish hardware acceptance.
+
+Runtime [activation/IPG capture](runtime-tracing.md#activation-and-inter-packet-gaps)
+and [paper chart production](paper-charts.md) describe the corresponding analysis workflows.
