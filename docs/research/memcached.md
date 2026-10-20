@@ -1,5 +1,10 @@
 # Native UDP memcached
 
+Comparing native Lauberhorn memcached against the [Caladan memcached baseline](caladan-enzian.md)
+is a [main paper goal](paper-goals.md#planned-applications-and-baseline). The
+Linux-over-FPGA-bypass measurements below are a separate control and do not
+establish that comparison.
+
 **October 13 design follow-up:** [HOST_WORK](../proposals/host-work.md), formerly proposed
 as HOST_WAKE, will return assigned RX waiters to host-side work. The Go/etcd
 stage also requires allocation for unassigned domains, targeted maintenance
