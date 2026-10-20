@@ -195,7 +195,7 @@ are guaranteed/resident; this does not establish competing-tenant preemption,
 zero-core wakeup or reclamation. Counter export includes warmups and runs after
 client drain; software timing is compiled out for loaded trials.
 
-Prepared full configuration: `out/caladan-integration/full.json`, with six
+Launched full configuration: `out/caladan-integration/full.json`, with six
 10,000-request unloaded cohorts and twelve loaded configurations (three payloads,
 one through four workers). The frozen grid has 120 initial points, geometric
 extensions through overload and sustained confirmations. Full unloaded
@@ -207,5 +207,7 @@ LH/DPDK paper figures remain in place.
 
 The NIC health guard also rejects missing or changed RX/TX error counters; its
 six targeted Caladan tests passed (`out/caladan-integration/tests-health.log`).
-The full launch root is `out/caladan-hot-full-20261021`; check a terminal callback
-before inspecting progress.
+Full service: `echo-campaign-122293d0b1a2.service`; root
+`out/caladan-hot-full-20261021`. Launch returned successfully. No post-launch
+progress polling was performed. Terminal callbacks target the requesting thread;
+inspect on callback or user request. The full dataset is not yet claimed complete.
