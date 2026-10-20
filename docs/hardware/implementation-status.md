@@ -30,6 +30,6 @@ references below distinguish them.
 | Physical timing | Routed implementation results and the optimization pause belong to [physical implementation](physical-implementation.md). Functional success does not establish timing closure. |
 
 [Validation](../development/validation.md) selects model, RTL and board checks.
-[Research goals and remaining claims](../research/roadmap.md#current-status--october-8-consolidation)
+[Research goals and remaining claims](../research/roadmap.md#evidence-and-remaining-claims)
 define further application-driven evaluation; this index does not reopen the
 closed standalone scheduling campaign.

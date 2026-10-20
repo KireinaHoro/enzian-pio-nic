@@ -23,7 +23,7 @@ DESCHED implementation are complete within their recorded scope. Pipeline
 disclosure and inactive-domain corrections. Never substitute vulnerable 515944.
 Corrected 516232 module `af0f64fe` passed two fresh cold boots (200 measured plus
 32 warmup RPCs) after its first idle-activation failure; preserve that original
-failure capture. See the [consolidated evidence](../docs/research/roadmap.md#current-status--october-8-consolidation).
+failure capture. See the [consolidated evidence](../docs/research/roadmap.md#evidence-and-remaining-claims).
 
 October 5 GSYNC one-shot early NACK tests covered 240 controlled RPCs and one/two
 observed stalled peers. See the [GSYNC record](../docs/research/eci-progress.md#controlled-gsync-results).
@@ -321,3 +321,22 @@ in that same root; the shared scratch copy was truncated by quota and must not
 be used as the full capture. Target-tools packaging and a separate readiness
 gate corrected these launch/test issues. The successful cohorts have their own
 exact manifests and hashes in the application page.
+
+## Research-roadmap closeout constraints
+
+The former roadmap's October 8 closeout ended the dedicated scheduling campaign
+at finite coverage. Further simultaneous-worker/stalled-peer and tail checks
+belong to application validation; do not reopen it from the old staged worklists.
+The 515944 result predates isolation corrections and must not replace corrected
+artifacts. Old feature-branch, HOST_WAKE-hold, raft-rs-selection and pending
+address/DESCHED implementation instructions are superseded by canonical topics.
+The original record remains in Git at `321611c4:docs/research/roadmap.md`.
+
+The earlier kernel baseline lockup and failure captures remain indexed above;
+this scrub does not resolve them. For broader acceptance, choose concrete
+application-driven pressure/isolation/recovery cases, then relate them to
+[remaining DCS integration coverage](../docs/development/validation.md#remaining-dcs-integration-coverage).
+Do not equate control-array routing tests with full payload/THX integration.
+Preserve the model bounds and environmental assumptions in the formal topics.
+Timing optimization remains paused. Go/HOST_WORK implementation, new model runs,
+CI and board access are not authorized by documentation migration.

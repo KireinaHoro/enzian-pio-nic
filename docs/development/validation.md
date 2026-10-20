@@ -909,6 +909,36 @@ The helper resets the descriptor-emission guard between elaborations because
 the production CLI normally elaborates only once per JVM. Do not hand-edit
 headers to make a configuration compile.
 
+### Remaining DCS integration coverage
+
+The production slice control-array check above supersedes the earlier plan to
+start routing verification only after replacement RTL becomes available. Its
+812 address trials and held-read accounting do not instantiate the full slice
+payload datapath or ThunderX. The full-engine Scala suites use `DcsAppMaster`
+in [`NicSim.scala`](../../hw/test/src/lauberhorn/host/eci/NicSim.scala); they are
+not a substitute for actual DCS RTL integration.
+
+Extend targeted integration when changing the corresponding paths:
+
+- Exercise even/odd slices, scrambled DCU colors, worker/domain identities,
+  both control parities and overflow lines through actual routing and payload
+  paths. Preserve full response/invalidation addresses.
+- Hold one and multiple reads while peers and full-duplex bypass progress;
+  include retained TX/overflow responses, same-DCU and independent-DCU traffic.
+- Apply shared backpressure across VC arbitration, transaction managers, data
+  buffers, RTG occupancy, CDC and AXI queues. Determine whether a blocked DCU
+  prevents an eligible peer's admission or completion.
+- Check allocation/release, occupancy, beat counts, transaction identity and
+  LCI/LCIA handshakes. Map model counterexamples to directed sensitivity tests,
+  including delayed release and ownership changes.
+
+Record exact RTL/configuration revisions and environmental readiness assumptions.
+Finite passing traces bound observed progress; they do not prove infinite-stall
+silicon liveness or undocumented ThunderX behavior. Retain explicit resource
+and fairness obligations from [formal verification](../formal/README.md), and
+select further board cases through application validation rather than reopening
+the closed standalone scheduling campaign.
+
 ### Payload isolation across cooperative ownership changes
 
 Run the focused router and full-engine checks when changing payload isolation

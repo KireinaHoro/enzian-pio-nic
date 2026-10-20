@@ -343,5 +343,5 @@ enters `waitDesc` after that pulse.
 Finite near-timeout contention does not determine a universal RX timeout bound
 or prove infinite-stall progress. Adversarial isolation and complete recovery are
 separate from functional RPC success. Follow the
-[application validation scope](roadmap.md#current-status--october-8-consolidation)
+[application validation scope](roadmap.md#evidence-and-remaining-claims)
 for further cases; the historical dedicated campaign is closed.

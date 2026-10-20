@@ -135,4 +135,4 @@ do not establish full-system refinement or infinite-stall silicon progress.
 [Board evaluation](../research/eci-progress.md) preserves actual finite contention
 and GSYNC coverage, with matched artifacts and trace limitations. Remaining
 application-driven validation and recovery work are tracked in the
-[roadmap](../research/roadmap.md#current-status--october-8-consolidation).
+[roadmap](../research/roadmap.md#evidence-and-remaining-claims).

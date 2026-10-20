@@ -60,7 +60,7 @@ not substitute for real-workload switch acceptance. Dated boot placement is in
 
 - October 5 buffered DPDK hot/cold cohorts: 4,000 measured RPCs; kernel-off RTT
   medians 12.24 µs hot / 43.36 µs cold. Hot CPU-work analysis and reproducible
-  static counting are recorded in the [consolidated evidence](../docs/research/roadmap.md#current-status--october-8-consolidation)
+  static counting are recorded in the [consolidated evidence](../docs/research/roadmap.md#evidence-and-remaining-claims)
   and [516232 comparison](../data/eci/board-evidence/dpdk-buffered-hot-cold-516232-20261005.json).
 - October 10 inline-TX correction on unchanged 518689 hardware: 4,000 measured
   hot/cold RPCs plus 32 warmups, one control forward/ack and no overflow
