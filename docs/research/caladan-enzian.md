@@ -213,3 +213,19 @@ remain separate acceptance work. Finish/review stages 1–3 before stage 4.
 Wait for the user's shared platform echo microbenchmark extraction; no echo
 integration or measurement campaign has started. No timing/power claims or
 memcached results are established by these tests.
+
+### ThunderX masked-SGI/WFE probe — October 20
+
+On zuestoll07 CPU 46, a temporary matched-kernel probe masked IRQs
+(`DAIF=0xc0`), disabled the architectural timer event stream, and executed
+`LDAXR/WFE` on a separately allocated, otherwise untouched page. CPU 45 sent
+an asynchronous Linux cross-call SGI after approximately 25 ms and a rescue
+SEV at approximately 133 ms. In all three SGI trials the waiter remained asleep
+until SEV; the SGI callback ran after IRQ restoration. Three SEV-only controls
+also woke at rescue. Thus masked SGIs do not provide the required WFE wakeup
+on this ThunderX configuration. The module was unloaded and per-core timer/IRQ
+state restored; no new kernel diagnostics appeared. Source/build/results are in
+`../caladan/out/wfe-sgi/`, with definitive evidence in `result-3.json`.
+Earlier attempts are retained: immediate returns required retry handling and
+ordered timestamps, and shared probe bookkeeping caused false monitor wakeups
+until the watched word was isolated on its own page.
