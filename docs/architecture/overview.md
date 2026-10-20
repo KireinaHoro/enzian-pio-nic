@@ -41,6 +41,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 | Implemented hardware and gaps | [Hardware status](../hardware/implementation-status.md) |
 | Preemption, worker lifetime, Linux policy | [Scheduler integration](../software/scheduler.md) |
 | Runtime transport and dispatch | [Runtime](../software/runtime.md) |
+| RX/TX cache-line layout and payload handoff | [HW/SW interface](hw-sw-interface.md) |
 | Write an application | [Programming model](../software/programming-model.md) |
 | Build and deploy | [Workflow](../development/workflow.md) |
 | Model contracts, assumptions and bounded results | [Formal verification](../formal/README.md) |

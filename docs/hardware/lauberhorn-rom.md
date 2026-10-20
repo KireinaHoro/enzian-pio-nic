@@ -125,7 +125,7 @@ read queue before LCIA service violates `Completes`. See the
 That model starts with the door already at the active AXI head. Earlier requests,
 in-flight responses, speculative accesses, permission changes without a new AXI
 read and stop/kill paths require the broader [AXI response contract](../formal/axi-response-contract.md)
-and [layered coherence checks](layered-verification.md). Software serialization
+and [layered coherence checks](../formal/model-structure.md#layers-and-boundaries). Software serialization
 alone does not exclude speculative coherent requests.
 
 ### Remaining progress obligations

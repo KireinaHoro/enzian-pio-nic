@@ -1,9 +1,10 @@
-# Contiguous TX payload layout, October 10
+# TX payload-layout verification
 
-`TxPayloadLayout` checks the version-3 TX alias contract independently of the
-older resource-progress models. RX chooses inline storage for length <= 64;
-otherwise its contiguous payload begins at direction offset 0x100. TX uses the
-reservation's inline bit, not final length, to choose the same physical regions.
+`TxPayloadLayout` is a bounded TLA+ safety model of the TX alias safeguards.
+The implemented RX/TX placement and restoration protocol is documented in the
+[HW/SW interface](../architecture/hw-sw-interface.md). This model does not verify
+RX placement or reproduce the RTL state machines.
+
 The model represents four 64-byte beats and two 128-byte overflow lines. Capacity
 ranges from zero to four beats and length from zero to capacity, including short
 sends from an overflow reservation and cancellation. It does not change the
@@ -15,7 +16,7 @@ aliased packet slot. The inline guard ends at TX completion; later same-domain
 writebacks are allowed. Only required overflow lines must drain for normal TX.
 Full drain and scrub precede another domain's access.
 
-The positive case passed: 1,506 generated / 837 distinct states, depth 9. Three
+The October 10, 2026 positive case passed: 1,506 generated / 837 distinct states, depth 9. Three
 fault controls produced the intended counterexamples:
 
 - Without restoration, a control writeback followed by overflow writeback leaves
@@ -31,7 +32,7 @@ before LCIA completion. Preemption drain/scrub is atomic here; its implementatio
 ordering remains covered by the existing isolation/progress checks. This model
 checks one transaction and one ownership transition, not repeated transactions,
 CPU speculation, RX borrow lifetimes, DMA beat timing, or liveness. RX placement
-is documented above but is not independently verified by this TX model. The
+is not independently verified by this TX model. The
 existing simulations cover concrete packet lengths and router write ordering.
 
 Reproduce with the pinned toolchain:

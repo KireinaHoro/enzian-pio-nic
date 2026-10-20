@@ -163,7 +163,7 @@ and writeback checks address separate finite obligations. The
 [implementation evidence](../hardware/eci-implementation.md) records source,
 model, RTL and board results within their respective scopes. Finite board
 exposure does not establish infinite-stall progress or a latency guarantee.
-The [bounded scheduling composition](../hardware/scheduling-composition.md) and
+The [bounded scheduling composition](../formal/scheduling.md#joined-scheduling-wake-and-transport) and
 [coherence progress analysis](../hardware/queue-pair-design.md#motivation-avoid-head-of-line-blocking) describe the
 remaining resource and hardware-refinement assumptions.
 

@@ -214,7 +214,7 @@ to resume the application on the integrated scheduler/critical-section design.
 
 ## Active coherence verification follow-up — October 2
 
-The [three-layer model](../hardware/layered-verification.md) now separates
+The [three-layer model](../formal/model-structure.md#layers-and-boundaries) now separates
 single-worker coherence, steady-state shared-resource progress, and scheduling.
 Its generated DC/THX tables reproduce the missing RX write-service dependency;
 public contracts and optional detailed products connect the layers. Remaining
@@ -331,11 +331,11 @@ The kernel/control bypass and runtime-owned request spill planes are intentional
 ## Scheduling verification milestones (maintainer, 2026-09-30)
 
 **Goal 1 is complete as the bounded modeling and layout milestone**, accepted to
-proceed with Goal 2 modeling and implementation. The [verification report](../hardware/steady-state-verification.md)
+proceed with Goal 2 modeling and implementation. The [verification report](../formal/resource-progress.md)
 and [reproducible evidence](../../model/evidence/steady/nix-progress-evidence.json) record
 what passed, the incomplete four-client run, and the remaining assumptions.
 This disposition does not claim full hardware verification or whole-system HoL
-freedom. [Goal 2 modeling](../hardware/scheduling-verification.md) now has modular
+freedom. [Goal 2 modeling](../formal/scheduling.md) now has modular
 handoff/resource, reservation, thread-claim, host-wake, retirement and interrupt
 contracts, with the original 26 baseline outcomes and stalled-worker extension checked.
 The [race/checklist work](../software/scheduling-implementation-checks.md) adds
@@ -346,7 +346,7 @@ local handoff sequencing is tracked as implementation obligations. The expanded
 dispatch are excluded. The later selected bounded matrix is complete as recorded
 below; broader verification and implementation remain open.
 A joined host-driven handoff checks the Goal 1 resource-entry predicate. The
-[scheduling composition](../hardware/scheduling-composition.md) now connects
+[scheduling composition](../formal/scheduling.md#joined-scheduling-wake-and-transport) now connects
 wake/claim races and kill to RX/TX cleanup; its selected bounded matrix
 is merged into `master`. Endpoint freshness and concrete
 control/transport correspondence remain assumptions. Goal 2 must establish the settled entry contract and preserve unaffected
@@ -358,10 +358,10 @@ workers' progress during scheduling transitions, reusing the resource model.
 broader/refinement extensions remain open; item 3 remains an explicit
 hardware-service contract, and item 4 is implementation and validation.
 The completed modeling branch is merged into `master`. The selected LCI-only endpoint and its
-checks are recorded below. The [module review](../hardware/model-review.md)
+checks are recorded below. The [module review](../formal/model-structure.md#module-review-evidence-and-historical-sources)
 consolidates cache/transport composition, removes UL from the active models and
 separates source/configuration/evidence; see the [model index](../../model/README.md).
-The new [scheduling composition](../hardware/scheduling-composition.md) joins the
+The new [scheduling composition](../formal/scheduling.md#joined-scheduling-wake-and-transport) joins the
 focused wake/claim contracts with kill and transport. Eleven positive cases, eleven
 expected faults, three reachability witnesses and all 33 module checks completed.
 The committed-TX kill/handoff case with a recurring peer completed by checkpoint
@@ -372,8 +372,8 @@ verification complete.
 
 | Item | Remaining work | Status / completion evidence |
 | --- | --- | --- |
-| 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../hardware/kill-transport-composition.md) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. Initial-buffer bookkeeping is not a proof of safe pool reuse: enforce protocol release or kernel no-return plus access drain (H20). |
-| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Selected bounded round complete in [SchedulingComposition](../hardware/scheduling-composition.md): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Selected matrix: eleven positive cases, eleven expected faults and three reachability witnesses complete, including committed-TX cleanup with a recurring peer and indefinitely held RX. Larger combinations, closing B, multiple closing workers and transition-time full-duplex bypass remain outside this matrix. [Combined state invariants](../hardware/retained-cache-composition.md) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. The new matrix bounds migration to A → B → A, notifications to two and TX to one control plus two overflow lines; it is not an unbounded proof. |
+| 1 | Connect kill completion to actual transport resources, including TX/overflow and packet/buffer cleanup. | The [kill/transport composition](../formal/kill-exit.md#resource-backed-kill-cleanup) now imports kill control, cached transport and response properties, adding TX control/overflow writeback and packet ownership. Separate RX, committed-TX and abandoned-TX cases include a stalled worker and live peer. Exact RTL correspondence, multiple closing workers and shared packet queues remain open. Initial-buffer bookkeeping is not a proof of safe pool reuse: enforce protocol release or kernel no-return plus access drain (H20). |
+| 2 | Complete broader combined liveness checks and stalled-peer transition cases. | Selected bounded round complete in [SchedulingComposition](../formal/scheduling.md#joined-scheduling-wake-and-transport): A → B → A, generation/ACK races, fixed-pool claims, whole-domain close and RX/TX cleanup. Selected matrix: eleven positive cases, eleven expected faults and three reachability witnesses complete, including committed-TX cleanup with a recurring peer and indefinitely held RX. Larger combinations, closing B, multiple closing workers and transition-time full-duplex bypass remain outside this matrix. [Combined state invariants](../formal/resource-progress.md#directory-accounting-and-replacement) have bounded passing evidence; historical nonallocating combined temporal runs remain incomplete; the new auto-lock one-slot temporal runs complete and fail handoff/progress due to absent-target allocation. The new matrix bounds migration to A → B → A, notifications to two and TX to one control plus two overflow lines; it is not an unbounded proof. |
 | 3 | Establish THX replacement and independent coherence-service guarantees. | The October 2 board trial exposed RX `WDD` without AXI write service; `a51139e` implements an independent write sink and passes directed RTL tests. Two cold-reset board trials now pass with trace-confirmed completion. The LCI-only ROM is selected; broader service guarantees remain open. Retain explicit directory-provisioning assumptions and establish CPU replacement initiation and independent delivery through THX/ECI/DCS shared resources. Neither matched cache capacity nor per-DCU input arbitration alone establishes end-to-end progress. |
 | 4 | Implement the serialization checks, then validate actual DCS RTL and hardware. | Pending. Implement the [kmod/HW checklist](../software/scheduling-implementation-checks.md), including close versus claim/activation, kill issue/ack versus reassignment, callback/command lifetime and immutable MMIO responses. Run the whole-slice cases below and matched-artifact hardware tests. Existing targeted RTL checks are partial evidence, not completion of this workstream. |
 
@@ -414,7 +414,7 @@ The selected ROM has 14 states and 35 permitted transitions. The linked document
 records the precise checks and limitations; the initial board failure at the RX
 writeback boundary is resolved for the checked regression above.
 
-The [LCI-only resource-model update](../hardware/lci-only-resource-model.md) now
+The [LCI-only resource-model update](../formal/resource-progress.md#current-endpoint-semantics) now
 composes LCIA release without UL with the existing scheduling modules. Focused
 handoff/cache safety and liveness checks passed, as did combined state invariants
 over 2,528,455 states. Full combined temporal verification remains open.
@@ -423,8 +423,8 @@ The [AXI response-contract checks](../formal/axi-response-contract.md) now cover
 earlier/queued/buffered reads, stop fencing and shared response service: five
 positive cases, seven deliberate faults and two witnesses. THX same-line response
 ordering, independent service and exclusion of target reads behind the held
-doorbell remain hardware obligations, not established guarantees. The [kill-tail composition](../hardware/kill-transport-composition.md) connects
-resource cleanup to the existing kill control model. The [new composition](../hardware/scheduling-composition.md) now joins broader
+doorbell remain hardware obligations, not established guarantees. The [kill-tail composition](../formal/kill-exit.md#resource-backed-kill-cleanup) connects
+resource cleanup to the existing kill control model. The [new composition](../formal/scheduling.md#joined-scheduling-wake-and-transport) now joins broader
 wake, reservation and repeated-handoff liveness by reusing component properties
 and adding cross-component control/transport relations. Its selected bounded matrix
 is checked; the report lists larger combinations not checked and hardware
@@ -520,7 +520,7 @@ preserve response lifetime and pending wake ownership across close. Retained
 old-domain cache generations now have explicit resource accounting in the
 composition below; no ordinary kernel CL flush is specified.
 
-[Retained cache and composed scheduling](../hardware/retained-cache-composition.md)
+[Retained cache and composed scheduling](../formal/resource-progress.md#directory-accounting-and-replacement)
 now models full dirty sets, conflict replacement and delayed directory release,
 then joins reservations, claims, wake ownership and whole-domain close. DCS waits
 for CPU downgrades on a full set; concrete replacement-path independence is an
@@ -528,7 +528,7 @@ explicit hardware correspondence obligation, not an empty-cache assumption.
 
 ## Kill/exit follow-up (2026-10-01)
 
-The [focused kill/exit check](../hardware/kill-exit-verification.md) separates
+The [focused kill/exit check](../formal/kill-exit.md) separates
 application stopping from PA lifetime reclamation. The first implementation allocates
 domain codes monotonically without reuse; domain-code reuse certification is deferred.
 The focused model checks uncooperative userspace, outstanding RX, IRQ ordering,

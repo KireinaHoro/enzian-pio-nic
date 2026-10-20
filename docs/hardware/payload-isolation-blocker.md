@@ -124,7 +124,7 @@ No bitstream or board result was produced by 516077; a replacement build is requ
 
 ## Multi-PA and fatal-domain follow-up
 
-The [domain isolation model and RTL findings](domain-isolation-model.md) now
+The [domain isolation model and RTL findings](../formal/domain-isolation.md) now
 cover inactive domain PAs, asynchronous kill and byte provenance. Directed RTL
 reproducers exposed two further missing checks: TX metadata admission after a
 sticky domain fault, and fault attribution to never-installed workers whose

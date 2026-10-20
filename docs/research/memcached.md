@@ -893,7 +893,7 @@ Pipeline [518689](https://gitlab.inf.ethz.ch/project-openenzian/applications/lau
 was launched for `45cbfe52d6166e0b05b4434ab9c3aa9dfee3a7c4` with memcached omitted.
 The 30-minute preflight is armed for October 10, 10:08 CEST in the existing thread.
 Hardware results and matched board tests remain pending; retain the branch.
-The [TX layout model](../../model/evidence/tx-payload-layout.md) passed its bounded
+The [TX layout model](../formal/tx-payload-layout.md) passed its bounded
 positive case and three expected fault controls. It confirms the inline restore,
 late-write mask and preemption cleanup requirements, under the stated write
 completion assumptions; it is not a complete RTL refinement or RX lifetime proof.

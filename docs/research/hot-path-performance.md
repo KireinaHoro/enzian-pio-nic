@@ -8,7 +8,7 @@ Instruction counts, CPU time and end-to-end latency are separate outcomes.
 
 ## Analysis scope and comparison method
 
-The [current transport layout](../hardware/architecture.md#eci-protocol-and-routing)
+The [current transport layout](../architecture/hw-sw-interface.md)
 and [runtime ownership contract](../software/runtime.md#request-and-transport-ownership)
 define the implementation being optimized. The historical audit below is an
 exact-binary reference for one successful inline `add` path. It predates the

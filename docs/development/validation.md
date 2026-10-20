@@ -567,7 +567,7 @@ stimulus or weakening assertions.
 
 ### Settled progress checks
 
-See the [verification contract and reproducible commands](../hardware/steady-state-verification.md).
+See the [verification contract and reproducible commands](../formal/resource-progress.md).
 `OncRpcSim` tests `rx-independent-progress-{1,2,3}-stalls` exercise finite
 independent-worker and simultaneous bypass RX/TX progress while peers stall.
 They do not prove infinite-stall liveness or establish silicon timeout bounds.
@@ -587,7 +587,7 @@ when TLC reports the intended property failure; parser errors and timeouts do no
 The extended cases are opt-in finite bounds, not a proof for all worker counts or
 undocumented THX resource behavior. See the report for current results.
 
-The [Goal 2 scheduling contract checks](../hardware/scheduling-verification.md)
+The [Goal 2 scheduling contract checks](../formal/scheduling.md)
 are separate from the steady-state regression:
 
 ```sh
@@ -610,12 +610,12 @@ For retained-cache pressure and the combined scheduling race model, run
 This checks combined state invariants, cache liveness and expected faults. The
 larger `scheduling-composed` target additionally checks combined temporal
 properties; its result must be reported separately.
-See [bounds and assumptions](../hardware/retained-cache-composition.md); this is
+See [bounds and assumptions](../formal/resource-progress.md#directory-accounting-and-replacement); this is
 separate from the original component baseline.
 
 For monotonic-prefix kill/exit checks, run
 `nix build .#checks.x86_64-linux.scheduling-kill-exit --out-link out/scheduling/kill-exit-nix`.
-The [kill/exit report](../hardware/kill-exit-verification.md) describes three
+The [kill/exit report](../formal/kill-exit.md) describes three
 positive temporal cases, five deliberate faults, three ordering/reachability
 witnesses, and the endpoint assumptions still requiring hardware correspondence.
 
@@ -646,7 +646,7 @@ replace whole-slice routing tests or hardware validation.
 
 Start with [formal verification topics](../formal/README.md), the
 [model source index](../../model/README.md) and
-[module review](../hardware/model-review.md). The active model is LCI-only;
+[module review](../formal/model-structure.md#module-review-evidence-and-historical-sources). The active model is LCI-only;
 source, configuration, address data and historical evidence are separate.
 `nix build .#checks.x86_64-linux.tla-modules` checks the inventory/import boundaries
 and SANY semantics. `scheduling-transport` checks focused transport/handoff cases;
@@ -660,12 +660,12 @@ The [AXI/coherence response suite](../formal/axi-response-contract.md) runs with
 `--axi-only`. It checks earlier and buffered reads, stop fencing and response
 service with deliberate faults. These are bounded contract checks, not RTL refinement.
 
-The [kill/transport composition](../hardware/kill-transport-composition.md) runs
+The [kill/transport composition](../formal/kill-exit.md#resource-backed-kill-cleanup) runs
 with `nix build .#checks.x86_64-linux.scheduling-kill-transport` or the scheduling
 runner `--kill-transport-only`. It joins existing control/resource properties,
 RX/TX cleanup, packet ownership and stalled/live peers.
 
-The [joined scheduling composition](../hardware/scheduling-composition.md) runs
+The [joined scheduling composition](../formal/scheduling.md#joined-scheduling-wake-and-transport) runs
 with `nix build --max-jobs 3 .#checks.x86_64-linux.scheduling-full` or the scheduling runner
 `--full-only`. It composes the focused wake/claim models with kill/transport,
 checks cross-component relations, and retains per-case TLC logs and configs in
@@ -713,7 +713,7 @@ backpressure and quiescence. See the [writeback and permission-change contract](
 Run `nix build .#checks.x86_64-linux.coherence-layers` for generated DC/THX
 line exchanges, repeated worker operations, fault cases and the detailed
 steady-state projection. `tla-modules` enforces layer imports and parses every
-module. See [bounds, optional products and remaining obligations](../hardware/layered-verification.md).
+module. See [bounds, optional products and remaining obligations](../formal/model-structure.md#layers-and-boundaries).
 
 ## Cooperative scheduling and slice routing
 

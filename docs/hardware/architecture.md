@@ -35,14 +35,9 @@ See [packet processing](packet-processing.md) for ingress/egress stages, metadat
 
 `EciDecoupledRxTxProtocol.scala` implements alternating control lines and twelve overflow lines per direction. The selected 8 KiB layout places RX controls at `0x300/0x380`, TX controls at `0x1300/0x1380`, and overflow at `0x400/0x1400`. `EciAddressMap` and the generated C helper encode color-neutral 19-bit lifetime codes separately from worker identities.
 
-Transport version 3 uses the control CL upper half only for complete
-payloads up to 64 bytes. Larger RX payloads start at overflow byte zero, including
-reconstructed RPC prefixes and bypass headers. TX uses explicit inline placement
-(bit 23), allowing a short commit from a large reservation. Normal invalidation
-uses actual length; byte 56 is reserved. Inline bytes take priority over overflow
-writebacks during commit. Full invalidation remains at preemption. Mutable RX writebacks are retained privately for replay until
-retirement. See [RX writeback](rx-writeback.md) and the
-[runtime ownership contract](../software/runtime.md#request-and-transport-ownership).
+The [hot-path HW/SW interface](../architecture/hw-sw-interface.md) defines the
+version-3 RX/TX control and overflow layouts, reservation-fixed TX placement,
+inline restoration and RX replay ownership.
 
 `EciDeschedulingControlPlugin.scala` delivers payload-free DESCHED through idle RX. A cooperative kernel info read acknowledges relinquishment and waits for autonomous transport cleanup. Only initial/idle activation sends a scheduling IRQ. See the [control contract](../software/scheduling-control-interface.md) and [implementation evidence](eci-implementation.md) for recorded board coverage and remaining acceptance boundaries.
 

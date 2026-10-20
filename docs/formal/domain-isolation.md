@@ -42,22 +42,13 @@ lifetime**, rather than the current worker owner. `EciDomainFaults` makes that
 fault sticky, `EciOwnership` fences its assigned workers, and the driver's
 fault work calls `fail_domain`, sends SIGKILL and retains domain resources.
 DECERR alone is insufficient: production DCS ignores RRESP. Cleanup AW is not
-a fresh-access violation; RX writes drain into the discard sink, and TX writes
+a fresh-access violation; RX writes drain through the independent replay-shadow sink, and TX writes
 must match the installed owner.
 
-Two missing qualifications were reproduced and corrected:
-
-1. `DmaControlPlugin` checked the trusted TX owner and descriptor but omitted
-   the owner's sticky hardware fault. With dirty-data invalidation replies
-   delayed, a domain fault could arrive before metadata collection completed;
-   the old RTL still returned TX success. Admission now also checks
-   `failedWorkers`. Rejection uses the existing status-3 completion path, so
-   accepted read/writeback obligations can drain without creating a packet.
-2. `EciOwnership.failedWorkers` compared owner registers even for workers that
-   had never received an assignment. Their reset code is zero, also the first
-   real domain's code. Faulting that domain stranded an unused worker and
-   prevented an already-registered healthy peer from activating there. Fault
-   attribution now requires `enabled(w)` as well as a matching failed domain.
+TX admission checks the trusted owner, descriptor and registered sticky fault;
+status-3 rejection drains accepted obligations without emitting a packet.
+`failedWorkers` requires an enabled assignment before comparing the owner code,
+so reset owner bits cannot fence a never-installed worker.
 
 `DomainIngressSim` connects real ingress, crossbar and sticky fault RTL: A's
 inactive PA on B's worker returns two zero DECERR beats, faults A, fences A's
@@ -71,17 +62,16 @@ simulated kernel handler. It checks TX rejection without packet emission and
 subsequent healthy activation on the never-installed worker. The software
 fault input is deliberate: the existing coherent CPU simulator aborts on
 DECERR, unlike production DCS. The separate ingress test checks the actual
-rogue-PA path. Both RTL bugs failed their regression before correction.
+rogue-PA path. 
 
-## Local validation — October 3
+## Recorded bounded results — October 3, 2026
 
 The complete cooperative model suite passed **24 expected outcomes**: the 13
 existing cases, two positive domain-isolation configurations and nine negative
 controls. The positive configurations exhausted **105,984** and **274,050**
 distinct states. The model inventory, import boundaries and SANY checks passed.
 Both directed RTL regressions passed, followed by the complete fast ECI suite:
-**52 passed, one existing ignored test**, in 570 seconds. These are current
-local results, not historical hardware evidence. Commands, hashes, counterexample
+**52 passed, one existing ignored test**, in 570 seconds. These are recorded local results for that source revision, not board results. Commands, hashes, counterexample
 statistics, pre-fix reproduction seeds and CI job provenance are retained in the
 [evidence record](../../model/evidence/scheduling/domain-isolation-20261003.json).
 
@@ -103,18 +93,3 @@ fault visible at metadata admission. Actual byte masks, allocation bounds,
 repeated handoffs and delayed scrub responses have separate RTL regressions.
 An already-failed reserved target remains quarantined by the existing owner
 fence; complete recovery of failed reservations remains outside this contract.
-
-Pipeline 516080 (`dae5cf23`) predates these two admission/fence corrections.
-Its preflight found job 2865583 (`fast-tests-eci`) failed in
-`rx-independent-progress-2-stalls`: DCS reload timeout at bypass TX PA `0x1300`
-(aliased `0x1780`), setup seed `-1760455454`, simulation seed `1699615821`.
-The other 12 gates passed; preparation 2865596, hardware 2865597 and report
-2865598 were skipped. Thus there is no running hardware build from that
-pipeline and no board result. The failed stage and exact revision are retained
-in the evidence record. The exact recorded seeds passed locally on the revised
-worktree; that is not a reproduction at the pipeline SHA and does not explain
-the CI failure. No replacement hardware build was launched for this unresolved
-nontrivial gate failure; this source correction is pushed with `ci.skip`.
-No address
-layout, timing pipeline, DESCHED ABI or generated software header changed in
-this round. Matched revised hardware and board acceptance remain required.

@@ -14,9 +14,9 @@ The harness instantiates the unchanged `DcsResources` and the generic
 [ReadResponses](../../model/tla/common/ReadResponses.tla) channel. The latter has
 no scheduling, domains, parity or 2F2F semantics. `Safety` references their typing,
 capacity and response-identity properties directly; only cross-component tracking
-and harness state are added. The subsequent [kill/transport composition](../hardware/kill-transport-composition.md)
+and harness state are added. The subsequent [kill/transport composition](kill-exit.md#resource-backed-kill-cleanup)
 reuses `ReadResponses` and `CachedTransport` alongside cleanup and packet
-ownership. The [scheduling composition](../hardware/scheduling-composition.md)
+ownership. The [scheduling composition](scheduling.md#joined-scheduling-wake-and-transport)
 adds control/transport relations. These are bounded model compositions, not
 proofs that the current RTL implements every modeled behavior.
 

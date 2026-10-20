@@ -21,6 +21,9 @@ Shared queues, writeback service, CPU/link behavior and response ordering retain
 their own [progress obligations](lauberhorn-rom.md#remaining-progress-obligations).
 Color compatibility alone is not a full-system liveness proof.
 
+For descriptor fields, contiguous payload placement and inline restoration, see
+the [hot-path HW/SW interface](../architecture/hw-sw-interface.md).
+
 ## Worker endpoints and lifetime ownership
 
 The selected ECI design uses physical-worker RX/TX endpoints and stable
@@ -360,7 +363,7 @@ block stride and twelve overflow CLs per direction. The
 [selected address configuration](../../model/data/selected-8k.json) feeds
 [`tools/address-map/generate.py`](../../tools/address-map/generate.py), which emits
 matching Scala and C arithmetic. This establishes the address mapping; full
-resource progress additionally depends on the [verification assumptions](steady-state-verification.md).
+resource progress additionally depends on the [verification assumptions](../formal/resource-progress.md).
 
 The block layout is:
 
@@ -538,7 +541,7 @@ not a claim that a fourth worker cannot use any possible 4 KiB design.
 The selected compact offsets fit in 8 KiB and retain seven workers. The CLI
 defaults to this stride. Select `--stride-bits 17` for the historical 128 KiB
 regression, or `--stride-bits 12 --rx 0 --tx 16` for the 4 KiB alternative.
-These capacities are color/address results. The [selected-layout evidence](steady-state-verification.md#selected-8-kib-layout-evidence-and-goal-1-status)
+These capacities are color/address results. The [selected-layout evidence](../formal/resource-progress.md#selected-address-historical-evidence)
 separately records the resource-model bounds and unresolved HoL obligations.
 
 ### Concrete domain-qualified PA encoding
@@ -623,8 +626,9 @@ the historical 128 KiB stride, 64 colors, 12 contiguous overflow CLs per directi
 regions, it checked all shared adjacent-control/contiguous-overflow placements
 through 5245 signature equivalence classes. **Seven workers plus full-duplex
 bypass is the maximum within that family**, not merely a witness for the offsets
-above. The [report](steady-state-verification.md#replacement-address-configurations-and-capacity)
-records the joint worker/domain frontier and reproducible commands. Other strides
+above. The [capacity table](#block-size-is-a-search-parameter-not-a-2f2f-requirement)
+records the worker/domain frontier; the [verification report](../formal/resource-progress.md#reproduce-and-interpret-checks)
+gives reproducible commands. Other strides
 and layout families remain candidates for improving capacity.
 
 The same search can also allow heterogeneous layouts, where different QPs use
@@ -869,6 +873,6 @@ captured failures and finite board observations.
 `OncRpcSim` includes `rx-tx-interleaved` in the regular fast suite and
 `rx-independent-progress-{1,2,3}-stalls` for finite independent-worker and bypass
 progress. The [validation guide](../development/validation.md) owns commands;
-[steady-state verification](steady-state-verification.md) records the model
+[steady-state verification](../formal/resource-progress.md) records the model
 bounds and assumptions. These checks do not establish arbitrary stall duration,
 CPU speculation behavior or full-system liveness.
