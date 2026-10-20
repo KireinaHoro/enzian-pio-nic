@@ -50,7 +50,7 @@ class Acquisition:
         r=self.request;c=self.config;loaded=r['stage']=='loaded' and not setup
         server=role=='server';system=r['system']
         source=c['dut_endpoint'] if server else c['peer_endpoint']
-        destination=c['peer_endpoint'] if server else c['dut_endpoint'] if system=='DPDK' else c['fpga_endpoint']
+        destination=c['peer_endpoint'] if server else c['dut_endpoint'] if system!='LH' else c['fpga_endpoint']
         label=self.label+('-setup' if setup else '')
         result=dict(role=role,system=system,mode='loaded' if loaded else 'unloaded',
             cpus=c['worker_cpus'][:r['workers']] if server else c['generator_cpus'] if loaded else c['generator_cpus'][:1],
@@ -67,12 +67,25 @@ class Acquisition:
             instrumentation='off' if setup else r.get('instrumentation','off'),
             tracking_mib=c['tracking_mib'],timeout_seconds=900,
             gap_ns=0 if setup or loaded else c.get('tofino',{}).get('gap_ns',0))
+        if server and system=='CS-A64':
+            mode=result['instrumentation']; variant=c['caladan_variants'][mode]
+            helper=Path(__file__).with_name('caladan_peer.py')
+            isolation=ROOT/'tools/enzian/cpu_isolation.py'
+            result.update(binary=variant['binary'],manifest=variant['manifest'],
+                caladan_cpus=c['caladan_control_cpus']+result['cpus'],caladan_gateway=c['caladan_gateway'],
+                caladan_helper=dict(url=self.h.stage(helper,self.label+'-caladan.py'),sha256=digest(helper)),
+                isolation_helper=dict(url=self.h.stage(isolation,self.label+'-isolation.py'),sha256=digest(isolation)))
         result.update(getattr(self,'role_overrides',{}).get(role,{}))
         return result
 
+    def server_sha(self):
+        mode=self.request.get('instrumentation','off')
+        return (self.config['caladan_variants'][mode]['sha256'] if self.request['system']=='CS-A64'
+                else self.config['server_sha256'][mode])
+
     def execute_roles(self, capture=None, external_server=False):
         configs={'client':(self.config['peer'],self.role('client'))}
-        if self.request['system']=='DPDK' and not external_server: configs={'server':(self.config['dpdk_dut'],self.role('server')),**configs}
+        if self.request['system'] in ('DPDK','CS-A64') and not external_server: configs={'server':(self.config['dpdk_dut'],self.role('server')),**configs}
         common=dict(gateway=self.config['gateway'], transfer_root=self.config['transfer_root'],
                     image=self.config['client_image_remote'], image_sha=self.config['client_image_sha256'])
         if capture is None:
@@ -90,22 +103,26 @@ class Acquisition:
                 result=str(client_result.resolve())))
             with ThreadPoolExecutor(max_workers=1) as pool:
                 server=None
-                if 'server' in configs:
-                    server=pool.submit(roles,self.directory/'server-roles',{'server':configs['server']},**common)
-                    ready=self.config['transfer_root']+'/'+self.label+'-ready'
-                    wait_code=("import pathlib,time\np=pathlib.Path("+repr(ready)+")\n"
-                        "end=time.monotonic()+120\n"
-                        "while not p.exists():\n"
-                        " if time.monotonic()>end:raise TimeoutError('Responder readiness')\n"
-                        " time.sleep(.1)\n")
-                    self.h.gateway(['python3','-c',wait_code],'resident-responder-ready',timeout=150)
-                self.paired=self.timed('tofino-session',capture.run,
-                    [sys.executable,'-m','tools.paper.campaign.tofino',str(client_spec.resolve())])
-                paths=json.loads(client_result.read_text())
+                try:
+                    if 'server' in configs:
+                        server=pool.submit(roles,self.directory/'server-roles',{'server':configs['server']},**common)
+                        ready=self.config['transfer_root']+'/'+self.label+'-ready'
+                        wait_code=("import pathlib,time\np=pathlib.Path("+repr(ready)+")\n"
+                            "end=time.monotonic()+120\n"
+                            "while not p.exists():\n"
+                            " if time.monotonic()>end:raise TimeoutError('Responder readiness')\n"
+                            " time.sleep(.1)\n")
+                        self.h.gateway(['python3','-c',wait_code],'resident-responder-ready',timeout=150)
+                    self.paired=self.timed('tofino-session',capture.run,
+                        [sys.executable,'-m','tools.paper.campaign.tofino',str(client_spec.resolve())])
+                    paths=json.loads(client_result.read_text())
+                finally:
+                    if server is not None and self.request['system']=='CS-A64':
+                        self.stop_caladan()
                 if server is not None: paths.update(server.result())
         evidence={}
         for role,(_,request) in configs.items():
-            evidence[role]=validate_role(paths[role],request,self.config['server_sha256'][self.request.get('instrumentation','off')] if role=='server' else self.config['client_sha256'])
+            evidence[role]=validate_role(paths[role],request,self.server_sha() if role=='server' else self.config['client_sha256'])
         # Separate hosts and harness directories; wait for every cleanup, including failures.
         with ThreadPoolExecutor(max_workers=len(configs)) as pool:
             futures=[pool.submit(self.cleanup_role,item) for item in configs.items()]
@@ -123,6 +140,11 @@ class Acquisition:
             evidence['client']['files'].pop(str(raw.resolve()))
             raw.unlink()
         return {k:Path(v) for k,v in paths.items()},evidence
+
+    def stop_caladan(self):
+        path=self.config['transfer_root']+'/'+self.label+'-stop'
+        self.h.gateway(['python3','-c','from pathlib import Path;Path('+repr(path)+').write_text("drained\\n")'],
+                       'caladan-stop')
 
     def cleanup_role(self,item):
         role,(machine,request)=item
@@ -212,6 +234,20 @@ namespace['start']({service!r})
         atomic(self.state_path,self.state)
         return service
 
+    def ensure_caladan(self):
+        """Use the live CPU-only host without resetting or touching FPGA state."""
+        c=self.config
+        if c['dpdk_dut']!='zuestoll07' or c['dut_interface']!='enP5p144s0np0':
+            raise ValueError('Caladan requires the verified CX-5 host')
+        code="""import pathlib,subprocess
+assert subprocess.check_output(['uname','-r'],text=True).strip()==KERNEL
+assert not any(line.startswith(('lauberhorn ','ksched ','fake_idle ')) for line in pathlib.Path('/proc/modules').read_text().splitlines())
+assert pathlib.Path('/sys/class/net/enP5p144s0np0/device/driver').resolve().name=='mlx5_core'
+""".replace('KERNEL',repr(c['kernel']))
+        self.h.python(c['dpdk_dut'],code,'caladan-host-check')
+        self.state=dict(safe=True,system='CS-A64',boot='existing CPU host; no reset or FPGA access')
+        atomic(self.state_path,self.state)
+
     def ensure_dpdk(self):
         c=self.config
         machine=c['dpdk_dut']
@@ -271,6 +307,7 @@ namespace['start']({service!r})
                 raise ValueError('Unloaded Tofino rehearsal must fit one capture chunk')
         if self.state.get('safe') is False: raise RuntimeError('Hardware state needs explicit failure recovery')
         if r['system']=='DPDK': self.timed('ensure-dpdk',self.ensure_dpdk)
+        if r['system']=='CS-A64': self.timed('ensure-caladan',self.ensure_caladan)
         service=self.timed('ensure-lh',self.ensure_lh) if r['system']=='LH' else None
         atomic(self.state_path,dict(self.state,safe=False,stage=str(self.directory)))
         before=self.timed('snapshot-before',self.h.snapshot,service,self.label+'-before') if service else None
@@ -284,7 +321,7 @@ namespace['start']({service!r})
                 backend=c['tofino']
                 if r['count']+r['warmup']>1024:
                     raise ValueError('Unloaded Tofino rehearsal must fit one capture chunk')
-                endpoint=c['dut_endpoint'] if r['system']=='DPDK' else c['fpga_endpoint']
+                endpoint=c['dut_endpoint'] if r['system']!='LH' else c['fpga_endpoint']
                 selector=backend['rpc_selectors'][str(r['payload_bytes'])]
                 capture=Batch(backend,dict(session_id=self.label,dev_port=backend['ports'][r['system']],
                     client_ip=c['peer_endpoint']['ip'],server_ip=endpoint['ip'],
@@ -334,6 +371,10 @@ namespace['start']({service!r})
                         setup_count=self.state['setup_count'],
                         server_path=after/'server.csv' if r['instrumentation']=='breakdown' else None,
                         **options)
+                elif r['system']=='CS-A64':
+                    from .import_caladan import caladan
+                    cohort=caladan(paths['client']/'samples.csv',paths['server']/'samples.csv',
+                        paths['server']/'samples.csv.status.json',**options)
                 else:
                     cohort=dpdk(paths['client']/'samples.csv',paths['server']/'samples.csv',**options)
                 if capture:

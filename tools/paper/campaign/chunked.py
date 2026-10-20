@@ -53,6 +53,7 @@ def run(a):
     counts=plan(r['count'],r['warmup'])
     if a.state.get('safe') is False:raise RuntimeError('Hardware recovery required')
     if r['system']=='DPDK':a.ensure_dpdk()
+    if r['system']=='CS-A64':a.ensure_caladan()
     service=a.ensure_lh() if r['system']=='LH' else None
     atomic(a.state_path,dict(a.state,safe=False,stage=str(a.directory)))
     before=a.h.snapshot(service,a.label+'-before') if service else None
@@ -68,31 +69,35 @@ def run(a):
     with ThreadPoolExecutor(max_workers=1) as pool:
         server=pool.submit(roles,a.directory/'resident-server',
                            {'server':(c['dpdk_dut'],server_request)},**common) if server_request else None
-        if server:
-            ready=c['transfer_root']+'/'+a.label+'-ready'
-            code='import pathlib,time\np=pathlib.Path('+repr(ready)+')\nend=time.monotonic()+120\nwhile not p.exists():\n if time.monotonic()>end:raise TimeoutError("Resident responder readiness")\n time.sleep(.1)\n'
-            a.h.gateway(['python3','-c',code],'resident-ready',timeout=150)
-        for index,count in enumerate(counts):
-            directory=a.directory/f'chunk-{index:03d}';directory.mkdir()
-            request=dict(r,count=count);atomic(directory/'request.json',request)
-            child=Acquisition(c,request,directory,a.campaign)
-            child.role_overrides={'client':dict(resident_label=a.label)}
-            selector=backend['rpc_selectors'][str(r['payload_bytes'])]
-            capture=Batch(backend,dict(session_id=child.label,dev_port=backend['ports'][r['system']],
-                client_ip=c['peer_endpoint']['ip'],server_ip=endpoint['ip'],client_udp_port=49152,
-                server_udp_port=12345,**selector,expected_count=count+128,timeout_s=600,
-                pacing_gap_ns=backend['gap_ns'],exclusive_tx_fifo_ack=True,
-                expected_artifact_sha256=backend['expected_artifact_sha256']),directory/'tofino')
-            paths,evidence=child.execute_roles(capture,external_server=True)
-            for item in evidence.values():files.update(item['files'])
-            wire=capture.output/'wire.json'
-            atomic(wire,wire_observations(child.paired,child.label,count+128))
-            acquisitions.append((child,paths,capture,wire))
+        try:
+            if server:
+                ready=c['transfer_root']+'/'+a.label+'-ready'
+                code='import pathlib,time\np=pathlib.Path('+repr(ready)+')\nend=time.monotonic()+120\nwhile not p.exists():\n if time.monotonic()>end:raise TimeoutError("Resident responder readiness")\n time.sleep(.1)\n'
+                a.h.gateway(['python3','-c',code],'resident-ready',timeout=150)
+            for index,count in enumerate(counts):
+                directory=a.directory/f'chunk-{index:03d}';directory.mkdir()
+                request=dict(r,count=count);atomic(directory/'request.json',request)
+                child=Acquisition(c,request,directory,a.campaign)
+                child.role_overrides={'client':dict(resident_label=a.label)}
+                selector=backend['rpc_selectors'][str(r['payload_bytes'])]
+                capture=Batch(backend,dict(session_id=child.label,dev_port=backend['ports'][r['system']],
+                    client_ip=c['peer_endpoint']['ip'],server_ip=endpoint['ip'],client_udp_port=49152,
+                    server_udp_port=12345,**selector,expected_count=count+128,timeout_s=600,
+                    pacing_gap_ns=backend['gap_ns'],exclusive_tx_fifo_ack=True,
+                    expected_artifact_sha256=backend['expected_artifact_sha256']),directory/'tofino')
+                paths,evidence=child.execute_roles(capture,external_server=True)
+                for item in evidence.values():files.update(item['files'])
+                wire=capture.output/'wire.json'
+                atomic(wire,wire_observations(child.paired,child.label,count+128))
+                acquisitions.append((child,paths,capture,wire))
+        finally:
+            if server and r['system']=='CS-A64':
+                a.stop_caladan()
         if server:
             server_path=Path(server.result()['server'])
-            evidence=validate_role(server_path,server_request,c['server_sha256'][r['instrumentation']])
+            evidence=validate_role(server_path,server_request,a.server_sha())
             files.update(evidence['files'])
-            server_rows=rows(server_path/'samples.csv')
+            server_rows=rows(server_path/'samples.csv') if r['system']!='CS-A64' or r['instrumentation']=='breakdown' else None
             a.cleanup_role(('server',(c['dpdk_dut'],server_request)))
         else:server_rows=None
     after=a.h.snapshot(service,a.label+'-after',export=r['instrumentation']=='breakdown') if service else None
@@ -116,6 +121,11 @@ def run(a):
             server_csv=child.directory/'server-slice.csv'
             write_rows(server_csv,server_rows[offset:offset+count+128]);options['server_path']=server_csv
         if service:cohort=lauberhorn(paths['client']/'samples.csv',setup_count=0,**options)
+        elif r['system']=='CS-A64':
+            from .import_caladan import caladan
+            cohort=caladan(paths['client']/'samples.csv',
+                status_path=server_path/'samples.csv.status.json',
+                export_rows=sum(counts)+128*len(counts),**dict({'server_path':None},**options))
         else:cohort=dpdk(paths['client']/'samples.csv',**options)
         offset+=count+128
         cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]

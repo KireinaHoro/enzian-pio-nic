@@ -12,11 +12,11 @@ from .hardware import atomic
 from .import_loaded import digest, load
 from .recovery import invalidated
 from .import_unloaded import validate_matched
-from .policy import SYSTEMS, SIZES, WORKERS, candidates, loss
+from .policy import SYSTEMS, selected_systems, SIZES, WORKERS, candidates, loss
 
 
-def verify_loaded(records, plans):
-    expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in WORKERS}
+def verify_loaded(records, plans, *, systems=SYSTEMS):
+    expected={(s,n,w) for s in systems for n in SIZES for w in WORKERS}
     keys=[(r['system'],r['size'],r['workers']) for r in records]
     if len(keys)!=len(expected) or set(keys)!=expected: raise ValueError('Incomplete full matrix')
     frozen={(r['system'],r['size'],r['workers']):r['rates'] for r in plans}
@@ -91,7 +91,8 @@ def finalize(config,h,request,campaign):
             'clock-after',timeout=180)
     loaded=json.loads(Path(request['loaded']).read_text());plans=json.loads(Path(request['grid']).read_text())
     unloaded=json.loads(Path(request['unloaded']).read_text())
-    verify_loaded(loaded,plans);validate_matched(unloaded)
+    systems=selected_systems(json.loads((campaign/'config.json').read_text()))
+    verify_loaded(loaded,plans,systems=systems);validate_matched(unloaded,systems=systems)
     if any(c['count']!=10000 or c['warmup']!=128*len(c.get('chunks',[None])) for c in unloaded): raise ValueError('Wrong full unloaded sample count')
     destination=Path(config['archive_directory']).resolve()/h.directory.name
     archive=Archive(destination)

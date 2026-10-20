@@ -172,7 +172,7 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
                 return t
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            config=dict(initial_rate=50,max_extensions=10,scope='full',grid=[dict(system='LH',size=8,workers=1,rates=[50,100,150])])
+            config=dict(systems=['LH'],initial_rate=50,max_extensions=10,scope='full',grid=[dict(system='LH',size=8,workers=1,rates=[50,100,150])])
             with patch.object(controller,'SYSTEMS',('LH',)), patch.object(controller,'SIZES',(8,)), patch.object(controller,'WORKERS',(1,)):
                 Fixture(root,config).run()
             result=controller.read(root/'loaded.json')[0]

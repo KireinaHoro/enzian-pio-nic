@@ -81,7 +81,7 @@ else:
     def probe(self, machine, name):
         """Read-only host state, uploaded through the dedicated campaign endpoint."""
         remote=name+'.json';url=self.config['transfer_url'].rstrip('/')+'/'+remote
-        image=self.config['deploy_image'] if machine==self.config['dut'] else None
+        image=self.config.get('deploy_image') if machine==self.config['dut'] else None
         interface=self.config.get('dut_interface','enP5p144s0np0') if machine==self.config.get('dpdk_dut') else 'cpu40g1'
         code=f'''import json,os,subprocess,urllib.request,hashlib
 from pathlib import Path

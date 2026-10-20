@@ -20,7 +20,7 @@ from .hardware import Acquisition, atomic
 from .import_loaded import digest, load
 from .recovery import invalidated
 from .import_unloaded import validate_matched
-from .policy import SYSTEMS, SIZES, WORKERS, loss, qualifying
+from .policy import SYSTEMS, selected_systems, SIZES, WORKERS, loss, qualifying
 
 
 def read(path): return json.loads(Path(path).read_text())
@@ -116,7 +116,8 @@ def initial_recorder(config, h, state):
 
 def preflight(config, h, campaign, *, callback_required=True):
     c=config
-    if not os.environ.get('ENZIAN_BMC_PASSWORD'):
+    software_only=selected_systems(read(campaign/'config.json'))==('CS-A64',)
+    if not software_only and not os.environ.get('ENZIAN_BMC_PASSWORD'):
         raise ValueError('Unattended boot requires ENZIAN_BMC_PASSWORD in the service environment')
     if c['dut'] != 'zuestoll07' or c['dpdk_dut'] != c['dut'] or c['peer'] != 'zuestoll14':
         raise ValueError('Use zuestoll07 for LH/ConnectX-5 and zuestoll14 for the generator')
@@ -146,7 +147,7 @@ def preflight(config, h, campaign, *, callback_required=True):
     h.gateway(['python3','-c',"import urllib.request;assert urllib.request.urlopen("+repr(probe_url)+",timeout=10).read()==b'echo campaign transport probe\\n'"],'transfer-readback')
     peer=h.probe(c['peer'],'peer-preflight-'+h.directory.parent.name+'-'+h.directory.name)
     dut=h.probe(c['dut'],'dut-preflight-'+h.directory.parent.name+'-'+h.directory.name)
-    if dut['deployment_sha256']!=c['deploy_image_sha256']:
+    if not software_only and dut['deployment_sha256']!=c['deploy_image_sha256']:
         raise ValueError('DUT deployment image differs from matched artifact')
     baseline=h.probe(c['dpdk_dut'],'dpdk-preflight-'+h.directory.parent.name+'-'+h.directory.name)
     if baseline['nic_driver']!='mlx5_core' or baseline['nic_pci']!='0005:90:00.0':
@@ -158,7 +159,7 @@ def preflight(config, h, campaign, *, callback_required=True):
         if host['kernel']!=c['kernel']: raise ValueError(role+' kernel mismatch')
     if peer['mem_available']<c['peer_ram_reserve_bytes'] or peer['shm']['available']<c['peer_output_reserve_bytes']:
         raise ValueError('Insufficient peer RAM/output budget')
-    initial=initial_recorder(c,h,state)
+    initial='fresh' if software_only else initial_recorder(c,h,state)
     if callback_required: verify_callback(c,h.directory)
     return dict(passed=True,reservations=True,matching_artifacts=True,storage_budget=True,
         ram_budget=True,restoration=True,callback_delivery=True if callback_required else None,callback_required=callback_required,isolated_cpus=True,initial_state=initial,preserved_previous_state=initial!='fresh')
@@ -234,7 +235,7 @@ if path.exists():
 def rehearsal(config,h,campaign):
     from .policy import validate_activity_coverage
     activities={}
-    cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts,rehearsal=True)
+    cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts,rehearsal=True,systems=selected_systems(read(campaign/'config.json')))
     if read(campaign/'config.json').get('scope')=='unloaded-rehearsal':
         output=h.directory/'plots'
         h.command([sys.executable,ROOT/'tools/paper/plot_echo_unloaded.py','--input',campaign/'rehearsal-unloaded.json',
@@ -261,7 +262,7 @@ def rehearsal(config,h,campaign):
         points.setdefault(key,[]).append(dict(rate=request['rate'],trials=[trial]))
         activities.setdefault(key,[]).append(result['worker_activity'])
     validate_activity_coverage(activities)
-    expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in (1,4)}
+    expected={(s,n,w) for s in selected_systems(read(campaign/'config.json')) for n in SIZES for w in (1,4)}
     if set(points)!=expected: raise ValueError('Rehearsal matrix incomplete')
     records=[]
     for (system,size,workers),values in points.items():
@@ -297,7 +298,7 @@ def main():
         unloaded='unloaded' in request
         source=directory/('unloaded.json' if unloaded else 'loaded.json')
         atomic(source,request['unloaded' if unloaded else 'loaded'])
-        if unloaded: validate_matched(request['unloaded'])
+        if unloaded: validate_matched(request['unloaded'],systems=selected_systems(read(campaign/'config.json')))
         final_unloaded=request.get('final_unloaded',False)
         evidence={}
         if final_unloaded:
@@ -318,7 +319,7 @@ def main():
                   + ([] if unloaded else ['--partial']),'plot-progress',timeout=600)
         names=['echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'] if unloaded else ['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-loaded-hot-peak-throughput-workers']
         previews=pdf_checks(output,names)
-        publish_plots(output)
+        if config.get('publish_plots',True): publish_plots(output)
         atomic(campaign/('unloaded-plots.json' if unloaded else 'loaded-plots.json'),dict(previews=previews))
         result=dict(passed=True,previews=previews)
         if final_unloaded:

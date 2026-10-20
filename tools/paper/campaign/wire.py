@@ -21,7 +21,8 @@ def require_capture_backend(config=None):
     if digest(root/'rehearsal-unloaded.json')!=proof['cohorts_sha256']:
         raise ValueError('Wire acceptance evidence changed')
     cohorts=json.loads((root/'rehearsal-unloaded.json').read_text())
-    validate_matched(cohorts,rehearsal=True)
+    from .policy import selected_systems
+    validate_matched(cohorts,rehearsal=True,systems=selected_systems(config or {}))
     receipt=Path(proof['validation_receipt'])
     if digest(receipt)!=proof['validation_sha256']:raise ValueError('Wire validation receipt changed')
     saved=json.loads(receipt.read_text())

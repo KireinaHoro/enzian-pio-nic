@@ -41,4 +41,50 @@ class CaladanImportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'export'): parse()
 
 
+class CaladanCampaignTests(unittest.TestCase):
+    def test_explicit_system_selection(self):
+        from .policy import selected_systems, observed_systems
+        self.assertEqual(selected_systems({}), ('LH','DPDK'))
+        self.assertEqual(selected_systems({'systems':['CS-A64']}), ('CS-A64',))
+        for values in ([], ['CS-A64','CS-A64'], ['SH-A64']):
+            with self.assertRaises(ValueError): selected_systems({'systems':values})
+        self.assertEqual(observed_systems([{'system':'CS-A64'}]), ('CS-A64',))
+
+    def test_probe_free_import_never_reads_server_trace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'client.csv'
+            with path.open('w') as stream:
+                row=dict(request_id=1,benchmark='echo8',ok=1,rpc_status=0,warmup=0,
+                         client_call_enter_ns=1,client_rx_burst_ns=1000)
+                writer=csv.DictWriter(stream,fieldnames=row);writer.writeheader();writer.writerow(row)
+            result=caladan(path,None,None,count=1,warmup=0,payload_bytes=8,instrumentation='off')
+            self.assertEqual(result['system'],'CS-A64')
+            self.assertNotIn('components_ns',result['rows'][0])
+            self.assertFalse(result['paper_inputs'])
+
+    def test_caladan_only_unloaded_matrix(self):
+        from .test_campaign import controller
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);campaign=controller.Campaign(root,{'systems':['CS-A64']})
+            requests=[]
+            campaign.stage=lambda name,request: requests.append(request) or {'cohort':request}
+            with patch.object(controller,'validate_matched') as validate:
+                campaign.unloaded('full')
+            self.assertEqual(len(requests),6)
+            self.assertEqual({r['system'] for r in requests},{'CS-A64'})
+            self.assertTrue(all(r['count']==10000 and r['workers']==1 for r in requests))
+            self.assertEqual(validate.call_args.kwargs['systems'],('CS-A64',))
+
+    def test_activity_preserves_idle_worker_slots_and_checks_placement(self):
+        from .acquire import caladan_activity
+        rows=[dict(worker=i,calls=0,cpu_mask=0) for i in range(64)]
+        rows[2].update(calls=10,cpu_mask=1<<46)
+        self.assertEqual(caladan_activity(rows,[44,45,46,47]),[0,0,10,0])
+        rows[2]['cpu_mask']=1<<42
+        with self.assertRaisesRegex(ValueError,'placement'):caladan_activity(rows,[44,45,46,47])
+        rows[2].update(calls=0,cpu_mask=0)
+        with self.assertRaisesRegex(ValueError,'No Caladan'):caladan_activity(rows,[44,45,46,47])
+
+
 if __name__ == '__main__': unittest.main()

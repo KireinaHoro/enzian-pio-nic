@@ -216,6 +216,14 @@ in
   mkCaladan = args: import ./benchmarks/caladan ({
     inherit pkgs target kernelBuildTree kernelRelease identity;
   } // args);
+  mkCaladanCampaign = { source, microbenchmarkSource, rpcSource }:
+    import ./benchmarks/caladan/campaign.nix {
+      inherit pkgs target microbenchmarkSource rpcSource;
+      clientEnvironment = trafficGeneratorDeployment.environment;
+      port = import ./benchmarks/caladan {
+        inherit pkgs target kernelBuildTree kernelRelease identity source;
+      };
+    };
   images = import ./images {
     inherit
       bootFiles

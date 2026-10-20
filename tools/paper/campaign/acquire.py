@@ -47,13 +47,20 @@ def validate_role(root, request, binary_sha):
     if not set(request['cpus'])<=cpu_set(before['isolated_cpus']):
         raise ValueError('Role used nonisolated CPUs')
     if request['role']=='server':
-        capability=read('manifest.json')['responderTracing'][Path(request['binary']).name]
+        manifest=read('manifest.json')
+        capability=manifest['tracing'] if request['system']=='CS-A64' else manifest['responderTracing'][Path(request['binary']).name]
         if capability!=(request['instrumentation']=='breakdown'):
             raise ValueError('Responder compiled instrumentation differs')
     if before['timestamp_provenance'] is not None:
         raise ValueError('Unexpected NIC hardware timestamping')
     result=dict(files={str(p.resolve()):digest(p) for p in root.rglob('*') if p.is_file()})
-    if request['role']=='server' and request['mode']=='loaded':
+    if request['role']=='server' and request['system']=='CS-A64':
+        with (root/'activity.csv').open() as stream: activity=list(csv.DictReader(stream))
+        counts=caladan_activity(activity,request['cpus'])
+        if request['mode']=='unloaded' and sum(counts)!=request['count']+request['warmup']:
+            raise ValueError('Caladan request count differs from unloaded cohort')
+        result.update(worker_activity=counts,activity=activity)
+    elif request['role']=='server' and request['mode']=='loaded':
         with (root/'samples.csv').open() as stream: workers=list(csv.DictReader(stream))
         if len(workers)!=len(request['cpus']) or [int(r['lcore']) for r in workers]!=request['cpus']:
             raise ValueError('Responder worker placement differs')
@@ -64,6 +71,19 @@ def validate_role(root, request, binary_sha):
             raise ValueError('Responder NIC health/resource failure')
         result.update(worker_activity=activity,nic=nic)
     return result
+
+
+def caladan_activity(activity, cpus):
+    records={int(r['worker']):(int(r['calls']),int(r['cpu_mask'])) for r in activity}
+    allowed=sum(1<<cpu for cpu in cpus)
+    if (len(activity)!=64 or set(records)!=set(range(64))
+            or any(calls<0 or mask<0 or mask & ~allowed or bool(calls)!=bool(mask)
+                   for calls,mask in records.values())
+            or any(records[i]!=(0,0) for i in range(len(cpus),64))):
+        raise ValueError('Caladan worker activity or placement differs')
+    counts=[records[i][0] for i in range(len(cpus))]
+    if not any(counts):raise ValueError('No Caladan worker activity')
+    return counts
 
 
 def extract(archive, destination, expected):

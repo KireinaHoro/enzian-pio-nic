@@ -1,6 +1,19 @@
 """Measurement and selection policy shared by acquisition and plotting."""
 import math
 SYSTEMS = ('LH', 'DPDK')
+SUPPORTED_SYSTEMS = (*SYSTEMS, 'CS-A64')
+
+def selected_systems(config):
+    systems = tuple(config.get('systems', SYSTEMS))
+    if not systems or len(set(systems)) != len(systems) or any(s not in SUPPORTED_SYSTEMS for s in systems):
+        raise ValueError('Invalid campaign systems')
+    return systems
+
+def observed_systems(records):
+    names = {r['system'] for r in records}
+    selected_systems({'systems': list(names)})
+    return tuple(s for s in SUPPORTED_SYSTEMS if s in names)
+
 SIZES = (8, 128, 1432)
 WORKERS = (1, 2, 3, 4)
 LOSS_LIMIT = .01

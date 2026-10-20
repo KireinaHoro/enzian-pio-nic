@@ -18,6 +18,35 @@ reservations and preserve existing failures before a deployment or reset.
 
 ## Baseline selection and launch gates
 
+Campaign configuration accepts `systems`, a nonempty distinct list drawn from
+`LH`, `DPDK`, and `CS-A64`; omission preserves the LH/DPDK matrix. A CS-A64-only
+full campaign collects six unloaded cohorts before its twelve loaded
+payload/worker configurations. Its frozen grid, wire-acceptance matrix and
+final completeness checks must name that same system selection.
+
+CS-A64 uses `mkCaladanCampaign` to package the shared generator, both Caladan
+probe modes, runtime and matched scheduler modules in one verified image.
+The hardware manifest supplies `caladan_variants` (binary, manifest and SHA256
+for each mode), `caladan_control_cpus` and `caladan_gateway`. The two IOKernel
+CPUs are additional to the requested worker count. The runner uses the simple
+policy, mlx5 directpath, and a resident guaranteed worker pool. It records
+negotiated steering, actual worker activity/CPU masks, and control placement.
+The hot campaign does not exercise competing tenants or core reclamation.
+
+The Caladan adapter requires an idle CX-5 and no existing scheduler modules or
+Caladan processes. It uses the shared console and verified private image
+namespace without resetting the CPU or touching FPGA state. It restores NIC
+state, scheduler modules, hugepages, sysctls and temporary IRQ/workqueue controls.
+Only worker CPUs must be boot-isolated; record the additional IOKernel CPUs and
+their isolation status explicitly. A single resident server spans every unloaded
+capture chunk; the collector exports after the last client drains. Loaded
+cohorts use a probe-free server and quiescent activity-counter export, with no
+software timing, switch capture, or FPGA readout.
+
+Set hardware `publish_plots: false` for a baseline-only acquisition so its
+previews remain in the campaign archive until a combined comparison is reviewed.
+
+
 The benchmark configuration selects Lauberhorn, DPDK on the ConnectX-5 in
 zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
 require an accepted port. LH and DPDK use zuestoll07 sequentially (`dut` and `dpdk_dut` both name
@@ -387,7 +416,7 @@ provenance. CDF probes are compiled out; breakdown probes include queue, network
 RPC and handler intervals. Both disable NIC timestamping and FPGA recording.
 Loaded runs require compiled-out software probes and no trace readout.
 `full-unloaded.json` keeps 12 cohorts: LH/DPDK, 8/128/1432-byte bodies,
-and two instrumentation modes. Caladan joins after its port is accepted.
+and two instrumentation modes. CS-A64 can be selected separately after its matching workload acceptance.
 The client validates wire XIDs; LH CPU rows use exact single-outstanding order
 and causal duration bounds, without modifying the hardware trace format.
 Preflight must check reservations, artifact

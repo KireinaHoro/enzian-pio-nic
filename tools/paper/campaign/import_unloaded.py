@@ -7,7 +7,7 @@ import csv
 import gzip
 import json
 from .import_loaded import digest
-from .policy import SIZES
+from .policy import SIZES, SYSTEMS
 from .wire import COMPONENTS, METHOD, join_durations
 
 def rows(path):
@@ -172,11 +172,11 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
     return result
 
 
-def validate_matched(cohorts, *, rehearsal=False):
-    expected={(s,n,m) for s in ('LH','DPDK') for n in SIZES for m in ('off','breakdown')}
+def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS):
+    expected={(s,n,m) for s in systems for n in SIZES for m in ('off','breakdown')}
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
-    for system in ('LH','DPDK'):
+    for system in systems:
         builds={m:{c['build_config_sha256'] for c in cohorts if c['system']==system and c['instrumentation']==m} for m in ('off','breakdown')}
         if any(len(v)!=1 for v in builds.values()) or builds['off']==builds['breakdown']:
             raise ValueError('Expected distinct, consistent compiled tracing variants')

@@ -133,3 +133,19 @@ need not meet the ThunderX runtime's integral ticks/us requirement. The
 For analysis, use the [shared hot-path methodology](../research/hot-measurement.md).
 A loss-free CPU trace alone is not an accepted wire-latency campaign. Tofino
 pairing, instrumentation controls and workload acceptance remain required.
+
+## Unattended hot echo campaigns
+
+The platform `mkCaladanCampaign { source; microbenchmarkSource; rpcSource; }`
+composition provides `image`, `off` and `breakdown` outputs. The image includes
+the shared traffic generator and both server variants at
+`/nix/store/caladan-echo-{off,breakdown}`. Use the
+[campaign configuration and lifecycle](benchmark-campaign.md#baseline-selection-and-launch-gates)
+with `systems: ["CS-A64"]`. The ordinary Caladan `echoImage` remains useful for
+functional checks; the campaign image supplies the pinned Python and shared
+NIC runner required by unattended roles.
+
+`CALADAN_ECHO_ACTIVITY` enables per-kthread request counts and CPU masks in both
+server variants. Export with `SIGRTMIN+5` after traffic drains. Counts include
+warmups and establish placement/activity, not CPU utilization. This counter
+path has no clock reads; timing probes remain compiled out of the loaded server.

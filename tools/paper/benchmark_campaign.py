@@ -15,7 +15,7 @@ import signal
 import subprocess
 import sys
 import time
-from campaign.policy import SYSTEMS, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates
+from campaign.policy import SYSTEMS, selected_systems, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates
 from campaign.import_loaded import load, digest
 from campaign.import_unloaded import validate_matched
 from campaign.recovery import prepare as prepare_recovery, invalidated
@@ -75,6 +75,7 @@ def notify(root, config, retry=True):
 class Campaign:
     def __init__(self, root, config):
         self.root, self.config = root, config
+        self.systems = selected_systems(config)
         self.completed = 0
         self.total = None
         self.latest = None
@@ -198,7 +199,7 @@ class Campaign:
 
     def unloaded(self, phase):
         cohorts=[]
-        systems=('DPDK','LH') if self.config.get('scope') in ('unloaded-rehearsal','unloaded-full') else SYSTEMS
+        systems=tuple(s for s in ('DPDK','LH','CS-A64') if s in self.systems) if self.config.get('scope') in ('unloaded-rehearsal','unloaded-full') else self.systems
         for system in systems:
             for size in SIZES:
                 for instrumentation in ('off', 'breakdown'):
@@ -209,14 +210,14 @@ class Campaign:
                     cohorts.append(result['cohort'])
                     self.completed+=1
                     self.status('acquisition')
-        validate_matched(cohorts, rehearsal=phase=='rehearsal')
+        validate_matched(cohorts, rehearsal=phase=='rehearsal', systems=self.systems)
         atomic(self.root/(phase+'-unloaded.json'),cohorts)
 
     def run(self):
         self.stage('preflight', {'checked_at': time.time_ns()})
         self.stage('build', {})
         if self.config.get('scope') == 'unloaded-full':
-            self.total=len(SYSTEMS)*len(SIZES)*2
+            self.total=len(self.systems)*len(SIZES)*2
             self.unloaded('full')
             result=self.stage('progress-plots',dict(unloaded=read(self.root/'full-unloaded.json'),final_unloaded=True))
             previews=result.get('previews',[])
@@ -228,7 +229,7 @@ class Campaign:
         if self.config.get('scope') == 'full':
             return self.collect_full()
         if self.config.get('scope') == 'unloaded-rehearsal':
-            self.total=len(SYSTEMS)*len(SIZES)*2
+            self.total=len(self.systems)*len(SIZES)*2
             self.unloaded('rehearsal')
             result=self.stage('rehearsal-validation',dict(unloaded_only=True))
             previews=result.get('previews',[])
@@ -238,10 +239,10 @@ class Campaign:
                         scope='unloaded-rehearsal',full_collection_started=False)
             return
         # Before bracketing, total is the finite maximum cohort budget.
-        self.total = len(SYSTEMS)*len(SIZES)*2 + len(SYSTEMS)*len(SIZES)*2*(self.config['max_extensions']+1)
+        self.total = len(self.systems)*len(SIZES)*2 + len(self.systems)*len(SIZES)*2*(self.config['max_extensions']+1)
         self.unloaded('rehearsal')
         boundaries = {}
-        for system in SYSTEMS:
+        for system in self.systems:
             for size in SIZES:
                 for workers in (1, 4):
                     rate = self.config['initial_rate']
@@ -265,7 +266,7 @@ class Campaign:
     def collect_full(self):
         plan_path = self.root/'grid.json'
         plans = read(plan_path) if plan_path.exists() else self.config.get('grid')
-        expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in WORKERS}
+        expected={(s,n,w) for s in self.systems for n in SIZES for w in WORKERS}
         if not plans or len(plans)!=len(expected) or {(p['system'],p['size'],p['workers']) for p in plans}!=expected:
             raise ValueError('Full collection requires an explicit complete frozen grid')
         for p in plans:
@@ -274,7 +275,7 @@ class Campaign:
                 raise ValueError('Grid rates must be positive increasing integers')
         if not plan_path.exists(): atomic(plan_path,plans)
         self.completed = 0
-        self.total = len(SYSTEMS)*len(SIZES)*2+sum(len(p['rates'])+1 for p in plans)
+        self.total = len(self.systems)*len(SIZES)*2+sum(len(p['rates'])+1 for p in plans)
         self.unloaded('full')
         self.stage('progress-plots', dict(unloaded=read(self.root/'full-unloaded.json')))
         collected = []
@@ -318,6 +319,7 @@ class Campaign:
 
 
 def config_check(config):
+    selected_systems(config)
     from campaign.wire import require_capture_backend
     if config.get('scope') != 'unloaded-rehearsal': require_capture_backend(config)
     if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal', 'unloaded-full'):

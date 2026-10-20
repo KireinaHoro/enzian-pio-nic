@@ -12,11 +12,12 @@ Human references: [baseline](../docs/research/caladan-enzian.md),
 
 ## Next checks and integration constraints
 
-Complete busy-owner signal/IPI preemption, zero-core wakeup and contention/core
-reclamation before treating loaded campaigns as accepted. The shared echo backend
-and bounded tracing checks below supersede the earlier wait-for-extraction gate.
-Integrate backend/importer selection and rehearse Tofino pairing for probe-free
-and breakdown cohorts before paper acquisition. Caladan memcached is a main
+Busy-owner signal/IPI preemption, zero-core wakeup and contention/core
+reclamation remain checks for competing-tenant scheduling experiments. The hot
+campaign uses one application with a resident guaranteed worker pool and makes
+no contention or reclamation claim. Controller/backend selection and both probe
+modes are integrated on platform master; matching Tofino and loaded-concurrency
+acceptance gates paper acquisition. Caladan memcached is a main
 paper comparison, with implementation/evaluation still pending in this record.
 Recheck source revisions and live reservations before resuming. This documentation
 migration launches no build, CI, deployment or measurement.
@@ -24,9 +25,7 @@ migration launches no build, CI, deployment or measurement.
 The platform composition manifest still labels acceptance `pending-arm-port`;
 that static package field does not summarize the later finite evidence below.
 Update it deliberately with packaging changes rather than treating it as a test
-receipt. Controller/plotting integration may still use the retired baseline label;
-select CS-A64 when integrating those changes. No source-code relabeling was part
-of this documentation migration.
+receipt. Controller, importer and plots select the canonical `CS-A64` label.
 
 ## Provisioning safeguards
 
@@ -107,10 +106,10 @@ client image `/nix/store/66m20vqd012adn7aw7as6vaadkndmyg3-lauberhorn-client.img`
 See `hashes.json`, `image-2.json`, `native-2.json`, and extracted final result
 JSON files. Native x86 remains a build regression check, not a calibration target.
 
-Next work: exercise multi-request concurrency and busy-owner preemption/core
-reclamation before loaded campaigns. Select the actual measurement protocol and
-instrumentation with the user; no latency/throughput conclusions follow from the
-small functional runs. Recheck live reservations before further board use.
+Multi-request hot-load acceptance uses the shared paced-batch generator and
+probe-free server. Busy-owner preemption/core reclamation is separate from that
+resident-pool scope. No latency/throughput conclusions follow from these small
+functional runs. Recheck live reservations before further board use.
 
 Shared backend source: microbenchmarks `8d87fb0` on `caladan-backend`.
 
@@ -155,13 +154,46 @@ signals, overflow and duplicate publication; importer tests reject bad XIDs,
 stage ordering and lossy export. No performance conclusion follows from these
 functional captures.
 
-Next: integrate the new backend/importer into platform campaign selection and
-rehearse Tofino pairing for off/breakdown cohorts. The controller/plotting still
-assume LH/DPDK; update their system selection for CS-A64 before paper acquisition.
-Busy-owner/core-reclamation stress is separate from the unloaded-hot campaign.
+The unattended controller now accepts a CS-A64-only matrix and uses the shared
+Caladan lifecycle adapter. Tofino off/breakdown acceptance and loaded activity
+checks precede the full hot matrix. Busy-owner/core-reclamation stress is
+separate from this guaranteed-pool campaign.
 
 All postflight statements above are dated October 20 observations, not current
 board state. Preserve original artifacts and failure diagnostics; recheck
 [hardware state](hardware-state.md) and reservations before any board action.
 The original platform note is retained at `f247539c:docs/research/caladan-enzian.md`;
 the imported notes are retained in Caladan Git at `d6a6be2`.
+
+## Unattended hot campaign integration
+
+Platform master now has explicit system selection, the Caladan image composition,
+shared role lifecycle, probe-mode import, resident chunking and selected-matrix
+plot/finalization checks. The shared backend activity export is committed in
+microbenchmarks `dfa04eb` on its existing `caladan-backend` branch. Caladan itself
+is `e05e580` on `enzian-port`. Campaign Python tests: 80 passed in
+`out/caladan-integration/tests-launch.log`; the AArch64 image build includes the
+shared RPC/QEMU checks and probe-free symbol gate.
+
+Current acceptance root: `out/caladan-wire-acceptance-20261020-r2`.
+Matched hardware manifest: `out/caladan-integration/hardware-fixed.json`.
+The first root preserves a rejected traced export: an activity helper inherited
+an unblocked trace-export signal. The backend now blocks both export signals
+before creating helpers. `transition-review.json` in the new root records the
+artifact transition, intact receipt hashes and confirmed restoration. No reset
+or FPGA access occurred. The prior successful off8 cohort remains functional
+evidence, not paper data. The first root had no controller code snapshot and is
+not a source for automatic receipt inheritance.
+
+Placement: IOKernel control42/dataplane43; workers44–47 (one through four).
+Only workers are boot-isolated. The generator uses isolated16–47. The additional
+IOKernel CPUs must be included in resource accounting. Simple-policy workers
+are guaranteed/resident; this does not establish competing-tenant preemption,
+zero-core wakeup or reclamation. Counter export includes warmups and runs after
+client drain; software timing is compiled out for loaded trials.
+
+Next: finish six off/breakdown wire acceptance cohorts, inspect their previews,
+then launch the full CS-A64-only frozen grid. Full unloaded collection/plots must
+finish before loaded acquisition. Keep baseline-only previews in their archive
+(`publish_plots: false`) until a combined comparison is reviewed. The original
+LH/DPDK paper figures remain in place.

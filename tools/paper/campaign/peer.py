@@ -63,6 +63,13 @@ def server_nic_prepared(state, source_cidr):
 
 
 def run(config):
+    if config['role']=='server' and config['system']=='CS-A64':
+        helper=config['caladan_helper']
+        data=urllib.request.urlopen(helper['url'],timeout=30).read()
+        if hashlib.sha256(data).hexdigest()!=helper['sha256']: raise ValueError('Caladan helper mismatch')
+        namespace={'__name__':'caladan_peer'}
+        exec(compile(data,'caladan_peer.py','exec'),namespace)
+        return namespace['run'](config,globals())
     def interrupted(signum, frame): raise KeyboardInterrupt('Campaign role interrupted')
     signal.signal(signal.SIGTERM,interrupted)
     root=Path(config['output']); root.mkdir(parents=True,exist_ok=False)
@@ -129,7 +136,7 @@ def run(config):
             if not server_nic_prepared(original,config['source_cidr']):
                 subprocess.run(['ip','addr','add',config['source_cidr'],'dev',interface,'noprefixroute'],check=True)
                 subprocess.run(['ip','link','set',interface,'up'],check=True)
-        elif config['system']=='DPDK':
+        elif config['system'] in ('DPDK','CS-A64'):
             deadline=time.monotonic()+120
             while not present(url+'/'+config.get('resident_label',label)+'-ready'):
                 if time.monotonic()>deadline: raise TimeoutError('Server readiness')
@@ -148,7 +155,7 @@ def run(config):
                         if time.monotonic()>deadline: raise TimeoutError('Campaign stop control')
                         time.sleep(.1)
                     (root/'stop').touch(exist_ok=False)
-            if not server and loaded and config['system']=='DPDK':
+            if not server and loaded and config['system'] in ('DPDK','CS-A64'):
                 while process.poll() is None and not (root/'drained').exists():
                     if time.monotonic()>deadline: raise TimeoutError('Client drain completion')
                     time.sleep(.01)
@@ -157,7 +164,7 @@ def run(config):
     except BaseException as error:
         failure=str(error)
     finally:
-        if not server and config['system']=='DPDK':
+        if not server and config['system'] in ('DPDK','CS-A64'):
             try:
                 if not present(url+'/'+label+'-stop'): put(url+'/'+label+'-stop',b'stop\n')
             except Exception as error: failure=f'{failure or ""}; stop delivery: {error}'

@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import paper_chart as chart
 import numpy as np
-from campaign.policy import SYSTEMS, SIZES, WORKERS, aggregate, qualifying
+from campaign.policy import SYSTEMS, observed_systems, SIZES, WORKERS, aggregate, qualifying
 from campaign.import_loaded import load
 from campaign.histogram import Latencies
 
@@ -34,10 +34,10 @@ def observations(trials, *, collect=True):
     return pooled
 
 
-def panels(columns=3):
+def panels(columns=3, rows=2):
     fig,ax=chart.figure(columns=2,height=4.5 if columns==3 else 2.5)
     ax.remove()
-    axes=fig.subplots(2 if columns==3 else 1,columns,squeeze=False)
+    axes=fig.subplots(rows if columns==3 else 1,columns,squeeze=False)
     fig.subplots_adjust(left=.085,right=.98,bottom=.13,top=.95,hspace=.38,wspace=.34)
     return fig,axes
 
@@ -47,11 +47,12 @@ def render(source,destination, *, rehearsal=False, partial=False):
     workers=(1,4) if rehearsal else WORKERS
     source=Path(source).resolve()
     records=json.loads(source.read_text())
+    systems=observed_systems(records)
     for record in records:
         for point in record['points']+record.get('confirmations',[])+([record['confirmed']] if 'confirmed' in record else []):
             for trial in point['trials']:
                 trial['files']={str((source.parent/Path(p)).resolve()):sha for p,sha in trial['files'].items()}
-    expected={(s,n,w) for s in SYSTEMS for n in SIZES for w in workers}
+    expected={(s,n,w) for s in systems for n in SIZES for w in workers}
     actual=[(r['system'],r['size'],r['workers']) for r in records]
     if len(actual)!=len(set(actual)) or not set(actual)<=expected or (not partial and set(actual)!=expected):
         raise ValueError('Incomplete or duplicate loaded matrix')
@@ -63,8 +64,8 @@ def render(source,destination, *, rehearsal=False, partial=False):
     destination=Path(destination); destination.mkdir(parents=True,exist_ok=True)
     stats=[]
     for kind in ('latency-goodput','overload-loss'):
-        fig,axes=panels()
-        for si,system in enumerate(SYSTEMS):
+        fig,axes=panels(rows=len(systems))
+        for si,system in enumerate(systems):
             for ni,size in enumerate(SIZES):
                 ax=axes[si,ni]
                 for worker in ((4,) if kind=='latency-goodput' else workers):
@@ -112,7 +113,7 @@ def render(source,destination, *, rehearsal=False, partial=False):
         return
     fig,ax=chart.figure(columns=1,height=3.2)
     fig.subplots_adjust(left=.19,right=.97,bottom=.18,top=.72)
-    for si,system in enumerate(SYSTEMS):
+    for si,system in enumerate(systems):
         for ni,size in enumerate(SIZES):
             trials=[]; observed_workers=[]
             for worker in workers:

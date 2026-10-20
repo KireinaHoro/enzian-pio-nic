@@ -7,12 +7,16 @@ from .import_loaded import digest
 
 
 def caladan(client_path, server_path, status_path, *, count, warmup,
-            payload_bytes, wire_path=None):
+            payload_bytes, wire_path=None, instrumentation='breakdown', export_rows=None):
+    if instrumentation not in ('off','breakdown'): raise ValueError('Unknown Caladan probe mode')
     client = client_rows(client_path, count, warmup, payload_bytes)
+    if instrumentation=='off':
+        return finish(client_path,client,None,system='CS-A64',count=count,warmup=warmup,
+                      instrumentation='off',payload_bytes=payload_bytes,wire_path=wire_path)
     server = rows(server_path)
     status = json.loads(Path(status_path).read_text())
     if (status.get('loss_free') is not True or status.get('dropped') != 0
-            or status.get('rows') != len(server)):
+            or status.get('rows') != (len(server) if export_rows is None else export_rows)):
         raise ValueError('Incomplete Caladan trace export')
     by_id = {int(r['request_context']): r for r in server}
     if len(by_id) != len(server) or set(by_id) != {int(c['request_id']) for c in client}:
