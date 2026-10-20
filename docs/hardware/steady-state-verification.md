@@ -10,7 +10,7 @@ historical failure evidence, not the current endpoint contract. The
 [scheduling composition report](scheduling-composition.md) records the completed
 selected bounded modeling round and its remaining hardware assumptions.
 
-**2026-10-01 correction:** the [directory-pressure audit](directory-pressure.md)
+**2026-10-01 correction:** the [directory-pressure audit](lauberhorn-rom.md#directory-pressure-and-the-nonlocking-contract)
 found that the then-selected auto-lock DCS local invalidations allocate even on an absent cache line.
 The old retained-cache positives used a nonallocating abstraction. Enabling the
 actual allocation rule produces a progress counterexample on a full target set.

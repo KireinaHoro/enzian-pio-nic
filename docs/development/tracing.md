@@ -561,7 +561,7 @@ local locks waiting for UL. At most sixteen reports for a repeated header/VC are
 emitted until a different request or successful request service rearms reporting.
 Do not infer stall clearance from absent samples. Correlate LC/LCI, LCIA, UL and
 CPU eviction events, preserving pre-freeze loss status and incomplete-history
-limitations. See the [allocation-trace contract and regression](../hardware/directory-pressure.md#allocation-full-tracing-eviction-policy-deferred).
+limitations. See the [allocation-trace contract and regression](../hardware/lauberhorn-rom.md#allocation-full-tracing).
 
 ## Timestamp capture point and legacy queue bias
 

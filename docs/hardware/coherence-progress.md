@@ -6,10 +6,11 @@ active-auto-lock assumptions on the Goal 2 branch. Historical results below
 remain scoped to their recorded endpoint; full combined liveness and hardware
 refinement are not newly discharged by the ROM change.
 
-**2026-10-01 follow-up:** selected coloring/capacity remains valid, but a
-[full-directory-set local-invalidation counterexample](directory-pressure.md)
-prevents treating the retained-cache positive abstraction as hardware progress
-proof. Local LCI allocation and shared release paths need additional guarantees.
+The [ROM simplification topic](lauberhorn-rom.md) connects the historical
+full-directory-set local-invalidation counterexample to the selected nonlocking
+solution and its area/timing evaluation. This removes the old local-lock
+allocation dependency; shared release-path progress still requires its own
+service guarantees.
 
 Status (2026-09-30): progress remains conditional on resource and hardware-refinement assumptions. Current offsets are installed constants; candidate layouts are not. The linked settled-verification report identifies the color calculations now reproduced and exhaustively checked. Other calculations below remain historical design analysis, and trace observations remain historical evidence. See [QP design alternatives](queue-pair-design.md) and [implementation status](implementation-status.md).
 

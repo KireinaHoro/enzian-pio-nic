@@ -608,7 +608,7 @@ For the cache/directory admission contracts and full-set LCI counterexample, run
 `nix build .#checks.x86_64-linux.scheduling-cache-contracts`.
 `nix build .#checks.x86_64-linux.dcs-pressure` checks actual controller/table,
 arbiter and data-gate RTL with controlled surroundings. See the
-[directory-pressure report](../hardware/directory-pressure.md) for scope and the
+[directory-pressure report](../hardware/lauberhorn-rom.md#directory-pressure-and-the-nonlocking-contract) for scope and the
 distinction between a passing diagnostic and a reproduced design progress failure.
 
 The `dcs-pressure` target also runs the reset-to-full auto-lock sequence through

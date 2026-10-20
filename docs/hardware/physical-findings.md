@@ -1,7 +1,7 @@
 # Checkpoint findings — 2026-09-10
 
 For the later auto-lock versus LCI-only comparison, see the
-[October 2 DC area/timing analysis](dc-simplification-qor.md). This is a read-only
+[October 2 DC area/timing analysis](lauberhorn-rom.md#evaluation-of-the-lauberhorn-specific-rom). This is a read-only
 comparison of completed checkpoints, not a resumed timing-optimization campaign.
 
 Read-only analysis on **enzian-ba2, Vivado 2025.1**, using implemented

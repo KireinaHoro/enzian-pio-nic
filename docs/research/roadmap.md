@@ -437,14 +437,14 @@ runs are not a new proof for the integrated ROM. No automatic ICI eviction polic
 The following auto-lock results remain historical motivation and regression
 cases, not evidence that the selected non-locking endpoint has the same failure.
 
-The [new directory RTL test](../hardware/directory-pressure.md#auto-lock-reachability-through-the-actual-directory)
+The [new directory RTL test](../hardware/lauberhorn-rom.md#historical-auto-lock-counterexamples-and-regression-coverage)
 reaches a full-set absent-LCI stall from reset through R12/RDDA fills and a clean
 V21 eviction, using actual TSU/tag RAM/controller/auto-lock ROM and a test XPM
 primitive model. It does not force full/hit outputs. Full-set **hit** invalidation
 works; its entry remains charged until UL. That UL frees a way and permits the
 absent-target LCI to complete. The test checks unrelated entries survive.
 
-The [TLA+ rerun](../hardware/directory-pressure.md#tla-rerun-with-the-rtl-allocation-contract)
+The [TLA+ rerun](../hardware/lauberhorn-rom.md#bounded-model-evidence)
 now finds the same problem after a from-empty worker/cache history (320 states)
 and in complete one-slot combined scheduling checks (33,740 states). Safety
 holds, but handoff completion and stable progress fail. Full-set hit and
@@ -456,7 +456,7 @@ The investigation originally proposed the following steps (historical):
 1. Close the full NIC/runtime reachability gap: a fresh first RX does not itself
    invalidate the opposite parity. Check subsequent RX, overflow lines never
    read, retained old-domain lines, and preemption/kill against the actual engine.
-The [existing DC bench audit](../hardware/directory-pressure.md#existing-dc-testbench-coverage-and-ici-entry-points)
+The [existing DC bench audit](../hardware/lauberhorn-rom.md#upstream-auto-lock-bench-coverage)
 finds an upstream `test_lci_stall_tsu_full` regression: it expects stalling and
 supplies voluntary CPU evictions before retry. ICI has ROM transitions but no
 current producer or explicit bench stimulus. A forced-eviction solution therefore
@@ -538,7 +538,7 @@ lists the remaining implementation and verification work.
 
 ## Directory-capacity finding (2026-10-01)
 
-The [sequential replacement/delivery audit](../hardware/directory-pressure.md)
+The [sequential replacement/delivery audit](../hardware/lauberhorn-rom.md#directory-pressure-and-the-nonlocking-contract)
 found an absent-LCI/full-set progress counterexample in the corrected abstract
 resource model and reproduced the controller/table's allocation dependency in
 controlled RTL tests. Complete hardware-state reachability remains unestablished.

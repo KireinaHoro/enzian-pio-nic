@@ -1,5 +1,11 @@
 # Worker head-of-line blocking: historical failures and matched checks
 
+For the directory-capacity source of DC head-of-line blocking, see
+[ROM simplification](lauberhorn-rom.md): why local locking creates pressure,
+the selected nonlocking protocol, and its area/timing evaluation. The board
+observations below cover their recorded workloads and do not establish that
+all shared-resource blocking has been eliminated.
+
 ## Original coloring motivation
 
 The coloring discussion predates the September/October implementation pivot.
