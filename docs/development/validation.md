@@ -491,7 +491,7 @@ model builds. Read compressed simulation transcripts with `less`, `vim` or
 
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.
 - The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Seed format 2 passes `simSeed` directly to Spinal; DCS stimulus uses that simulation's `simRandom`, not the JVM-global RNG. Invocation-local configuration prevents sibling suites from overwriting seed/log settings. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. A seed is not a substitute for matching source/toolchain inputs.
-- `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts. Pipeline 516080 lost its simulation artifacts because the old collector searched only the former location.
+- `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts.
 - ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../data/eci/sys_trace/README.md).
 - PCAP replay tests load `data/eci/iladata/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
 - For simulator changes in dependencies, inspect/update the submodule rather than copying its implementation into the platform. Blocks regression gates every pipeline; see the [CI checks](ci.md#pipeline-and-handoff).
@@ -511,22 +511,36 @@ Evidence: [test build graph](../../build.mill), [simulation config](../../hw/src
 For routed checkpoint analysis and source-level timing closure, use the
 [physical implementation guide](../hardware/physical-implementation.md).
 
-### Trace DMA reset-startup regression (September 17)
+## Simulation reproducibility
 
-Combined timing pipeline 511830 failed `TraceBufferDMATests`'s “writes events to
-DRAM” case with setup seed −383376567 and simulation seed −348068956.
-The shared `sleepCycles` waits for clock edges, including synchronous-reset
-edges. Setup returned after ten edges while the stimulus reset lasts sixteen
-cycles; producers accumulated batches before the FlowDrivers began sampling.
-A local instrumented reproduction observed capture occupancy 4 and overflow.
-The blocks test fix waits for ten reset-qualified sampling cycles instead,
-leaving RTL, traffic generation and all data/loss assertions unchanged.
+The shared fixture records seed format 2 in `simulation-seeds.txt` and passes
+`simSeed` directly to Spinal. Precedence is explicit `-DsimSeed`, then
+`SPINAL_SIM_SEED`, then a deterministic derivation from the setup seed and test
+name. Preserve both seeds and the seed-format version. Format 1 used a different
+contract and requires its original fixture; its numbers are not sequence-compatible
+with format 2. The native backend normalizes seed zero to one.
 
-At that revision the fixture seeded Scala's global RNG; Spinal derived its
-default simulator seed from it (1193543006 for this reproducer). The printed
-fixture seed was not the simulator's displayed seed. That historical reproducer
-uses seed format 1; format 2 deliberately changes this contract to remove
-shared-RNG interference. See the [October seed investigation](simulation-seeds.md).
+Keep stimulus on the per-simulation `simRandom` stream or an explicitly seeded
+local stream. Fixture configuration and simulation mutexes must belong to the
+test invocation/model instance. ScalaTest `ParallelTestExecution` can overlap
+simulations even when Mill's module-level parallelism is disabled. Replaying
+alone and among sibling tests should not change stimulus.
+
+A seed is only part of the reproducer: retain source/submodule revisions, Nix
+lock, generated RTL/input hashes and runtime/toolchain metadata. Hash iteration
+and library implementation details are not cross-version contracts. Audit
+randomized branches when enabling additional simulation helpers; the ECI
+fixture's isolation does not imply library-wide determinism. In particular,
+Spinal's separate `AxiMemorySim` and Wishbone helpers have global-RNG paths
+outside this fixture's seeded stimulus contract.
+
+Wait for the full host-model operation before reusing its QP/cache line or
+ending a test. Network packet completion alone does not mean `txSendSingle`
+has finished its control reads and voluntary reload checks. Similarly, setup
+that depends on reset completion must wait for reset-qualified sampling cycles,
+not merely count clock edges while reset is asserted. Preserve concurrent RX/TX
+and eviction coverage rather than masking a test-ownership error by disabling
+stimulus or weakening assertions.
 
 ### Settled progress checks
 

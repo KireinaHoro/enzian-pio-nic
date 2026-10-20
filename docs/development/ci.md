@@ -169,7 +169,7 @@ also refuses existing published artifacts before starting either build. Choose a
 new name/workspace or explicitly remove old outputs; failures retain diagnostics
 and never silently publish a previous result. The failure collector follows the
 `keeping build directory` path reported by that Nix invocation, including recent
-`/nix/var/nix/builds/` locations. See [simulation evidence](simulation-seeds.md)
+`/nix/var/nix/builds/` locations. See [simulation reproducibility](validation.md#simulation-reproducibility)
 for seed and reproducer handling.
 
 After changing Mill or Maven dependencies, resolve from an **empty XDG cache**
