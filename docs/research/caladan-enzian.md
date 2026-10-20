@@ -3,8 +3,8 @@
 Use **SH-A64** as the chart label for the AArch64 Caladan baseline, alongside
 **DPDK** and **LH**. Add its series only after implementation and acceptance.
 
-**Scope: ARMv8 + mlx5 directpath; ARM builds and CPU-only checks pass, board acceptance pending.**
-Updated October 19, 2026. Port the maintained Caladan tree to Enzian AArch64
+**Scope: ARMv8 + mlx5 directpath; focused native CPU, kernel/runtime and CX-5 packet checks pass; broader acceptance pending.**
+Updated October 20, 2026. Port the maintained Caladan tree to Enzian AArch64
 with ConnectX-5 directpath and the simple policy. This is the baseline for
 Lauberhorn hot latency/throughput, core reclamation and bounded multi-instance
 memcached. It does not reproduce IAS or full Caladan interference-control claims.
@@ -20,7 +20,7 @@ recipes, deployments or measurements are required.
 | --- | --- |
 | Source | `../caladan`, branch `enzian-port`, upstream base `bdb4ddebc2198cd95991079ed20e44a5f210d6d3` |
 | CPU and NIC | Enzian ThunderX ARMv8 with Mellanox ConnectX-5 |
-| Board candidates | User reports CX-5 on **zuestoll03, zuestoll05, zuestoll06, zuestoll07**; select after live reservation/NIC checks |
+| Selected boards | **zuestoll07** DUT with CX-5; **zuestoll14** peer/load generator, authorized October 20. Live reservations checked before testing. |
 | Datapath | Existing mlx5 directpath backend, adapted for ARM; runtime RX/TX bypass IOKernel packet forwarding |
 | Scheduling | Actual Caladan runtime and IOKernel simple-policy core allocation/preemption |
 | IOKernel arguments | `simple noht nobw no_hw_qdel nicpci <CX-5 PCI-address>` |
@@ -62,9 +62,9 @@ have been removed. Native x86 architecture code remains intact.
 
 Use the [deployment skill](../../tools/enzian/skills/enzian-deploy/SKILL.md), EMG
 and the platform harness. Check live reservations and preserved experiment state
-before choosing a CX-5 board. In particular, earlier work used zuestoll07/14 for
-hot microbenchmarks; the candidate list does not authorize interrupting them.
-Choose a free CX-5 board where possible. Record PCI address, firmware, link,
+before deployment. The October 20 instruction authorizes zuestoll07/14 for focused
+Caladan tests, superseding the earlier instruction to leave zuestoll07 untouched.
+Record PCI address, firmware, link,
 NUMA placement, kernel and source/image identity before acceptance.
 
 The earlier reservation of **zuestoll04** with volume
@@ -81,9 +81,9 @@ another active board. The deploy skill's golden-image/name safeguards remain.
 
 | Stage | Required evidence | Status |
 | --- | --- | --- |
-| ARM build and primitives | Libraries/tests build; AAPCS64 context/SIMD preservation, stack ownership, TLS/migration, atomics/barriers and timing work | ARM userspace build and CPU-only QEMU checks pass; hardware stress pending |
-| Kernel handoff | Matched ARM modules; repeated yield, signal/IPI preemption of a busy process, resume and idle handling | ARM modules build with matching vermagic; loading/handoff tests pending |
-| mlx5 directpath | Patched rdma-core/DPDK cross-build; DMA/MMIO ordering, queue creation, RX/TX/completions, buffer ownership, ARP and steering | Dependencies and userspace cross-build pass; DMA ordering ported; NIC tests pending |
+| ARM build and primitives | Libraries/tests build; AAPCS64 context/SIMD preservation, stack ownership, TLS/migration, atomics/barriers and timing work | ARM/x86 builds, QEMU checks and native ARM mechanism checks pass; sustained stress pending |
+| Kernel handoff | Matched ARM modules; repeated yield, signal/IPI preemption of a busy process, resume and idle handling | Matching modules load; API/shared mapping and one-/two-kthread runtime checks pass; busy-owner signal/IPI preemption still pending |
+| mlx5 directpath | Patched rdma-core/DPDK cross-build; DMA/MMIO ordering, queue creation, RX/TX/completions, buffer ownership, ARP and steering | CX-5 initialization, flow steering and three peer ICMP replies pass; sustained traffic/ownership stress pending |
 | Scheduling integration | Arrival to zero-core process wakes it; core reassignment and busy-owner reclamation preserve packet and runtime progress | Pending |
 | Hot baseline | Correct UDP request/reply at selected workers/loads; unloaded and loaded controls; validated clocks and instrumentation | Pending |
 | Memcached | Pinned runtime-native port, bounded single/multi-instance GET workload and actual scheduling progress | Not started; beyond the current stages 1–3 request |
@@ -123,115 +123,93 @@ maintenance to match [Lauberhorn's memcached scope](memcached.md). New TCP,
 general-purpose tracing and portability beyond the selected ARM/kernel/NIC
 configuration remain outside this port.
 
-## Current implementation checkpoint — October 19, 2026
+## Current implementation checkpoint — October 20, 2026
 
-Follow-up fast-path work is committed as Caladan `6f27ec7` on `enzian-port`. The separate
-[AArch64 port approach](../../../caladan/docs/arm-port-approach.md)
-compares the design and machine-level costs with x86; progress is recorded here.
-Hardware CRC uses ACLE `__crc32cd` and `-march=armv8-a+crc` (ThunderX-1 CRC was
-confirmed by the user's `lscpu`). Atomics use inline LL/SC with
-`-mno-outline-atomics`. TLS reads retain PC restart with fixed-width assembly
-entry points. Preemption enable uses inline TLS addressing and the decrement
-result, and switch assembly calls C only for pending preemption. Signal entry
-handles nested delivery without an unmask syscall. Checksums use 64-bit loads;
-ordinary clock reads omit ISB while ordered reads retain it.
+Caladan `586a5a1` on `enzian-port` adds focused hardware fixtures and fixes the
+shared RX object layout. The separate
+[AArch64 port approach](../../../caladan/docs/arm-port-approach.md) compares the
+implementation and machine-level costs with x86; progress belongs here.
 
-ARM idle handoff now performs at most 64 acquire polls without `udelay(1)` gaps.
-Load-exclusive + WFE is an architectural address-wait mechanism, but WFE lacks
-WFI's general masked-IRQ wake guarantee. Because ksched enters with IRQs masked,
-a safe event/interrupt protocol remains unresolved; bounded polling is the
-current implementation and its idle power cost is explicit.
+### Tested setup
 
-Caladan commit `65dd661` implements the initial port; `0df0f96` includes
-build-status documentation and module closure cleanup. Implementation is `6f27ec7`; review HEAD `88fed74` documents the port approach and x86 comparison.
-The ARM port now has AAPCS64 context switching (x19–x30 and the low 64 bits of
-v8–v15), ARM raw syscalls, checksum/CRC32C helpers, acquire/release and coherent
-DMA barriers, and architectural-counter timekeeping. The existing integer
-scheduler time units require an integral ticks/us frequency; initialization
-rejects unsupported frequencies instead of rounding. Custom user-thread libc TLS
-is excluded: nonzero `thread_set_fsbase` is unsupported on ARM.
+- DUT zuestoll07: ThunderX-88XX, 48 CPUs/one NUMA node, 4 KiB pages,
+  CRC32 available, architectural counter 100 MHz. Kernel `6.8.0-146-generic`.
+- CX-5 `0005:90:00.0`, `enP5p144s0np0`, MAC `b8:ce:f6:87:c2:9e`,
+  firmware `16.35.8002`, kernel `mlx5_core`/`mlx5_ib`; link/RDMA ACTIVE in test.
+- IOKernel: `simple noht nobw no_hw_qdel 44-47 nicpci 0005:90:00.0`,
+  control CPU 44, dataplane 45, runtime workers 46/47. Normal mlx5 flow steering.
+- Runtime: `enable_directpath 1`, one then two kthreads, one guaranteed kthread,
+  BE priority; IP `192.168.128.207/18`, gateway `192.168.128.1`.
+- Peer zuestoll14: existing `cpu40g1`, `192.168.129.193`, used only for three
+  ICMP probes. No benchmark or peer configuration change.
+- Existing root volumes `lauberhorn-linux-6.8` (07) and
+  `echo-generator32-20261015` (14) retained; no provisioning, reboot or FPGA work.
+  DUT root hostname misleadingly says zuestoll14; console identity, iSCSI
+  initiator, management address and PCI/MAC establish that it is zuestoll07.
 
-Libc retains TPIDR_EL0. Per-thread offsets use libc TLS, and out-of-line accessors
-prevent compiler caching across user-thread migration. ARM signal entry acquires
-a preemption-counter reference in assembly before entering C. Signals remain
-unmasked; nested entry or an already-disabled counter defers scheduling through
-atomic pending-bit updates. Entry-PC checks cover the pre-acquisition window.
-Signal return restarts interrupted assembly per-thread reads from the original
-key on the destination pthread. The preemption-counter increment instead defers
-scheduling until the matching enable. This prevents migration between TLS
-address calculation and access without indefinitely deferring an enabled reader. Kernel signal frames supply full interrupted
-register/SIMD state; runtime frames preserve the AAPCS64 callee-save subset.
-This design still needs asynchronous stress on the real ARM kernel.
+### Results
 
-`ksched` preserves the existing Linux task, signal/IPI and cpuidle handoff paths,
-uses bounded acquire polling without microsecond gaps, and excludes x86 UINTR/MSR/PMC code
-on ARM. UINTR ioctls explicitly return unsupported. Both scheduler modules build
-against platform-prepared `6.8.0-146-generic`; they have not been loaded.
+All eight CPU mechanism checks passed natively, plus the platform requirements
+probe: 10,000 CRC reference comparisons; checksum alignment/tails/carries;
+10,000 signal-frame context switches preserving integer/SIMD state; 20,000
+direct switches; 999 live signal-frame migrations; 100,000 ordered LRPC messages;
+10,000 nested signal deliveries; and five million TLS-read iterations across
+four widths with 821 actual asynchronous poisoned-register PC restarts.
+These are finite mechanism checks, not production ksched preemption stress.
 
-mlx5 completion consumption now orders DMA reads after observing ownership, and
-CQ arming orders the doorbell record before MMIO and flushes the write. The
-patched rdma-core needed an ARM spin hint and a bounded `/run` socket path;
-DPDK needed the cross-prefixed archiver, and Caladan needed cross-prefixed
-pkg-config. Patched rdma-core, mlx5 DPDK and Caladan userspace cross-build.
-The native x86 userspace build also passes as a source regression check, not a
-reintroduced calibration experiment.
+Matched `fake_idle`/`ksched` modules loaded. Scheduler/user API versions were
+both 2, shared state mapped, and the ARM UINTR ioctl returned EOPNOTSUPP.
+The normal runtime/directpath fixture passed with both one and two kthreads:
+four user threads completed 512 mutex-protected increments with yields and
+short timer sleeps. Holding the runtime alive then yielded **3/3 ICMP replies**
+from zuestoll14; neighbor resolution matched the CX-5 MAC, and the DUT Linux
+stack had no runtime IP. This establishes a basic peer-to-runtime RX/TX path,
+not a throughput, latency or weak-memory stress result. No new kernel faults
+were found in the postflight diagnostic comparison.
 
-CPU-only acceptance (`default.nix checks`, QEMU user mode):
+The first actual IOKernel startup exposed x86-only RX layout constants:
+ThunderX DPDK aligns objects to 128 bytes, giving a 9472-byte object instead of
+9408. Sizes now derive from target DPDK types/alignment, retaining x86's layout.
+Initialization checks reconstruct the mbuf from both ends of every buffer.
+ARM hardware startup and the native x86 userspace regression build pass.
 
-- 10,000 register/SIMD-preserving runtime switches inside live signal handlers.
-- 999 live signal-frame migrations between pthreads using production per-thread
-  allocation/access and preemption-counter operations.
-- 20,000 direct switches checking outgoing stack ownership release, including
-  6,666 pending-preemption cold paths with a substituted scheduler endpoint.
-- 100,000 ordered messages through the production LRPC queue between pthreads.
-- 50,000 iterations across four TLS read widths with asynchronous signals and
-  QEMU single-instruction translation blocks; interrupted reads poison the saved
-  address register and require successful PC restart.
-- 10,000 hardware CRC comparisons against a reference, plus checksum tests for
-  alignment, odd tails and carry-heavy buffers.
-- 10,000 unmasked nested signal deliveries through production entry/prepare,
-  disabled-counter deferral and synthetic entry-PC boundary checks.
+Startup needed more than the initially available 768 hugepages for the fixed
+2 GiB ingress pool. The successful tests temporarily reserved 4096 × 2 MiB
+pages and allowed 45 seconds for readiness (DPDK initialization took about
+16 seconds). Scratch quota/root-space constraints were handled by staging
+images in gateway `/tmp` and DUT `/dev/shm`, without deleting existing data.
 
-These are finite mechanism checks, not full-runtime hardware acceptance. The
-standalone upstream `test_base_lrpc` attempt stopped at base initialization
-because host hugepages were unavailable; no host hugepage configuration was
-changed. The isolated production-LRPC test above avoids that dependency. QEMU
-cannot establish real ARM weak-memory, kernel scheduling or mlx5 DMA correctness.
-No actual CX-5 queue creation, RX/TX, idle wakeup, busy-owner preemption or
-memcached result exists yet. Local diagnostics remain in `../caladan/out/`.
+### Reproduction and artifacts
 
-The updated Nix runtime, matching modules, CPU checks and standalone SquashFS
-image all build successfully. Earlier checkpoint ELF/loader checks identified
-AArch64 executables and stopped at the non-root guard before touching hardware.
-The module recipe checks matching vermagic and removes build-tree references.
+`nix build --impure --file default.nix testImage` packages the runtime/modules
+and native checks at `/nix/store/caladan-checks/bin`. The maintained
+`test_runtime_smoke CONFIG [HOLD_MS]` fixture exercises threads/mutexes/timers;
+its optional bounded hold permits external packet probes through the existing
+network stack. It adds no echo benchmark.
 
-| Fast-path build artifact (source committed as `6f27ec7`) | Store output |
-| --- | --- |
-| Runtime | `/nix/store/g1csap9vh8njyy73nszllkq312f2y6sc-caladan-directpath-aarch64-unknown-linux-gnu-0.1` |
-| Modules | `/nix/store/hcdb1lkaazfb4r3vnla1s4viylg081s0-caladan-ksched-aarch64-unknown-linux-gnu-6.8.0-146-generic` |
-| CPU-only checks | `/nix/store/ixzlvpvm54agzhgm1gn9q7qlq6wd9g2k-caladan-arm-context-checks` |
-| Image | `/nix/store/3q5cg0hchd7ljyw90g1g5y5sziyc7mlc-caladan-enzian.img` |
+Final tested image (including the network hold):
+`/nix/store/5m0c4lx4yh8hzyfl4i1d99rzmmmnixln-caladan-focused-tests.img`, SHA256
+`3b17d60e6df857b7ca106d05eac3a950ff765e05ac793b7c87c20f3b522e95e0`.
+The one-/two-kthread layout checks used
+`/nix/store/6pbcd0w7v3h3gv1k1f20j98br4zn7jdr-caladan-focused-tests.img`, SHA256
+`58dbcaaa123d4591114ee03ea1f36ca55f04d532db499d787a18bf7f362a9da6`.
+Builds include all eight QEMU checks; the final native x86 build also passed.
+These artifacts were built before committing their source as `586a5a1`.
 
-These outputs supersede the earlier `0df0f96` artifact set. Exact results are in
-`../caladan/out/arm-fastpaths-results.json`, with validation recorded in
-`arm-fastpaths-checks.log` and `arm-fastpaths-build.log`. All eight CPU checks
-pass; native x86 userspace also builds (`native-fastpaths-build.log`). Disassembly
-confirms CRC32CX and inline LL/SC without outlined atomic-add helpers. These
-artifacts remain undeployed; their source is now committed as `6f27ec7`.
-No board timing or power measurements have been made.
+Local evidence: `../caladan/out/hardware-20261020-01/`, including
+`cpu-tests.json`, `module-smoke.json`, `layout-smoke.json`, `peer-ping.json`,
+`peer-neighbor.json`, `postflight.json`, `reclaim.json`, image provenance and
+build logs. Failed startup diagnostics are retained alongside successful runs.
 
-**Hardware gate:** October 19 live EMG showed zuestoll03 reserved by jkaufman,
-zuestoll05/06 by hanghu and zuestoll07 by pengxu. The user explicitly instructed
-that zuestoll07 remain untouched. No board, root volume or running experiment
-was changed. Hardware portions of stages 1–3 await an available CX-5 board.
-Recheck reservations at that time; this is dated inventory, not future authority.
+Postflight stopped owned test processes and the temporary image server,
+unloaded both scheduler modules, restored CX-5 down, restored
+`nr_hugepages=0` and `shm_rmid_forced=0`, and reclaimed only test-prefixed DPDK
+hugepage files (final Hugetlb zero). cpuidle returned to `none`. The read-only
+test image remains mounted at `/nix/store`; diagnostic files remain in `/tmp`.
 
-**Review gate:** finish/review stages 1–3 before starting stage 4. The user is
-extracting the platform Lauberhorn/DPDK echo microbenchmark for cross-repository
-reuse. Wait for that implementation; do not create a separate Caladan echo
-benchmark or start measurement/scheduling-integration campaigns meanwhile.
-
-Update this checkpoint and stage table as work proceeds, recording revisions,
-checks actually run and remaining failures. Keep temporary diagnostics in ignored
-`out/`, preserve unrelated experiments, and retain accepted measurement recipes
-and data through the platform's tracked measurement workflow.
+**Review gate:** focused board checks are now available for review. Busy-owner
+signal/IPI preemption, zero-core wakeup and core reclamation under contention
+remain separate acceptance work. Finish/review stages 1–3 before stage 4.
+Wait for the user's shared platform echo microbenchmark extraction; no echo
+integration or measurement campaign has started. No timing/power claims or
+memcached results are established by these tests.
