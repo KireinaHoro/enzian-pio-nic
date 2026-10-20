@@ -115,7 +115,7 @@ See [DCS crossings](../../vivado/eci/rtl/dcs_cdc.sv),
 [DCU controller](../../vivado/eci/directory-controller-slice/dcs/dcu/dcu_controller/rtl/dcu_controller.sv),
 and [TX AXI router](../../hw/src/lauberhorn/host/eci/DcsTxAxiRouter.scala).
 These are optimization hypotheses, not measured savings. Physical timing work
-remains subject to the [implementation pause](../hardware/physical-experiments.md#paused-after-consolidation--september-17).
+remains subject to the [implementation pause](../hardware/physical-implementation.md#scope-and-interpretation).
 
 The controller handles LCI, returned data and write completion as separate
 work, with directory lookup/state processing. The TX router also sends the

@@ -21,7 +21,7 @@ these canonical sources. Edit the tracked source rather than keeping local copie
 
 ## Task routing
 
-- Routed timing / STA / pipelining / floorplanning: [physical implementation](docs/hardware/physical-implementation.md), [checkpoint findings](docs/hardware/physical-findings.md), [active CI experiments](docs/hardware/physical-experiments.md); run `tools/physical/checkpoint.tcl` on enzian-ba2, read the `tools/physical/summarize.py` digest first.
+- Routed timing / STA / pipelining / floorplanning: [physical implementation and evaluation](docs/hardware/physical-implementation.md), [paused continuation](agents/physical-implementation.md); run `tools/physical/checkpoint.tcl` on enzian-ba2, read the `tools/physical/summarize.py` digest first.
 - FPGA datapaths, ECI, buffers: [architecture](docs/hardware/architecture.md), [status](docs/hardware/implementation-status.md).
 - Linux scheduling/preemption: [scheduler](docs/software/scheduler.md).
 - C runtime and applications: [runtime](docs/software/runtime.md), [programming model](docs/software/programming-model.md).

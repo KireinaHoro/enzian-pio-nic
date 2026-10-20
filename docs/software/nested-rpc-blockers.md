@@ -118,7 +118,7 @@ helper construction, shared reachable Vivado license defaults, application recip
 placement and the blocks trace-DMA reset-startup test fix. It does not change
 this branch's nested runtime, kernel endpoint implementation or datapath RTL;
 none of B1–B6 is closed by this merge. Timing candidates remain on their separate
-branches, as recorded in the [physical experiment ledger](../hardware/physical-experiments.md).
+branches, as recorded in the [physical continuation](../../agents/physical-implementation.md).
 
 The September 16 integration `f827a73` removed the app-contract packaging gap:
 Dandelion and its explicitly selected interactive test harness use installed

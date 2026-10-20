@@ -200,7 +200,7 @@ does not establish this permission. Keep the
 read-only diagnostic token out of source-fetch credentials.
 The Vivado report hook requires duration syntax `RUNNER_AFTER_SCRIPT_TIMEOUT: "20m"`.
 Hardware runs take hours; use the [30-minute / five-hour follow-up](#scheduled-hardware-build-follow-up) above rather than frequent polling.
-Use the [physical experiment ledger](../hardware/physical-experiments.md) for SHAs
+Use the [physical evaluation](../hardware/physical-implementation.md#evaluation-provenance) for SHAs
 and results, and [hardware testing](validation.md#board-validation) for verified-reset RPC trials.
 
 Mackerel uses the standard Nixpkgs Cargo vendoring implementation. The Nixpkgs
@@ -348,7 +348,7 @@ dependencies for image warming; wrappers themselves come from each job checkout.
 It runs the high-VC pipeline's eight directed/random-stall comparison cases
 from the pinned private toolkit feature commit. This does not validate physical
 timing or board behavior. Low-VC staging and its additional tests remain on the
-unmerged experiment branch. See the [timing closeout](../hardware/physical-experiments.md#paused-after-consolidation--september-17)
+unmerged experiment branch. See the [timing continuation](../../agents/physical-implementation.md#retained-experiment-inputs)
 for the private pin and outstanding upstream owner review.
 
 ## Deployment script builder architecture

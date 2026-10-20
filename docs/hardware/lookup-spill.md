@@ -570,7 +570,7 @@ Evaluate storage changes independently of spill semantics, using the same
 workload and capacity. Compare the register implementation, RAM service/context
 storage, and scheduler PID/bitmap split with the utilization/timing criteria
 above. Any routed experiment remains subject to the existing
-[physical-implementation pause](physical-experiments.md#paused-after-consolidation--september-17).
+[physical-implementation pause](physical-implementation.md#scope-and-interpretation).
 
 Correctness and performance cases must include:
 
