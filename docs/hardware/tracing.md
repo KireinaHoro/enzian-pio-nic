@@ -222,7 +222,7 @@ and serialization/backpressure can then add variable timestamp delay even when
 no sample is lost. The sample bit layout is unchanged, so map/provenance must
 distinguish the two contracts. The regression checks ingress-cycle spacing under
 multi-source serialization. Historical affected measurements are described in
-[the recorder limitation and evidence](../research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
+[the recorder limitation and evidence](../applications/memcached.md#joined-rtt-measurements-and-recorder-limitation).
 
 System-domain ECI sources still cross an untimestamped asynchronous FIFO before
 reaching the trace recorder. Fixed pipeline-delay subtraction does not bound
@@ -328,3 +328,25 @@ The analyzer defaults to `--trace-cycle-ns 5`; use the capture's actual period.
 Retain input hashes, revisions, request counts, exclusions, identity mappings,
 correlation warnings and the audit's per-request conservation checks. Offline
 analysis does not establish a new board measurement.
+
+## Native UDP correlation fields
+
+The RX UDP control descriptor exposes `trace_ref`: bit 15 is valid, bits 5:0
+are the existing RX `HostMsgID`, and other bits are zero. It occupies the aligned
+16-bit field at byte 20, padded to a 32-byte Mackerel datatype. RX enqueue
+tracing already links that ID to ingress `PacketID`. TX reuses the aligned
+16-bit reserved field at byte 14 for `related_rx`. Software echoes the RX
+reference on every response segment; zero means unrelated. `EciTxSubmit` emits
+`RelatedRxTrace` together with the existing TX `HostMsgID` and core. This is
+untrusted diagnostic metadata only: no effect on admission, destination,
+ownership, DESCHED, packet retention or wire bytes. All 64 ID values are usable;
+validity is independent of the all-ones ID. Copying the scalar after RX release
+is permitted; copying or retaining the borrowed packet pointer is not.
+
+Payload layout version 3 headers declare
+`ECI_UDP_TRACE_VERSION=1`, required by the updated core runtime. Regenerate
+Mackerel/config/trace-map collateral and deploy matching hardware/software;
+historical 518689 hardware does not supply this metadata.
+
+The [memcached analyzer](../applications/memcached.md#request-tracing-and-latency-analysis)
+checks reference lifetimes and joins responses to application/client records.

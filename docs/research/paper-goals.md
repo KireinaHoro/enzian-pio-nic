@@ -26,7 +26,7 @@ Worker cores are isolated from ordinary Linux tasks. Tasks run to finish; schedu
 
 **Native Lauberhorn memcached versus Caladan memcached is a main paper goal.**
 Use the [Caladan baseline plan](caladan-enzian.md) and
-[memcached application evidence](memcached.md) to define comparable application
+[memcached application evidence](../applications/memcached.md) to define comparable application
 versions, operation mixes, concurrency, skew and worker/core budgets. The existing
 Linux-over-FPGA-bypass comparison is a separate control, not the Caladan baseline.
 

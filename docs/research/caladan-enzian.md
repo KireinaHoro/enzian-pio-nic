@@ -119,7 +119,7 @@ clock domains. Use the existing generator when it can express the workload.
 
 Pin the memcached revision and pre-size its table: the published runtime port
 lists hash expansion as unfinished. Bound operations, keys/values, dataset and
-maintenance to match [Lauberhorn's memcached scope](memcached.md). New TCP,
+maintenance to match [Lauberhorn's memcached scope](../applications/memcached.md). New TCP,
 general-purpose tracing and portability beyond the selected ARM/kernel/NIC
 configuration remain outside this port.
 

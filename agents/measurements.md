@@ -74,17 +74,17 @@ not substitute for real-workload switch acceptance. Dated boot placement is in
   Software medians were about 12 µs RX-to-response preparation and 2.7 µs TX
   preparation. Python generation dominated client RTT. Recorder timestamps
   after an input FIFO distort burst intervals without sample loss.
-  [Evidence and limitation](../docs/research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
+  [Evidence and limitation](../docs/applications/memcached.md#joined-rtt-measurements-and-recorder-limitation).
 - The vanilla Linux FPGA-bypass/netdev comparison passed 384 traced and 384
   control requests. Sustained GET MAC p50 was 74.65 µs versus native 18.97 µs,
   subject to the same legacy timestamp limitation. This is not a CPU-NIC
-  baseline. [Comparison](../docs/research/memcached.md#vanilla-linux-mac-comparison--october-11).
+  baseline. [Comparison](../docs/applications/memcached.md#linux-bypass-control).
 
 ## Remaining checks
 
 Pipeline 518922 (`cc19c428`) corrects the recorder and passed two matched
 cold-boot RPC trials (200 calls), with zero recorded trace loss markers.
-[Acceptance](../docs/research/memcached.md#corrected-recorder-preflight-and-board-acceptance--october-11)
+[Acceptance](../docs/applications/memcached.md#joined-rtt-measurements-and-recorder-limitation)
 does not supply corrected memcached burst measurements.
 
 On resumption, collect matched memcached measurements with the corrected
@@ -248,3 +248,19 @@ cold tails with a direct span; establish disabled-probe overhead with matched
 controls; use explicit packet identities for concurrent correlation. Historical
 sentinel-ID recovery is a bounded compatibility rule, not a general solution.
 Check current source before treating any historical trace-ID fix as outstanding.
+
+## Memcached capture preservation and comparison follow-up
+
+The main paper comparison is native Lauberhorn versus Caladan memcached, not the
+Linux-over-FPGA-bypass control. Preserve the application version, maintenance
+scope, operation mix, generator behavior and core budgets when designing it.
+Use the [application methodology](../docs/applications/memcached.md#evaluation-methodology).
+
+The October 11 failed signal-export cohort retains logs, RTTs and its
+231,372,608-byte trace under `out/memcached-breakdown/`. The later five-instance
+extension stopped on client ENOSPC after 2,688 requests; its 477,408,384-byte
+window and five software traces are preserved, not a passing campaign. Use
+RAM-backed peer output for a repeat and verify matched corrected-recorder
+artifacts. Pipeline 518922 completed RPC acceptance; this does not close the
+memcached burst/CDC uncertainty checks above. No historical PID, reservation or
+frozen-pointer note is a current board-state claim.

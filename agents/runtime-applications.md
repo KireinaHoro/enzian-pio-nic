@@ -98,17 +98,17 @@ work remains subject to the [physical-implementation pause](physical-implementat
   historical interpretation. Dandelion is now bracketed for the paper.
 - Native memcached passed two five-instance/one-worker cohorts sharing four
   physical workers, with ordinary yields and process switching in traces.
-  [Evidence](../docs/research/memcached.md#five-instances-on-four-workers-october-10).
+  [Evidence](../docs/applications/memcached.md#five-instances-on-four-workers).
 - Five instances declaring four workers each passed 61,440 synthetic requests
   across single/pair/all-tenant bursts and tracing controls. The complete batched
   trace shows each tenant reaching four assigned workers and 2,477 process
-  switches. [Evidence](../docs/research/memcached.md#four-workers-per-tenant-and-variable-bursts-october-10).
+  switches. [Evidence](../docs/applications/memcached.md#four-workers-per-tenant-and-variable-bursts).
   This bounded campaign is closed; broader pool-size/performance measurements
   need separate workloads and controls.
 - Joined request tracing subsequently produced results, superseding the earlier
   blanket tracing follow-up. Corrected memcached timing and CDC bounds are the
   specific remaining checks in [measurements](measurements.md), with the
-  [campaign closeout](../docs/research/memcached.md#campaign-closeout-and-per-request-tracing-follow-up)
+  [campaign closeout](../docs/applications/memcached.md#request-tracing-and-latency-analysis)
   retaining its historical scope.
 
 Read [hardware state](hardware-state.md) before reusing a board. No historical
@@ -288,3 +288,36 @@ The memcached input remains `b376490d303da13ba15ed0295190893c64d1d324`.
 Its unsupported-pause diagnostic still says `requires HOST_WAKE`; rename that
 message when implementing the separate adapter change. Do not remove the guard
 until real hash expansion and targeted pause/resume acceptance pass.
+
+## Memcached continuation and historical failures
+
+Native memcached versus Caladan memcached is a main paper goal. The application
+contract and bounded results are in [applications/memcached](../docs/applications/memcached.md).
+The controlled comparison and full saturation/mixed-pool matrix remain separate
+from the completed synthetic switching campaign. HOST_WORK is a proposal; do
+not enable hash expansion before targeted pause/resume and actual resize pass.
+The scrub checked sibling adapter HEAD against pinned `b376490d` and platform
+packaging/APIs; no application, simulation or board tests ran.
+
+Earlier integration/CI/API migration diaries are retained in Git at
+`0a037e15:docs/research/memcached.md`. Completed platform/memcached branches were
+retired in the October 12 integration; old retention and timer instructions are
+obsolete. Preserve private dependency refs required by pinned artifacts.
+Historical board observations do not describe live state; consult
+[hardware state](hardware-state.md) and recheck before access.
+
+Preserved failure evidence remains under `out/native-udp/`: first link-fault
+capture SHA-256 `9a71c19456908d0a3d576adc53354f0f76d1a53970202c7526688c22c8712dad`,
+retry `77e785de75f7bab4b39e3367609756454146d3bbc88c25fb11678ef3484385c6`,
+and short-frame failure `76450049ee7cbe01f0a0f8880d37afd980a53ed77aab6262f53831f2277748ba`.
+The latter is the full 682,201,600-byte capture. Ethernet minimum-frame padding
+was corrected; failed runs are not memcached acceptance. The original link fault
+was cleared by cold recovery without establishing its physical cause.
+
+`out/contiguous-transport/memcached-518689/launch-failure-trace/` retains the
+130,695,872-byte wrong-architecture-interpreter failure. The compatibility
+failure's complete 138,985,280-byte capture is under `compatibility-failure-trace/`
+in that same root; the shared scratch copy was truncated by quota and must not
+be used as the full capture. Target-tools packaging and a separate readiness
+gate corrected these launch/test issues. The successful cohorts have their own
+exact manifests and hashes in the application page.

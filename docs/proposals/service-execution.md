@@ -102,6 +102,6 @@ Pin the chosen revision before implementation and recheck those contracts.
 ## Relation to native applications
 
 The former resident-worker memcached proposal is superseded by the
-[native UDP design](../research/memcached.md). Its maintenance requirements and
+[native UDP design](../applications/memcached.md). Its maintenance requirements and
 [HOST_WORK proposal](host-work.md) are distinct from implementing the
 service-event API above.

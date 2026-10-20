@@ -80,7 +80,7 @@ to `lauberhorn_udp_send_buffer` for each associated response, or zero for an
 unrelated send. The FPGA records it at TX submission; it grants no access and
 retains no packet. Use matching generated headers and hardware. Narrow IDs need
 lifetime/order validation in analysis, not global-ID joins. See the
-[memcached breakdown follow-up](../research/memcached.md#rxtx-trace-correlation-and-rtt-breakdown--active-october-10-follow-up).
+[memcached breakdown follow-up](../applications/memcached.md#request-tracing-and-latency-analysis).
 
 ## Server CSV
 

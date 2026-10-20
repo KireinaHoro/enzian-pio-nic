@@ -136,7 +136,7 @@ records the next runtime/HOST_WORK direction, currently documentation only.
 The earlier [raft-rs service proposal](../proposals/service-execution.md) remains
 historical design context, not a Go integration API.
 Native UDP memcached adaptation and its bounded maintenance scope are tracked in
-the [canonical design](../research/memcached.md); board acceptance is separate.
+the [canonical design](../applications/memcached.md); board acceptance is separate.
 
 Per-request tracing is available through the guide below. For measured coverage,
 see [ECI progress evaluation](../research/eci-progress.md) and application results.

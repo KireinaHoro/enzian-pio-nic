@@ -3,7 +3,7 @@
 **Proposal; not implemented.** HOST_WORK returns an assigned worker from RX wait
 so it can service pending software work. Domain allocation, targeted worker
 notification and host-only pause/resume are distinct requirements described here.
-The [Go scheduler](go-runtime.md) and [memcached](../research/memcached.md) are
+The [Go scheduler](go-runtime.md) and [memcached](../applications/memcached.md) are
 consumers; neither application defines the shared mechanism.
 
 The current [scheduling contract](../software/scheduling-control-interface.md)
@@ -96,7 +96,7 @@ all-target acknowledgement, parked eligibility, resume-before-park and duplicate
 resume handling. Keep a host-side maintenance/timer source runnable when every
 worker is paused, with no dependence on receiving a packet or owning Go execution resources or a worker assignment. Retain fail-closed teardown rather than claiming complete recovery.
 
-The [memcached application](../research/memcached.md) supplies the maintenance
+The [memcached application](../applications/memcached.md) supplies the maintenance
 use case. Its adapter is a separately pinned repository. Patch `thread.c` (`pause_threads`, worker
 notification/dispatch) and the native worker loop there; `assoc.c` calls the
 pause/resume pair during expansion. Advance the platform input/lock to the

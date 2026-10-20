@@ -28,7 +28,7 @@ After October 11 pipeline 518922 acceptance, the DUT ran the matched RPC
 service with tracing frozen and the full capture saved. The cold reset ended
 the native memcached instances. The preceding vanilla Linux capture was
 preserved, and its temporary upstream process had been stopped.
-[Recorder acceptance and evidence](../docs/research/memcached.md#corrected-recorder-preflight-and-board-acceptance--october-11).
+[Recorder acceptance and evidence](../docs/applications/memcached.md#joined-rtt-measurements-and-recorder-limitation).
 This supersedes earlier claims that Dandelion, memcached or the 518689 null-RPC
 cohort was still running; it does not establish today's DUT state.
 
@@ -38,17 +38,17 @@ cohort was still running; it does not establish today's DUT state.
   idle-activation failure. Keep the original failure capture; the [GSYNC record](../docs/research/eci-progress.md#controlled-gsync-results)
   distinguishes it from successful follow-up.
 - October 8 Dandelion left its tracing-off control frozen, with two instrumented
-  windows preserved. The October 9 [memcached follow-up](../docs/research/memcached.md#first-native-board-attempt-after-merge)
+  windows preserved. The October 9 [memcached follow-up](../docs/applications/memcached.md#integration-and-ownership)
   preserved that buffer before deploying matched 517951 artifacts.
 - October 10 matched 518689 RPC trials passed 200 calls before subsequent
   application campaigns. Earlier memcached failures and successful burst
-  captures are linked from the [switching evidence](../docs/research/memcached.md#five-instances-on-four-workers-october-10)
-  and [burst evidence](../docs/research/memcached.md#four-workers-per-tenant-and-variable-bursts-october-10).
+  captures are linked from the [switching evidence](../docs/applications/memcached.md#five-instances-on-four-workers)
+  and [burst evidence](../docs/applications/memcached.md#four-workers-per-tenant-and-variable-bursts).
 - All four October 10 null-RPC windows were preserved; see the [inline-TX record](../docs/research/hot-path-performance.md#contiguous-layout-regression-analysis--october-10).
 - The October 11 five-instance extension stopped after 2,688 requests on peer
   ENOSPC. Its frozen trace and software records were preserved; use RAM-backed
-  peer output next time. [Failure and timestamp record](../docs/research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
-- The [vanilla Linux comparison](../docs/research/memcached.md#vanilla-linux-mac-comparison--october-11)
+  peer output next time. [Failure and timestamp record](../docs/applications/memcached.md#joined-rtt-measurements-and-recorder-limitation).
+- The [vanilla Linux comparison](../docs/applications/memcached.md#linux-bypass-control)
   capture was preserved before 518922 cold-reset acceptance.
 
 These pointers preserve recovery context; no captures or raw evidence were
