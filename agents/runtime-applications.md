@@ -34,6 +34,45 @@ progress as established by those tests. Selected QP/DCU coloring is implemented;
 its board progress acceptance needs a concrete follow-up test. Service
 events/timers and complete kill/exit resource recovery are implementation work.
 
+## Scheduling control validation and continuation
+
+The [control contract](../docs/software/scheduling-control-interface.md) is the
+human-facing protocol reference. Historical source integration originated on
+`feat/cooperative-yield`; that branch name is not current work state.
+
+The [October 3 finite board record](../data/eci/board-evidence/cooperative-20261003-contention.json)
+reports 5,926 ordinary handoffs with zero scheduling IRQ counter change,
+including 4,710 overlapping three full-length peer stalls. Concurrent control
+reads and bypass traffic completed with clean TAD/kernel checks. This record
+has its own finite exposure and does not extend the October 5 GSYNC test's
+one/two observed-stalled-peer scope or establish infinite-stall progress.
+
+The October 12 naming-validation record in the former control-page preamble
+reported regenerated `devHdrs`, a `kmod` build, and `runtime-tests` plus
+`runtime-interface`. All 23 generated headers matched after symbol normalization.
+`CooperativeYieldSim`/`CooperativeAllocationSim` passed six tests; Enzian,
+memcached and latency-analysis suites passed 69, 13 and 14 tests. Historical-map
+and saved-event compatibility suites subsequently passed nine and five tests.
+These are recorded checks for the rename, not new tests or a new board/timing
+result from this documentation scrub. The original record is retained in Git
+at `e68535ee:docs/software/scheduling-control-interface.md`.
+
+The former acceptance list requested matched CI and lifecycle/timeout/progress
+trials, including an RX-hold boundary search at timer resolution, every exposed
+L2C_TAD unit, and contention across two cold boots with one/multiple/all-but-one
+stalled workers, active-peer handoffs and simultaneous bypass RX/TX. Do not
+restart that dedicated campaign: the October 8 closeout assigns further cases
+to application validation. Before proposing a specific check, reconcile it with
+[the implementation ledger](../docs/hardware/eci-implementation.md) and later
+application results. Retain matched artifacts/clocks, actual stall exposure,
+nearest failing bound and fault traces for any authorized boundary trial.
+Shared-control traffic must be included when assessing progress behind a
+blocking info read; model independence alone does not establish bus progress.
+
+HOST_WORK documentation does not authorize adding fields, cookies, discriminators,
+subscriptions or dead stubs. PCIe scheduling remains outside this stage. Timing
+work remains subject to the [physical-implementation pause](physical-implementation.md).
+
 ## Application evidence and next checks
 
 - Dandelion's October 8 zuestoll14/zuestoll07 campaign passed atomic, DAG and
