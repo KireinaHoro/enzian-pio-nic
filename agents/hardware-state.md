@@ -44,7 +44,7 @@ cohort was still running; it does not establish today's DUT state.
   application campaigns. Earlier memcached failures and successful burst
   captures are linked from the [switching evidence](../docs/research/memcached.md#five-instances-on-four-workers-october-10)
   and [burst evidence](../docs/research/memcached.md#four-workers-per-tenant-and-variable-bursts-october-10).
-- All four October 10 null-RPC windows were preserved; see the [inline-TX record](../docs/research/latency-measurement.md#inline-tx-and-pre-doorbell-probe-measurement--october-10).
+- All four October 10 null-RPC windows were preserved; see the [inline-TX record](../docs/research/hot-path-performance.md#contiguous-layout-regression-analysis--october-10).
 - The October 11 five-instance extension stopped after 2,688 requests on peer
   ENOSPC. Its frozen trace and software records were preserved; use RAM-backed
   peer output next time. [Failure and timestamp record](../docs/research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).

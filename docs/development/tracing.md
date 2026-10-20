@@ -51,203 +51,10 @@ uses the embedded trace map for interactive decoding. Python also has a separate
 state, and the latency plotter decodes Lauberhorn events. Do not apply the pcapng
 transport boundary as a blanket restriction on Python analysis code.
 
-## Hardware Collection
+## Hardware instrumentation
 
-### TracePlugin
-
-`TracePlugin` lives in `hw/src/lauberhorn/TracePlugin.scala` and is used by
-SpinalHDL plugins inside `NicEngine`.
-
-Its role is to collect Lauberhorn event trace declarations while the NIC engine
-elaborates:
-
-- `makePort(sourceSlr)` creates one Lauberhorn event source port.
-- `trace(name, TraceData...)` allocates or reuses an event ID and returns a
-  `Bool` trigger.  The caller drives that trigger when the event fires.
-- Event IDs are deduplicated by event signature: event name plus the ordered list
-  of trace-data key names.  Multiple trace ports can call
-  `trace("RxCoreCommit", CoreID(...))` and get the same event ID.
-- A duplicate event name with a different trace-data layout is rejected during
-  elaboration.
-- Trace data keys, such as `CoreID` and `PacketDropped`, define only a name and
-  bit width.  The emitted payload packs the event ID in the low bits, followed by
-  the event's declared trace data in order.
-
-`TracePlugin` also records each port's source SLR.  It converts that source SLR
-to a pipeline-stage count using the same five-stages-per-SLR-crossing rule used
-by the trace DMA.  The final per-port pipeline-stage list is passed to
-`LauberhornTraceDma` when the separate trace DMA RTL is elaborated.
-
-### LauberhornTraceDma
-
-`LauberhornTraceDma` lives in
-`hw/src/lauberhorn/LauberhornTraceDma.scala`.  It is generated as a separate RTL
-module, `lauberhorn_trace_dma`, after `NicEngine` has finished elaborating.
-
-Its role is to adapt all trace sources to `TraceBufferDMA`:
-
-- DCS event trace sources from the even and odd directory-controller slices.
-- ECI app-clock trace sources after DCS/app clock crossing.
-- ECI sys-clock trace sources before app clock crossing, plus GSYNC and
-  interrupt-controller ECI channels.
-- ECI sys-clock trace sources at the post-gateway dynamic/static boundary.
-- Returned-credit pulses from the static shell back into the dynamic gateway.
-- Lauberhorn event trace sources produced by `TracePlugin`.
-
-It assigns source IDs, inserts source-specific `Flow.delay(...)` pipeline stages
-before `TraceBufferDMA`, and records the latency in the trace map as
-`pipeline_stages`.  Fixed DCS/ECI sources derive their stage count from the
-floorplan.  Lauberhorn event sources inherit stage counts from the `makePort`
-source SLR declarations.
-
-`LauberhornTraceDma` also writes `lauberhorn_trace_dma_map.json`.  This map is
-the contract between hardware and software.  It contains:
-
-- sample layout: payload width, source width, timestamp width, sample width,
-  lost-source ID, and AXI data width;
-- source metadata: source ID, port, type, clock domain, DCS/channel/local-source
-  information, and `pipeline_stages`;
-- payload metadata used by tooling: DCS fields, ECI fields, returned-credit
-  fields, Lauberhorn event names, trace-data key widths, and per-event
-  trace-data key lists.
-
-For Lauberhorn events, the map deliberately separates definitions from use:
-
-```json
-"trace_data_keys": {
-  "CoreID": { "width": 3 },
-  "PacketDropped": { "width": 1 }
-},
-"event_data": {
-  "7": ["CoreID"],
-  "12": ["PacketDropped"]
-}
-```
-
-Events with no trace data are omitted from `event_data`.
-
-### ECI Message Trace Points
-
-ECI message tracing deliberately records the same logical traffic at multiple
-points.  The goal is to distinguish "the directory controller produced this
-message" from "the message crossed the last dynamic/static boundary toward the
-static shell and CPU".
-
-Current fixed ECI-related source allocation is:
-
-- sources `4..15`: app-clock DCS ECI channels, after the DCS/sys-to-app clock
-  crossing;
-- sources `16..27`: sys-clock DCS ECI channels, before the app-clock crossing;
-- sources `28..31`: sys-clock GSYNC request/response channels;
-- sources `32..33`: sys-clock interrupt-controller VC12 request/response
-  channels;
-- sources `34..37`: post-gateway dynamic/static boundary channels
-  `link{1,2}_out_{lo,hi}`;
-- sources `38..39`: post-gateway returned-credit vectors
-  `link{1,2}_out_credit_return`.
-
-The generated `lauberhorn_trace_dma_map.json` is the authoritative source list;
-the numbers above document the current layout to make trace inspection easier.
-
-For ECI sources, the payload contains the 64-bit header, VC number, `accepted`
-bit, and a 3-bit ECI channel `size`.  Hardware emits a stalled sample with
-`accepted = 0` when `valid && !ready`, and an accepted sample with
-`accepted = 1` when `valid && ready`.
-
-The meaning of `accepted = 1` depends on the trace point:
-
-- App-clock DCS ECI sources prove that the frame crossed into the app-clock DCS
-  side and was consumed there.
-- Sys-clock DCS, GSYNC, and interrupt-controller sources prove acceptance by
-  the local sys-clock stream endpoint being traced.  They do not prove that the
-  frame has left the dynamic gateway toward the static shell.
-- Post-gateway boundary sources prove that the corresponding top-level
-  `link*_out_{lo,hi}` stream handshaked at the dynamic/static boundary.  This is
-  after the dynamic gateway's VC-level credit tracking, so the frame has made it
-  past the dynamic-side point where VC credits can still withhold it.
-
-DCS event sources are generated from the DCU debug interface.  A stalled input
-request is traced as a bounded burst of up to 16 events for each continuous
-stall, then suppressed until the stall resolves.  This keeps deadlock captures
-from being overwritten by a single stuck DCU debug condition while still showing
-that the stall persisted.  The DCS event `error_code` field carries the DCU
-error code, with `ERR_REQ_STALLED` used for these request-stall trace events.
-The original single-bit DCS `error` field remains in bit 0 for compatibility
-with old captures and old decoders; `error_code` follows the DCS `request`
-field in payload bits `[60:57]`.
-
-The boundary trace point is therefore the right place to answer "did an FPGA
-ECI message really leave toward the CPU?"  It still is not a CPU-retirement
-trace: after this point the traffic is in static-shell/TLK/link-layer logic, and
-the trace does not observe the ThunderX L2C accepting or retiring the request.
-Under the normal assumption that the lower-level link remains healthy, however,
-an accepted boundary sample is the dynamic-design evidence that the frame was
-sent far enough that it should be visible to the CPU side.
-
-The boundary channels carry link blocks rather than the original higher-level
-DCS channel identity.  The trace records the VC and the first 64-bit header word:
-`link*_out_lo_data` for the low path and `link*_out_hi_data(63 downto 0)` for
-the high path.  The high path also records `link*_out_hi_size`, which lets the
-software-side credit model charge multiword high-channel sends correctly.  The
-trace is still not a full multiword payload capture.
-
-Returned-credit sources record nonzero `link*_out_credit_return(12 downto 2)`
-vectors in payload bits `[10:0]`.  These sources are not ECI messages; they are
-there to correlate boundary sends with VC credit return behavior when checking
-whether a frame could be stuck behind dynamic-gateway credit accounting.
-
-The Wireshark dissector reconstructs the dynamic gateway's TLK transmit-credit
-state from the boundary ECI samples and returned-credit samples.  The model
-follows `tlk_credits.vhd`: returned-credit bits add eight credits to VC2..VC12,
-accepted boundary sends subtract credits according to the selected link/path/VC,
-and high-path sends use the traced ECI channel `size`.  The model is only as
-complete as the exported trace window; include sources `34..39` when using it.
-If a pcapng window starts after the beginning of the trace, reconstructed
-credits can be higher than the real hardware count because earlier sends are
-missing.  The `eci-state` CSV exporter therefore requires a full, unwrapped,
-lossless trace before adding TX boundary-acceptance latency and remaining-credit
-columns to the `addr_*.csv` output.
-
-When debugging a suspected missing FPGA-to-CPU message, use the trace points as
-a narrowing ladder:
-
-1. If the frame appears at the relevant sys-clock DCS/GSYNC/interrupt source but
-   not at sources `34..37`, it was still inside the dynamic gateway/static
-   boundary path.
-2. If the frame appears at sources `34..37` with `accepted = 1`, then the
-   dynamic gateway and VC-level credit tracking accepted the send.  Look past
-   the dynamic boundary unless credit-return behavior suggests a broader
-   static-shell accounting issue.
-3. Use sources `38..39` to check whether credits for that link/VC continue to
-   return around the suspect interval.
-
-### TraceBufferDMA
-
-`TraceBufferDMA` is the generic sample recorder used by
-`LauberhornTraceDma`.  It owns the outer trace-sample envelope:
-
-- payload bits;
-- source ID;
-- hardware timestamp;
-- marker/lost samples using the reserved all-ones source ID;
-- AXI writes into the circular trace buffer in trace DDR.
-
-TraceBufferDMA does not know DCS, ECI, or Lauberhorn event semantics.  It records
-fixed-width samples and marker records.  In the current ECI build samples are
-128 bits, so four samples pack into each 512-bit AXI beat.
-
-## Floorplanning And Pipeline Latency
-
-The ECI floorplan constrains only the inner `TraceBufferDMA` instance to the
-trace-DDR SLR.  The surrounding `LauberhornTraceDma` wrapper and its input
-pipeline registers are intentionally allowed to cross SLRs.
-
-Pipeline latency is part of the trace metadata.  The hardware inserts the delay
-before `TraceBufferDMA`, then Python subtracts the recorded `pipeline_stages`
-from each sample timestamp before sorting/exporting.  The raw hardware timestamp
-is still preserved in the pcapng envelope.
-
-The current rule of thumb is five stages per SLR crossing to the trace DMA SLR.
+[Hardware tracing](../hardware/tracing.md) defines event producers, source maps,
+ECI boundary semantics, recorder timestamps and latency correlation.
 
 ## Trace Storage And Readout
 
@@ -500,7 +307,7 @@ decode logic in the Lua dissector.
 
 - [Event declarations](../../hw/src/lauberhorn/TracePlugin.scala), [DMA/map generation](../../hw/src/lauberhorn/LauberhornTraceDma.scala), [UDP responder](../../hw/src/lauberhorn/LauberhornTraceDump.scala).
 - [UDP capture tool](../../data/eci/sys_trace/dump_trace_udp.py), [exporter](../../data/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../data/eci/sys_trace/eci_state_output.py).
-- [Latency measurement and attribution](../research/latency-measurement.md).
+- [Latency measurement and attribution](../research/hot-measurement.md).
 
 ## Cooperative activation events
 
@@ -565,25 +372,9 @@ limitations. See the [allocation-trace contract and regression](../hardware/laub
 
 ## Timestamp capture point and legacy queue bias
 
-Current `TraceBufferDMA` captures the timestamp together with each input batch
-before the batch queue and carries it through serialization. The generated map
-declares `sample.timestamp_point = "trace_dma_input_before_batch_queue"`.
-Maps without that field describe legacy dequeue timestamping: FIFO residence
-and serialization/backpressure can then add variable timestamp delay even when
-no sample is lost. The sample bit layout is unchanged, so map/provenance must
-distinguish the two contracts. The regression checks ingress-cycle spacing under
-multi-source serialization. Historical affected measurements are described in
-[the recorder limitation and evidence](../research/memcached.md#first-joined-rtt-breakdown-and-recorder-limitation--october-11).
-
-System-domain ECI sources still cross an untimestamped asynchronous FIFO before
-reaching the trace recorder. Fixed pipeline-delay subtraction does not bound
-variable CDC residence. Report CPU/FPGA fit uncertainty as conditional on that
-path and reject inconsistent fits; do not widen the acceptance threshold merely
-to obtain a breakdown. App-domain NIC/MAC events with the corrected recorder
-avoid the global batch-queue bias. Use a matching recorder/map for new
-measurements; historical fine hardware intervals from dequeue-timestamped
-recorders retain that limitation until reassessed.
-CPU-only intervals and client RTTs are unaffected by the recorder correction.
+See the [hardware timestamp contract](../hardware/tracing.md#timestamp-capture-point-and-legacy-queue-bias)
+for recorder queue bias and asynchronous ECI-source uncertainty, and
+[latency correlation](../hardware/tracing.md) for event selection and clock joins.
 
 ### Vivado control recovery
 

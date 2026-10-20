@@ -150,4 +150,4 @@ serialized and follow the endpoint lifetime rules.
 
 The [runtime tracing guide](../development/runtime-tracing.md) describes build
 variants, request/event probes, buffer sizing and one-shot export. Measurement
-boundaries and clock uncertainty belong to [latency analysis](../research/latency-measurement.md#server-csv).
+boundaries and clock uncertainty belong to [latency analysis](../development/runtime-tracing.md#server-csv).

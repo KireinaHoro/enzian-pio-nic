@@ -119,7 +119,7 @@ packet loss and actual Linux CPU/physical-worker assignments. Record main and
 background CPU separately. Preserve manifests, seeds, raw measurements and compact
 summaries. Latency breakdown requires correlated NIC arrival, scheduler queueing,
 assignment/yield, host receive, execution, TX admission and NIC egress, with the
-[established clock uncertainty](latency-measurement.md) and tracing-off controls.
+[clock-alignment limits](../hardware/tracing.md#clock-alignment) and tracing-off controls.
 Uncorrelated timestamps must not be subtracted across hosts or FPGA clocks.
 
 ## Deferred wake and pause designs

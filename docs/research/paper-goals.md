@@ -60,7 +60,7 @@ Security/flexibility evidence must accompany latency: define the trusted NIC/ker
 
 ## Measurement rules
 
-- Use `docs/research/latency-measurement.md` and the actual plotting implementation together. Client RPC wall time, CMAC-to-CMAC service time, and blocking receive duration are different measurements.
+- Use `docs/research/hot-measurement.md` and the actual plotting implementation together. Client RPC wall time, CMAC-to-CMAC service time, and blocking receive duration are different measurements.
 - Do not assign the residual latency bucket entirely to the wire. It includes uninstrumented client/kernel/network work and correlation gaps.
 - CPU/FPGA alignment and directional ECI timing include estimates. State the alignment method and timestamp overhead; retain raw captures and generated trace map.
 - Narrow trace IDs wrap; correlate using order, time, core and event relationships. Never join solely by numeric ID.

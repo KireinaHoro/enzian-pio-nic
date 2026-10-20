@@ -61,13 +61,13 @@ not substitute for real-workload switch acceptance. Dated boot placement is in
 - October 5 buffered DPDK hot/cold cohorts: 4,000 measured RPCs; kernel-off RTT
   medians 12.24 µs hot / 43.36 µs cold. Hot CPU-work analysis and reproducible
   static counting are recorded in the [consolidated evidence](../docs/research/roadmap.md#current-status--october-8-consolidation)
-  and [516232 comparison](../docs/research/latency-measurement.md#corrected-module-516232-comparison--october-5).
+  and [516232 comparison](../data/eci/board-evidence/dpdk-buffered-hot-cold-516232-20261005.json).
 - October 10 inline-TX correction on unchanged 518689 hardware: 4,000 measured
   hot/cold RPCs plus 32 warmups, one control forward/ack and no overflow
   invalidation per measured TX. Kernel-off hot RTT 12.760 µs; MAC latency
   4.165 µs versus old 3.700 µs baseline. Conserved FPGA-clock comparison
   attributes about 63 ns mean growth outside host turnaround and 402 ns to
-  host/link turnaround. [Measurement and comparison](../docs/research/latency-measurement.md#inline-tx-and-pre-doorbell-probe-measurement--october-10).
+  host/link turnaround. [Measurement and comparison](../docs/research/hot-path-performance.md#contiguous-layout-regression-analysis--october-10).
 - October 11 pipeline 518836 passed all gates and two matched RPC cold boots.
   Joined memcached RTT tests passed 1,536 traced requests and an identical
   tracing-off control, following an earlier 1,536-request traced cohort.
@@ -230,3 +230,21 @@ single-outstanding 1408-byte Python reader, versus roughly 0.01–0.02 MiB/s for
 the observed Vivado/Tcl JTAG reader. This is dated implementation throughput,
 not CMAC line rate, a current performance result, long-duration reliability or
 timing closure. Original note: `73c84805:docs/development/tracing.md`.
+
+## Retired latency campaign narratives
+
+Superseded June adder, October 4 streaming, October 5 buffered/GSYNC and October
+10–14 null-RPC campaign narratives are retained in Git at
+`65ebaf92:docs/research/latency-measurement.md`. Their tracked data and reproduction
+inputs remain unchanged. The October 10 regression analysis remains in
+[hot-path performance](../docs/research/hot-path-performance.md#contiguous-layout-regression-analysis--october-10).
+The old untraceable 87.290 µs example is not evidence. Reanalysis of June 20 CSVs
+excluded duplicate/startup request 0 and covered IDs 1–9999 (corrected RTT P50
+73.320 µs); no matching historical map was established, so it supplies no FPGA
+TX comparison. Do not revive dated board state or superseded plot inventories.
+
+Remaining attribution work: isolate the candidate timeout-sweep contribution to
+cold tails with a direct span; establish disabled-probe overhead with matched
+controls; use explicit packet identities for concurrent correlation. Historical
+sentinel-ID recovery is a bounded compatibility rule, not a general solution.
+Check current source before treating any historical trace-ID fix as outstanding.

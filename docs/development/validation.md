@@ -292,7 +292,7 @@ Keep host kernel/modules provisioned through `emg` and record their versions.
 
 For the reusable polling client and VF restoration runner, see the
 [DPDK generator](../../../microbenchmarks/client/README.md) and
-[measurement contract](../research/latency-measurement.md). The [benchmark guide](benchmark-campaign.md#dpdk-traffic-generator) explains
+[measurement contract](../research/hot-measurement.md). The [benchmark guide](benchmark-campaign.md#dpdk-traffic-generator) explains
 the generator, kernel/PMD requirements and calibration limits. Its pcap replay
 checks are functional tests; require physical packet validation before collecting
 network latency data.
@@ -941,3 +941,6 @@ zero-length bodies, MTU boundaries and absolute schedule/deadline rules.
 stall through the real DPDK pcap PMD. Campaign fixtures cover rate-prefix
 selection, overload extensions, sustained fallback, resume integrity and
 notification retries. These local checks do not establish hardware acceptance.
+
+Runtime [activation/IPG capture](runtime-tracing.md#activation-and-inter-packet-gaps)
+and [paper chart production](paper-charts.md) describe the corresponding analysis workflows.

@@ -1,7 +1,9 @@
-# Hot echo measurement methodology
+# Hot-path measurement methodology
 
 The paper compares Lauberhorn, DPDK on zuestoll07's ConnectX-5, and
-caladan-simple on that ConnectX-5 once its port is ready. All use schema echo
+the Caladan-derived AArch64 baseline on that ConnectX-5 after measurement
+acceptance. Its [port](caladan-enzian.md) has partial implementation and native
+mechanism checks; those checks are not benchmark acceptance. All use schema echo
 payloads of 8, 128 and 1432 bytes. NICVF data is not a ConnectX-5 baseline.
 
 ## Measurement boundaries
@@ -62,8 +64,8 @@ FPGA readout or NIC PTP. Keep the existing 32-core paced batches, deadline,
 loss/rejection accounting, aggregate histograms and complete overload grid.
 
 For historical FPGA-recorder comparisons, use the
-[trace timestamp contract](../development/tracing.md#timestamp-capture-point-and-legacy-queue-bias)
-and [source/acceptance boundaries](../development/tracing.md#eci-message-trace-points).
+[trace timestamp contract](../hardware/tracing.md#timestamp-capture-point-and-legacy-queue-bias)
+and [source/acceptance boundaries](../hardware/tracing.md#eci-message-trace-points).
 The active Tofino wire measurements have their own boundaries above.
 
 ## Capture and collection acceptance
@@ -104,3 +106,71 @@ LH CPU–NIC starts at `server_tx_enter_ns` and ends at
 post-return cleanup stay in RPC runtime, as does DPDK remaining Other CPU.
 Payload-dependent pre-doorbell time includes ordering barriers; the recorded
 interval cannot isolate barrier cost from descriptor accesses and probing.
+
+## Accounting and instrumentation controls
+
+Join requests before subtracting durations. A residual distribution is formed
+from per-request differences, never by subtracting marginal percentiles.
+Reject missing/duplicate joins, reversed intervals, unexplained negative
+residuals and stored trace-loss markers. Preserve warmups during sequence/clock
+alignment, then exclude them explicitly from performance statistics. Diagnostic
+partial captures are not performance evidence.
+
+Report raw and probe-corrected intervals separately. An adjacent-clock-read
+minimum estimates clock-call cost, not total instrumentation overhead. Probes,
+row initialization/copies, disabled instrumentation checks and buffer export can
+change execution and readiness. Do not subtract nested probes again from an
+outer wall-clock interval. Compare matched instrumentation-off/on cohorts;
+never splice instrumented components into an uninstrumented total.
+
+Blocking receive time before request arrival is not request service time.
+Client TX submission and receive polling can overlap server execution, so retain
+them as nested diagnostics rather than adding them again. An unattributed gap
+is not evidence of kernel scheduling, network delay or handler work by itself.
+Component medians do not sum to a median total. Waterfalls use an actual request
+selected by a stated rule, such as nearest median RTT. Preserve tails and full
+observed ranges; a sample maximum is not a bound on future latency.
+
+## Runtime and workload boundaries
+
+[Runtime tracing](../development/runtime-tracing.md) defines probe builds,
+buffered export, request ownership and CPU identities. Borrowed RX returns a
+view: payload reads occur during decode/application access, unlike older copied
+RX captures. Record which boundary the deployed runtime implements.
+
+Deferred handler active time sums scheduled fiber intervals; handler wall time
+also contains waits. Neither establishes CPU utilization across OS preemption.
+Forwarded and deferred spans overlap. The legacy inline latency analyzer accepts
+only inline rows with unique application IDs and equal RX/TX CPUs; it is not a
+general nested or multi-service correlator.
+
+For cold activation, distinguish a requested worker pool from observed active
+workers. Fully drain eviction traffic, require a fresh activation for every cold
+request, and retain actual worker/CPU distribution. Readiness-versus-arrival
+classification using an inferred clock fit needs an explicit ambiguity margin;
+that margin is not a proven clock-error bound. Kernel activation and inter-packet
+gap partitions refine already measured intervals and must not be added to RTT.
+See [activation and IPG capture](../development/runtime-tracing.md#activation-and-inter-packet-gaps).
+
+## Historical measurements and comparability
+
+Older socket-client `clnt_call()` measurements include client RPC/XDR, kernel,
+NIC and network work. DPDK observations use their recorded preparation, transmit,
+receive-observation and validation boundaries; use the campaign's exact endpoint.
+Historical FPGA `RxCmacEntry` → `TxCmacExit` intervals differ from current Tofino
+MAC intervals. Their external residual is client RTT minus the matched FPGA
+interval, combining client/NIC/network and unobserved boundary costs. It is not a
+constant to subtract from new measurements.
+
+[Hardware tracing](../hardware/tracing.md) defines FPGA markers, bounded joins,
+legacy recorder bias and conditional CPU/FPGA clock alignment. Half of a measured
+ECI forward/ack RTT is a symmetry assumption, not a calibrated one-way delay.
+Use same-clock comparisons where possible. A whole-revision comparison does not
+isolate a single source change; the [hot-path analysis](hot-path-performance.md)
+keeps the source and measured regression evidence together.
+
+Superseded campaigns remain reproducible from their tracked data and Git
+revisions. Their old boundaries must not be relabelled as acceptance of the
+current echo contract. [Paper chart production](../development/paper-charts.md)
+and the [chart inventory](../../tools/paper/charts.json) distinguish included
+figures from planned replacements.

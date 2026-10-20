@@ -61,7 +61,7 @@ same two requests as the paper's median-case bar (IDs 2298 and 2306): **4.145 µ
 MAC-to-MAC**, including **2.225 µs CPU–MAC**. These are averages of the component
 vectors of the two central requests, not independent component medians. See the
 [tracked data, provenance and reproduction](../../data/paper/nullrpc/breakdown/README.md)
-and [transport timestamp limitations](latency-measurement.md).
+and [transport timestamp limitations](../hardware/tracing.md).
 Tracing/probe overhead remains included.
 
 | CPU–MAC contribution | Mean time (ns) |
@@ -416,3 +416,140 @@ retain raw counter validation and accepted statistics. The
 uses the exact pre-PMU binaries and explicit branch assumptions independently
 of the unreliable retired-instruction event. It does not replace cycle or
 cache measurement.
+
+## Contiguous-layout regression analysis — October 10
+
+This historical comparison motivates optimization; it is not the active echo
+baseline. It compares 1,000 hot kernel-off add/null-RPC requests per revision:
+516232 with corrected module and buffered runtime versus inline-TX software
+`8a1521ee` on unchanged 518689 hardware `45cbfe52`. Runtime probes and FPGA
+recording were enabled. The latter cohort comes from 4,000 measured requests
+plus 32 warmups; every measured TX has one control forward/ack and no overflow
+invalidation. [Report](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json)
+and [reproduction inputs](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010-inputs/README.md)
+retain artifacts and complete distributions. These old recorders retain the
+[legacy timestamp and CDC limitations](../hardware/tracing.md#timestamp-capture-point-and-legacy-queue-bias).
+
+The intermediate maximum-capacity reservation forced overflow for an eight-byte
+reply. Exact-size inline reservation reduced hot RTT from 14.350 to 12.760 µs
+and MAC median from 5.670 to 4.165 µs. TX invalidation median fell from 1,945 to
+955 ns. This sequential software comparison does not assign all savings to a
+single operation. The earlier 516232 MAC median was 3.700 µs; the analysis below
+localizes the remaining difference. No timing closure is established.
+
+### FPGA localization
+
+The [FPGA-only comparison](../../data/eci/board-evidence/nullrpc-hardware-regression-20261010/summary.json)
+rejoins all **1,000 hot kernel-off requests from each revision** to the actual
+DCS control messages, using each capture's own map. No CPU epoch fit is used.
+Every request conserves its MAC interval. Mean MAC latency rises **464.830 ns**:
+**62.985 ns outside host turnaround**, and **401.845 ns between the DCS RX
+response and returning TX request**. Thus most of the remaining regression is
+not in the measured FPGA packet-processing intervals. The latter interval still
+contains CPU execution and ECI transit; it is not a pure CPU measurement.
+
+| FPGA-clock interval | Old median (ns) | New median (ns) | Mean delta (ns) |
+| --- | ---: | ---: | ---: |
+| RX MAC → internal descriptor | 215 | 215 | −1.020 |
+| Descriptor → DCS RX response | 275 | 290 | +10.450 |
+| DCS RX response → DCS TX request (host/link turnaround) | 1880 | 2285 | +401.845 |
+| DCS TX request → internal commit | 205 | 215 | +10.030 |
+| Commit → control invalidation complete | 950 | 955 | +4.750 |
+| Invalidation complete → TX submission | 15 | 45 | +29.840 |
+| TX submission → MAC | 155 | 165 | +8.935 |
+
+Means provide the additive comparison; independently computed medians do not.
+The source/trace findings are:
+
+- **RX prefix assembly:** the old metadata-only short RPC took `readPktBuf →
+  sendDummyData`; the contiguous implementation takes `readPktBuf → readBody →
+  nextBody → sendPktData`. Its extra two FSM states are in
+  [DcsRxAxiRouter](../../hw/src/lauberhorn/host/eci/DcsRxAxiRouter.scala).
+  The app-side response interval rises 175 → 190 ns at the median; the measured
+  app/sys crossing interval partly offsets this in the mean.
+- **Inline restore:** [DcsTxAxiRouter](../../hw/src/lauberhorn/host/eci/DcsTxAxiRouter.scala)
+  now runs `inlineCmd/inlineData/inlineResp` after invalidation and gates
+  `txDesc.valid` with `!inlinePending`. Restoring the saved inline bytes gives
+  them priority over overflow aliases. This accounts for the clear **30 ns**
+  completion-to-submit increase; it is not an overflow CL invalidation.
+- **Short replies now traverse packet DMA:** old `EciHostTxCtrlInfo.unpackTo`
+  supplied the eight bytes in metadata with `buffer.size = 0`; the new version
+  sets `buffer.size = len`. The trace confirms `DmaLength=0 / TxNoDmaRead` before,
+  versus `DmaLength=8 / TxAfterDmaRead` now. RPC payload handling and UDP metadata/
+  payload arbitration also changed. Their net submission-to-MAC increase is
+  about **9 ns mean / 10 ns median**, not a separately additive DMA-roundtrip cost.
+- **Small DCS ingress increase:** source-delay-corrected app/sys joins place
+  almost all of its +10 ns after app-side request acceptance. A bounded DCS
+  state check shows the same `R12`, `s1__3pRA3`, `RDD` action in both revisions;
+  sys request-to-RDD is 125 ns in both representative requests, then RDD-to-commit
+  grows 80 → 90 ns. No corresponding added state was found in the unchanged
+  interface routing or the endpoint read FSM. Its exact two-cycle root cause
+  remains unresolved; the trace localizes it rather than proving a source cause.
+
+The forward/ack median is **245 ns in both**. Representative requests have no
+additional ECI request between RX response and TX doorbell. This rules out an
+extra CL operation in those examples, but does not turn the 402 ns host/link
+interval into a calibrated CPU-only difference. The old 3.700 µs and new 4.165 µs
+MAC medians remain valid. No board reset, new measurement, hardware change or
+timing optimization was performed for this analysis.
+
+### CPU localization
+
+The [CPU-side comparison](../../data/eci/board-evidence/nullrpc-software-regression-20261010/summary.json)
+uses the same 1,000 measured hot kernel-off requests per revision. Raw CPU
+intervals from RX-read unblock to TX entry increase **356.930 ns**, directly
+accounting for most of the **401.845 ns** FPGA-observed host-turnaround growth.
+There is no CPU/FPGA clock fit in this subtraction. All eight adjacent CPU
+intervals conserve the CPU interval for every request.
+
+| Raw CPU interval | Old mean (ns) | New mean (ns) | Increase (ns) |
+| --- | ---: | ---: | ---: |
+| RX unpack after read unblock | 150.69 | 145.17 | −5.52 |
+| RX return → unmarshal entry | 291.12 | 362.27 | +71.15 |
+| Unmarshal | 295.72 | 304.53 | +8.81 |
+| Unmarshal exit → handler entry | 83.83 | 97.36 | +13.53 |
+| Handler-labelled interval | 189.63 | 245.64 | +56.01 |
+| Handler exit → marshal entry | 121.01 | 130.47 | +9.46 |
+| Marshal-labelled interval | 197.68 | 392.95 | +195.27 |
+| Marshal exit → TX entry | 134.43 | 142.65 | +8.22 |
+| **RX unblock → TX entry** | **1464.11** | **1821.04** | **+356.93** |
+
+Source and deployed AArch64 assembly identify substantial additional work:
+
+- **Marshalling now traverses the response twice.** `xdr_response_capacity()`
+  calls `xdr_sizeof`, then `xdr_marshal_resp()` encodes it. The marshal probes
+  also now enclose `core_eci_tx_get_buffer`, including its control-bit write and
+  `dmb sy`. The old code encoded directly into an already available staging
+  buffer. The measured +195 ns belongs to this whole interval; it is not an
+  isolated measurement of `xdr_sizeof`, and some work moved from the TX stage.
+- **Request setup copies much more tracing state.** `rpc_handle_call` zeroes
+  672 bytes instead of 288; the trace copy grows from 224 to 608 bytes and
+  changes from inline vector loads/stores to a `memcpy` call. The new row carries
+  eleven 32-byte PMU snapshots even though every measured row has `pmu_mode=0`
+  and `pmu_mask=0`. This extra setup lies in the +71 ns pre-unmarshal interval.
+- **The handler label includes added instrumentation.** The benchmark handler
+  source is unchanged. The runtime now calls
+  `server_trace_event(LH_TRACE_ENTRY_RETURN)` before the handler-exit timestamp,
+  even with event output disabled; the early-return call/check still executes.
+  Stage timestamps now pass through `server_trace_stage` PMU checks in mode zero,
+  and entry timestamp stores were added. Therefore the +56 ns is not evidence
+  that the arithmetic handler itself became slower.
+
+The remaining **44.915 ns** is the combined change outside these common CPU
+boundaries: RX response transit/completion/probe tail and TX entry-to-doorbell
+preparation/probe/request transit. The new pre-doorbell clock call is in that
+remainder, alongside savings and work moved out of the old copying TX path.
+The old capture has no pre-doorbell probe, so its individual contributions
+cannot be separated exactly from existing data.
+
+The per-run minimum clock-call calibration changed from 60 to 80 ns. The table
+intentionally uses raw deltas: this calibration does not remove disabled-PMU
+wrapper checks, row copying or the disabled event call, and subtracting it from
+some phases while comparing raw MAC latency would mix accounting conventions.
+These are instrumented runtime results, not tracing-free application latency.
+
+The concrete optimization candidates are a known encoded-size/bound for the
+fixed-size reply (avoiding the extra XDR sizing traversal), compact hot-path
+trace state without unused PMU arrays, and disabled-instrumentation fast paths.
+Exact nanosecond attribution to each candidate still needs an isolated control;
+this analysis neither implements those changes nor claims a new board result.

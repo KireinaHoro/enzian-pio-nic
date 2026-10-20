@@ -69,7 +69,7 @@ validation. Enqueue and receive timestamps are software boundaries. The
 client-software metric sums encoding, enqueue and validation **per request**;
 summarize that sum rather than adding percentiles. Detailed records retain
 warmup and failures, and recording avoids file writes inside the measured RPC.
-The [measurement methodology](../research/latency-measurement.md) defines the
+The [measurement methodology](../research/hot-measurement.md) defines the
 legacy raw/corrected timestamp accounting; the active campaign boundaries are
 specified below.
 
