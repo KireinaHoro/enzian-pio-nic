@@ -7,7 +7,22 @@ follow [AGENTS.md](../AGENTS.md) and the [capture procedure](../docs/development
 Do not substitute vulnerable pipeline 515944 for corrected artifacts. Match
 bitstream, trace map, headers and deployment image.
 
-## Latest observation in this handoff
+## October 18 echo topology observation
+
+The October 18 role-swap record reports: both named roots were released and reacquired
+exclusively through EMG, without cloning or deleting them. zuestoll07 booted
+`lauberhorn-linux-6.8` with CPUs 44–47 isolated; zuestoll14 booted
+`echo-generator32-20261015` with CPUs 16–47 isolated. Both booted kernel
+6.8.0-146 through the shared harness. The initial 07 boot was CPU-only for CX-5;
+Lauberhorn requires matched FPGA programming and normal ECI acceptance.
+The swap and live command-line evidence are in `out/tofino-unloaded-20261018/`.
+No switch capture is implied by this boot verification.
+
+These observations supersede the October 11 topology as a deployment reference,
+not as proof of current reservations or running services. Recheck both machines
+before access; the role-swap record does not establish a later FPGA deployment.
+
+## October 11 recorder acceptance observation
 
 After October 11 pipeline 518922 acceptance, the DUT ran the matched RPC
 service with tracing frozen and the full capture saved. The cold reset ended

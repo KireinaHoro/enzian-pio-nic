@@ -1,6 +1,6 @@
 # Hot echo benchmark campaign
 
-The new workload is defined by `../microbenchmarks/bench.x`: `echo0` is
+The workload is defined by `../microbenchmarks/bench.x`: `echo0` is
 void to void; `echo8`, `echo128` and `echo1432` return fixed opaque application
 bytes. `rpcgen` produces runtime codecs; `echo_registry.py` derives procedure,
 size and codec registration from the same schema. The ONC-RPC XID identifies client
@@ -9,12 +9,14 @@ measurements retain their original semantics and provenance.
 
 ## Baseline selection and launch gates
 
-The selected hot-case systems are Lauberhorn, DPDK on the ConnectX-5 in
+The benchmark configuration selects Lauberhorn, DPDK on the ConnectX-5 in
 zuestoll07, and caladan-simple on that same ConnectX-5. Caladan-simple hot cases
-wait for its port. LH and DPDK use zuestoll07 sequentially (`dut` and `dpdk_dut` both name
+require an accepted port. LH and DPDK use zuestoll07 sequentially (`dut` and `dpdk_dut` both name
 zuestoll07); zuestoll14 is the separate traffic generator. Both DUT links are
-measured at their server-facing leaf0 ports. Never relabel NICVF observations as
-ConnectX-5 results. Long collection requires the validated integration evidence below.
+measured at their server-facing leaf0 ports. These names describe the configured
+topology, not live reservations; verify reservations and placement at preflight.
+Never relabel NICVF observations as ConnectX-5 results. Full collection requires
+the hash-bound real-workload capture acceptance described below.
 
 ## Shared echo server implementation
 
@@ -39,9 +41,10 @@ breakdown totals are Tofino wire-to-wire; breakdowns subtract CPU durations to
 obtain one combined CPU–wire residual. No mlx5 hardware timestamping is used.
 Loaded cases retain uninstrumented client RTT with no packet trace capture.
 
-The active adapter no longer collects FPGA MAC or NIC PTP timestamps.
+Normal acquisition keeps FPGA recording frozen and collects no FPGA MAC or
+NIC PTP timestamps.
 The [mlx5 readiness workflow](mlx5-readiness.md) exercises software stages and
-loaded RTT independently of switch capture. The unloaded adapter now uses
+loaded RTT independently of switch capture. The unloaded adapter uses
 [campaign/tofino.py](../../tools/paper/campaign/tofino.py) to bridge the sibling
 `tofino-hw-timestamping/tools/capture-session.py run` automation. That CLI owns
 staging, arming, readiness, finish, export and pairing; the platform adapter
@@ -51,8 +54,8 @@ through a local generator adapter using `WIRE_CONFIG`, `WIRE_LEDGER` and
 Lauberhorn uses its resident worker. Failed sessions retain the helper's
 `export.json`, `run-status.json` and logs. Recovery is an explicit operation
 through the same helper after confirming the sender stopped. The maintained pairer supplies accepted nominal-ns MAC intervals. Absolute
-calibration is metadata, not a latency veto. Long collection stays blocked
-pending real-workload capture acceptance.
+calibration is metadata, not a latency veto. Full collection requires a passing
+real-workload unloaded rehearsal with matching acceptance hashes.
 
 ### Full unloaded collection
 
@@ -80,7 +83,6 @@ against the DUT. Preserve any existing failure before selecting this mode.
 Resume still checks the campaign's recorded hardware state; fresh mode never
 clears an unsafe resume state. Existing preserved-recorder launches retain
 their live VIO and archive-hash checks.
-
 
 Use controller `scope: "unloaded-rehearsal"` for the bounded switch integration:
 12 cohorts (DPDK then LH, all three sizes, off/breakdown), each with 128 warmups
@@ -124,19 +126,11 @@ Bounded integration trials remain `paper_inputs: false`. On capture or cleanup
 failure preserve the session and recover through the maintained session CLI;
 never signal syncd or reset the switch to clear a capture.
 
-October 18 role-swap verification: both named roots were released and reacquired
-exclusively through EMG, without cloning or deleting them. zuestoll07 boots
-`lauberhorn-linux-6.8` with CPUs 44–47 isolated; zuestoll14 boots
-`echo-generator32-20261015` with CPUs 16–47 isolated. Both booted kernel
-6.8.0-146 through the shared harness. The initial 07 boot is CPU-only for CX-5;
-Lauberhorn still requires matched FPGA programming and normal ECI acceptance.
 The adapter stages `vivado/eci/program_fpga.tcl` from the frozen repository
 revision under a content-hashed filename and passes the configured DUT cable.
 It does not execute programming wrappers embedded in old boot-case manifests.
 Fresh programming initializes the recorder armed; shared trace controls handle
 subsequent freeze and diagnostic preservation.
-The swap and live command-line evidence are in `out/tofino-unloaded-20261018/`.
-No switch capture is implied by this boot verification.
 
 ## Neighbor preparation
 
@@ -222,7 +216,7 @@ toward the 1% cutoff regardless of duplicate error replies. A subsequent valid
 successful reply uses its own RX timestamp and may satisfy the deadline;
 the earlier rejection count is retained. Rejection counters are preserved in
 imported per-trial data for future panel choices.
-Loss is `(transmitted - on_time) / transmitted`. Actual offered load and goodput
+Actual offered load and goodput
 use the fixed measured send interval; warmup is excluded. A generator miss in
 either warmup or measurement invalidates the acquisition.
 
@@ -279,21 +273,10 @@ aggregate-mode observations. Preserve older detailed acquisitions unchanged.
 Changing observation mode requires the existing explicit compatibility review;
 compare representative loaded cohorts before merging their scientific results.
 
-Targeted board validation passed nine 1-second-warmup/1-second-measured cohorts
-(seven DPDK, two LH), with no generator misses, admission failures, malformed
-replies or health/restoration failures. At 6,568,491 RPC/s, the fresh detailed
-control took 358 seconds including import and retained 411 MB; two aggregate
-trials took about 85 seconds and retained 20 KB each. All requests were on time.
-Detailed median/P99 were 72.58/122.55 microseconds; aggregate medians were
-73.25–73.55 and P99s 123.55–125.25 microseconds. These short comparisons establish
-similar behavior and export savings, not statistical equivalence or sustained
-peak capacity. The LH overload check accounted for all 256,292 transmissions as
-176,487 successes plus 79,805 explicit rejections, with a 78.55 microsecond P99,
-matching the earlier detailed P99. Original raw evidence and artifact identities
-remain in `out/echo-redesign/histogram-resolution/`; `comparison-summary.json`
-records the diagnostic scope and the final maximum-XID stride correction.
-Historical detailed rehearsal cohorts remain eligible for explicit reviewed
-reuse; full paper acquisition will use fresh aggregate observations.
+Fresh full-paper acquisitions use aggregate observations. Historical detailed
+rehearsal cohorts require explicit compatibility review before reuse; short
+comparison trials do not establish statistical equivalence or sustained peak
+capacity.
 
 Loaded orchestration reuses its verified frozen recorder state only within the
 same systemd service invocation and exact hardware configuration. The receipt is
@@ -427,6 +410,31 @@ a code compatibility review does not waive those gates. Failed acquisition attem
 without a completed receipt are retried, not promoted to success. A final archive
 includes the recovery history.
 
+### Reviewed artifact transitions
+
+A changed server/generator image or acquisition configuration blocks automatic
+reuse. The agent reviews the actual measurement impact and may explicitly retain
+unaffected passing cohorts; matching historical evidence hashes remain mandatory.
+Use a new root to keep both frozen configurations intact:
+
+```sh
+python3 tools/paper/benchmark_campaign.py inheritance-plan --root NEW_ROOT --config NEW_CONFIG --inherit-reviewed OLD_ROOT > REVIEW.json
+# Complete reason, hashed validation evidence, and reuse/rerun decisions for every receipt.
+python3 tools/paper/benchmark_campaign.py launch --root NEW_ROOT --config NEW_CONFIG --inherit-reviewed OLD_ROOT --inherit-review REVIEW.json
+```
+
+Only loaded/unloaded passing acquisitions can be inherited; preflight, builds,
+validation and plots run again. The source must be stopped, the scope unchanged,
+and every review identity and evidence hash must match. The new root retains
+`inheritance-review.json` alongside unchanged source receipts pointing to their
+original evidence. No failed attempt is promoted or overwritten. Use `--resume`
+only if the new root was already prepared with a reviewed hardware-state file.
+
+Completed `unloaded-full` campaigns can be promoted to `full` through the explicit
+`inheritance-plan` / `--inherit-reviewed` workflow. Review all acquisition receipts
+and retain the matching full unloaded cohorts; regenerate derived stages and
+collect fresh loaded observations. This does not launch another rehearsal.
+
 ## Validation and figures
 
 ```sh
@@ -451,11 +459,7 @@ Unloaded CDF and breakdown use separate cohorts under the
 [wire-to-wire contract](../research/hot-measurement.md). Do not assign
 instrumented components to uninstrumented totals or describe elapsed service
 components as CPU utilization. Legacy MAC importers remain provenance tools;
-they do not satisfy the new wire-duration gates.
-The local service-crash fixture exercised an actual SIGKILL and ExecStopPost
-notification delivery to a file-backed sink. All five plots also passed portable
-synthetic-input rendering, exact PDF dimensions and embedded-font checks. These
-fixtures are excluded from paper inputs and are not board acceptance.
+they do not satisfy the wire-duration gates.
 
 ### Generator isolation and placement transitions
 
@@ -490,28 +494,6 @@ unloaded rehearsal acquisitions, pass `--inherit-unloaded OLD_ROOT
 are checked, with original code/configuration retained in
 `inherited-unloaded.json`. Loaded points are reacquired under the new placement.
 
-
-### Reviewed artifact transitions
-
-A changed server/generator image or acquisition configuration blocks automatic
-reuse. The agent reviews the actual measurement impact and may explicitly retain
-unaffected passing cohorts; matching historical evidence hashes remain mandatory.
-Use a new root to keep both frozen configurations intact:
-
-```sh
-python3 tools/paper/benchmark_campaign.py inheritance-plan --root NEW_ROOT --config NEW_CONFIG --inherit-reviewed OLD_ROOT > REVIEW.json
-# Complete reason, hashed validation evidence, and reuse/rerun decisions for every receipt.
-python3 tools/paper/benchmark_campaign.py launch --root NEW_ROOT --config NEW_CONFIG --inherit-reviewed OLD_ROOT --inherit-review REVIEW.json
-```
-
-Only loaded/unloaded passing acquisitions can be inherited; preflight, builds,
-validation and plots run again. The source must be stopped, the scope unchanged,
-and every review identity and evidence hash must match. The new root retains
-`inheritance-review.json` alongside unchanged source receipts pointing to their
-original evidence. No failed attempt is promoted or overwritten. Use `--resume`
-only if the new root was already prepared with a reviewed hardware-state file.
-
-
 Low-load points may leave some configured workers idle: Lauberhorn allocates
 additional workers as queued demand rises. Activity slots with no observed call
 retain zero CPU/TID sentinels; they are not evidence of execution on CPU 0.
@@ -525,8 +507,3 @@ Plotting and controller source hashes are provenance only, not execution or resu
 gates. Raw evidence and acquisition artifacts remain checked. Controller edits
 require restarting its Python process; plot edits apply to the next plot stage.
 Validated progress PDFs are atomically published to `../paper/plots/`.
-
-Completed `unloaded-full` campaigns can be promoted to `full` through the explicit
-`inheritance-plan` / `--inherit-reviewed` workflow. Review all acquisition receipts
-and retain the matching full unloaded cohorts; regenerate derived stages and
-collect fresh loaded observations. This does not launch another rehearsal.
