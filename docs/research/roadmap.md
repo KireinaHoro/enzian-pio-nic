@@ -35,7 +35,7 @@ for consolidation into master by the October 8 closeout below.
 | 516232 idle activation | Module per-CPU storage corrected at `af0f64fe`; two fresh cold boots passed 200 measured + 32 warmup RPCs. [Diagnosis and correction](../hardware/gsync-worker-reproduction.md#per-cpu-module-correction--october-5). | Preserve the original failure capture; do not describe the board as still frozen by that failure or claim an independently confirmed upstream kernel bug. |
 | GSYNC early NACK | 240 controlled RPCs passed; 160 permission-change GSYNCs, 107 overlapping one/two fully observed peer holds. Hold-dependent millisecond stalls disappeared. [Board evidence](../hardware/gsync-worker-reproduction.md#corrected-module-early-nack-measurement--october-5). | Three simultaneously stalled peers and arbitrary-interrupt tail guarantees remain untested by this campaign. |
 | Hot/cold benchmark | Cross-built Nix DPDK client, buffered runtime/kernel tracing, 1,000 requests per hot/cold × kernel-tracing on/off cohort; all 4,000 measured RPCs passed. Kernel-off median RTT: 12.24 us hot, 43.36 us cold. [Breakdowns, percentiles and figures](latency-measurement.md#corrected-module-516232-comparison--october-5). | One measured thread plus a separate four-thread flush domain is not four measured workers concurrently. Kernel tracing adds measured overhead; residual latency is not all wire time. |
-| Hot CPU work | Cache-refill campaign and exact-binary selected-path instruction audit complete. [Static counts](../development/hot-static-instructions.md): 1,865 instructions per nominal untraced iteration, 3,434 with buffered tracing. | Retired-instruction PMU counter was unreliable; static counts exclude rare retries/interrupts and do not measure cycles. |
+| Hot CPU work | Cache-refill campaign and exact-binary selected-path instruction audit complete. [Static counts](hot-path-performance.md#historical-exact-binary-instruction-baseline--october-5): 1,865 instructions per nominal untraced iteration, 3,434 with buffered tracing. | Retired-instruction PMU counter was unreliable; static counts exclude rare retries/interrupts and do not measure cycles. |
 | TX latency | 516232 TX hardware median 0.950 us, unchanged from 516112. | This comparison is not a controlled R12-versus-RA3 experiment and establishes no new TX reduction. |
 | Timing | Latest tested 516232 report: WNS −0.102 ns, 893 failing setup endpoints. | Timing closure remains open; optimization remains paused. |
 
@@ -286,7 +286,7 @@ commands/status and responses carried by intentionally dirtying an RX CL.
 This is an experiment to establish benefit, not a prerequisite for the address
 or DESCHED work and not a selected replacement protocol.
 
-- Investigate [software hot-path costs](../hardware/rx-writeback.md#software-investigation-stub)
+- Investigate [software instructions and cache-line layout](hot-path-performance.md#software-and-cache-line-layout-questions)
   alongside this study, using the current contiguous borrowed-RX/replay layout
   and ownership contract. Separate copies, codecs, allocation and runtime work;
   deferred arguments/results still need owned storage.

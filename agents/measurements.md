@@ -144,3 +144,22 @@ These are recorded October 4 results, not tests run during the documentation
 scrub. No FPGA was programmed for client validation. Full historical record:
 `e7820314:docs/development/dpdk-benchmark-results.md`. The obsolete server-side
 2F2F comparison plan is not part of generator validation or a new campaign task.
+
+## Hot-path instruction and layout analysis continuation
+
+The maintainer promoted the static instruction audit into
+[hot-path performance analysis](../docs/research/hot-path-performance.md), with
+future optimization of exact instruction counts and hardware/software cache-line
+layout. Establish a current exact-binary baseline before attributing savings;
+the October 5 `7bc9302b` add counts do not describe the current echo workload or
+transport. Keep hardware cycle/layout proposals connected to the software ledger.
+This documentation change launches no builds or board campaign; timing work
+remains subject to its existing pause.
+
+The historical audit passed both complete selected-path manifests and four
+counter tests. Its read-only cross-built resolver probe used the same Nix glibc;
+an initial Ubuntu-libc Python probe was rejected for libc selection, retaining
+only its public vDSO. No traffic or reset was performed for that probe. Evidence:
+`out/static-hot-count/`, shared `/scratch/pengxu/static-hot-count/`, and the
+[summary](../data/eci/board-evidence/hot-static-516232-summary.json). Full original
+record: `9ece0489:docs/development/hot-static-instructions.md`.

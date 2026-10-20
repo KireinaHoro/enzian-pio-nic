@@ -1,4 +1,60 @@
-# Static hot RPC instruction count — October 5
+# Hot-path performance analysis
+
+This topic connects executed software instructions with the hardware/software
+cache-line layout and coherence work needed for a hot RPC. The optimization
+objectives are fewer instructions on defined paths and less transport work,
+while preserving request semantics, ownership, isolation and progress.
+Instruction counts, CPU time and end-to-end latency are separate outcomes.
+
+## Analysis scope and comparison method
+
+The [current transport layout](../hardware/architecture.md#eci-protocol-and-routing)
+and [runtime ownership contract](../software/runtime.md#request-and-transport-ownership)
+define the implementation being optimized. The historical audit below is an
+exact-binary reference for one successful inline `add` path. It predates the
+current transport and active schema-defined echo workload; its counts must not
+be presented as counts for the current runtime or echo cases.
+
+For each comparison, pin the application/runtime/library binaries, compiler
+options, generated ABI, hardware revision, workload and instrumentation mode.
+Audit selected executed branches and callees, including PLT/TLS and library
+paths. Record assumptions and separately count success, NACK, overflow, deferred
+and exceptional paths where relevant. Compare matching boundaries: complete
+worker iteration, RX-to-TX, and RX-unblock-to-TX-doorbell. Retain an ordered
+instruction ledger so attribution changes cannot masquerade as savings.
+
+Evaluate instruction reductions alongside CPU durations, latency distributions,
+throughput and coherence traffic. A blocking load is one instruction regardless
+of its wait; fewer instructions alone do not establish lower RPC latency. Use
+[hot measurement methodology](hot-measurement.md) for current wire/client
+boundaries and [benchmark campaigns](../development/benchmark-campaign.md) for
+matched workloads and instrumentation.
+
+## Software and cache-line layout questions
+
+| Area | Question to resolve | Evidence needed for a candidate |
+| --- | --- | --- |
+| Dispatch and codecs | Which instructions implement required semantics, and which come from allocation, generic dispatch, copying or tracing? | Per-callee counts with identical workload and compiler options; separate pure XDR from surrounding runtime work. |
+| Descriptor access | Can field placement, alignment or hardware byte-order conversion reduce host loads, stores and shifts? | Generated layout and disassembly comparison; matched RTL, headers and runtime; preserved wire and host field semantics. |
+| Payload placement | Can inline/overflow placement and direct encoding reduce copies and cache-line accesses? | Both parities, boundary sizes, byte strobes, mutable RX replay and deferred-data ownership checks. |
+| Coherence exchange | Can a layout or protocol change reduce doorbells, returned bytes or invalidations without introducing a dependency cycle? | Per-RPC transaction/cycle accounting and progress/isolation checks, followed by matched performance measurements. |
+
+The current transport uses 128-byte coherence lines with a 64-byte payload half
+for complete small messages and contiguous overflow storage for larger ones.
+RX replay preserves parser mutations; borrowed payloads cannot survive the next
+receive, yield or reassignment. Keep those ownership rules explicit when comparing
+layouts. Generated descriptors, kernel mappings, runtime accesses and FPGA
+interpretation must change together; do not optimize one side against an
+unmatched ABI.
+
+The [hardware path analysis](../hardware/rx-writeback.md) covers coherence and
+writeback stages, cycle-accounting methodology and the proposed coupled RX-return
+response path. That proposal is not the selected ABI. Its independent-response
+service, message identity and large-response fallback questions remain decision
+criteria. Analyze instruction savings and protocol savings together without
+counting either as a measured gain before a matched comparison.
+
+## Historical exact-binary instruction baseline — October 5
 
 For the successful inline `add` path, the pre-PMU deployed AArch64 binaries
 execute **1,865 instructions with runtime tracing disabled**, or **3,434 with
@@ -33,7 +89,7 @@ same boundaries as the timestamp latency chart. In particular the trace-helper
 row is not the complete cost of all tracing-related instructions: inlined
 record copying and call-site setup remain in their callers' rows.
 
-## Latency-relevant boundaries
+### Latency-relevant boundaries
 
 | Inclusive boundary, unless stated otherwise | Trace disabled | Trace enabled |
 | --- | ---: | ---: |
@@ -65,7 +121,7 @@ not the kernel, on the selected fast path. Return-register clearing, stack
 canary checks, frame operations, barriers, PLT stubs and TLS descriptor callbacks
 are all counted. No claim of instruction/cycle equivalence follows.
 
-## Branch selection and limits
+### Branch selection and limits
 
 The workload determines the application/runtime branches:
 
@@ -91,15 +147,13 @@ retries, the once-per-second timeout sweep, NACK-only iterations, interrupts,
 faults and allocator initialization are outside this nominal successful RPC.
 They must not be assigned these counts without selecting their own paths.
 
-A cross-compiled read-only probe run through the board harness verified the
-**same Nix glibc** selects `memcpy` at ELF offset `0xb1800`, `memset` at
-`0xb2240`, DCZID=5, and has registered rseq. The generic 288-byte zeroing path
-runs four 64-byte loop iterations for its stack alignment. An initial Python
-probe used Ubuntu libc and was explicitly discarded for libc selection; only
-its public vDSO ELF was retained. No compiler was deployed to the board, no
-traffic was run and hardware state was not reset.
+The pinned library path uses Nix glibc `memcpy` at ELF offset `0xb1800`,
+`memset` at `0xb2240`, DCZID=5 and registered rseq. The selected 288-byte zeroing
+path executes four 64-byte loop iterations for its stack alignment. Resolver
+observations are retained in the linked summary; a different libc or resolver
+selection requires a new path audit.
 
-## Reproduction and validation
+### Reproduce the historical count
 
 The inputs are the exact baseline app (SHA256 `9a74fff6…`), runtime from
 `7bc9302b` (`d4cd4ed5…`, before PMU instrumentation), mapped libtirpc and Nix
@@ -128,8 +182,7 @@ python3 -m unittest discover -s tools/enzian -p test_static_path_count.py
 Repeat with the `-untraced.json` manifest for the disabled variant. The tool
 checks input hashes, validates every selected control-flow edge, requires every
 executed call to be resolved, and emits an ordered instruction ledger plus
-branch decisions. Both complete manifests passed this audit; four focused
-counter tests passed. The selected-path audit cannot prove its predicates from
-machine state; those are justified above rather than silently inferred by the
-tool. This completes the static-count substitute for the unreliable
-[PMU retired-instruction measurement](pmu-profiling.md#instruction-counter-blocker).
+branch decisions. The selected-path audit cannot prove its predicates from
+machine state; those assumptions are explicit above. The
+[PMU retired-instruction blocker](../development/pmu-profiling.md#instruction-counter-blocker)
+explains why this baseline uses static selected-path counts.

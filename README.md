@@ -23,6 +23,7 @@ Start with the [system map](docs/architecture/overview.md).
 - [Linux scheduling](docs/software/scheduler.md)
 - [Runtime](docs/software/runtime.md) and [application programming model](docs/software/programming-model.md)
 - [Research goals](docs/research/paper-goals.md) and [open design questions](docs/research/roadmap.md)
+- [Hot-path performance analysis](docs/research/hot-path-performance.md)
 - [Application and protocol integration](docs/research/grpc-roadmap.md)
 
 Agent instructions and continuation state are in [AGENTS.md](AGENTS.md) and the

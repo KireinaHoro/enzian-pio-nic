@@ -172,6 +172,10 @@ command or response channel.
 
 ## Software investigation (stub)
 
+Use the [hot-path performance analysis](../research/hot-path-performance.md)
+for exact instruction accounting and hardware/software cache-line layout
+comparisons; the observations below retain their measurement scope.
+
 TODO: investigate CPU hot-path work separately from FPGA/link latency. Separate
 pure XDR routines from allocation, dispatch, tracing, transport staging and
 buffer reservation. The current median-case RPC-runtime segment is 1475 ns:
