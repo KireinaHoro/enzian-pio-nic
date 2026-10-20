@@ -20,7 +20,7 @@ Recorded board revisions also failed timing:
 | 516232 | WNS −0.102 ns; 893 failing setup endpoints |
 | 518689 | WNS −0.950 ns |
 
-See [CMAC board evidence](../docs/development/cmac-trace-diagnosis.md#f_mac1-board-validation-september-28)
+See [CMAC board evidence](hardware-state.md#cmac-trace-readout-evidence)
 and the [measurement evidence](measurements.md). Functional acceptance is not
 routed timing closure. Before any authorized resumption, inspect actual refs and
 saved batch results; do not infer current job state from this handoff.

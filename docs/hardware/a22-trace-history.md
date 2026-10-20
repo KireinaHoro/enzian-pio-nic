@@ -37,7 +37,7 @@ Raw-capture hashes match the existing board evidence:
 
 Both maps are byte-identical to the corresponding archived CI hardware maps,
 SHA-256 `705a7fc5f1d16499bf849e2583c5249335fd4001155ca011f387977e99dd64fe`.
-See [board provenance](../development/cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
+See [board provenance](../../agents/hardware-state.md#cmac-trace-readout-evidence).
 No new board run or remote capture was performed. Raw-only historical captures
 without the selected decoded exports were not exhaustively re-decoded; this is
 not a claim about every trace ever collected.

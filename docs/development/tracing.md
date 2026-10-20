@@ -5,11 +5,6 @@ for test selection or the [trace tools README](../../data/eci/sys_trace/README.m
 for exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
 
-The F_MAC1 comparison image `5cda901` passed a matched board test with 300 RPCs
-and three identical full 322,322,624-byte UDP trace reads without retransmission.
-See the [board evidence and limits](cmac-trace-diagnosis.md#f_mac1-board-validation-september-28).
-This is a single-boot validation; routed timing remains open.
-
 ## Default agent capture pipeline
 
 Use the [lauberhorn-trace skill](../../tools/enzian/skills/lauberhorn-trace/SKILL.md)
@@ -315,8 +310,6 @@ remains zuestoll12 `cpu40g1`, `192.168.129.129`.
 Historical F_MAC3 images used `0c:53:31:03:01:d4` / `192.168.129.201` and
 polarity `1100`. Use the address and port for the actual bitstream; do not
 apply old F_MAC3 capture filters or neighbor overrides to an F_MAC1 image.
-The F_MAC1 move is awaiting routed and board validation; earlier successful
-captures in this document were on F_MAC3.
 
 The VIO exposes a six-bit override-valid mask plus the six override values, a
 `dump over network` boolean output, and a `trace stop` boolean output:
@@ -348,8 +341,10 @@ needs to forward traffic on the FPGA-facing network.  The FPGA does not run an
 ARP client for the gateway.
 
 ARP occupies the 42-byte extracted Ethernet/ARP header. Any trailing Ethernet
-padding is discarded before the UDP command aligner. Retaining that padding
-would associate it with the next UDP header and reject a valid read command.
+padding is discarded before the UDP command aligner. ARP replies are zero-padded
+to 60 bytes excluding FCS. The trace response header occupies the high end of
+its stream beat so DMA data follows without an internal `TKEEP` gap; the TX
+aligner removes the leading gap before delivery to CMAC.
 
 The software request format requires 64-byte-aligned offsets and lengths.  A
 single hardware response carries at most 1440 bytes of trace data: 1500-byte
@@ -420,16 +415,11 @@ and indication high, with no AXI register interface. The external peer must
 use compatible FEC. Internal PMA loopback can check the local CMAC/GT path;
 restore `loopback=0` before trying network capture.
 
-### Command-path diagnostics (CMAC investigation branch)
+### Command-path diagnostics
 
-The `fix/cmac-trace-readout` branch adds read-only inputs to `vio_trace_status`.
-They have local simulation/elaboration coverage and board validation. Pipeline
-514053 (`c5be158`) captured one MiB using normal ARP and UDP after fixing short
-ARP replies and a mid-packet TKEEP gap. The first and last four KiB matched
-independent frozen JTAG reads. External link operation is still intermittent;
-FPGA RX alignment alone does not establish a usable link. Check leaf1's
-Ethernet108 / ZS14-FPGA4 status through `python3 ../tofino-hw-timestamping/tools/leaf.py leaf1` before
-capture. See [the CMAC diagnosis](cmac-trace-diagnosis.md#framing-fix-image-udp-capture-validated-link-intermittent).
+Read-only inputs to `vio_trace_status` expose the receive, parser and transmit
+boundaries. FPGA RX alignment alone does not establish a usable external link;
+compare FPGA counter deltas with peer captures and switch-port status.
 Counters wrap modulo 2^32, reset with their owning clock domain, and keep running
 when `trace_stop` freezes DDR writes. Compare deltas around an isolated request;
 VIO reads are not an atomic snapshot. RX/TX domain counters cross to the app
@@ -461,6 +451,29 @@ not certify FCS validity. A frame count that advances without parser progress
 localizes a different failure from a generated response that fails to reach
 CMAC TX or the peer. Switch counters and packet capture remain necessary for
 link and forwarding diagnosis.
+
+For switch inspection, use
+`python3 ../tofino-hw-timestamping/tools/leaf.py leaf1 -- show interfaces status`.
+The helper handles the gateway/agg0/leaf1 SSH chain; credentials remain outside
+this repository. Identify the port for the actual board and bitstream before
+querying counters. On zuestoll14, F_MAC1 maps to Ethernet100 / front-panel 26/0;
+the historical F_MAC3 path maps to Ethernet108 / front-panel 28/0.
+
+SONiC FEC counters reported as N/A are unavailable, not zero. Vendor diagnostics
+are accessible through `docker exec -it syncd /opt/bfn/install/bin/bfshell`,
+then `ucli`, `pm`. For an identified front-panel port, use bounded `show -p`,
+`port-pcs`, `port-ctrs ... fec` and `port-error-get` queries. Compare ordered
+counter deltas when switch and peer clocks differ. Do not clear counters or
+change link settings merely to diagnose a missing response.
+
+A controlled internal near-end PMA loopback can isolate the local stream path.
+Save VIO controls, use a metadata destination IP different from the trace local
+IP to avoid a response loop, and trigger one metadata frame. Expect one frame
+through TX queued, CMAC TX/RX, RX-after-CDC and header counters, no accepted
+command, no overflow and an idle parser. Restore all controls afterward.
+This checks the local stream path; it does not establish external signal
+integrity or DDR-read correctness. Fabric timing margins and legal CMAC/GT
+placement likewise do not establish serial-link health.
 
 The intended offline flow is:
 
