@@ -1,6 +1,6 @@
 # Dandelion student port
 
-See the [registered endpoint and internal-loopback contract](../software/nested-rpc-endpoints.md) for the B2/B6 batch.
+See the [registered endpoint and internal-loopback contract](../software/nested-rpc.md#registered-endpoints).
 
 ## Current disposition — October 8 closeout
 
@@ -172,7 +172,7 @@ selected by Dandelion's composition optimizer. Direct replies from downstream
 to the original client remain unimplemented. The earlier report search below
 records that no student tail-call design was recovered, not a claim that the
 new outcome design is absent. See [programming model](../software/programming-model.md)
-and [blockers](../software/nested-rpc-blockers.md).
+and [remaining transport checks](../../agents/runtime-applications.md#nested-rpc-follow-up).
 
 ## What exists and where
 
@@ -218,7 +218,7 @@ Port/evaluation checklist:
 - Complete reconciliation of the imported runtime with the real descriptors,
   generated headers, packet ownership and core mappings. The import and
   successful single-function probe do not establish nested-path support; see
-  [integration staging](../software/nested-rpc-integration.md).
+  [transport contract](../software/nested-rpc.md).
 - Validate actual 2F2F progress and receive-critical-section release across fiber suspension, nested replies, timeout and shutdown. Mock scheduling fidelity cannot establish DCU/queue-pair safety.
 - Define bounded admission/backpressure: fixed fiber/pending-call pools exhaust, some incoming requests are silently dropped, fiber stacks are fixed at 64 KiB without overflow detection, and cancellation remains unfinished. Service deregistration with in-flight work has undefined semantics; registration operations require external serialization.
 - Extend transport/application support as needed: the report uses small UDP ONC RPC messages, without retransmission, multi-packet framing or ONC RPC authentication. HTTP communication functions were not ported; the wait API currently handles RPC completions. OS/process isolation alone does not establish network authentication or full-system security guarantees.

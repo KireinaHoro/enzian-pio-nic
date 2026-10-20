@@ -1,12 +1,8 @@
-# Nested RPC: implemented hardware and runtime integration plan
+# Nested RPC transport and runtime integration
 
-See the [registered endpoint and internal-loopback contract](nested-rpc-endpoints.md) for the B2/B6 batch.
-
-**Branch status (2026-09-08):** `feat/nested-rpc` imports the student runtime
-for software-build integration. See [staging scope and deferred work](nested-rpc-integration.md).
-Descriptions below of the synchronous master runtime are historical on this branch.
-
-Updated 2026-09-14 on `feat/nested-rpc`. Remote and internal local call/reply RTL, registered endpoints and cookie-directed completion dispatch are implemented. The imported runtime uses cooperative fibers over real ECI. Software builds and RTL simulations are distinct from the pending bundled Enzian acceptance. The September 17 B3 batch adds explicit TX admission status and request outcomes; abnormal-exit recovery and matched-board acceptance remain open. See the [current API](programming-model.md).
+Registered endpoints support remote and internal local ONC-RPC calls. The runtime
+uses cooperative fibers, cookie-directed completions and explicit request outcomes.
+See the [application API](programming-model.md) for ownership and waiting rules.
 
 ## Current source map
 
@@ -30,7 +26,7 @@ The hardware in-flight key is `(xid, remoteAddr, remotePort, localPort)` and its
 
 ## Endianness at the host boundary
 
-Contract updated 2026-10-09 (contiguous ECI payloads). Prefer host-order numeric metadata and perform
+Use host-order numeric metadata and perform
 network conversion in hardware, where byte swaps are wiring. Keep scalar fields
 naturally aligned to avoid split accesses even though Mackerel supports them.
 Mackerel describes storage positions; the ECI pack/unpack RTL owns RPC byte-order
@@ -46,13 +42,8 @@ conversion. Packet encoders/decoders and their lookup tables remain wire-order.
 | Error RX, common descriptor fields | Valid/type/length are packed host bitfields contained in one 32-bit access. No network conversion. |
 | Worker activation snapshot | Domain lifetime, scheduler slot and RX/TX parity are host metadata; no network conversion. Cooperative yield returns the committed assignment without a control cache line. |
 
-Payloads occupy the control CL upper half at byte 64 when RX length or TX
-reservation capacity is <=64, otherwise the region at direction-relative 0x100.
-TX bit 23 records placement independently of actual length. Byte 56 is reserved;
-normal overflow invalidation uses ceil(actual_length/128), or zero for inline
-and descriptor-only sends. Short overflow sends do not relocate.
-The 64-byte descriptor bound, numeric field offsets and worker address map stay
-unchanged. Full-width 16/32/64-bit scalars remain naturally aligned.
+Payload placement, invalidation counts and reservation/commit rules are defined
+in the [hardware/software cache-line interface](../architecture/hw-sw-interface.md).
 
 | Control registers exposed through ECI | Convention |
 | --- | --- |
@@ -67,96 +58,118 @@ numeric endpoint fields and cookie/XID directly. Futures and pending-call lookup
 remain host-order. XDR payload bytes remain the codec's concern; ECI does not
 interpret or swap application payloads.
 
-This is an incompatible hardware/software ABI change, including RPC XID
-semantics and nested field offsets. Deploy regenerated headers, kernel/runtime
-and a new FPGA checkpoint together; checkpoint 2812450 predates this contract.
-B1 validation/status is tracked in the [blocker queue](nested-rpc-blockers.md).
+Deploy matching generated headers, kernel/runtime and FPGA artifacts. Descriptor
+field offsets and numeric byte order are part of that shared ABI.
 
-## Outstanding acceptance and resource contract
+## Registered endpoints
 
-See [TX completion extension uses and boundaries](../proposals/tx-completion.md) for
-TCP command results, software spill/retry, a future protobuf encoder, and the
-distinction between local consumption and downstream completion.
+Call `lauberhorn_rpc_endpoint_init(ctx, ep)` before creating workers and
+`lauberhorn_rpc_endpoint_destroy(ctx, ep)` after joining them. Both return zero
+or minus one with `errno`. Existing configuration fields and outgoing-call
+signatures are retained; appended private transport state must start at zero.
+Duplicate initialization returns `EALREADY`; destruction of an uninitialized
+endpoint succeeds. Registered endpoints must not be copied or mutated. Keep the
+endpoint, context, address and codec storage alive until destruction succeeds.
+Control operations and worker creation/join require external serialization.
+Retain codec storage until all returned results using that codec are freed,
+even when the associated call has completed.
 
-The September 17 implementation reserves nested routing state in
-`DmaControlPlugin` before DMA/encoding. `OncRpcReplyDecoder` serializes admission
-against retirement and rejects a new call when no free slot exists. Exact
-retransmissions preserve their reservation; a different owner/cookie cannot
-replace it. The TX doorbell returns accepted/consumed (1), rejected before
-reservation (2), or DMA error (3). `core_eci_tx` returns this result to the
-runtime. Rejection releases the software operation; DMA uncertainty does not
-prove retirement. Acknowledgements survive voluntary cache eviction/reload.
+Initialization validates/caches the IPv4 address and uses a fixed-width padded
+control ioctl to reserve a Linux UDP socket without reuse and an FPGA reply
+listener. The kernel derives the hardware PID from the open device context,
+rejecting identities that do not fit the generated PID width. A hardware PID is
+a process identity, not a NIC datapath or a Linux CPU ID. Handles belong to the
+open file context; another process cannot use its control operations.
 
-Incoming admission now uses [opaque reply contexts](reply-contexts.md), reserving
-a slot before host dispatch. Full capacity generates a best-effort hardware
-`SYSTEM_ERR`, never an overwrite; replies retire their contexts. A bounded
-rejection queue drops excess error replies rather than blocking RX progress.
-Matched-hardware overload validation and general shutdown/timeout retirement
-remain open.
+The current NIC is restricted to the initial network namespace. Registration
+from another namespace returns `EXDEV`. Endpoint source ports are selected from
+49152–65535, skipping Linux bindings, registered FPGA services and endpoint
+reservations. Service and endpoint table writes are serialized, capacity is
+checked before installation, and partial registration failures are unwound.
 
-The broader original proposal remains useful for future extensions: validity,
-code, optional detail/cookie and results for invalid, unsupported, route or
-neighbor failures. The implemented three-code acknowledgement does not provide
-all those results. Acceptance/source-buffer consumption is distinct from wire
-transmission, downstream success and peer receipt. Never hold the only worker
-able to make progress while synchronously waiting for a remote response.
+## Completion and lifetime
 
-## Runtime integration model
+The cookie is a protocol-independent pending-slot/generation token. ONC-RPC XID
+initially has the same numeric value, but is separately checked after locating
+the slot by cookie. A slot is retired before its 16-bit generation wraps;
+exhaustion returns `EAGAIN`. Numeric descriptor fields remain host-order; ECI converts
+wire fields as specified in the [boundary contract](#endianness-at-the-host-boundary).
+Sending uses cached PID, source port and address, without control ioctls.
 
-Use `../sven-dandelion/platform/sw/rt/` and its report as the located student reference; the old note's `sven-standalone-runtime` absolute path is not the reference audited here. See [Dandelion](../research/dandelion.md) for exact files and limitations.
+Destruction returns `EBUSY` while workers or unresolved calls remain. A software
+timeout alone does not prove hardware retirement: timeout/cancellation uses an
+acknowledged PID/cookie retirement command before releasing its reservation.
+Failed retirement retains unresolved ownership. Device close fences the domain;
+unresolved resources and endpoint identities remain retained until coherence
+reset. It is not a successful drain/reclaim operation. See the
+[scheduler failure boundary](scheduler.md#failure-and-reset-boundary).
 
-The intended two scheduling layers are NIC/Linux placement of worker threads and userspace scheduling of handler fibers. A nested-capable handler submits a call, then yields when awaiting a reply. The worker executes other ready fibers or receives another host message. A reply completion is routed to the process and the runtime resolves its cookie/XID to a waiting continuation. No original-core route is required by the proposed PID-directed contract; migrating continuations still requires explicit TLS, stack and ownership rules.
+## Admission and TX completion
 
-Run-to-finish is the confirmed task policy. A nested await is a cooperative fiber suspension, not arbitrary timer preemption of handler computation. If every permitted worker is running non-yielding computation, completions queue. Worker CPUs remain isolated from ordinary Linux tasks. The [B4 design](scheduler.md#failure-and-reset-boundary) separates mandatory critical-section recovery from optional whole-application execution monitoring; matching-board acceptance remains open.
+`DmaControlPlugin` reserves nested routing state before DMA/encoding.
+`OncRpcReplyDecoder` serializes admission against retirement and rejects a new
+call when no free slot exists. Exact retransmissions preserve their reservation;
+a different owner/cookie cannot replace it. The default outgoing table has
+16 entries. The TX doorbell returns accepted/consumed (1), rejected before DMA
+(2), or general error (3), including invalid descriptors and DMA failures.
+See [TX completion status](../architecture/hw-sw-interface.md#tx-completion-status)
+for buffer ownership and retry boundaries. DMA uncertainty does not prove
+retirement. Acknowledgements survive voluntary cache eviction/reload.
 
-The current [public API](programming-model.md) uses registered endpoints,
-futures and explicit `REPLY/FAIL/DEFER/FORWARD` outcomes. Incoming dispatch starts
-inline; only an explicit handoff reserves a fiber. A cookie identifies the
-software operation; XID is separately verified and does not replace hardware
-tuple routing. Public arbitrary nested callbacks are removed. Forwarding relays
-replies locally without retaining the parent fiber; direct downstream-to-client
-reply routing is not implemented.
+Incoming admission uses [opaque reply contexts](reply-contexts.md), reserving a
+slot before host dispatch. Full capacity generates a best-effort hardware
+`SYSTEM_ERR`; a bounded rejection queue drops excess error replies rather than
+blocking RX progress. Source-buffer consumption is distinct from wire
+transmission, downstream success and peer receipt. Proposed richer operation
+results belong to [TX completion extensions](../proposals/tx-completion.md).
 
-Remaining work includes matched-hardware admission/cancellation validation,
-shutdown, abnormal-exit recovery and multi-process overload validation. Endpoint
-timeouts/cancellation now use an acknowledged PID/cookie retirement control
-command; failed retirement still retains reservations for process cleanup.
-[Service-owned events/timers and resident applications](../proposals/service-execution.md)
-are documented follow-ons only, intentionally not implemented in this batch.
+## Runtime integration
+
+NIC/Linux placement assigns worker threads; userspace schedules handler fibers.
+A nested-capable handler submits a call and cooperatively suspends while awaiting
+its reply. The worker runs other ready fibers or receives another message.
+Completion metadata routes to the process, whose runtime resolves cookie/XID to
+the waiting operation. If every permitted worker is running non-yielding
+computation, completions queue. Worker CPUs remain isolated from ordinary tasks.
+
+The [public API](programming-model.md) defines `REPLY/FAIL/DEFER/FORWARD`.
+Incoming dispatch starts inline; only explicit deferral reserves a fiber.
+Forwarding retains parent reply metadata in a child operation and relays the
+child's reply locally without retaining the parent fiber. Tail calls that reply
+directly from the downstream service to the original client are not implemented
+and are not fully designed.
+
+Parked-domain deadline activation and execution watchdogs are unsupported in the
+current scheduler. Per-call retirement does not imply whole-domain recovery.
+[Service-owned events and timers](../proposals/service-execution.md) are proposals.
 
 ## Internal local RPC
 
 `RpcLocalRoute` intercepts encoded calls and replies before UDP/IP/Ethernet
-construction when the destination matches the NIC IPv4 address. Separate
+construction when the destination matches the NIC IPv4 address. Separate bounded
 whole-packet call/reply buffers feed normal UDP listener classification with
-synthesized metadata. Round-robin ingress selection retains payload and dispatch
-acknowledgment association. `LocalDelivery` trace events on each RPC encoder
-distinguish this path from CMAC traffic. Unsupported services follow normal
-classification; there is no switch-reflection fallback.
+synthesized metadata. Space is reserved before acceptance, and in-flight
+installation finishes before the request becomes visible. Round-robin ingress
+selection retains metadata, payload and dispatch acknowledgment association.
+`LocalDelivery` trace events on each RPC encoder distinguish this path from CMAC
+traffic. Unsupported services follow normal classification; there is no
+switch-reflection fallback.
 
-The local round-trip simulation covers inline/overflow packets, immediate replies,
-queued calls, mixed external/local ingress, reversed completions and receiver
-backpressure, and asserts that nested traffic does not reach CMAC. Hardware and
-multi-process saturation remain pending; see the [endpoint contract](nested-rpc-endpoints.md).
+[Dandelion](../research/dandelion.md) uses this path for compositions. Its
+application integration and [measurements](../research/dandelion-measurement.md)
+are separate from the generic transport contract.
 
-## Validation and next steps
+## Validation
 
-`hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala` registers
-`nested-rpc-call-tx-descriptor`, `nested-rpc-reply-rx` and
-`nested-rpc-local-roundtrip`. The remote RX case seeds CSRs; the local case
-installs routing through the normal call encoder and reply-session decoder.
-These simulations do not establish actual Linux/ECI runtime progress.
+`hw/test/src/lauberhorn/host/eci/OncRpcNestedSim.scala` contains descriptor TX,
+reply RX and local-roundtrip cases. Coverage includes inline/overflow payloads,
+asymmetric fields, immediate/reversed completions, mixed external/local ingress,
+receiver backpressure and absence of nested CMAC output. Native runtime tests
+exercise endpoint ownership/rollback, stale cookies, XID checks, outcomes and
+bounded resource exhaustion. Kernel fault-injection shims do not establish
+real socket or board behavior.
 
-Retain these acceptance tests from the original plan when implementing missing work:
-
-- Inline-only and overflow calls: packet bytes, lengths and skipped/required DMA reads.
-- Automatic in-flight installation and reply retirement; mismatched XID/address/ports; simultaneous reused XIDs across tuples.
-- Table-full rejection before network emission; status response; release and successful retry.
-- Mixed server calls and completions for one PID; one-worker handler that submits, yields, receives, resumes and replies.
-- Completion cleanup under timeout, duplicate replies, process exit and resource exhaustion.
-- Local call/reply with no external traffic after short-circuit is implemented.
-
-Next run the bundled matched-artifact hardware campaign, keeping overload,
-shutdown and cancellation gaps explicit. Dandelion fixture builds and local RTL
-round trips do not establish composition support on Enzian. The confirmed
-application portfolio remains in [paper goals](../research/paper-goals.md).
+Use the [validation guide](../development/validation.md) for builds and board
+orchestration. [Historical nested-RPC evidence](../../agents/runtime-applications.md#historical-bundled-nested-rpc-validation)
+records the tested revisions and finite coverage; old shutdown/reuse results do
+not establish recovery for the current cooperative ECI implementation.

@@ -44,8 +44,8 @@ sent by the second Enzian. A successful build is not a passing hardware test.
 Endpoint teardown requires joined workers and no unresolved requests. Failed
 teardown retains Rust storage; the kernel disables and quarantines the listener
 on close. B4 shutdown/cancellation/reset recovery remains open. See the
-[endpoint contract](../../../docs/software/nested-rpc-endpoints.md) and
-[blocker queue](../../../docs/software/nested-rpc-blockers.md).
+[endpoint contract](../../../docs/software/nested-rpc.md#registered-endpoints) and
+[remaining transport checks](../../../agents/runtime-applications.md#nested-rpc-follow-up).
 
 Set `DANDELION_STATE_DIR` to a dedicated writable function registry directory
 (default `/tmp/dandelion_server`); server cleanup removes that directory. Redirect

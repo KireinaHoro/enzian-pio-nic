@@ -53,7 +53,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 ## Detailed references
 
 - [Packet processing](../hardware/packet-processing.md) and [tracing](../development/tracing.md): source-oriented mechanism detail.
-- [Nested RPC](../software/nested-rpc.md): descriptor/RTL paths; the [runtime](../software/runtime.md) and [endpoint contract](../software/nested-rpc-endpoints.md) describe software integration.
+- [Nested RPC](../software/nested-rpc.md): descriptor/RTL paths; the [runtime](../software/runtime.md) and [endpoint contract](../software/nested-rpc.md#registered-endpoints) describe software integration.
 - [Go toward etcd](../proposals/go-etcd.md): design-only G/M/P/L scheduling, HOST_WORK and native null-RPC stage; no implementation yet.
 - [Dandelion](../research/dandelion.md): native application integration and historical student/mock design. The [measurement report](../research/dandelion-measurement.md) describes bounded Enzian composition results and their limits.
 - [TCP/Protobuf and gRPC roadmap](../proposals/grpc.md): finished external projects and lower-priority integration scope.

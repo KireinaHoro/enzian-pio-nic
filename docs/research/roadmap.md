@@ -62,7 +62,7 @@ and full-system refinement remain open claims. Cold-path Linux scheduler
 optimization and timing optimization remain deferred. Subsequent first-paper
 applications and the [Caladan baseline comparison](caladan-enzian.md) continue, with memcached next; TCP/Protobuf and gRPC
 retain their documented lower priority. Historical nested-runtime results are
-recorded in the [merge disposition](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23),
+recorded in the [merge disposition](../../agents/runtime-applications.md#nested-rpc-follow-up),
 not a substitute for current Dandelion composition acceptance.
 
 ### Completed goal: Dandelion nested-composition waterfall — October 8
@@ -207,9 +207,8 @@ contribution.
 Survey: 2026-09-08, base `b86c68c`. Maintainer priority: Dandelion and other first-paper applications come before TCP/Protobuf integration. Merge the finished protocol projects soon to limit drift; fully offloaded gRPC is a potential later paper. Other ordering below is a survey recommendation, not an approved schedule. Keep unresolved choices explicit; do not implement a proposal merely because it appears here.
 
 The nested RPC integration is approved for master as of 2026-09-23. Its
-[merge disposition and remaining tests](../software/nested-rpc-blockers.md#merge-disposition--2026-09-23)
-record accepted timing limitations, the cross-process late-reply race to test,
-and the startup workflow explanation. The earlier Dandelion validation hold is superseded by the October 8 direction
+[merge disposition and remaining tests](../../agents/runtime-applications.md#nested-rpc-follow-up)
+record the historical campaign scope and the cross-process late-reply race to test. The earlier Dandelion validation hold is superseded by the October 8 direction
 to resume the application on the integrated scheduler/critical-section design.
 
 ## Active coherence verification follow-up — October 2

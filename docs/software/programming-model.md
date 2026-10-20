@@ -61,7 +61,8 @@ wire encodings. Successful child bytes are relayed locally with the original
 parent reply context (hardware retains the wire XID); supported accepted errors propagate, and other failures
 become `SYSTEM_ERR`. No application callback or result
 transformation occurs. This is a supported tail-call ownership pattern, not
-direct downstream-to-original-client routing.
+direct downstream-to-original-client routing. That tail-call protocol is not
+fully designed; see [nested RPC](nested-rpc.md#runtime-integration).
 
 ## Opaque request context
 
@@ -78,7 +79,8 @@ address/port, local endpoint, original XID, or transport/connection information.
 No such application query API is implemented. A UDP peer address or a TCP
 connection reference would identify a transport peer, not a persistent logical
 client; applications needing persistent client identity can carry it in their
-own request protocol. See [reply-context layout and lifecycle](reply-contexts.md).
+own request protocol. See [reply-context layout and lifecycle](reply-contexts.md) and the
+[metadata-query proposal](../proposals/request-context-metadata.md).
 
 ## Nested calls and waiting
 

@@ -10,5 +10,7 @@ implementation or establish acceptance; each proposal states its scope.
 - [TCP/Protobuf integration toward gRPC](grpc.md): follow-on protocol scope.
 - [RX-return response transmission](rx-return-responses.md): coupled response submission and receive.
 
+- [Request-context metadata](request-context-metadata.md): application queries and TCP context extensions.
+
 See [system architecture](../architecture/overview.md) for implemented contracts
 and [paper goals](../research/paper-goals.md) for evaluation objectives.

@@ -224,3 +224,24 @@ The public `sw/include/lauberhorn.h` watchdog comment says a zero limit is
 supported, but `sw/kmod/chrdev.c` rejects every WATCHDOG ioctl with EOPNOTSUPP.
 The human API documentation now follows the kernel. Reconcile that header comment
 in a source-maintenance change; this documentation pass changed no code.
+
+## Nested RPC follow-up
+
+The September 23 nested-runtime merge accepted the bounded historical campaign
+above; it did not establish current cooperative-ECI recovery. Runtime import
+provenance is Sven Glinz's platform `9e2518140ecf4423f0f01b8caded4ad1f708cf62`,
+recorded in `9c3feda`; callbacks were subsequently replaced by managed outcomes.
+The obsolete B1–B6 ledger is available in Git before this documentation migration.
+
+Remaining checks: identical endpoint-port/XID reuse with old replies racing a
+replacement process once lifecycle recovery supports reuse; broader mixed-process
+admission/overload progress; full local-delivery trace correlation; explicit
+in-flight CSR readback. Historical cancellation and quiet-deadline results do not
+establish deadline activation in the current parked-domain implementation.
+Dandelion composition results are recorded in its application measurement topic;
+the old B6 hold is superseded. Timing optimization remains paused.
+
+Resolved descriptor-generator and callback bugs, interim dirty-tree builds and
+old merge checklists are retired to Git history. Original diagnostic evidence
+pointers remain recoverable there (`out/b1/`, `out/b2-b6/`, `out/b3-20260917/`,
+`out/reply-context-20260917/`, `out/merge-20260923/`); no raw evidence was removed.
