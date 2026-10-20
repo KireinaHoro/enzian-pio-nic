@@ -62,7 +62,7 @@ simulated kernel handler. It checks TX rejection without packet emission and
 subsequent healthy activation on the never-installed worker. The software
 fault input is deliberate: the existing coherent CPU simulator aborts on
 DECERR, unlike production DCS. The separate ingress test checks the actual
-rogue-PA path. 
+rogue-PA path.
 
 ## Recorded bounded results — October 3, 2026
 

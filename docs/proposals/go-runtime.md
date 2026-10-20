@@ -500,7 +500,7 @@ G/M/TID/CPU/P/worker/domain identifiers; compare tracing-on/off cohorts.
 Report demand-to-dispatch distributions separately from admission and assignment
 delay. Set a numerical target after obtaining a baseline; “below a Go quantum”
 is an objective, not an acceptance threshold. Raft/etcd adapters, persistence,
-snapshot/bulk transfer and gRPC remain a later patch series. 
+snapshot/bulk transfer and gRPC remain a later patch series.
 
 ## Design constraints and open decisions
 
@@ -519,4 +519,3 @@ snapshot/bulk transfer and gRPC remain a later patch series.
 | Current C small-table workaround, finite credits and failed-retirement fencing remain real constraints. | Do not equate many goroutines with unbounded RPC concurrency or full cancellation/exit recovery. |
 | Standard Go `LockOSThread`/cgo callbacks can impose competing M affinity. | Specify native entry on an externally locked G: initially reject incompatible calls explicitly; do not silently move it or deadlock waiting for L. Test nested runtime/internal locking separately. |
 | Exact wake ABI, host-only target execution, fairness budget and latency threshold are still open. | These are implementation gates, not settled contracts; resolve them in the relevant specification commits with simulator evidence. |
-
