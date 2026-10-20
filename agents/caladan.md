@@ -126,11 +126,10 @@ client manifest hashes match the shared schema, codec and generator sources.
 ## Stage tracing
 
 Trace-enabled runtime/backend and shared collector adapter are implemented.
-`echoTraceImage` uses the platform collector hooks from branch
-`caladan-breakdown`, isolated at `/tmp/platform-caladan-breakdown`; select its
-`sw` with `--arg rpcSource /tmp/platform-caladan-breakdown/sw`. The main platform
-checkout remains on its docs-scrub branch and was not edited. The new importer
-is `tools.paper.campaign.import_caladan` in the isolated branch.
+`echoTraceImage` uses the platform collector hooks now merged into platform
+`master` (`3ddf640b`). Select this checkout’s `sw` with `--arg rpcSource
+/path/to/platform/sw` when building against these hooks. The importer is
+`tools.paper.campaign.import_caladan`; it emits the canonical `CS-A64` label.
 
 RX timestamps follow the mbuf through regular/strided CQ consumption and UDP
 spawning; TX uses a persistent request slot through overflow and completes at

@@ -47,7 +47,7 @@ def caladan(client_path, server_path, status_path, *, count, warmup,
         })
         part.update(flow_id=0, request_id=int(cl['request_id']))
         software.append(part)
-    result = finish(client_path, client, software, system='SH-A64', count=count,
+    result = finish(client_path, client, software, system='CS-A64', count=count,
                     warmup=warmup, instrumentation='breakdown', payload_bytes=payload_bytes,
                     wire_path=wire_path, server_path=server_path,
                     correlation='Exact Caladan flow/XID; shared client validation')

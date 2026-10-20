@@ -79,10 +79,9 @@ software probes compiled out; use the shared backend configuration and the deplo
 static-neighbor settings.
 
 For stage profiling, `echoTraceImage` builds the matching `CALADAN_TRACE`
-runtime and application with shared RPC probes and buffered CSV export. It
-requires the matching shared collector adapter hooks. Select their source with
-`--arg rpcSource /path/to/collector/worktree/sw`; the integration location and
-remaining campaign work are recorded in [continuation](../../agents/caladan.md). `echoImage` remains probe-free.
+runtime and application with shared RPC probes and buffered CSV export. The matching shared collector adapter hooks are in platform `master`. Select
+them with `--arg rpcSource /path/to/platform/sw`; remaining campaign work is
+recorded in [continuation](../../agents/caladan.md). `echoImage` remains probe-free.
 
 Set `LAUBERHORN_SERVER_TRACE_CSV` to a new output file and
 `LAUBERHORN_TRACE_CAPACITY` to a bound covering the entire request cohort before

@@ -28,6 +28,7 @@ class CaladanImportTests(unittest.TestCase):
             def parse():
                 write(server,[row]); return caladan(client,server,status,count=1,warmup=0,payload_bytes=8)
             result=parse(); parts=result['rows'][0]
+            self.assertEqual(result['system'], 'CS-A64')
             self.assertFalse(result['paper_inputs'])
             self.assertEqual(sum(parts['components_ns'].values()),parts['cpu_duration_ns'])
             self.assertEqual(parts['components_ns']['cpu_other'],50)
