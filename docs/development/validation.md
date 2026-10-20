@@ -49,6 +49,16 @@ parallelism being disabled does not serialize `ParallelTestExecution` suites:
 CI logs show overlapping simulations. Start with one reproducer, then verify
 that selecting sibling tests does not alter its stimulus.
 
+To request eight ScalaTest suite runners:
+
+```sh
+nix develop -c mill gen.test -- -P8
+```
+
+Mill module-level test parallelism remains disabled to avoid repeated Verilator
+model builds. Read compressed simulation transcripts with `less`, `vim` or
+`zcat`; use the workspace path printed by the suite.
+
 ## Evidence to retain from a failure
 
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.

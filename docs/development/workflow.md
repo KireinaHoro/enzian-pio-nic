@@ -10,6 +10,14 @@ Run commands from the repository root. Build checks and real-board validation ar
 - `build.mill` owns Scala compilation, simulation and RTL/ABI generation; `flake.nix` composes the functionality groups under `nix/` for reproducible RTL/header/software packaging. `sw/*/Makefile` are lower-level builds. Vivado is separately installed/licensed; it is not supplied by the flake. The shared Docker runner uses Vivado 2025.1.
 - `nix develop` sets `XDG_CACHE_HOME=$PWD/out/xdg-cache-home/`. After changing Mill dependencies, follow the [clean-cache lock regeneration procedure](ci.md#local-validation-and-maintenance): clear the XDG cache, resolve targets with fresh Mill outputs, then run `update-mill-lock`. The tool captures stale versions if the cache is not cleaned; review removals as well as additions in `project-lock.nix`. Use `--no-daemon` when changed environment variables must reach Mill subprocesses.
 
+## IDE setup
+
+Generate an IntelliJ IDEA project from the repository root:
+
+```sh
+nix develop -c mill mill.idea.GenIdea/idea
+```
+
 ## Build commands and outputs
 
 See the [Nix output inventory](../../nix/README.md) for deployment products,
