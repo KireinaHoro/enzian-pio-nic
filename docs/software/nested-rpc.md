@@ -107,7 +107,7 @@ Use `../sven-dandelion/platform/sw/rt/` and its report as the located student re
 
 The intended two scheduling layers are NIC/Linux placement of worker threads and userspace scheduling of handler fibers. A nested-capable handler submits a call, then yields when awaiting a reply. The worker executes other ready fibers or receives another host message. A reply completion is routed to the process and the runtime resolves its cookie/XID to a waiting continuation. No original-core route is required by the proposed PID-directed contract; migrating continuations still requires explicit TLS, stack and ownership rules.
 
-Run-to-finish is the confirmed task policy. A nested await is a cooperative fiber suspension, not arbitrary timer preemption of handler computation. If every permitted worker is running non-yielding computation, completions queue. Worker CPUs remain isolated from ordinary Linux tasks. The [B4 design](process-recovery.md) separates mandatory critical-section recovery from optional whole-application execution monitoring; matching-board acceptance remains open.
+Run-to-finish is the confirmed task policy. A nested await is a cooperative fiber suspension, not arbitrary timer preemption of handler computation. If every permitted worker is running non-yielding computation, completions queue. Worker CPUs remain isolated from ordinary Linux tasks. The [B4 design](scheduler.md#failure-and-reset-boundary) separates mandatory critical-section recovery from optional whole-application execution monitoring; matching-board acceptance remains open.
 
 The current [public API](programming-model.md) uses registered endpoints,
 futures and explicit `REPLY/FAIL/DEFER/FORWARD` outcomes. Incoming dispatch starts

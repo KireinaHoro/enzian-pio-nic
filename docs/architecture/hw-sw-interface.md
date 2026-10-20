@@ -117,6 +117,25 @@ The runtime consumes the reservation on accepted, retry and error results;
 transport pointers do not survive a subsequent commit or assignment change.
 TX completion reflects the local DMA/output boundary, not remote receipt.
 
+### TX completion status
+
+The returned control line retains a two-bit local result across eviction/reload.
+Its meanings are:
+
+| Value | Meaning |
+| --- | --- |
+| 1 | Accepted/consumed: the local TX staging buffer may be reused; payload DMA, when required, has completed. |
+| 2 | Outgoing nested-call admission rejected before DMA/encoding; no new reservation was accepted. |
+| 3 | Error, including invalid/unauthorized descriptors and DMA failures. This code does not identify the exact completion stage or establish safe retry. |
+
+Submission consumes the reservation on every returned result. Software validation
+errors before submission can leave a reservation live for correction or cancel.
+These outcomes do not establish encoding success downstream, wire transmission,
+peer receipt or RPC success. UDP maps 2 to `EAGAIN` and other nonaccepted results
+to `EIO`; retry requires a fresh reservation, and indeterminate errors must not
+be retried automatically. [Completion extensions](../proposals/tx-completion.md)
+discuss richer future results without changing this implemented ABI.
+
 ## Inline restoration and late-write protection
 
 The inline upper half of a control line and overflow byte zero have distinct

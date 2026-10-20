@@ -1,15 +1,10 @@
 # Service execution and resident applications
 
-**October 13 direction:** the [Go toward etcd design](go-etcd.md) is the
-selected next design, through Go null-RPC and HOST_WORK (formerly HOST_WAKE).
-It is documentation only. The raft-rs proposal below is preserved as historical
-context, not the selected implementation or an implemented application API.
-
-Status: **design only**, 2026-09-17. These are follow-on designs to the
-[managed request contract](../software/programming-model.md), not implemented APIs or
-claims of working Raft/memcached ports. The B3 run intentionally does not add
-service scheduling, application timers, parked-service activation, worker
-residency controls or either application adapter.
+This unimplemented alternative describes long-lived, runtime-managed services
+using raft-rs as an example. The selected next direction is
+[Go toward etcd](go-etcd.md), also a design rather than a deployed Go interface.
+The [managed request API](../software/programming-model.md) does not supply the
+service-event and timer facilities proposed here.
 
 ## Runtime-managed services: raft-rs
 
@@ -89,7 +84,8 @@ specified bulk transport; the current single-MTU RPC interface is insufficient.
 Stop new admissions, cancel timers, fence activation generations, drain or
 explicitly fail sends and reply tokens, and wait for hardware retirement before
 destroying service state. Software timeout alone is not a drain guarantee; this
-depends on B4. Test mailbox/outbox saturation, completion reservation, duplicate
+requires the [full recovery contract](../software/scheduler.md#failure-and-reset-boundary),
+which the current fencing-only implementation does not provide. Test mailbox/outbox saturation, completion reservation, duplicate
 and stale events, wakeup races, elapsed ticks and shutdown with pending storage.
 
 Build a raft-rs harness with serialized-access assertions and a deterministic
@@ -103,15 +99,9 @@ Primary design references: [raft-rs](https://github.com/tikv/raft-rs),
 [`RawNode`](https://github.com/tikv/raft-rs/blob/master/src/raw_node.rs).
 Pin the chosen revision before implementation and recheck those contracts.
 
-## Memcached native UDP adoption
+## Relation to native applications
 
-The former resident-worker proposal is superseded by the
-[native UDP memcached design](../research/memcached.md). The selected application
-uses cooperative request workers shared among domains, with main and independent
-maintenance on ordinary CPUs. Native UDP retains real memcached parsing, storage
-and segmented responses. Bounded pre-sized hashing excludes expansion and
-worker-notification-dependent administration until HOST_WORK is implemented and
-validated. Its [new design](go-etcd.md#host_work) separates assigned RX
-notification from allocation for unassigned domains.
-Implementation and acceptance status belong to that canonical note; the Raft
-proposal above remains design-only.
+The former resident-worker memcached proposal is superseded by the
+[native UDP design](../research/memcached.md). Its maintenance requirements and
+[HOST_WORK proposal](go-etcd.md#host_work) are distinct from implementing the
+service-event API above.

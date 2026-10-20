@@ -388,7 +388,7 @@ rerun the passing add/mul baselines.
 with kernel fix `5ec614c` on 512199, as summarized above. Nested timeout,
 cancellation and outgoing-state recovery checks still prevent full closure.
 
-The approved [process recovery and watchdog design](process-recovery.md) includes
+The approved [process recovery and watchdog design](scheduler.md#failure-and-reset-boundary) includes
 whole-process forced termination, explicit-kill reclamation with the execution
 watchdog disabled, and a matching-bitstream Enzian campaign. Implementation is
 in progress. The source now contains stop-to-idle worker drain, PID-wide table

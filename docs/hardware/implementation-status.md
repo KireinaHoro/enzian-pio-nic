@@ -20,7 +20,7 @@ references below distinguish them.
 | Topic | Limit and reference |
 | --- | --- |
 | Shared-resource progress | Coloring separates active control colors from overflow colors; it does not discharge shared queues, CPU synchronization or endpoint-service assumptions. [Finite contention and GSYNC results](../research/eci-progress.md) distinguish three-peer contention from one/two-peer early-NACK coverage. They do not establish infinite-stall progress, all worker permutations or four-worker tail distributions. |
-| Ownership recovery | Fatal faults fence the affected domain; lifetime codes are not recycled. Complete kill/exit resource recovery and deadline activation remain separate work. See [recovery](../software/process-recovery.md). |
+| Ownership recovery | Fatal faults fence the affected domain; lifetime codes are not recycled. Complete kill/exit resource recovery and deadline activation remain separate work. See [recovery](../software/scheduler.md#failure-and-reset-boundary). |
 | Table scaling | `Global.scala` limits tables because fully connected lookup routing is costly to place. [Lookup spill](../proposals/lookup-spill.md) proposes caches and typed software slow paths; general spill is not implemented. |
 | TCP/HTTP/gRPC | The in-tree classes are placeholders. External [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects are unmerged; see the [protocol roadmap](../proposals/grpc.md). |
 | PCIe parity | `PcieDeschedulingControlPlugin.deschedReq` is unimplemented. `PcieDatapathPlugin` flags unreliable TX triggering from a shared register word. PCIe does not provide the ECI scheduling contract. |

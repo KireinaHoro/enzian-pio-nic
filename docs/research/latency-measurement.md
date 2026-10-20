@@ -809,7 +809,7 @@ four-worker load experiment remain separate work.
 ## Buffered export and kernel IPG attribution
 
 The runtime CSV is exported only at campaign end; see the
-[runtime export contract](../software/runtime.md#optional-per-request-latency-tracing).
+[runtime export contract](../development/runtime-tracing.md).
 Do not tail a CSV during traffic. The DPDK client also retains its records until
 measurement ends. Freeze kernel/FPGA recording before requesting runtime export,
 so export syscalls are outside the measurement window.

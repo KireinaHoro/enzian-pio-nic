@@ -94,7 +94,7 @@ threads; request-independent maintenance is not relocated onto request workers.
 Worker-notification-dependent administration, crawler dump/watch connections,
 warm restart, idle connection timers and graceful worker teardown are outside
 acceptance. Do not infer unrestricted maintenance from bounded GET/SET success.
-Use the existing [fenced process lifecycle](../software/process-recovery.md) and
+Use the existing [fenced process lifecycle](../software/scheduler.md#failure-and-reset-boundary) and
 [Enzian harness](../development/validation.md#board-validation); killing instances does not make
 resources safely reusable without the documented coherence reset.
 

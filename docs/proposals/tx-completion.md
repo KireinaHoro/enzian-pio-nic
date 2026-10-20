@@ -1,20 +1,13 @@
-# TX completion status: extension uses and boundaries
+# TX completion extensions
 
-Recorded September 17, 2026. This note extends the
-[nested-RPC admission design](../software/nested-rpc.md#outstanding-acceptance-and-resource-contract).
-The B3 implementation is in progress; these potential extensions are not
-implemented capabilities or board-validated behavior.
+This proposal explores richer operation-specific results beyond the implemented
+[local TX status](../architecture/hw-sw-interface.md#tx-completion-status).
+None of the extensions below is an implemented capability merely because the
+current doorbell returns a result.
 
-## Current facility and proposed extension
+## Proposed extension
 
-The B3 TX doorbell read returns a local result: accepted/buffer consumed (1),
-rejected before nested-call reservation (2), or DMA error (3). For a payload
-requiring DMA, successful consumption waits for DMA completion; this does not
-establish downstream protocol success, physical transmission or peer receipt.
-The current internal result is two bits. The host reads its value from the
-returned control cache line.
-
-The older generic proposal includes validity, a status code, protocol-specific
+A richer result could include validity, a status code, protocol-specific
 detail and an optional correlation cookie. Preserve room to extend the response
 with operation-specific result fields, rather than treating the three current
 codes as the final interface. No expanded field layout is selected here.
@@ -26,7 +19,7 @@ valid until the host consumes it and reuses the line for the next descriptor.
 
 | Consumer | Useful result | Evidence and required boundary |
 | --- | --- | --- |
-| Nested RPC admission | Accepted, table/queue full, invalid or unsupported request; optional cookie/reason | Explicit existing proposal in `nested-rpc.md`. Reservation must precede acceptance; definite rejection must release unsubmitted state. B3 implements a subset. |
+| Nested RPC admission | Accepted, table/queue full, invalid or unsupported request; optional cookie/reason | See the [nested-call contract](../software/nested-rpc.md). Reservation must precede acceptance; definite rejection must release unsubmitted state. Current nested-call admission already returns a local result. |
 | Reply-context lookup and software spill | Software-owned context, reply identity and resend reason | The [spill design](lookup-spill.md#reply-context-spill-descriptors) proposes software resend or parking a reply. Returning a synchronous miss through the doorbell is a possible implementation, not its currently specified notification path. It requires feedback from reply lookup and retaining enough state/bytes to retry. |
 | Immediate route/neighbor failure | Definite rejection and cleanup information | Explicit in the original nested-RPC status proposal. Distinguish a dropped request from one retained by neighbor-resolution fallback; software must not retry while another owner may still send it. Downstream feedback is required. |
 | TCP transmit validation | Accepted/rejected, reason such as stale generation/epoch, wrong owner, invalid sequence range or excessive length | Flavian has an internal validation decision but no per-command host result. DMA consumption alone cannot report TCP acceptance; connect the validation outcome to the completion boundary. |

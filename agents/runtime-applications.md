@@ -217,3 +217,10 @@ startup/student/Dandelion gates. Later application results take precedence.
 Full provenance and additional original hashes are in Git at
 `8f05507a:docs/development/hardware-test-results.md`; these evidence summaries
 authorize no new hardware work and describe no live reservation or service.
+
+## Software documentation follow-up
+
+The public `sw/include/lauberhorn.h` watchdog comment says a zero limit is
+supported, but `sw/kmod/chrdev.c` rejects every WATCHDOG ioctl with EOPNOTSUPP.
+The human API documentation now follows the kernel. Reconcile that header comment
+in a source-maintenance change; this documentation pass changed no code.

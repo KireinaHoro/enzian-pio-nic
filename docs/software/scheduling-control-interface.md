@@ -132,7 +132,7 @@ allocator across driver reload. Reset allocation only at a full coherence-reset
 boundary. No unresolved identity or resource is recycled. Unsupported exit or
 fatal activation failure fences affected claims and marks the session
 reset-required. Automatic resource reclamation after these failures is unsupported;
-see the [failure policy](process-recovery.md). Hardware/software ABI mismatch is rejected.
+see the [failure policy](scheduler.md#failure-and-reset-boundary). Hardware/software ABI mismatch is rejected.
 
 ## Unsupported interfaces and open design
 

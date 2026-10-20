@@ -541,6 +541,13 @@ python3 tools/paper/campaign/mlx5_readiness.py --output NEW_READINESS_RUN \
 The current helper fixes the server interface to `enP5p144s0np0` and local peer
 to `cpu40g1`; verify those names and their connectivity before running it.
 
+## Runtime tracing
+
+Use the [runtime tracing guide](runtime-tracing.md) for compiled variants, request/event
+buffers, one-shot SIGUSR2 export and loss checks. Keep traces disabled or enabled
+according to the [campaign contract](benchmark-campaign.md); tracing and PMU
+profiling are separate instrumentation choices.
+
 ## Runtime PMU profiling
 
 The runtime image includes `lh-pmu-probe`. Read the

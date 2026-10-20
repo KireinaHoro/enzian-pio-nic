@@ -43,7 +43,7 @@ Destruction returns `EBUSY` while workers or unresolved calls remain. A software
 timeout alone does not prove hardware retirement: runtime timeout/cancellation
 now uses an acknowledged PID/cookie retirement command before releasing its
 reservation. Failed retirement retains unresolved ownership. Device close now
-uses the [whole-process drain protocol](process-recovery.md) before releasing
+uses the [whole-process drain protocol](scheduler.md#failure-and-reset-boundary) before releasing
 listeners, sockets and table ownership. The previous permanent endpoint quarantine
 has been removed. Reclamation does not report success while drain is unresolved;
 matching-board recovery acceptance remains B4's closure gate.
