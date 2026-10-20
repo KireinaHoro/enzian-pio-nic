@@ -489,7 +489,7 @@ pointer checks where supported; arm64 cross-compilation alone is not execution
 coverage. Define new Nix check names in source before documenting commands.
 
 For platform changes, retain `runtime-tests`/`runtime-interface`, regenerate
-`nix build .#devHdrs -L`, and select the actual cooperative allocation/yield,
+`nix build .#dev.x86_64-linux.hardware.deviceHeaders -L`, and select the actual cooperative allocation/yield,
 RX/TX, nested-RPC and ownership suites from the validation guide. Build the
 matching kernel and userspace artifacts. Only after these gates, use the
 scheduled hardware CI and reserved Enzian harness workflow for C regressions,

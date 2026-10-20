@@ -9,7 +9,7 @@ Start with the [system map](docs/architecture/overview.md).
 ## Using and developing Lauberhorn
 
 - [Development setup and build commands](docs/development/workflow.md)
-- [Nix packages and deployment products](nix/README.md)
+- [Nix packages and deployment products](docs/development/nix.md)
 - [Validation: local checks and board testing](docs/development/validation.md)
 - [Formal models and verification](docs/formal/README.md)
 - [CI and dependency maintenance](docs/development/ci.md)

@@ -54,11 +54,12 @@ artifact matching and automation. The following are Dandelion-specific entry poi
 no board result is implied by a build:
 
 ```sh
-nix build .#runtimeTests .#dandelion .#dandelionDeployFs
+nix build .#checks.x86_64-linux.runtime-tests \
+  .#dev.x86_64-linux.software.dandelion .#dandelionImage
 python3 sw/apps/dandelion/check-fixture-results.py
 ```
 
-`dandelionDeployFs` includes the matching runtime, kernel, application,
+`dandelionImage` includes the matching runtime, kernel, application,
 `server-tests` harness and snapshot's prebuilt AArch64 function fixtures. The
 Rust/C ABI assertions compile for the supported 64-bit layout. The Python check
 independently calculates fixture answers; it does not execute Dandelion.

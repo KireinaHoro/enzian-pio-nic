@@ -140,3 +140,13 @@ plus `servers/`. The early aggregate regression log contains a fixture failure;
 Shared board results: `/scratch/pengxu/lh-02-nix-shared-baseline-direct`.
 Full historical record: `ff6d8957:docs/development/nix-refactor-validation.md`.
 No raw artifacts were removed by this consolidation.
+
+## Retired packaging references
+
+The retired student-runtime recipe and two adapter patches are recoverable from
+`93ee25a6709fb8508d30e8298368cc11ecbc6f93` under `tools/enzian/`.
+Current application packaging supersedes them. The remaining immutable
+`tools/enzian/nullrpc_inline_build.nix` is retained for active paper provenance;
+migrate that provenance together before retiring the recipe. Current output
+names and image ownership are in the [Nix reference](../docs/development/nix.md).
+Historical reproduction records retain the output names from their pinned revision.

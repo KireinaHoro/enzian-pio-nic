@@ -23,7 +23,7 @@ nix develop -c mill mill.idea.GenIdea/idea
 
 ## Build commands and outputs
 
-See the [Nix output inventory](../../nix/README.md) for deployment products,
+See the [Nix output inventory](nix.md) for deployment products,
 `dev.SYSTEM` build conveniences, `checks`, `apps`, and CI cache closures.
 
 | Intent | Command | Output / prerequisites |

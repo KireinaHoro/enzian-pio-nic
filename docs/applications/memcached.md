@@ -10,7 +10,7 @@ Linux-over-FPGA-bypass experiment is a separate control.
 The application is pinned at `b376490d303da13ba15ed0295190893c64d1d324` and
 based on upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, before the
 legacy PIONIC changes. Platform Nix calls its source-owned `package.nix` with
-the matched runtime and builds `memcachedDeployFs`. The deployment manifest
+the matched runtime and builds `memcachedImage`. The deployment manifest
 identifies application, runtime, module, RTL and generated headers.
 
 ## Integration and ownership
@@ -131,12 +131,12 @@ Uncorrelated timestamps must not be subtracted across hosts or FPGA clocks.
 
 ## Build and validation
 
-Build with `nix build .#memcachedDeployFs`. CI publishes this as
+Build with `nix build .#memcachedImage`. CI publishes this as
 `out/memcached-deploy.img` beside the ordinary RPC image from the same revision.
 `memcached-adapter` is a required preparation gate. The image contains
 `apps/memcached` and `apps/memcached-tools` under `/nix/store/lauberhorn`, including
 Python and command wrappers; it does not depend on a copied host executable.
-`nix build .#memcachedReference` builds the exact pinned upstream socket server
+`nix build .#dev.x86_64-linux.software.memcachedReferenceNative` builds the exact pinned upstream socket server
 for local comparisons.
 
 Follow [development](../development/workflow.md) for image builds and
@@ -201,7 +201,7 @@ nix develop -c mill gen.test.testOnly lauberhorn.host.eci.NativeUdpSim
 nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcNestedSim \
   lauberhorn.host.eci.RxBypassSim lauberhorn.host.eci.TxBypassSim \
   -- -l org.scalatest.tags.Slow
-nix build .#memcachedDeployFs .#runtimeTests \
+nix build .#memcachedImage .#checks.x86_64-linux.runtime-tests \
   .#checks.x86_64-linux.memcached-adapter .#checks.x86_64-linux.workflow-tools
 nix develop -c python3 tools/memcached/test_measurements.py
 ```
