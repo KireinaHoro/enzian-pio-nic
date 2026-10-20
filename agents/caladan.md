@@ -224,3 +224,11 @@ unchanged configuration/artifacts and fresh processes; passing receipts remain
 subject to ordinary integrity checks. No reset or automatic retry loop. If this
 recurs, investigate further before another resume. Await the terminal callback;
 the retry has not been claimed successful.
+
+The first resume stopped in preflight because the recovery hold was still set;
+no acquisition ran. Explicit live recovery subsequently verified current EMG
+ownership, matching kernels, absence of benchmark processes, unloaded Caladan
+modules, restored DUT NIC/sysctls and the generator's original PCI driver through
+the shared harness. Evidence and prior unsafe state are preserved under
+`out/caladan-hot-full-20261021/recovery-live-check/`. Released the hold with that
+review and relaunched the same bounded retry without a reset or artifact change.
