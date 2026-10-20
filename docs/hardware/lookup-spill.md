@@ -1,29 +1,34 @@
-# Lookup Table Scaling and Spill Design
+# Lookup table scaling and spill design
 
-Status (2026-09-08): proposed scaling design, not implemented general spill support. Existing baseline paths were checked against the main source tree. The separate TCP tree is `../flavian-tcp/platform`; its report, evidence and integration gaps are summarized in [TCP project](../research/tcp.md). The main checkout still has TCP/HTTP/gRPC placeholders. New block/API names and staged implementation steps below are proposals. See [hardware status](implementation-status.md).
+This is a proposal for software-backed hot tables and typed slow paths. General
+RPC spill is not implemented. The [packet-processing contract](packet-processing.md#lookup-and-capacity-behavior)
+describes current admission, rejection and drop behavior. Proposed block names,
+descriptors and policies below are design sketches, not an available ABI.
 
-September 17 branch update: incoming ONC-RPC reply routing now uses bounded
-[per-request contexts](../software/reply-contexts.md) with opaque slot/generation
-tokens, retirement on reply and hardware rejection when full. The `(funcPtr,
-xid)` session baseline and its overwrite behavior described below are historical;
-the spill mechanisms remain proposals and must be reconciled with the new token
-lifetime before implementation.
+Incoming reply contexts and outgoing nested-request reservations are separate
+resources. Both reject capacity failures without replacing live operations.
+Any spill design must preserve their identity, ownership and completion rules;
+it cannot start from the former `(funcPtr, xid)` server-session table.
 
 ## Motivation
 
-The current `LookupTable` implementation is a fully-connected associative
+The current [`LookupTable`](../../deps/blocks/blocks/src/jsteward/blocks/misc/LookupTable.scala) implementation is a fully-connected associative
 table: each entry is a register, and each lookup port builds a comparator for
-every entry plus a priority/value mux over the full table. This gives a simple
-3-cycle lookup, but it makes table size and lookup-port count expensive in LUTs,
-routing, and timing.
+every entry plus a priority/value mux over the full table. This gives a three-stage
+pipelined lookup; backpressure can extend elapsed latency. Table size and
+lookup-port count are expensive in LUTs, routing and timing.
 
 This leaks into system-level capacity. Today the hardware table sizes are also
 the admission limits:
 
 - `NUM_SERVICES = 8`: max hardware-visible ONC-RPC services.
 - `NUM_PROCS = 16`: max scheduler-visible applications/processes.
-- `NUM_SESSIONS = 16`: max in-flight reply-routing sessions.
+- `NUM_SESSIONS = 16`: bounds each of the distinct incoming reply-context and
+  outgoing nested-request tables.
 - `NUM_NEIGHBOR_ENTRIES = 8`: max cached IPv4 neighbors.
+
+The [current behavior table](packet-processing.md#lookup-and-capacity-behavior)
+distinguishes registration capacity, per-request admission and neighbor caching.
 
 These should not be hard registration limits. Hardware should cache the active
 working set. Registration, process count, and service count should scale through
@@ -42,93 +47,41 @@ The design goal is:
 - hardware table capacity affects hit rate and latency, not correctness;
 - lookup-table storage and lookup logic become easier to place and route.
 
-## Temporary UDP evaluation workaround — October 8
+## Completion capacity and delivery
 
-Wide Dandelion loopback fan-out exposed the distinction between hardware
-retirement and software consumption: a returned error can release an outgoing
-slot while its completion is still queued for the application. Reusing that slot
-in a burst can overflow the small process RX queue and lose UDP completions.
-The runtime now bounds live calls, including ready but unconsumed futures, to
-`NUM_SESSIONS` (16); Dandelion treats local-loopback `SYSTEM_ERR` as busy and
-requeues the affected shard. See the
-[contract and limitations](../software/programming-model.md#loopback-composition-receive-side-backpressure).
+A hardware slot can retire while its completion is still queued for software.
+The runtime bounds live outgoing calls, including ready but unconsumed futures,
+to `NUM_SESSIONS`; Dandelion retries local-loopback `SYSTEM_ERR` as busy. See the
+[programming-model contract](../software/programming-model.md#loopback-composition-receive-side-backpressure)
+and [finite evaluation](../research/dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8).
 
-This is a temporary workaround for evaluation, not the scaling design. Lift the
-small-table restrictions as software-backed spill and reliable admission/delivery
-are implemented. Preserve completion ownership until delivery is guaranteed;
-raising table sizes or retrying indeterminate failures alone does not establish
-correctness. The bounded workaround passed the [two-request wide-graph board gate](../research/dandelion-measurement.md#wide-fan-out-and-temporary-udp-backpressure--october-8); broader reliability remains open.
+Spill must account for ownership through software consumption, not just hardware
+retirement. Larger tables or retries after an indeterminate outcome do not by
+themselves guarantee delivery. This proposal must define admission and completion
+queue capacity together before lifting the existing bound.
 
-## Existing Slow Paths
+## Existing slow paths and TCP reference
 
-The existing kernel bypass slow path is `BypassCmdSink`.
+The implemented [kernel bypass path](packet-processing.md#kernel-bypass-and-neighbor-misses)
+handles raw packets and packet-bearing neighbor misses. It supplies a useful
+allocation/acknowledgment mechanism for kernel-owned exceptions. Application-owned
+spills need separate typed requests and a real software delivery route.
 
-`BypassCmdSink` accepts multiple `Stream[HostReqWithTrace]` producers, arbitrates
-them, stores requests in a FIFO, and delivers them to the bypass datapath
-service. It is already used by:
-
-- `DmaControlPlugin` for normal bypass packets and packet-bearing `neighborMiss`
-  requests originating at `IpEncoder` and passing through `DecoderSink`.
-
-On the kernel side, `sw/core/eci/core.h` decodes bypass-core RX descriptors into
-`lauberhorn_pkt_desc_t`. `sw/kmod/bypass.c` polls the bypass datapath from NAPI
-and currently handles:
-
-- `TY_BYPASS`: inject packet into Linux netdev RX;
-- `TY_NEIGHBOR_MISS`: reconstruct IPv4 and submit the retained payload to Linux
-  routing/`ip_local_out`; neighbor handling also populates `IpEncoder.neighborDb`.
-
-This packet-bearing path replaced the older `arpReq` notification-only path.
-Source comments still mentioning drop-on-neighbor-miss or direct `IpEncoder`
-commands are stale; follow the `neighborMiss` descriptor/payload wiring.
-
-This is the right mechanism for kernel-owned exceptions, but not for every
-spill. Runtime-owned exceptions should use typed host requests routed through
-the scheduler/runtime RX path. Do not overload `HostReqType.bypass` for every
-miss. Add explicit typed slow-path requests, and route each request to the owner
-that can actually resolve it.
-
-## TCP Branch Reference
-
-Flavian's unmerged `../flavian-tcp/platform` provides typed exception descriptors
-and a software ownership model, but **does not implement the runtime exception
-routing attributed to it by the earlier version of this note**. See [TCP project](../research/tcp.md)
-for report/source revisions and integration gaps.
-
-TCP-specific `HostReqType` values include `tcpRxPayload`, `tcpException`,
-`tcpRecoverableException`, `tcpAckObserved`, `tcpTxPayload`, `tcpResync`,
-`tcpTcbInstall`, and `tcpPostRxReinject`.
-
-Current sibling routing (`host/package.scala`, `DmaControlPlugin.scala`):
-
-- `routesToBypass` includes raw `bypass`, `neighborMiss`, `tcpException`,
-  `tcpRecoverableException`, and `tcpAckObserved`; those enter `BypassCmdSink`.
-- `tcpRxPayload` routes to a worker core. ONC-RPC calls/replies use process queues.
-- Generic TCP bypass still emits header/control descriptors while dropping its
-  payload fork; typed recoverable exceptions separately carry recoverable bytes.
-- The production kernel transport guard accepts only `bypass` and `neighborMiss`,
-  and NAPI handles `TY_BYPASS`/`TY_NEIGHBOR_MISS`. It does not consume the new TCP
-  exception ABI. The software TCP owner exists as test-model infrastructure.
-
-The decoder buffers a frame while checksum/state decisions complete. The owner
-model reorders and trims payload, reinjects contiguous bytes, then resynchronizes
-ownership. This is useful evidence for explicit packet lifetime and handoff
-contracts, not evidence of a deployed per-application runtime spill path.
-
-The two-plane RPC spill design below remains a proposal: global validation and
-resource control belong to kernel/control software; application-owned requests
-can use typed runtime delivery. Choosing that route requires implementing it;
-do not infer the final consumer solely from a typed descriptor name or from this
-TCP prototype.
+The unmerged [TCP project](../research/tcp.md) demonstrates typed exceptions,
+packet lifetime and software ownership in test infrastructure. Its exception
+route is the bypass datapath; the production kernel/runtime does not implement
+that TCP ABI. It is not evidence of an existing per-application spill path.
+Use its ownership lessons, but design and implement the RPC consumer explicitly.
 
 ## Two Slow-Path Planes
 
-There are two classes of "bypass" in the broader exception-path sense:
+The proposal separates two ownership planes. Only raw packet/neighbor bypass
+exists today; hot-table management and runtime spill below require new plumbing:
 
 1. Kernel/control bypass.
 
-   This is the existing `BypassCmdSink` path. It is for work owned by the
-   kernel, the Linux network stack, or the hardware resource manager:
+   This would extend the existing `BypassCmdSink` path for work owned by the
+   kernel, Linux network stack or hardware resource manager:
 
    - raw packet bypass and netdev injection;
    - ARP and neighbor-cache resolution;
@@ -137,7 +90,7 @@ There are two classes of "bypass" in the broader exception-path sense:
 
 2. Runtime/application bypass.
 
-   This is a typed host-request path to the scheduler/runtime, not
+   This would be a typed host-request path to the scheduler/runtime, not
    `HostReqType.bypass`. It is for work whose semantics are owned by the
    application runtime:
 
@@ -217,66 +170,31 @@ recoverable exception payload is a useful ownership example, but its current
 route is the bypass datapath; direct runtime delivery must be implemented
 separately for this RPC spill design.
 
-## New Host Request Types
+## Proposed request types and routes
 
-Rename direction-sensitive RPC request names as part of this work if convenient.
-The current ONC-RPC descriptor names use explicit RX/TX direction.
+The existing ONC-RPC names already distinguish RX/TX directions. Preserve those
+contracts, native UDP and execution-control descriptors when extending the ABI.
+The following names are placeholders; exact enum values and descriptor packing
+must be designed with generated headers, kernel decode and runtime dispatch.
+Do not add unused aliases or handler stubs before selecting a complete path.
 
-Suggested `HostReqType` set (retain the existing nested-RPC directions as well):
+| Proposed request | Owner and purpose |
+| --- | --- |
+| `serviceMissRuntime`, `processMiss`, `oncRpcCallRxSpill` | Runtime-owned request delivery, with packet bytes and a resolvable application identity |
+| `serviceMissValidate`, `processSlotPressure` | Kernel validation and global slot admission/drain |
+| `sessionInsertMissRuntime`, `sessionLookupMissRuntime` | Runtime reply-routing fallback; “session” here denotes a proposed logical request context, not the removed server-session lookup |
+| `sessionSlotPressure`, `tablePromote`, `tableEvict` | Global resource management with generation/owner checks |
 
-- `error`
-- `bypass`
-- `neighborMiss`
-- `oncRpcCallRx`
-- `oncRpcReplyTx`
-- `oncRpcCallTx`
-- `oncRpcReplyRx`
-- `serviceMissRuntime`
-- `serviceMissValidate`
-- `processMiss`
-- `processSlotPressure`
-- `sessionInsertMissRuntime`
-- `sessionLookupMissRuntime`
-- `sessionSlotPressure`
-- `tablePromote`
-- `tableEvict`
+Kernel-owned variants need matching `TY_*` decode and NAPI handlers; runtime-owned
+variants need runtime decode and dispatch. The route must be explicit in hardware.
+A descriptor name does not supply a delivery channel, especially when the target
+process has no hardware slot. Promotion/eviction also needs an acknowledged
+host-to-hardware control path.
 
-The first implementation can keep old aliases internally, but generated
-Mackerel names and C-side enums should move to direction-explicit names.
+## Proposed descriptor payloads
 
-Be liberal about adding typed requests. The TCP branch demonstrates that adding
-domain-specific host request types is cleaner than overloading generic bypass.
-For RPC spill, use this split:
-
-- kernel/control path: `serviceMissValidate`, `processSlotPressure`,
-  `sessionSlotPressure`, `tablePromote`, `tableEvict`;
-- scheduler/runtime path: `serviceMissRuntime`, `processMiss`,
-  `oncRpcCallRxSpill`, `sessionInsertMissRuntime`,
-  `sessionLookupMissRuntime`.
-
-The exact names can be shortened in implementation, but the owner and route
-must be explicit in hardware. Do not infer the owner from
-`HostReqType.bypass`.
-
-Suggested C-side descriptor enum additions in `sw/core/eci/core.h`:
-
-- `TY_SERVICE_MISS_RUNTIME`
-- `TY_SERVICE_MISS_VALIDATE`
-- `TY_PROCESS_MISS`
-- `TY_PROCESS_SLOT_PRESSURE`
-- `TY_SESSION_INSERT_MISS_RUNTIME`
-- `TY_SESSION_LOOKUP_MISS_RUNTIME`
-- `TY_SESSION_SLOT_PRESSURE`
-- `TY_TABLE_PROMOTE`
-- `TY_TABLE_EVICT`
-
-Add corresponding cases in `sw/kmod/bypass.c::poll_once` only for
-kernel-owned request types. Scheduler/runtime-owned requests need runtime decode
-and dispatch instead.
-
-## New Descriptor Payloads
-
-Add new `HostReqData` union members.
+These sketches describe candidate `HostReqData` union members. They require a
+selected delivery and lifetime contract before ABI implementation.
 
 ### `HostReqServiceMissRuntime`
 
@@ -389,69 +307,39 @@ Kernel/resource-manager action:
 - initiate safe drain/eviction only when queued packets and core assignment are
   accounted for.
 
-### `HostReqSessionInsertMissRuntime`
+### Reply-context spill descriptors
 
-Control-only or packet-associated, depending on policy. Used by
-`OncRpcReplyEncoder.sessionDb` when ingress call/session recording cannot fit in
-the hot session table.
+Incoming request routing currently uses an owner-checked opaque slot/generation
+token, not a `(funcPtr, xid)` lookup. Proposed `sessionInsertMissRuntime`,
+`sessionLookupMissRuntime` and `sessionSlotPressure` must refer to a logical
+request identity whose lifetime survives movement between hardware and software.
+They must not reinterpret a stale hardware token as a valid software key.
 
-Fields:
+An admission spill needs the wire XID, client IPv4/UDP tuple, local port,
+validated application identity, parsed call metadata and retained request bytes.
+Software either accepts ownership and creates its own reply-routing context or
+rejects the call. A handler must not become visible before that ownership transfer
+is committed. Preserve repeated-XID independence: wire XID alone is not unique.
 
-- `funcPtr`;
-- `xid`;
-- client IP;
-- client UDP port;
-- server UDP port;
-- optional PID/process identity if nested-RPC reply routing needs it.
+A reply lookup spill needs the logical request/context identity, owner/generation,
+reply length, and explicit ownership of any consumed descriptor or payload.
+Two policies remain possible:
 
-Runtime action:
+- Notify software and require resend, with a result that unambiguously says the
+  reply was not accepted or transmitted.
+- Retain the reply in a bounded pending queue until software resolves routing or
+  cancels it. This requires backpressure and a release contract.
 
-- store session in the runtime-owned software session table;
-- ask the kernel/control plane to evict/promote hot session entries if a shared
-  hardware slot change is needed;
-- mark the corresponding call as requiring software reply routing if the
-  hardware reply path cannot be made lossless.
+Neither policy permits falling back on stale tokens or transmitting twice after
+an ambiguous result. Define when routing metadata is captured, when the context
+retires, and who owns bytes during output backpressure.
 
-### `HostReqSessionLookupMissRuntime`
-
-Control-only for software-resend semantics, or packet-bearing for lossless
-retry. Used on TX reply lookup miss.
-
-Fields:
-
-- `funcPtr`;
-- `xid`;
-- reply length;
-- optional inline reply bytes if hardware consumed the descriptor;
-- reason: no session, software-owned session, table evicted, table full.
-
-Policy choices:
-
-- simple first step: notify runtime and require software resend;
-- lossless step: park TX reply in a pending FIFO and ask runtime to resolve or
-  release it.
-
-Do not overwrite session entry 0 on table full. That is not a spill policy; it
-turns capacity pressure into data loss.
-
-### `HostReqSessionSlotPressure`
-
-Control-only. Used when the runtime needs a shared hardware session slot
-allocated, evicted, drained, or invalidated.
-
-Fields:
-
-- session key: `(funcPtr, xid)`;
-- client/server address and port tuple when available;
-- requested operation: promote, evict, drain, invalidate;
-- generation/version;
-- reason: table full, stale generation, software-owned session became hot.
-
-Kernel/resource-manager action:
-
-- enforce global slot ownership and isolation;
-- update hot session table state;
-- reject stale or unauthorized slot operations.
+Slot-pressure control messages need table/context identity, owner, generation,
+operation (promote, evict, drain or invalidate) and reason. Kernel/resource
+management must validate operations and account for outstanding packets and
+callbacks before reuse. Outgoing nested-call reservations additionally require
+cookie/tuple identity, timeout/cancellation and late-reply handling; they are not
+interchangeable with incoming reply contexts.
 
 ### `HostReqTablePromote` / `HostReqTableEvict`
 
@@ -515,78 +403,56 @@ RAM implementation:
   to affect line rate. Prefer a hashed/set-associative hot table keyed by
   `(port, progNum, progVer, proc)`.
 
-### Scheduler Process Table
+### Scheduler process table
 
-Current use:
+`Scheduler.procDb` maps PID to a process queue. Unmatched, disabled and full-queue
+requests enter the explicit discard path; packet storage and incoming reply
+contexts are released through DMA cleanup. General software spill is absent.
 
-- `Scheduler.procDb`;
-- `rxPush` maps PID to process queue index;
-- `drain` continuously scans for non-empty queues not assigned to any core.
+The proposed process cache separates the full registry from active hardware
+slots. Replace selected rejection cases with typed `processMiss` delivery while
+preserving cleanup on rejection. The runtime may execute or queue a request in
+software, while kernel control manages promotion, isolation and shared capacity.
+A runtime without a hardware process slot needs a defined host delivery route;
+sending it back through the same missing `procDb` entry would not make progress.
 
-Plan:
+Eviction requires no assigned worker and either an empty queue or transfer of all
+queued requests to software. Track outstanding contexts, accepted responses and
+generations as well as queue occupancy. Promotion must commit before reinjection.
 
-- explicitly check `rxPush` match status and produce typed `processMiss`;
-  current code consumes `pushResult.idx` without a `matched` guard, so a miss
-  must not be assumed to have a safe drop behavior;
-- route `processMiss` to scheduler/runtime RX metadata by default;
-- split process registry from active process slots;
-- hardware `procDb` becomes the active process cache;
-- process eviction must not discard queued packets. Evict only if:
-  - no core is currently assigned to the process;
-  - hardware queue is empty; or
-  - queue contents have been drained/spilled to software.
+For larger tables, use an indexed/hashed PID lookup with BRAM queue metadata and
+compact bitmaps for enabled/hot, nonempty, assigned and draining/promoting state.
+Candidate selection should use those bitmaps rather than scanning a large RAM
+on every scheduling decision.
 
-RAM implementation:
+### Incoming ONC-RPC reply contexts
 
-- do not implement `drain` as a RAM scan if possible;
-- maintain bitmaps:
-  - process enabled/hot;
-  - queue non-empty;
-  - process has assigned core;
-  - process eviction/promotion in progress;
-- derive drain candidate from bitmaps with a priority encoder;
-- implement PID-to-process lookup as BRAM/LUTRAM indexed/hash structure;
-- use BRAM for queue metadata if `NUM_PROCS` grows, but keep hot scheduler
-  combinational decisions over compact bitmaps.
+`OncRpcReplyEncoder.contexts` reserves one context per admitted invocation.
+Full capacity rejects the call with a bounded, best-effort `SYSTEM_ERR` path;
+no live context is overwritten. Reply lookup validates slot, generation and
+owner, then captures routing and retires the context. See
+[reply contexts](../software/reply-contexts.md) and the
+[current behavior](packet-processing.md#lookup-and-capacity-behavior).
 
-### ONC-RPC Session Table
+A RAM-backed indexed context store is a candidate for tens/hundreds of entries,
+with URAM considered only at larger scales. Preserve atomic allocation,
+owner/generation checks, output capture and retirement when changing storage.
+A free bitmap/list can separate allocation from lookup. Software-backed contexts
+require the logical-identity and byte-ownership contract above; adding generation
+bits alone does not define migration or a miss policy.
 
-Current use:
+### Outgoing nested-request reservations
 
-- `OncRpcReplyEncoder.sessionDb`;
-- ingress call records `(funcPtr, xid) -> client/server address/port`;
-- TX reply lookup uses `(funcPtr, xid)`;
-- free-slot lookup is always active;
-- table full currently overwrites entry 0.
+`OncRpcReplyDecoder.requestDb` matches `(xid, remoteAddr, remotePort, localPort)`
+to PID/cookie. Admission precedes TX DMA/encoding. An exact live retransmission
+retains its reservation; conflicting identity or full capacity rejects admission
+without overwriting an active entry. The free-slot lookup remains always active.
 
-Plan:
-
-- replace entry-0 overwrite with explicit spill;
-- maintain a free list or free bitmap instead of continuously scanning for free;
-- on session insert miss/full, emit `sessionInsertMissRuntime`;
-- on TX lookup miss, emit `sessionLookupMissRuntime`;
-- define whether TX miss is runtime notify plus software resend, or a lossless
-  retry path. Lossless retry requires a pending reply queue and runtime release
-  contract.
-
-RAM implementation:
-
-- strongest URAM/BRAM candidate;
-- use BRAM for tens/hundreds of in-flight sessions;
-- use URAM for larger session hot caches;
-- prefer keyed/indexed design over serial scan if reply throughput matters;
-- add generation bits so software can distinguish stale promoted sessions from
-  current sessions.
-
-### Nested ONC-RPC Request Table
-
-The newer `OncRpcReplyDecoder.requestDb` is separate from server reply sessions.
-`OncRpcCallEncoder` records outbound nested requests; replies match
-`(xid, remoteAddr, remotePort, localPort)` and recover PID/cookie. It also uses
-`NUM_SESSIONS`, an always-active free-slot lookup, and increments `reqTblFull`
-while still writing the returned free index on full. Scaling/spill design must
-cover this table too, with explicit payload ownership, timeout/cancellation and
-late-reply behavior. The typed spill interfaces above do not yet implement it.
+A proposed spill/cache extension must preserve completion routing, cancellation,
+late-reply rejection and the lifetime through software consumption. Define an
+explicit rejection/retry or software-owned path before increasing concurrency.
+This table needs its own capacity and backpressure evaluation, independently of
+incoming reply-context pressure.
 
 ### IP Neighbor Table
 
@@ -612,19 +478,12 @@ RAM implementation:
 - LUTRAM/BRAM if table grows;
 - URAM is overkill unless thousands of neighbors are cached.
 
-### ECI Thread Router Table
+### ECI ownership table
 
-Current use:
-
-- the ECI domain ownership table;
-- many lookup ports, but only `NUM_CORES` entries in generated hardware.
-
-Plan:
-
-- do not make this a spill target initially;
-- keep fully-connected while core count is small;
-- the current physical-worker decoder and indexed ownership table do not need
-  an associative spill path.
+The physical-worker decoder and indexed ownership table have one entry per
+worker; they are not an associative thread router or an initial spill target.
+Keep address authorization independent of service/process cache replacement.
+See the [ECI ownership contract](eci-implementation.md#address-ownership-and-integration).
 
 ## Lookup Table Implementation Plan
 
@@ -637,7 +496,7 @@ replacement for every `LookupTable` user.
 
    - current behavior;
    - explicit name for small fully-connected tables;
-   - 3-cycle pipelined lookup;
+   - three-stage pipelined lookup;
    - useful for `listenDb`.
 
 2. `LookupTableRamScan`
@@ -653,7 +512,8 @@ replacement for every `LookupTable` user.
    - compare ways in parallel;
    - BRAM/LUTRAM storage;
    - fixed lookup latency independent of total table size;
-   - suitable for `serviceDb`, `sessionDb`, and process PID lookup.
+   - suitable for `serviceDb`, outgoing request lookup and process PID lookup.
+     Incoming reply contexts are already addressed by token slot.
 
 4. `LookupTableFreeList`
 
@@ -663,7 +523,8 @@ replacement for every `LookupTable` user.
 
 ### Interface Requirements
 
-The existing `makePort` API hides whether lookups are parallel or multi-cycle.
+The existing `makePort` API exposes streams and nominal lookup latency; it does
+not define spill or replacement outcomes.
 For spill-aware tables, expose explicit lookup result reasons:
 
 - hit;
@@ -689,112 +550,52 @@ Measure before/after with:
 - route congestion around decoder/scheduler/encoder regions;
 - generated RTL size and number of high-fanout table signals.
 
-Expected wins:
+Potential benefits to measure:
 
 - fewer wide priority muxes;
 - lower fanout from storage registers;
 - fewer duplicated comparators per lookup port;
 - table capacity no longer increases placement pressure linearly per port.
 
-## Implementation Phases
+## Integration dependencies and evaluation
 
-### Phase 1: ABI and Slow-Path Plumbing
+A first spill path needs a complete owner, delivery route, packet-lifetime rule
+and acknowledged promotion/rejection result. Define those before freezing the
+ABI or implementing RAM tables. Regenerate matched Mackerel/C headers and wire
+both kernel-owned and runtime-owned consumers for the selected path. Service
+misses can be evaluated separately from process-slot eviction; neither implies
+reply-context spill is solved.
 
-- Add direction-explicit `HostReqType` names and spill request types.
-- Implement the owner/route split:
-  - kernel bypass queue for raw packets, ARP, validation, and global
-    resource-management events;
-  - scheduler/runtime RX metadata queue for request-bearing service, process,
-    and session misses;
-  - host-to-hardware control commands for promotion, eviction, drain, and
-    generation updates.
-- Extend `HostReqData` with service/process/session spill payloads.
-- Regenerate Mackerel headers.
-- Extend `sw/core/eci/core.h` descriptor enum and decode for any
-  kernel-owned spill types.
-- Extend `sw/kmod/bypass.c::poll_once` and add handler stubs for
-  kernel-owned spill types:
-  - `rx_handle_service_validate`;
-  - `rx_handle_process_slot_pressure`;
-  - `rx_handle_session_slot_pressure`;
-  - `rx_handle_table_promote`;
-  - `rx_handle_table_evict`.
-- Add runtime/core decode for runtime-owned spill types:
-  - `serviceMissRuntime`;
-  - `processMiss`;
-  - `oncRpcCallRxSpill`;
-  - `sessionInsertMissRuntime`;
-  - `sessionLookupMissRuntime`.
-- Add counters for each spill type in hardware and in the owning software path.
-- Add a small control ABI for runtime-to-kernel hot-slot requests:
-  - promote service/process/session;
-  - evict or drain service/process/session slot;
-  - reject stale generation.
+Evaluate storage changes independently of spill semantics, using the same
+workload and capacity. Compare the register implementation, RAM service/context
+storage, and scheduler PID/bitmap split with the utilization/timing criteria
+above. Any routed experiment remains subject to the existing
+[physical-implementation pause](physical-experiments.md#paused-after-consolidation--september-17).
 
-### Phase 2: Service Miss Spill
+Correctness and performance cases must include:
 
-- Add `PacketDescType.oncRpcServiceMiss` or equivalent.
-- Change `OncRpcCallDecoder` miss path from drop to spill descriptor.
-- Route service misses through `DmaControlPlugin` to scheduler/runtime RX
-  metadata by default.
-- Runtime handler executes, queues, rejects, or promotes according to the full
-  service registry.
-- Add optional kernel validation/control hook only for deployments that need
-  kernel-owned registration policy.
+- More registered services/processes than hot slots, including a miss for a
+  runtime that has no hardware slot.
+- Incoming contexts and outgoing requests at capacity without replacing live
+  identities; repeated XIDs, stale tokens, cancellation and late replies.
+- Promotion/eviction while packets, replies or software completions are pending.
+- Neighbor pressure and simultaneous kernel-control/runtime-payload backpressure.
+- Line-rate hot traffic, mixed hit/spill traffic and bounded spill overload;
+  measure loss, rejection, throughput and latency separately.
 
-### Phase 3: Process Miss Spill
-
-- Add an explicit `Scheduler` PID-miss branch that emits `processMiss`.
-- Route request-bearing `processMiss` to scheduler/runtime RX metadata.
-- Add kernel/control events for `processSlotPressure`, eviction, and drain.
-- Define safe process slot eviction rules.
-- Add tests for more registered applications than hardware process slots.
-
-### Phase 4: Session Spill
-
-- Replace session free-slot scan with free bitmap/list.
-- Replace entry-0 overwrite with `sessionInsertMissRuntime`.
-- Add `sessionLookupMissRuntime` on TX reply miss.
-- Decide and implement first policy:
-  - runtime notify plus software resend; or
-  - lossless pending/retry path with runtime release.
-- Add timeout/generation handling.
-
-### Phase 5: RAM-Backed Hot Tables
-
-- Implement `LookupTableRegCam` alias for current behavior.
-- Implement BRAM-backed set-associative service table.
-- Implement BRAM/URAM-backed session table.
-- Implement scheduler PID lookup and drain bitmap split.
-- Keep listen/thread tables on `LookupTableRegCam` unless reports show they are
-  material.
-
-### Phase 6: Scaling Validation
-
-Run simulation and hardware tests for:
-
-- many services registered, fewer hot service slots;
-- many processes registered, fewer hot process slots;
-- session table pressure with no entry-0 overwrite;
-- neighbor cache pressure;
-- bypass slow-path FIFO backpressure;
-- scheduler/runtime typed-spill backpressure;
-- line-rate hot-path traffic with no spills;
-- mixed traffic where spill rate is non-zero but bounded.
-
-Collect Vivado reports for:
-
-- current fully-connected tables;
-- service/session RAM tables;
-- scheduler bitmap/process lookup split.
+Use [validation](../development/validation.md) for existing build/test flows.
+These are proposed evaluation cases, not reported test outcomes.
 
 ## Remaining Decisions
 
+- How does a service miss identify and authorize its runtime owner, and how is
+  the request delivered if that runtime has no hardware process slot?
+
 - Exact control ABI between runtime and kernel/resource manager for hot-slot
   promotion, eviction, drain, and generation fencing.
-- Should TX session lookup miss be lossless in hardware, or is software resend
-  acceptable?
-- What replacement policy should hot service/session/process tables use:
+- Should a valid software-owned reply-context miss retain bytes in hardware,
+  or return an unambiguous result requiring software resend?
+- What replacement policy should hot service/context/process tables use:
   runtime-requested promotion with kernel-managed slots, or a limited hardware
   policy for selected tables?
 - When a runtime executes the first spilled request in software, should

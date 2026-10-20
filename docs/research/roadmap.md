@@ -127,7 +127,7 @@ A process-wide runtime credit now retains the 16-call bound through software
 consumption, including ready futures. Native tests cover full-table admission,
 credit reuse and 32 concurrent submitters. This is a **temporary UDP/small-table
 workaround**, not the intended architectural limit; see the
-[table scaling and spill plan](../hardware/lookup-spill.md#temporary-udp-evaluation-workaround--october-8).
+[table scaling and spill plan](../hardware/lookup-spill.md#completion-capacity-and-delivery).
 Many current capacity restrictions should eventually be lifted. The corrected
 bounded board gate passed on FPGA 516232; no new bitstream was needed.
 
@@ -189,7 +189,7 @@ Exactly two application-facing extensions are deferred:
    handling and expiry, and fail incomplete messages without partial execution.
    “Arbitrarily long” means independent of the MTU within explicit resource
    bounds. UDP delivery and small-table restrictions remain first-PoC limits;
-   see the [temporary workaround and scaling plan](../hardware/lookup-spill.md#temporary-udp-evaluation-workaround--october-8).
+   see the [temporary workaround and scaling plan](../hardware/lookup-spill.md#completion-capacity-and-delivery).
 2. **Communication functions expressed as nested RPC calls.** Map a communication
    node to asynchronous RPC submission, suspend its composition without holding
    a compute worker, then resume dependent nodes on completion. Demonstrate a
