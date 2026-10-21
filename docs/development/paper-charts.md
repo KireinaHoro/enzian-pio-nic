@@ -90,3 +90,8 @@ uninstrumented total. Preserve original observations and hash their provenance.
 
 Commit implementation, acquisition tooling and measurement provenance normally.
 Leave chart layout, presentation and PDF iteration uncommitted until requested.
+
+For the completed 8-byte hot rerun comparison, use
+`--input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update`.
+This standalone review retains historical LH/DPDK and fresh Caladan provenance;
+it does not replace the full-payload paper figures while collection continues.

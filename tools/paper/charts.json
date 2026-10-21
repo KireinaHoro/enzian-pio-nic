@@ -78,6 +78,24 @@
         "DPDK",
         "CS-A64"
       ]
+    },
+    {
+      "id": "echo-unloaded-8b-cdf",
+      "output": "out/caladan-8b-chart-update/echo-unloaded-hot-latency-cdf.pdf",
+      "script": "tools/paper/plot_echo_unloaded.py",
+      "manifest": "data/paper/echo/unloaded-8b-20261021/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update",
+      "status": "review",
+      "tex": null
+    },
+    {
+      "id": "echo-unloaded-8b-breakdown",
+      "output": "out/caladan-8b-chart-update/echo-unloaded-hot-latency-breakdown.pdf",
+      "script": "tools/paper/plot_echo_unloaded.py",
+      "manifest": "data/paper/echo/unloaded-8b-20261021/manifest.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update",
+      "status": "review",
+      "tex": null
     }
   ],
   "planned_charts": [

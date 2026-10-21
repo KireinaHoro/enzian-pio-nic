@@ -172,8 +172,10 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
     return result
 
 
-def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS):
-    expected={(s,n,m) for s in systems for n in SIZES for m in ('off','breakdown')}
+def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS, sizes=SIZES):
+    if not sizes or not set(sizes)<=set(SIZES):
+        raise ValueError('Invalid unloaded payload selection')
+    expected={(s,n,m) for s in systems for n in sizes for m in ('off','breakdown')}
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
     for system in systems:

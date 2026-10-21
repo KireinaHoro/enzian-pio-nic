@@ -10,11 +10,11 @@ from campaign.import_loaded import digest
 from campaign.policy import SIZES, observed_systems
 
 
-def render(source,output, *, rehearsal=False):
+def render(source,output, *, rehearsal=False, sizes=SIZES):
     count,warmup=(100,128) if rehearsal else (10000,128)
     source=Path(source).resolve()
     cohorts=json.loads(source.read_text()); systems=observed_systems(cohorts)
-    validate_matched(cohorts, rehearsal=rehearsal, systems=systems)
+    validate_matched(cohorts, rehearsal=rehearsal, systems=systems, sizes=sizes)
     for cohort in cohorts:
         cohort['files']={str((source.parent/Path(p)).resolve()):sha for p,sha in cohort['files'].items()}
     for c in cohorts:
@@ -24,14 +24,14 @@ def render(source,output, *, rehearsal=False):
             raise ValueError('Unloaded raw evidence hash mismatch')
     output=Path(output)
     def panels():
-        fig,original=chart.figure(columns=1,height=3.5)
+        fig,original=chart.figure(columns=1,height=3.5 if len(sizes)>1 else 2.2)
         original.remove()
-        axes=fig.subplots(len(SIZES),1,sharex=True,sharey=True)
-        fig.subplots_adjust(left=.14,right=.98,bottom=.15,top=.88,hspace=.20)
-        return fig,axes
+        axes=fig.subplots(len(sizes),1,sharex=True,sharey=True,squeeze=False)
+        fig.subplots_adjust(left=.14,right=.98,bottom=.25 if len(sizes)==1 else .15,top=.88,hspace=.20)
+        return fig,axes[:,0]
     statistics={}
     fig,axes=panels()
-    for ax,size in zip(axes,SIZES):
+    for ax,size in zip(axes,sizes):
         statistics[str(size)]={}
         for i,system in enumerate(systems):
             c=next(c for c in cohorts if c['system']==system and c['payload_bytes']==size and c['instrumentation']=='off')
@@ -67,21 +67,22 @@ def render(source,output, *, rehearsal=False):
         ax.text(.03 if len(systems)==1 else .97,.12,str(size)+' B',transform=ax.transAxes,
                 ha='left' if len(systems)==1 else 'right',fontsize=8)
     from matplotlib.ticker import NullFormatter
-    axes[-1].set_xticks([3,5,10,20,40],['3','5','10','20','40'])
+    ticks=[3,5,10] if len(sizes)==1 else [3,5,10,20,40]
+    axes[-1].set_xticks(ticks,list(map(str,ticks)))
     axes[-1].xaxis.set_minor_formatter(NullFormatter())
-    axes[1].set_ylabel('CDF',labelpad=2)
+    axes[len(axes)//2].set_ylabel('CDF',labelpad=2)
     axes[-1].set_xlabel('Wire-to-wire latency ($\\mu$s)')
     fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=min(3,len(systems)))
     chart.save(fig,output/'echo-unloaded-hot-latency-cdf.pdf')
-    fig,original=chart.figure(columns=1,height=5.4)
+    fig,original=chart.figure(columns=1,height=5.4 if len(sizes)>1 else 2.6)
     original.remove()
-    axes=fig.subplots(3,1,sharex=True)
-    fig.subplots_adjust(left=.25,right=.975,bottom=.09,top=.88,hspace=.30)
+    axes=fig.subplots(len(sizes),1,sharex=True,squeeze=False)[:,0]
+    fig.subplots_adjust(left=.25,right=.975,bottom=.19 if len(sizes)==1 else .09,top=.78 if len(sizes)==1 else .88,hspace=.30)
     categories=(('handler',),('rpc_receive','rpc_transmit','cpu_other'),
                 ('rx_network','tx_network'),('rx_queue','tx_submission'),('cpu_wire',))
     labels=('Handler','RPC runtime','Network stack','CPU--NIC','NIC--wire')
     colors=(*chart.COLORS,'#888888')
-    for ax,size in zip(axes,SIZES):
+    for ax,size in zip(axes,sizes):
         panel_max=max(float(np.median([r['wire_ns'] for r in c['rows'] if not r['warmup']]))/1000
                       for c in cohorts if c['payload_bytes']==size and c['instrumentation']=='breakdown')
         for i,system in enumerate(systems):
@@ -118,7 +119,7 @@ def render(source,output, *, rehearsal=False):
         ax.grid(False)
         ax.text(.97,.03,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)
 
-    axes[-1].set_xlim(0,max(statistics[str(size)][system]['instrumented_median_us'] for size in SIZES for system in systems)*1.05)
+    axes[-1].set_xlim(0,max(statistics[str(size)][system]['instrumented_median_us'] for size in sizes for system in systems)*1.05)
     axes[-1].set_xlabel('Wire-to-wire latency ($\\mu$s)')
     fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=2,fontsize=7,columnspacing=1.1,handlelength=1.3)
     chart.save(fig,output/'echo-unloaded-hot-latency-breakdown.pdf')
@@ -130,4 +131,5 @@ if __name__=='__main__':
     p.add_argument('--input',type=Path,required=True)
     p.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[3]/'paper/plots')
     p.add_argument('--rehearsal',action='store_true',help='Render short non-paper validation cohorts')
-    a=p.parse_args();render(a.input,a.output,rehearsal=a.rehearsal)
+    p.add_argument('--payload',type=int,choices=SIZES,help='Render one complete payload comparison')
+    a=p.parse_args();render(a.input,a.output,rehearsal=a.rehearsal,sizes=(a.payload,) if a.payload else SIZES)
