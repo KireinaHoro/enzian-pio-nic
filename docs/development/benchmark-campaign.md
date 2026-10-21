@@ -40,7 +40,10 @@ receive watchdog remains enabled. Historical data keeps its original settings;
 a future cold comparison against Lauberhorn will vary these thread counts.
 
 The Caladan adapter requires an idle CX-5 and no existing scheduler modules or
-Caladan processes. It uses the shared console and verified private image
+Caladan processes. After loading ksched, it creates `/dev/ksched` (character
+device 280:0) when absent and verifies an existing node. It removes only a node
+created by that trial during cleanup. This matches Caladan’s explicit machine
+setup; the module registers the cdev but does not create the node. It uses the shared console and verified private image
 namespace without resetting the CPU or touching FPGA state. It restores NIC
 state, scheduler modules, hugepages, sysctls and temporary IRQ/workqueue controls.
 Only worker CPUs must be boot-isolated; record the additional IOKernel CPUs and

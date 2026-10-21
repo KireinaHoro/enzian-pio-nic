@@ -9,9 +9,23 @@ import json
 import os
 from pathlib import Path
 import signal
+import stat
 import subprocess
 import time
 import urllib.request
+
+
+def ensure_ksched_device(path=Path('/dev/ksched')):
+    """ksched registers a cdev but relies on setup_machine.sh for its node."""
+    device=os.makedev(280,0)
+    try:
+        info=path.lstat()
+    except FileNotFoundError:
+        os.mknod(path,stat.S_IFCHR | 0o600,device)
+        return True
+    if not stat.S_ISCHR(info.st_mode) or info.st_rdev!=device:
+        raise ValueError('Existing ksched device has wrong type or identity')
+    return False
 
 
 def nic_errors_unchanged(before, after):
@@ -45,7 +59,7 @@ def run(config, peer):
     baseline=command('dmesg').splitlines()
     nic_before=json.loads(command('ip','-j','-s','link','show','dev',interface))[0]
     save('nic-before.json',nic_before)
-    processes=[];modules=[];changed=False;error=None;restored=False;isolation=None
+    processes=[];modules=[];created_device=False;changed=False;error=None;restored=False;isolation=None
     manifest=json.loads(Path(config['manifest']).read_text())
     (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     before=dict(binary_sha256=hashlib.sha256(Path(config['binary']).read_bytes()).hexdigest(),
@@ -73,6 +87,7 @@ def run(config, peer):
         save('isolation-applied.json',isolation.apply())
         for name in ('fake_idle','ksched'):
             subprocess.run(['insmod','/nix/store/caladan/modules/'+name+'.ko'],check=True);modules.append(name)
+        created_device=ensure_ksched_device()
         changed=True
         for path,value in settings.items(): Path(path).write_text(value)
         if int(Path('/proc/sys/vm/nr_hugepages').read_text())<4096: raise ValueError('Insufficient hugepages')
@@ -139,6 +154,9 @@ def run(config, peer):
             try:
                 if name=='fake_idle':Path('/sys/fake_idle/unload').write_text('1')
                 subprocess.run(['rmmod',name],check=True)
+            except Exception as exc:cleanup.append(str(exc))
+        if created_device:
+            try:Path('/dev/ksched').unlink()
             except Exception as exc:cleanup.append(str(exc))
         if changed:
             for path,value in original.items():

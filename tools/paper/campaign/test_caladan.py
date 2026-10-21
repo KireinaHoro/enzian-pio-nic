@@ -100,3 +100,21 @@ class CaladanCampaignTests(unittest.TestCase):
 
 
 if __name__ == '__main__': unittest.main()
+
+
+class CaladanDeviceTests(unittest.TestCase):
+    def test_create_validate_and_reject_device(self):
+        import os,stat
+        from types import SimpleNamespace
+        from unittest.mock import Mock,patch
+        from .caladan_peer import ensure_ksched_device
+        path=Mock()
+        path.lstat.side_effect=FileNotFoundError
+        with patch('os.mknod') as create:
+            self.assertTrue(ensure_ksched_device(path))
+            create.assert_called_once_with(path,stat.S_IFCHR|0o600,os.makedev(280,0))
+        path.lstat.side_effect=None
+        path.lstat.return_value=SimpleNamespace(st_mode=stat.S_IFCHR,st_rdev=os.makedev(280,0))
+        self.assertFalse(ensure_ksched_device(path))
+        path.lstat.return_value=SimpleNamespace(st_mode=stat.S_IFREG,st_rdev=0)
+        with self.assertRaisesRegex(ValueError,'identity'):ensure_ksched_device(path)
