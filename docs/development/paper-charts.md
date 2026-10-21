@@ -66,8 +66,10 @@ The paper's requested filenames are:
 - `echo-loaded-hot-peak-throughput-workers.pdf`
 
 `echo-overload-loss.pdf` retains the complete overloaded grid for inspection.
-The inventory is [charts.json](../../tools/paper/charts.json); commented TeX inclusions remain
-pending until validated replacements exist. Do not replace active PDFs with
+The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/unloaded-20261021/README.md)
+for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/unloaded-20261021/unloaded.json`.
+Both unloaded PDFs are included by the current paper source. Loaded collection is incomplete.
+The inventory is [charts.json](../../tools/paper/charts.json). Do not replace active PDFs with
 rehearsal or synthetic inputs. Existing measurement archives retain their
 original workload and provenance; use the echo campaign for new acquisition.
 

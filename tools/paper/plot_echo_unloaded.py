@@ -42,21 +42,24 @@ def render(source,output, *, rehearsal=False):
             median,p99=np.percentile(values,[50,99])
             ax.plot(median,.5,'o',color=chart.COLORS[i],markersize=3)
             ax.plot(p99,.99,'D',color=chart.COLORS[i],markersize=3)
-            ax.text(.03 if len(systems)==1 else (.75 if size==1432 else .97),.73-i*.30,
+            ax.text(.03 if len(systems)!=2 else (.75 if size==1432 else .97),
+                    (-.18-i*.21) if len(systems)>2 else .73-i*.30,
                     f'{system}: median {median:.3f}, P99 {p99:.3f} '+r'$\mu$s',
-                    transform=ax.transAxes,ha='left' if len(systems)==1 else 'right',va='center',fontsize=6,
+                    transform=ax.get_yaxis_transform() if len(systems)>2 else ax.transAxes,
+                    ha='left' if len(systems)!=2 else 'right',va='center',fontsize=6,
                     color=chart.COLORS[i])
 
+        if len(systems)>2: ax.set_ylim(-.72,1.05)
         ax.set_xscale('log')
         ax.set_yticks([0,.5,1],['0','.5','1'])
-        ax.text(.03 if len(systems)==1 else .97,.16,str(size)+' B',transform=ax.transAxes,
+        ax.text(.03 if len(systems)==1 else .97,.45 if len(systems)>2 else .16,str(size)+' B',transform=ax.transAxes,
                 ha='left' if len(systems)==1 else 'right',fontsize=8)
     from matplotlib.ticker import NullFormatter
-    axes[-1].set_xticks([3,5,10,20,30],['3','5','10','20','30'])
+    axes[-1].set_xticks([3,5,10,20,40],['3','5','10','20','40'])
     axes[-1].xaxis.set_minor_formatter(NullFormatter())
     axes[1].set_ylabel('CDF',labelpad=2)
     axes[-1].set_xlabel('Wire-to-wire latency ($\\mu$s)')
-    fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=2)
+    fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=min(3,len(systems)))
     chart.save(fig,output/'echo-unloaded-hot-latency-cdf.pdf')
     fig,original=chart.figure(columns=1,height=5.4)
     original.remove()

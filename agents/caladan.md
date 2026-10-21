@@ -244,3 +244,11 @@ on-time warmup reply and no on-time measured replies, with total worker activity
 and TX diagnostics are needed to distinguish overload, starvation and a stalled
 receive path. No root cause or repaired performance result is claimed.
 `loaded-repeat-failure-review.json` in the campaign root records this stop.
+
+Full unloaded chart integration is complete in
+`data/paper/echo/unloaded-20261021/`: 18 cohorts combining historical LH/DPDK
+and CS-A64, 10,000 measured observations per cohort, with raw evidence hashes
+verified during archive/render. Both paper PDFs include all three systems;
+fixed-column dimensions, embedded fonts, conserved breakdowns and visual review
+passed. The current paper source includes both filenames. Loaded acquisition
+remains stopped as above; these figures make no loaded-performance claim.
