@@ -99,8 +99,15 @@ RTT, with no Tofino capture, FPGA readout or NIC PTP.
 Boot/module failures still require
 the repository's diagnostic capture before reset. If Ethernet capture fails,
 retain partial evidence and stop without resetting; do not fall back to a full
-JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data;
-record well-formed ONC-RPC `SYSTEM_ERR` rejections separately and include requests
+JTAG dump. Small JTAG head/tail checks remain part of successful capture validation. Expected server loss is data; this includes default-runtime starvation and zero
+handler activity in a loaded trial whose readiness, placement, generator, health
+and restoration checks pass. Zero replies means zero goodput and 100% deadline
+loss, with undefined latency. Do not tune away baseline behavior to pass an
+activity gate. Retain placement/counter consistency and grid-wide worker coverage;
+unloaded/readiness activity requirements remain strict. Stop the qualifying
+latency/goodput curve at the first >1% loss point and retain all loaded loss points.
+
+Record well-formed ONC-RPC `SYSTEM_ERR` rejections separately and include requests
 without an on-time successful reply in the 1% loss condition. Retain per-trial rejection counts for later plots (and per-request counts in
 detailed diagnostic mode); do not count duplicate rejection
 replies as additional lost requests. Generator misses, admission failure, corruption and resource exhaustion invalidate

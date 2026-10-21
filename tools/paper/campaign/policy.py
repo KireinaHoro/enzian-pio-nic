@@ -80,18 +80,25 @@ def next_rate(rate):
 
 
 
-def validate_activity(counts, workers):
-    """Idle workers are valid at low load; activity is not a placement sentinel."""
+def validate_activity(counts, workers, *, allow_zero=False):
+    """Validate counter shape; loaded loss may leave every worker inactive."""
     if (len(counts)!=workers or any(type(n) is not int or n<0 for n in counts)
-            or not any(counts)):
+            or (not allow_zero and not any(counts))):
         raise ValueError('Invalid worker activity coverage')
+
+
+def validate_loaded_activity(counts, workers, trial):
+    validate_activity(counts, workers, allow_zero=True)
+    validate_trial(trial)
+    if not any(counts) and trial['on_time'] + trial['late']:
+        raise ValueError('Client replies contradict zero server activity')
 
 
 def validate_activity_coverage(groups):
     """Each worker configuration must exercise every worker somewhere in its grid."""
     for key,records in groups.items():
         workers=key[-1]
-        for counts in records:validate_activity(counts,workers)
+        for counts in records:validate_activity(counts,workers,allow_zero=True)
         if not records or any(not any(row[i]>0 for row in records) for i in range(workers)):
             raise ValueError('Workers never exercised in collected grid: '+str(key))
 

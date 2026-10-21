@@ -100,7 +100,7 @@ def finalize(config,h,request,campaign):
     atomic(destination/'unloaded.json',archive.records(unloaded))
     atomic(destination/'hardware.json',config)
     atomic(destination/'recovery-history.json',[json.loads(p.read_text()) for p in sorted((campaign/'recoveries').glob('*/review.json'))])
-    from .policy import validate_activity, validate_activity_coverage
+    from .policy import validate_loaded_activity, validate_activity_coverage
     activities={}
     provenance={}
     for receipt in (campaign/'stages').glob('*/receipt.json'):
@@ -114,7 +114,7 @@ def finalize(config,h,request,campaign):
             request_path=next(p for p in saved['hashes'] if Path(p).name=='request.json' and Path(p).parent.name.startswith('attempt-'))
             cohort=json.loads(Path(request_path).read_text())
             key=cohort['system'],cohort['payload_bytes'],cohort['workers']
-            validate_activity(result['worker_activity'],cohort['workers'])
+            validate_loaded_activity(result['worker_activity'],cohort['workers'],result['trial'])
             activities.setdefault(key,[]).append(result['worker_activity'])
             if result['trace_readouts']!=0 or result['software_profiling'] or result['fpga_recording']:
                 raise ValueError('Final loaded instrumentation gate failed')

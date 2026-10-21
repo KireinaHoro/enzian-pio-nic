@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from .policy import validate_activity, validate_activity_coverage, aggregate, candidates, grid, qualifying, validate_trial
+from .policy import validate_activity, validate_loaded_activity, validate_activity_coverage, aggregate, candidates, grid, qualifying, validate_trial
 
 SPEC=importlib.util.spec_from_file_location('controller',Path(__file__).parents[1]/'benchmark_campaign.py')
 controller=importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(controller)
@@ -100,6 +100,25 @@ class Policy(unittest.TestCase):
             validate_activity_coverage({('LH',8,4):[[100,0,0,0]]})
         for counts in ([0,0,0,0],[1,-1,0,0],[1]):
             with self.assertRaises(ValueError):validate_activity(counts,4)
+
+    def test_zero_activity_loaded_collapse_is_loss_not_invalid_acquisition(self):
+        collapsed=trial(0)
+        validate_loaded_activity([0,0,0,0],4,collapsed)
+        self.assertEqual(aggregate([collapsed])['goodput'],0)
+        self.assertEqual(aggregate([collapsed])['worst_loss'],1)
+        points=[dict(rate=10,trials=[trial()]),dict(rate=20,trials=[collapsed]),
+                dict(rate=30,trials=[trial()])]
+        self.assertEqual([p['rate'] for p in qualifying(points)],[10])
+        self.assertEqual(len(points),3)
+        validate_activity_coverage({('CS-A64',8,4):[[1,2,3,4],[0,0,0,0]]})
+        with self.assertRaisesRegex(ValueError,'never exercised'):
+            validate_activity_coverage({('CS-A64',8,4):[[0,0,0,0]]})
+        for bad in (trial(1),dict(collapsed,late=1)):
+            with self.assertRaisesRegex(ValueError,'contradict'):
+                validate_loaded_activity([0,0,0,0],4,bad)
+        for field in ('generator_misses','tx_admission_failures','malformed','nic_rx_errors'):
+            with self.assertRaises(ValueError):
+                validate_loaded_activity([0,0,0,0],4,dict(collapsed,**{field:1}))
 
     def test_server_rejections_count_toward_cutoff(self):
         at_limit=dict(trial(99),server_rejections=1)

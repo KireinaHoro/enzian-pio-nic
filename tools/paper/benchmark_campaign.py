@@ -132,9 +132,9 @@ class Campaign:
                 raise ValueError('Loaded case instrumentation contract violated')
             if result.get('generator_cpus') != self.config['generator_cpus'] or result.get('flows') != self.config['flows']:
                 raise ValueError('Generator placement/flow mismatch')
-            from campaign.policy import validate_activity
-            validate_activity(result.get('worker_activity', []),request['workers'])
+            from campaign.policy import validate_loaded_activity
             trial, _ = load(result['csv'], result['summary'], collect_latencies=False)
+            validate_loaded_activity(result.get('worker_activity', []),request['workers'],trial)
             if (trial.get('schema')!=(3 if self.config.get('aggregate',False) else 2) or trial['benchmark']!='echo'+str(request['payload_bytes'])
                     or trial['warmup_ns']!=request['warmup_ms']*1_000_000):
                 raise ValueError('Workload/warmup boundary provenance differs from plan')

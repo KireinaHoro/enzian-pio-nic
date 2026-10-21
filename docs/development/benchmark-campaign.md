@@ -595,7 +595,12 @@ Low-load points may leave some configured workers idle: Lauberhorn allocates
 additional workers as queued demand rises. Activity slots with no observed call
 retain zero CPU/TID sentinels; they are not evidence of execution on CPU 0.
 Per-point validation checks nonnegative counters and distinct valid placement for
-workers that have executed, permitting zero activity for others. Rehearsal/final
+workers that have executed, permitting zero activity for others. A loaded point
+may have zero activity on every worker: when role readiness, binary/placement,
+generator schedule, hardware health and restoration checks pass, no replies is
+zero goodput and 100% deadline loss, not an acquisition failure. Client replies
+with zero server activity remain contradictory and are rejected. Unloaded and
+standalone readiness checks still require positive activity. Rehearsal/final
 validation requires every worker in each system/payload/worker configuration to
 be exercised somewhere in the collected grid. Per-worker counts remain preserved;
 these checks do not establish simultaneous execution or CPU utilization.

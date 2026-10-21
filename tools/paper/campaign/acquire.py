@@ -56,7 +56,7 @@ def validate_role(root, request, binary_sha):
     result=dict(files={str(p.resolve()):digest(p) for p in root.rglob('*') if p.is_file()})
     if request['role']=='server' and request['system']=='CS-A64':
         with (root/'activity.csv').open() as stream: activity=list(csv.DictReader(stream))
-        counts=caladan_activity(activity,request['cpus'])
+        counts=caladan_activity(activity,request['cpus'],allow_zero=request['mode']=='loaded')
         if request['mode']=='unloaded' and sum(counts)!=request['count']+request['warmup']:
             raise ValueError('Caladan request count differs from unloaded cohort')
         result.update(worker_activity=counts,activity=activity)
@@ -65,7 +65,8 @@ def validate_role(root, request, binary_sha):
         if len(workers)!=len(request['cpus']) or [int(r['lcore']) for r in workers]!=request['cpus']:
             raise ValueError('Responder worker placement differs')
         activity=[int(r['measured']) for r in workers]
-        if any(n<=0 for n in activity): raise ValueError('Inactive responder worker')
+        from .policy import validate_activity
+        validate_activity(activity,len(request['cpus']),allow_zero=True)
         nic=read('samples.csv.nic.json')
         if any(nic[k] for k in ('rx_errors','tx_errors','rx_no_buffer')):
             raise ValueError('Responder NIC health/resource failure')
@@ -73,7 +74,7 @@ def validate_role(root, request, binary_sha):
     return result
 
 
-def caladan_activity(activity, cpus):
+def caladan_activity(activity, cpus, *, allow_zero=False):
     records={int(r['worker']):(int(r['calls']),int(r['cpu_mask'])) for r in activity}
     allowed=sum(1<<cpu for cpu in cpus)
     if (len(activity)!=64 or set(records)!=set(range(64))
@@ -82,7 +83,7 @@ def caladan_activity(activity, cpus):
             or any(records[i]!=(0,0) for i in range(len(cpus),64))):
         raise ValueError('Caladan worker activity or placement differs')
     counts=[records[i][0] for i in range(len(cpus))]
-    if not any(counts):raise ValueError('No Caladan worker activity')
+    if not allow_zero and not any(counts):raise ValueError('No Caladan worker activity')
     return counts
 
 

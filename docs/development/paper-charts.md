@@ -65,7 +65,14 @@ The paper's requested filenames are:
 - `echo-loaded-hot-latency-goodput.pdf`
 - `echo-loaded-hot-peak-throughput-workers.pdf`
 
-`echo-overload-loss.pdf` retains the complete overloaded grid for inspection.
+`echo-overload-loss.pdf` retains the complete overloaded grid for inspection,
+including 100% deadline-loss points with no replies. The latency/goodput curve
+stops at the contiguous prefix meeting the 1% loss limit; an X marks its last
+qualifying point when an overloaded point has been observed. This marks a sampled
+endpoint, not an exact capacity threshold. Zero-reply points have no latency
+percentile and are not plotted at an invented RTT. Statistics retain the first
+excluded offered rate, its loss and all excluded points' goodput/loss. Later
+recovery at a higher offered rate does not reconnect the qualifying curve.
 The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/unloaded-20261021/README.md)
 for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/unloaded-20261021/unloaded.json`.
 Both unloaded PDFs are included by the current paper source. Loaded collection is incomplete.

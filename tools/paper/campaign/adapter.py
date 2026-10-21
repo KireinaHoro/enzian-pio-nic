@@ -233,7 +233,7 @@ if path.exists():
 
 
 def rehearsal(config,h,campaign):
-    from .policy import validate_activity_coverage
+    from .policy import validate_loaded_activity, validate_activity_coverage
     activities={}
     cohorts=read(campaign/'rehearsal-unloaded.json');validate_matched(cohorts,rehearsal=True,systems=selected_systems(read(campaign/'config.json')))
     if read(campaign/'config.json').get('scope')=='unloaded-rehearsal':
@@ -259,6 +259,7 @@ def rehearsal(config,h,campaign):
             raise ValueError('Rehearsal loaded instrumentation violation')
         if not result['restored'] or not result['health']: raise ValueError('Rehearsal health/restoration failure')
         key=request['system'],request['payload_bytes'],request['workers']
+        validate_loaded_activity(result['worker_activity'],request['workers'],trial)
         points.setdefault(key,[]).append(dict(rate=request['rate'],trials=[trial]))
         activities.setdefault(key,[]).append(result['worker_activity'])
     validate_activity_coverage(activities)

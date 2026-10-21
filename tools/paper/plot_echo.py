@@ -82,8 +82,19 @@ def render(source,destination, *, rehearsal=False, partial=False):
                             y=[v.percentile(percentile)/1000 for v in values]
                             ax.plot(x,y,style,color=chart.COLORS[si],marker=('o','s','^')[ni],
                                     markersize=3,label=f'{system} {size} B')
-                            if x: ax.plot(x[-1],y[-1],marker=('o','s','^')[ni],color=chart.COLORS[si],markersize=5)
+                            if x and len(points)<len(record['points']):
+                                ax.plot(x[-1],y[-1],marker='x',color=chart.COLORS[si],
+                                        markersize=6,label='Last qualifying point')
+                                ax.legend(fontsize=6,loc='best')
+                        ordered=sorted(record['points'],key=lambda p:p['rate'])
+                        excluded=ordered[len(points):]
+                        cutoff=(dict(offered_rate=excluded[0]['rate'],
+                                     worst_loss=aggregate(excluded[0]['trials'])['worst_loss'])
+                                if excluded else None)
                         stats.append(dict(system=system,size=size,workers=worker,
+                            loss_cutoff=cutoff,
+                            overload=[dict(rate=p['rate'],goodput=aggregate(p['trials'])['goodput'],
+                                           worst_loss=aggregate(p['trials'])['worst_loss']) for p in excluded],
                             rates=[p['rate'] for p in points],goodput=x,
                             median_us=[v.percentile(50)/1000 for v in values],
                             p99_us=[v.percentile(99)/1000 for v in values]))

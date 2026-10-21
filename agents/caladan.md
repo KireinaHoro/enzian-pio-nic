@@ -253,11 +253,23 @@ Mechanism: `runtime/sched.c` checks the 50 us watchdog before runnable handlers;
 to 32 UDP handler threads. When RX work repeatedly crosses the watchdog interval,
 it keeps taking priority over those handlers. This ordering is inherited from
 upstream, not newly introduced by the port. Fresh stack allocation is a possible
-amplifier, not separately profiled. A follow-up should bound consecutive RX work
-or otherwise guarantee handler progress while preserving timers and I/O polling,
-then validate sustained load/overload and multiple workers. Disabling the watchdog
-was a causal diagnostic only, not an approved baseline configuration. Preserve
-unloaded data; review any runtime/configuration transition before loaded collection.
+amplifier, not separately profiled. The maintainer selected default watchdog
+behavior for the paper baseline; do not fix the scheduler or disable the watchdog.
+Loaded all-zero activity is now accepted as loss when the existing acquisition
+checks pass; contradictory client replies still fail. Grid-wide worker coverage
+and positive standalone-readiness/unloaded checks remain required. Qualifying
+latency/goodput curves stop at the first >1% loss point; collapse stays in the
+loss curve, with no fabricated latency for zero replies.
+
+Collection is explicitly paused by the maintainer pending configuration changes
+to match the paper. Do not launch or resume the campaign. The original failed
+attempts remain failed records; no receipts or evidence were relabelled, and the
+original hardware hold remains set. Local campaign regression tests passed (82);
+fixture plots verified cutoff/recovery/zero-reply behavior, fixed PDF dimensions,
+embedded fonts and visual review. The preserved original attempt-2 payloads pass
+the corrected local gates as zero goodput/100% loss; no receipt was rewritten.
+No hardware run was made for this orchestration change. Preserve unloaded data and review configuration
+compatibility before any later collection.
 
 Full unloaded chart integration is complete in
 `data/paper/echo/unloaded-20261021/`: 18 cohorts combining historical LH/DPDK

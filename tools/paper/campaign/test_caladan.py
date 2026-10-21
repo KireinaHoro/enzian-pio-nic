@@ -85,6 +85,10 @@ class CaladanCampaignTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'placement'):caladan_activity(rows,[44,45,46,47])
         rows[2].update(calls=0,cpu_mask=0)
         with self.assertRaisesRegex(ValueError,'No Caladan'):caladan_activity(rows,[44,45,46,47])
+        self.assertEqual(caladan_activity(rows,[44,45,46,47],allow_zero=True),[0,0,0,0])
+        rows[0]['cpu_mask']=1<<42
+        with self.assertRaisesRegex(ValueError,'placement'):
+            caladan_activity(rows,[44,45,46,47],allow_zero=True)
 
     def test_nic_health_requires_both_unchanged_error_counters(self):
         from .caladan_peer import nic_errors_unchanged

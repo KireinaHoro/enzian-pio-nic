@@ -140,10 +140,12 @@ single-worker diagnostics, handlers resumed after traffic stopped; disabling the
 watchdog with the same binary restored timely replies at 125,000 RPC/s. That
 configuration is a diagnostic control, not the selected paper baseline.
 
-A scheduling remedy must guarantee handler progress while retaining timely
-network and timer processing. Sustained overload and multiple-worker validation
-must precede resumed loaded measurements. Exact diagnostics and restoration
-receipts are in the [port continuation](../../agents/caladan.md).
+The paper baseline retains the default watchdog behavior. Valid loaded collapse
+points count as server loss, including zero goodput and 100% deadline loss;
+they end the qualifying latency/goodput curve and remain in the loss curve.
+No scheduler fix or watchdog-disable configuration is part of this baseline.
+Exact diagnostics and restoration receipts are in the
+[port continuation](../../agents/caladan.md).
 
 Busy-owner signal/IPI preemption, zero-core wakeup and core reclamation under
 contention remain separate acceptance work. Caladan memcached integration and
