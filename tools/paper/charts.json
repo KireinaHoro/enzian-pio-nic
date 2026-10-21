@@ -101,33 +101,34 @@
       "id": "echo-loaded-hot-latency-goodput",
       "output": "../paper/plots/echo-loaded-hot-latency-goodput.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-full-20261019/loaded.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-full-20261019/loaded.json --partial",
+      "manifest": "out/echo-loaded-shared-20261019/loaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-loaded-shared-20261019/loaded.json",
       "status": "included",
       "tex": "evaluation.tex",
-      "measurement_scope": "Partial preserved loaded collection; LH four-worker 8B and 128B curves",
+      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers",
       "latency_population": "All transmitted requests; deadline failures at infinity; nearest-rank inverse CDF",
       "stop_marker": "Upward infinity ray at last contiguous point meeting 1% loss in every trial"
-    }
-  ],
-  "planned_charts": [
+    },
     {
       "id": "echo-loaded-hot-peak-throughput-workers",
       "output": "../paper/plots/echo-loaded-hot-peak-throughput-workers.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-full-20261019/loaded-plots.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
-      "status": "partial_collection_pending_inclusion",
-      "tex": "evaluation.tex (commented inclusion)"
+      "manifest": "out/echo-loaded-shared-20261019/loaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-loaded-shared-20261019/loaded.json",
+      "status": "included",
+      "tex": "evaluation.tex",
+      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers"
     },
     {
       "id": "echo-overload-loss",
       "output": "../paper/plots/echo-overload-loss.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-full-20261019/loaded-plots.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
-      "status": "partial_collection_pending_inclusion",
-      "tex": null
+      "manifest": "out/echo-loaded-shared-20261019/loaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-loaded-shared-20261019/loaded.json",
+      "status": "included",
+      "tex": "evaluation.tex",
+      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers"
     }
-  ]
+  ],
+  "planned_charts": []
 }

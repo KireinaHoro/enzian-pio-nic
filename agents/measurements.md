@@ -27,14 +27,18 @@ campaign control remains in place.
 
 ## Loaded chart accounting
 
-Loaded percentile calculation uses all transmitted requests, with deadline
-failures at infinity and inverse-CDF nearest rank. The curve draws an upward
-infinity ray at the last point before the worst-trial 1% loss cutoff. Preserved
-`out/echo-full-20261019/loaded.json` supplies the partial LH four-worker 8B/128B
-curves; revised statistics and reviewed previews are in
-`out/loaded-loss-aware-preview/`. The paper latency/goodput PDF is regenerated
-from this source. No additional loaded measurements were taken. Local campaign
-suite: 90 tests pass, including the exact 1% loss boundary and zero-reply P99.
+The completed loaded source is `out/echo-loaded-shared-20261019/loaded.json`:
+24 LH/DPDK cohorts, all three payload sizes and all four worker counts. Use
+full-matrix validation (no `--partial`) when regenerating the paper figures.
+`out/echo-full-20261019/loaded.json` is an older LH-only partial file and must
+not replace the combined figures. The inventory points to the completed source.
+
+Loaded percentiles use all transmitted requests, with deadline failures at
+infinity and inverse-CDF nearest rank. The latency curve draws an upward
+infinity ray at the last point before the worst-trial 1% loss cutoff. Revised
+statistics and reviewed previews are in `out/loaded-loss-aware-full/`. No new
+measurements were taken. Local campaign suite: 90 tests pass, including the
+exact 1% loss boundary and zero-reply P99.
 
 ## Echo contract and artifact constraints
 

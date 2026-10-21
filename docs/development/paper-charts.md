@@ -86,7 +86,12 @@ Trial statistics encode infinite quantiles as JSON `null` with an explicit
 loss and all excluded points' goodput/loss; zero-reply trials have infinite P99.
 The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/unloaded-20261021/README.md)
 for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/unloaded-20261021/unloaded.json`.
-Both unloaded PDFs are included by the current paper source. Loaded collection is incomplete.
+Both unloaded PDFs are included by the current paper source. The completed
+LH/DPDK loaded dataset is `out/echo-loaded-shared-20261019/loaded.json` (24
+cohorts covering all payloads and worker counts); its three figures are included.
+Regenerate them without `--partial`. The earlier
+`out/echo-full-20261019/loaded.json` contains only a partial LH matrix and is not
+the combined paper input. Caladan loaded acquisition remains pending.
 The inventory is [charts.json](../../tools/paper/charts.json). Do not replace active PDFs with
 rehearsal or synthetic inputs. Existing measurement archives retain their
 original workload and provenance; use the echo campaign for new acquisition.
