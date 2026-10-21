@@ -19,13 +19,14 @@ let
     inherit kernelRelease;
     system = target.stdenv.hostPlatform.config;
     source = runtime.sourceIdentity;
+    optimizationFlags = runtime.optimizationFlags or [];
     packages = {
       caladan = "${runtime}";
       ksched = "${ksched}";
       dpdk = "${dpdk}";
       rdmaCore = "${rdmaCore}";
     };
-    iokernelArgs = [ "simple" "noht" "nobw" "no_hw_qdel" ];
+    iokernelArgs = [ "simple" "noht" "nobw" ];
     datapath = "mlx5-directpath";
     runtimeConfig = { enable_directpath = "1"; };
     hostRequirements = [ "matching mlx5_core and mlx5_ib kernel drivers" "CX-5 PCI address" ];

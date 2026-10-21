@@ -93,7 +93,7 @@ def run(config, peer):
         if mode=='breakdown':
             env.update(LAUBERHORN_SERVER_TRACE_CSV=str(root/'samples.csv'),
                        LAUBERHORN_TRACE_CAPACITY=str(config['count']+config['warmup']))
-        jobs=[(['/nix/store/caladan/bin/iokerneld','simple','noht','nobw','no_hw_qdel',
+        jobs=[(['/nix/store/caladan/bin/iokerneld','simple','noht','nobw',
                 ','.join(map(str,pool)),'nicpci','0005:90:00.0','--','--file-prefix='+prefix],
                'iokernel','running dataplane'),
               ([config['binary'],str(runtime),'12345'],'server','CALADAN_ECHO_READY')]

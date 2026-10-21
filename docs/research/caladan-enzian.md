@@ -31,10 +31,10 @@ an unchanged upstream default does not by itself establish a paper setting.
 | Queue-delay threshold | Paper evaluation: `THRESH_QD=10 µs`. | Default `runtime_qdelay_us=10`. |
 | Receive/softirq watchdog | Not described in the paper. October 2020 source (`47a22d5`) already sets `RUNTIME_WATCHDOG_US=50`. | Unchanged, enabled, 50 µs; checked on scheduler entry, not a periodic interrupt. See the limitation below. |
 | User-thread quantum | Current upstream default `runtime_quantum_us=100`; consumed by IAS time sharing. | Inactive under simple; not a 100 µs preemption guarantee. |
-| NIC queue-delay measurement | Paper: packet arrival timestamps in NIC RX descriptors. | `no_hw_qdel`: queue scanning and software delay estimation. Hardware timestamp conversion is excluded from the selected setup. |
+| NIC queue-delay measurement | Paper: packet arrival timestamps in NIC RX descriptors. | Enabled by default: NIC CQ timestamps and the mapped CX-5 clock. `no_hw_qdel` selects queue scanning/software estimation for a diagnostic fallback. |
 | Core entitlement and residency | Paper evaluation: 22 guaranteed logical cores for LC tasks. | Campaign: maximum and guaranteed kthreads both equal the configured worker count; priority BE. `runtime_spinning_kthreads` is omitted, hence zero. Guarantees do not prevent parking. |
 | Idle handoff | Paper: MONITOR/MWAIT. | Repeated callbacks of up to 64 acquire polls; increased idle CPU/power, potentially lower activation latency. |
-| Compiler optimization | Paper does not specify these flags; upstream optimized build enables native targeting, LTO and fast-math. | `CONFIG_OPTIMIZE=n`, but release `-O3` remains enabled. ARM uses `-march=armv8-a+crc -mno-outline-atomics`; no LTO/native tuning/fast-math from the optimized profile. |
+| Compiler optimization | Paper does not specify these flags; upstream optimized build enables native targeting, LTO and fast-math. | `CONFIG_OPTIMIZE=y` with overridden flags: release `-O3`, explicit `-mcpu=thunderx+crc`, `-mno-outline-atomics`, LTO and fat LTO objects. No build-host native targeting or fast-math. The shared echo link inherits target/LTO flags. |
 | Storage | Paper includes SPDK for its storage workload. | `CONFIG_SPDK=n`; outside the selected network baseline. |
 
 Implementation references in the sibling tree: `package.nix`, `build/shared.mk`,
@@ -42,7 +42,7 @@ Implementation references in the sibling tree: `package.nix`, `build/shared.mk`,
 and `iokernel/simple.c`. Platform's campaign configuration is generated in
 `tools/paper/campaign/caladan_peer.py`.
 
-The IOKernel command selects `simple noht nobw no_hw_qdel <CPU-pool> nicpci
+The IOKernel command selects `simple noht nobw <CPU-pool> nicpci
 <CX-5-PCI-address>`. The zuestoll07 setup uses CX-5 `0005:90:00.0`, control CPU
 44, scheduler/dataplane CPU 45 and runtime CPUs 46/47. Worker count is a campaign
 parameter, not fixed by those example placements. Host mlx5 drivers and kernel
@@ -60,7 +60,11 @@ A guaranteed core is an entitlement, not a permanently running worker. With
 For a resident-worker hot experiment, explicitly set the spinning count to the
 intended resident-worker count; measure idle-to-active behavior separately.
 The current campaign generator does not set that option, so its guarantee field
-alone cannot establish residency between requests.
+alone cannot establish residency between requests. Spinning prevents voluntary
+parking below the configured count; IOKernel-requested cede/park still wins.
+It keeps workers executing in userspace rather than configuring Linux cpuidle.
+Even a parked ARM core polls in the kernel idle handoff, but needs runtime
+reactivation before it can process RX.
 
 The watchdog makes network/timer work eligible ahead of runnable application
 threads after 50 µs without softirq service. It runs only when control reaches

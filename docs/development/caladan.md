@@ -17,9 +17,12 @@ The platform composes AArch64 Caladan, mlx5-enabled DPDK and the pinned patched
 rdma-core with a matching `ksched` module. There is no ThunderX NICVF dependency
 or x86 calibration target. Upstream native x86 implementations remain intact.
 IAS/PCM, SPDK and UINTR are disabled; directpath remains enabled as upstream.
-`CONFIG_OPTIMIZE=n` avoids build-host `-march=native`.
+The Nix build enables `CONFIG_OPTIMIZE=y` with explicit `-mcpu=thunderx+crc`
+and LTO (`-flto=auto -ffat-lto-objects`), overriding upstream native targeting
+and fast-math. The shared echo link inherits these flags from the runtime.
+Native x86 Nix builds also use LTO, without ThunderX flags or build-host targeting.
 
-Use the simple policy: `simple noht nobw no_hw_qdel nicpci <CX-5 PCI-address>`.
+Use the simple policy: `simple noht nobw nicpci <CX-5 PCI-address>`.
 Add `enable_directpath 1` to runtime configurations and record the negotiated
 steering mode. IOKernel scheduling and core allocation remain active. Validate
 ARM DMA/MMIO ordering, NIC/firmware, kernel mlx5 support, hugepages and matching

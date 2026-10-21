@@ -12,6 +12,16 @@ Human references: [baseline](../docs/research/caladan-enzian.md),
 
 ## Next checks and integration constraints
 
+New builds enable ThunderX targeting and LTO; default launches now omit
+`no_hw_qdel`. Existing datasets retain their original compiler/configuration
+provenance. Before new acquisition, check CX-5 clock-page access, advancing CQ
+timestamps and sensible measured queue ages on Enzian. Previous runs with
+`no_hw_qdel` do not validate that path. No live deployment changed with this edit.
+Validation: optimized ARM off/trace builds and explicit QEMU shared-RPC checks
+passed; native x86 traced build/RPC checks and six Caladan campaign tests passed.
+The cross backend now invokes its checks explicitly because cross stdenv disables
+`doCheck`; prior successful cross-builds alone did not establish test execution.
+
 The campaign generator omits `runtime_spinning_kthreads` (default zero).
 Before claiming resident-worker measurements, set the intended spinning count
 and check parking behavior; guarantees alone do not ensure residency.
