@@ -10,6 +10,8 @@ stages:
 
 variables:
   GIT_STRATEGY: clone
+  # Build/test jobs do not need the large measurement traces.
+  GIT_LFS_SKIP_SMUDGE: "1"
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
   NIX_CONFIG: |

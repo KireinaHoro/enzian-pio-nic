@@ -120,3 +120,11 @@ runtime subintervals including Caladan dispatch wait. See the
 1/2 use broader RPC spans containing wrapper/dispatch work. Comparisons using
 version 3 require version 3 for every breakdown cohort. The split preserves the
 same central observations and total instrumented median.
+
+### Campaign storage
+
+Echo campaign evidence under `data/paper/echo/` is stored as ordinary Git files,
+including compressed logs and samples. Preserve the paths and hashes used by
+the manifests; do not add a blanket LFS rule for campaign evidence. Large FPGA
+trace dumps elsewhere under `data/` remain in LFS. CI skips automatic LFS
+downloads; fetch specific trace paths explicitly when reproducing those figures.

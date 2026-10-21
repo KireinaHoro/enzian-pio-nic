@@ -20,6 +20,11 @@ license-server default shared with the local Docker launcher. It receives Vivado
 the Tcl entry point checks version 2025.1 and software build 6140274. The image
 digest alone does not pin that separately maintained installation.
 
+CI sets `GIT_LFS_SKIP_SMUDGE=1` before checkout so fresh job clones do not
+download measurement traces. A job that needs LFS evidence must fetch only its
+required paths explicitly with `git lfs pull --include="PATH" --exclude=""`.
+Small echo campaign evidence is stored directly in Git.
+
 ## Scheduled hardware-build follow-up
 
 After launching an authorized hardware CI pipeline, schedule a **30-minute**
