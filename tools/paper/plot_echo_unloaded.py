@@ -42,17 +42,29 @@ def render(source,output, *, rehearsal=False):
             median,p99=np.percentile(values,[50,99])
             ax.plot(median,.5,'o',color=chart.COLORS[i],markersize=3)
             ax.plot(p99,.99,'D',color=chart.COLORS[i],markersize=3)
-            ax.text(.03 if len(systems)!=2 else (.75 if size==1432 else .97),
-                    (-.18-i*.21) if len(systems)>2 else .73-i*.30,
-                    f'P50 {median:.3f}, P99 {p99:.3f}',
-                    transform=ax.get_yaxis_transform() if len(systems)>2 else ax.transAxes,
-                    ha='left' if len(systems)!=2 else 'right',va='center',fontsize=6,
-                    color=chart.COLORS[i])
+            positions = {
+                8: {'LH': ((.20,.54),(.22,.70)),
+                    'DPDK': ((.32,.20),(.43,.87)),
+                    'CS-A64': ((.70,.38),(.70,.84))},
+                128: {'LH': ((.43,.38),(.43,.82)),
+                      'DPDK': ((.17,.18),(.17,.66)),
+                      'CS-A64': ((.70,.38),(.70,.82))},
+                1432: {'LH': ((.49,.28),(.49,.80)),
+                       'DPDK': ((.29,.18),(.29,.70)),
+                       'CS-A64': ((.72,.40),(.72,.84))},
+            }
+            for label,value,probability,position in zip(
+                    ('P50','P99'),(median,p99),(.5,.99),positions[size][system]):
+                ax.annotate(f'{label} {value:.3f}',xy=(value,probability),
+                            xytext=position,textcoords='axes fraction',
+                            ha='center',va='center',fontsize=6,color=chart.COLORS[i],
+                            arrowprops=dict(arrowstyle='->',color=chart.COLORS[i],
+                                            lw=.65,shrinkA=2,shrinkB=3))
 
-        if len(systems)>2: ax.set_ylim(-.72,1.05)
+        ax.set_ylim(-.04,1.06)
         ax.set_xscale('log')
         ax.set_yticks([0,.5,1],['0','.5','1'])
-        ax.text(.03 if len(systems)==1 else .97,.45 if len(systems)>2 else .16,str(size)+' B',transform=ax.transAxes,
+        ax.text(.03 if len(systems)==1 else .97,.12,str(size)+' B',transform=ax.transAxes,
                 ha='left' if len(systems)==1 else 'right',fontsize=8)
     from matplotlib.ticker import NullFormatter
     axes[-1].set_xticks([3,5,10,20,40],['3','5','10','20','40'])
