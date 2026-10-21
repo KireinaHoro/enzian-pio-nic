@@ -319,6 +319,20 @@ isolation, artifact hashes, budgets and callback reuse. The read-only switch
 clock check passed; server-facing link state is preserved in preparation.
 Live restoration checks verified the previous failure's role archives and idle
 hosts without reset; the old campaign's hold and receipts remain unchanged.
-Launch submission succeeded; completion is not yet established. Do not poll:
-inspect on a terminal callback or user request, and visually review final plots.
-Baseline-only plots stay in the campaign archive until combined review.
+The first attempt stopped at chunk 004 of the first unloaded cohort when leaf0
+SSH stopped responding; chunks 000–003 completed and cleaned up. Server runtime
+metadata confirmed maximum/guaranteed/spinning counts of one. No whole cohort
+completed and loaded collection had not started. Restarting only the owned SSH
+control service restored access. Its helper now drains terminal output after
+authentication (Tofino commit `6715a56`, 58 tests passed); PTY backpressure is a
+supported failure mechanism, not a proven diagnosis of this specific stall.
+
+`recovery-switch-export`, `recovery-clock` and `recovery-live-check` preserve the
+recovery evidence: no ready/journal/owner files for the failed session, free
+capture lock, empty selectors, zero counters, passing clock check, verified role
+archive hashes and idle/restored hosts. No switch/board reset or capture-state
+clearing was performed. The campaign resumed under the same service and frozen
+measurement configuration, retaining attempt-1 and rerunning the incomplete
+cohort. Completion is not yet established. Do not poll: inspect on a terminal
+callback or user request, and visually review final plots. Baseline-only plots
+stay in the campaign archive until combined review.
