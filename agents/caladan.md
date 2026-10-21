@@ -7,14 +7,18 @@ preserved; no x86 calibration campaign is requested. Current source at collectio
 was `d6a6be20f78ae0dac14c033cb427126f1f62159b` on `enzian-port`.
 
 Human references: [baseline](../docs/research/caladan-enzian.md),
-[ARM differences](../docs/research/caladan-arm-port.md),
+[ARM differences](../docs/research/caladan-enzian.md#arm-port-differences),
 [build/tests/tracing](../docs/development/caladan.md).
 
 ## Next checks and integration constraints
 
+The campaign generator omits `runtime_spinning_kthreads` (default zero).
+Before claiming resident-worker measurements, set the intended spinning count
+and check parking behavior; guarantees alone do not ensure residency.
+
 Busy-owner signal/IPI preemption, zero-core wakeup and contention/core
 reclamation remain checks for competing-tenant scheduling experiments. The hot
-campaign uses one application with a resident guaranteed worker pool and makes
+campaign uses one application with a guaranteed worker pool and makes
 no contention or reclamation claim. Controller/backend selection and both probe
 modes are integrated on platform master; matching Tofino and loaded-concurrency
 acceptance gates paper acquisition. Caladan memcached is a main

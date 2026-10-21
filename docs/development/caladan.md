@@ -57,7 +57,7 @@ The ARM runtime and CPU checks require ThunderX-1 CRC instructions at build time
 CRC fallback is used. Downstream ARM code including these headers must also
 enable the CRC extension.
 
-See [AArch64 port differences](../research/caladan-arm-port.md) for the design and
+See [AArch64 port differences](../research/caladan-enzian.md#arm-port-differences) for the design and
 machine-level cost differences from x86 Caladan.
 ARM runtime atomics compile with `-mno-outline-atomics` to retain inline LL/SC.
 

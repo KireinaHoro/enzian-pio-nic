@@ -1,153 +1,155 @@
 # CS-A64: Caladan Simple on AArch64
 
-**CS-A64 (Caladan Simple)** is the paper's Caladan baseline, alongside **DPDK**
-and **LH**. It runs Caladan's simple scheduling policy and mlx5 directpath on
-Enzian ThunderX with ConnectX-5. It is a Caladan port, not a Shenango simulation.
-IAS and full Caladan interference-control claims are outside the selected scope.
+**CS-A64** is the paper's Caladan baseline: ThunderX-1 ARMv8, ConnectX-5,
+mlx5 directpath and the **simple** scheduling policy. Applications access NIC
+queues directly; the IOKernel retains core allocation and preemption. IAS and
+its interference-control claims are outside this baseline's scope. Native x86
+implementations are preserved; no x86 calibration experiments are planned.
 
-The [paper goals](paper-goals.md#planned-applications-and-baseline) distinguish
-DPDK's transport/CPU-processing control from CS-A64's runtime-managed core
-allocation and networking. Native Lauberhorn versus Caladan
-[memcached](../applications/memcached.md) is a main application comparison.
-Add measured series only after the relevant benchmark acceptance; functional
-checks do not establish latency, throughput, power or scheduling guarantees.
+See [paper goals](paper-goals.md#planned-applications-and-baseline) for the
+comparison with Lauberhorn and DPDK, and [build, deployment and tracing](../development/caladan.md)
+for commands. Caladan owns its Nix recipes; platform composes the cross toolchain,
+matched kernel modules and SquashFS image through `mkCaladan`. No RTL build is
+required. Progress and detailed test provenance live in [agent context](../../agents/caladan.md).
 
-## Selected setup
+## Selected setup and paper comparison
 
-| Setting | Target |
-| --- | --- |
-| Source | Maintained AArch64 Caladan port in `../caladan`, upstream base `bdb4ddebc2198cd95991079ed20e44a5f210d6d3` |
-| CPU and NIC | Enzian ThunderX ARMv8 with Mellanox ConnectX-5 |
-| Datapath | Existing mlx5 directpath backend, adapted for ARM; runtime RX/TX bypass IOKernel packet forwarding |
-| Scheduling | Actual Caladan runtime and IOKernel simple-policy core allocation/preemption |
-| IOKernel arguments | `simple noht nobw no_hw_qdel nicpci <CX-5 PCI-address>` |
-| Runtime configuration | `enable_directpath 1`; record negotiated flow/queue/external steering mode |
-| Build selection | Directpath enabled as upstream; `CONFIG_IAS=n`, `CONFIG_SPDK=n`, `CONFIG_NO_UINTR=y`, `CONFIG_OPTIMIZE=n` |
-| Kernel | Initially platform-prepared `6.8.0-146-generic`, matching ARM `ksched`/`fake_idle`; confirm mlx5_core/mlx5_ib and userspace compatibility |
-| CPU placement | Initial isolated pool 44–47; actual control/worker placement depends on selected board and PCI/NUMA topology |
+The reference is [Caladan, OSDI'20](https://www.usenix.org/system/files/osdi20-fried.pdf),
+particularly §§5–7. Our upstream base is
+`bdb4ddebc2198cd95991079ed20e44a5f210d6d3` (May 2026), not the original paper
+artifact. The table distinguishes published settings from implementation details;
+an unchanged upstream default does not by itself establish a paper setting.
 
-Directpath retains the IOKernel's scheduling role. Preserve the original mlx5
-queue/flow-steering mechanisms where possible; do not replace them with fixed
-cooperative workers. Exclude UINTR, IAS/Intel PCM/PMCs and SPDK from this selected
-build, without deleting their upstream implementations. No NICVF/PF, DSCP
-classification, custom VNIC ownership or ThunderX PTP work is required.
+| Setting | Paper / upstream reference | CS-A64 configuration |
+| --- | --- | --- |
+| CPU, NIC and kernel | Paper: Broadwell Xeon, ConnectX-5, modified Linux 5.2; one socket used. | ThunderX-1, ConnectX-5, Linux `6.8.0-146-generic` with matched ARM `ksched`/`fake_idle`. |
+| Network datapath | Paper: runtime kernel-bypass networking through libibverbs. | Existing mlx5 directpath, `enable_directpath 1`; no IOKernel packet forwarding. Record negotiated steering mode. |
+| Scheduling policy | Paper: interference-aware allocation with bandwidth and hyperthread controllers. | `simple noht nobw`; `CONFIG_IAS=n`. ThunderX has no SMT. |
+| Preemption | Paper: KSCHED IPIs and runtime signals. UINTR entered upstream in December 2023. | `CONFIG_NO_UINTR=y`; signal/IPI preemption. Disabling UINTR is not a departure from the original paper. |
+| IOKernel delay-measurement interval | Paper: 10 µs control interval. Upstream: `IOKERNEL_POLL_INTERVAL=10`. | Unchanged, 10 µs slow pass; fast scheduling checks run every loop. This is not a per-packet polling interval. |
+| Runtime work-search polling | Upstream: `RUNTIME_SCHED_MIN_POLL_US=2`, `RUNTIME_SCHED_POLL_ITERS=0`; not specified in the paper. | Unchanged: minimum 2 µs search before voluntary parking, with no iteration-count minimum. Pending I/O can extend polling. |
+| Queue-delay threshold | Paper evaluation: `THRESH_QD=10 µs`. | Default `runtime_qdelay_us=10`. |
+| Receive/softirq watchdog | Not described in the paper. October 2020 source (`47a22d5`) already sets `RUNTIME_WATCHDOG_US=50`. | Unchanged, enabled, 50 µs; checked on scheduler entry, not a periodic interrupt. See the limitation below. |
+| User-thread quantum | Current upstream default `runtime_quantum_us=100`; consumed by IAS time sharing. | Inactive under simple; not a 100 µs preemption guarantee. |
+| NIC queue-delay measurement | Paper: packet arrival timestamps in NIC RX descriptors. | `no_hw_qdel`: queue scanning and software delay estimation. Hardware timestamp conversion is excluded from the selected setup. |
+| Core entitlement and residency | Paper evaluation: 22 guaranteed logical cores for LC tasks. | Campaign: maximum and guaranteed kthreads both equal the configured worker count; priority BE. `runtime_spinning_kthreads` is omitted, hence zero. Guarantees do not prevent parking. |
+| Idle handoff | Paper: MONITOR/MWAIT. | Repeated callbacks of up to 64 acquire polls; increased idle CPU/power, potentially lower activation latency. |
+| Compiler optimization | Paper does not specify these flags; upstream optimized build enables native targeting, LTO and fast-math. | `CONFIG_OPTIMIZE=n`, but release `-O3` remains enabled. ARM uses `-march=armv8-a+crc -mno-outline-atomics`; no LTO/native tuning/fast-math from the optimized profile. |
+| Storage | Paper includes SPDK for its storage workload. | `CONFIG_SPDK=n`; outside the selected network baseline. |
 
+Implementation references in the sibling tree: `package.nix`, `build/shared.mk`,
+`runtime/defs.h`, `runtime/ioqueues.c`, `runtime/kthread.c`, `iokernel/sched.c`
+and `iokernel/simple.c`. Platform's campaign configuration is generated in
+`tools/paper/campaign/caladan_peer.py`.
 
-## Port and build
+The IOKernel command selects `simple noht nobw no_hw_qdel <CPU-pool> nicpci
+<CX-5-PCI-address>`. The zuestoll07 setup uses CX-5 `0005:90:00.0`, control CPU
+44, scheduler/dataplane CPU 45 and runtime CPUs 46/47. Worker count is a campaign
+parameter, not fixed by those example placements. Host mlx5 drivers and kernel
+modules must match the boot kernel.
 
-The [ARM port differences](caladan-arm-port.md) describe TLS access, context
-switching, signal preemption, memory ordering, idle polling, DPDK alignment and
-clock restrictions relative to x86. ARM idle handoff uses up to 64 acquire polls
-per callback. It keeps the CPU executing and may favor baseline activation
-latency at the cost of idle CPU/power; no power saving is established.
+Simple preempts an owner above its guarantee for a requester below its guarantee.
+It does not implement IAS's LC/BE interference policy or general time slicing
+for continuously busy zero-guarantee tenants. Changing the priority label alone
+does not supply those policies.
 
-The simple policy preempts an owner above its guarantee for a requester below
-its guarantee. Use feasible guarantees and burstable allocations. Continuously
-busy zero-guarantee tenants are not automatically assured time-sharing. Idle
-wakeup and busy-owner preemption require separate allocation/progress checks.
+### Residency and receive scheduling
 
-Caladan owns its build recipes; platform `mkCaladan { source = ...; }` composes
-the AArch64 toolchain, matched kernel modules and SquashFS image. No Lauberhorn
-RTL build is required. Host mlx5 drivers must match the boot kernel. See
-[build, validation and tracing](../development/caladan.md) for commands and
-[board validation](../development/validation.md#board-validation) for deployment.
-Our human documentation and agent context are maintained in this platform
-repository; the port tree contains navigation links only.
+A guaranteed core is an entitlement, not a permanently running worker. With
+`runtime_spinning_kthreads=0`, a worker may park after its work-search timeout.
+For a resident-worker hot experiment, explicitly set the spinning count to the
+intended resident-worker count; measure idle-to-active behavior separately.
+The current campaign generator does not set that option, so its guarantee field
+alone cannot establish residency between requests.
 
-## Paper measurement contract
+The watchdog makes network/timer work eligible ahead of runnable application
+threads after 50 µs without softirq service. It runs only when control reaches
+the scheduler: it neither interrupts a continuously executing handler nor makes
+an idle worker wait 50 µs before polling RX.
 
-Use the port directly on Enzian; **no x86 calibration experiments** are planned.
+Under sustained load, mlx5 receive work queued at the head can repeatedly take
+precedence over UDP handlers when receive batches exceed the watchdog interval.
+Bounded single-worker diagnostics observed handlers resume after traffic stopped;
+disabling the watchdog restored timely replies at 125,000 RPC/s. The selected
+baseline retains the inherited watchdog; disabling it is a diagnostic control,
+not a baseline setting. Valid loaded collapse points count as server loss,
+including zero goodput and 100% deadline loss: they end the qualifying
+latency/goodput curve and remain in the loss curve. Diagnostic provenance is in
+[agent context](../../agents/caladan.md).
+
+## ARM port differences
+
+This comparison is with x86 using the same simple policy and signal preemption.
+The runtime structure is preserved; additional machine-level costs mainly come
+from per-thread addressing and preemption-counter updates.
+
+| Mechanism | x86 implementation | AArch64 implementation and cost |
+| --- | --- | --- |
+| Per-thread reads | One GS-relative load. | A fixed-width assembly helper reads TPIDR_EL0, loads the Caladan allocation offset from libc TLS, then loads the value. This adds a call/return and address-generation instructions. |
+| Preemption counter | GS-relative memory add/subtract; enable tests the resulting flags. | Inline LL/SC update on enable, testing the decrement result directly; disable uses an assembly helper. More instructions and possible exclusive-store retries, but no syscall or outlined atomic dispatch. |
+| Context switching | Assembly saves/restores the x86 callee-saved registers. | Assembly saves/restores the AAPCS64 callee-saved integer registers and low halves of v8–v15 with paired loads/stores. The larger saved state follows the ABI. Preemption enable stays inline; only pending requests call C. |
+| Signal preemption | Signals interrupt user threads and enter the scheduler. | Same mechanism, with an assembly counter increment and PC checks to make nested signals and interrupted TLS reads safe. Signals remain unmasked; no extra signal-unmask syscall. |
+| Memory ordering | x86 ordering permits ordinary loads/stores and compiler barriers for several operations. | Acquire/release operations and explicit barriers enforce CPU and NIC DMA/MMIO ordering. These instructions preserve the same publication/ownership contracts on ARM. |
+| Idle core handoff | MONITOR/MWAIT waits for a scheduling request. | Up to 64 acquire polls per idle callback. This keeps the core executing instead of entering monitored sleep, increasing idle CPU/power cost and potentially reducing activation latency in the baseline’s favor. WFE is not substituted directly because this callback runs with IRQs masked and needs interrupt-safe wakeup. |
+| Shared RX-buffer layout | DPDK uses 64-byte alignment. | Header and object sizes follow the target DPDK definitions (128-byte alignment on ThunderX). Address reconstruction remains compile-time arithmetic. |
+| Hashing and checksums | Hardware CRC32C; word-wide Internet checksum. | Hardware CRC32C through ACLE intrinsics and `-march=armv8-a+crc`; 64-bit Internet checksum accumulation. Neither uses a bitwise software CRC fallback. |
+
+### Why TLS reads need PC restart
+
+TPIDR_EL0 remains owned by libc. A signal can migrate a Caladan user thread to
+another pthread between reading its TLS base and loading the value. The signal
+handler recognizes that instruction interval and rewrites the saved PC to the
+reader's entry, so the address is recomputed on the destination pthread. Once
+the value load completes, no restart is needed—just as migration can follow a
+completed x86 GS-relative load.
+
+This adds recovery work on an interruption, rather than an exclusive-monitor
+probe on every read. Accesses made with preemption disabled need no restart.
+Retaining a per-thread pointer still requires preventing migration while using
+it; the value-read protocol does not extend a pointer's lifetime.
+
+### Interface differences
+
+Clock reads use CNTVCT rather than the x86 TSC. Ordinary reads are unordered;
+the ordered helper adds ISB. Scheduler time conversion requires integral counter
+ticks per microsecond, and the ARM `rdtscp` wrapper returns auxiliary CPU ID zero.
+Custom per-user-thread libc TLS (`thread_set_fsbase` with a nonzero argument) is
+unsupported. These are interface restrictions, separate from instruction costs.
+
+### Masked-SGI wake limitation
+
+On ThunderX, the IRQ-masked `LDAXR/WFE` probe did not wake for a pending
+cross-call SGI; SEV woke it and the SGI callback ran after IRQ restoration.
+This explains why the port keeps polling instead of substituting WFE in the
+IRQ-masked idle callback. The result applies to the tested ThunderX setup;
+[probe conditions and provenance](../../agents/caladan.md#masked-sgi-probe)
+record the disabled timer event stream and rescue controls.
+
+## Measurement contract
+
 Match Lauberhorn payload/handler semantics, worker counts and offered loads.
-Record actual directpath steering mode and all dependency/hardware differences.
-Include primitive tests, resident-worker echo, idle-to-active echo, busy-owner
-preemption and bounded single/multi-instance memcached. A minimal mlx5 packet
-I/O control may help isolate NIC cost, but is not a replacement for Caladan.
+Record compiler flags, runtime options, steering mode, hardware and dependency
+versions with each dataset. Keep resident-worker, idle-to-active and busy-owner
+preemption experiments distinct. Use the [shared hot-path methodology](hot-measurement.md)
+and [campaign workflow](../development/caladan.md#unattended-hot-echo-campaigns).
 
-Distinguish client RTT, NIC-to-NIC timestamps and CPU intervals. Validate CX-5
-clock conversion and timestamp availability for the selected directpath mode;
-ThunderX NICVF timestamp assumptions do not transfer. Keep tracing-off controls,
-request correlation and raw evidence. Do not publish a breakdown from unvalidated
-clock domains. Use the existing generator when it can express the workload.
+The shared echo backend uses Caladan's UDP spawner, one user thread per datagram,
+and user-thread-specific request context. Schema, handler, XDR and synchronous
+RPC code are shared with DPDK. The probe-free build removes timing hooks while
+preserving scheduling. Optional packet-stage tracing follows RX through UDP
+spawning and TX through deferred submission; `SIGRTMIN+4` exports the shared
+collector without consuming preemption signals.
 
-Pin the memcached revision and pre-size its table: the published runtime port
-lists hash expansion as unfinished. Bound operations, keys/values, dataset and
-maintenance to match [Lauberhorn's memcached scope](../applications/memcached.md). New TCP,
-general-purpose tracing and portability beyond the selected ARM/kernel/NIC
-configuration remain outside this port.
+Distinguish client RTT, switch NIC-to-NIC timing and CPU intervals; preserve
+request correlation, raw evidence and tracing-off controls. `no_hw_qdel` controls
+scheduler feedback, independently of external wire-latency capture. Clock-domain
+conversion must be established for any timestamps combined in a breakdown.
+Datasets and figures belong with the [paper charts](../development/paper-charts.md),
+not functional acceptance logs.
 
-## Bounded functional evidence
-
-The October 20 checks used zuestoll07's ThunderX-88XX (48 CPUs, one NUMA node,
-4 KiB pages, CRC32, 100 MHz architectural counter), kernel `6.8.0-146-generic`,
-and CX-5 `0005:90:00.0`, firmware `16.35.8002`. IOKernel used simple policy and
-normal mlx5 flow steering, control CPU 44 and dataplane CPU 45; runtime workers
-used 46/47 with one guaranteed kthread. Zuestoll14 was the peer (NICVF for the
-functional checks, not a substitute for the DUT's CX-5). These are recorded test
-placements, not required or live reservations.
-
-### CPU, kernel and packet path
-
-At Caladan `586a5a1`, all eight CPU checks passed natively: 10,000 CRC reference
-comparisons; checksum alignment/tail/carry checks; 10,000 signal-frame switches
-preserving integer/SIMD state; 20,000 direct switches; 999 signal-frame
-migrations; 100,000 ordered LRPC messages; 10,000 nested signals; and five million
-TLS-read iterations with 821 asynchronous poisoned-register PC restarts.
-QEMU and native x86 build checks also passed. These are finite mechanism checks,
-not busy-owner scheduler preemption or ARM weak-memory stress.
-
-Matched `fake_idle`/`ksched` modules loaded with API version 2 and shared mapping;
-ARM UINTR returned EOPNOTSUPP. One- and two-kthread fixtures completed 512
-mutex-protected increments with yields/timer sleeps. Three peer ICMP requests
-received replies through runtime directpath, with the Linux stack holding no
-runtime IP. These establish a basic RX/TX path, not sustained traffic capacity.
-Target-derived RX object sizes corrected the 128-byte ThunderX alignment case
-(9472 bytes versus x86's 9408), retaining x86 layout and reconstruction checks.
-
-### Shared echo and stage tracing
-
-The shared backend uses Caladan's UDP spawner, one user thread per datagram,
-and user-thread-specific request context. Schema, handler, XDR codecs and the
-synchronous RPC path are shared with DPDK. The probe-free build removes software
-trace hooks; it does not replace Caladan scheduling with a cooperative loop.
-
-Caladan `ba303c6` records functional echo0/8/128/1432 acceptance: each case passed
-16 checked requests plus four warmups using the shared DPDK generator. Backend
-source was microbenchmarks `8d87fb0`. This is correctness smoke coverage.
-
-Caladan `d6a6be2` adds optional packet-stage tracing. RX timestamps follow the
-mbuf through regular/strided CQ consumption and UDP spawning; TX uses a persistent
-request slot through overflow and finishes at mlx5 submission. Dedicated
-`SIGRTMIN+4` export leaves runtime preemption signals unchanged. The tracing
-workflow and collector-source requirement are in the [development guide](../development/caladan.md).
-
-Recorded traced checks produced 144 echo8 rows (128 plus 16 warmups) and 20 rows
-each for echo0/128/1432 (16 plus four warmups): all 204 paired exactly with client
-XIDs, had monotonic boundaries and conserved CPU partitions, with zero collector
-drops. Their cohorts explicitly have `paper_inputs=false`; no Tofino capture was
-collected. These results do not establish a wire-latency distribution or a
-performance comparison. Exact images and evidence paths are in
-[port continuation](../../agents/caladan.md).
-
-## Loaded scheduling limitation and remaining evaluation
-
-Full unloaded hot echo measurements are archived with the
-[paper figures](../development/paper-charts.md). Loaded acquisition exposed
-receive-side starvation with the inherited 50 us scheduler watchdog. The watchdog
-polls mlx5 before runnable application threads, and mlx5 receive work is queued
-at the head. If successive receive batches exceed the watchdog interval, packet
-processing can monopolize the worker while UDP handlers accumulate. In bounded
-single-worker diagnostics, handlers resumed after traffic stopped; disabling the
-watchdog with the same binary restored timely replies at 125,000 RPC/s. That
-configuration is a diagnostic control, not the selected paper baseline.
-
-The paper baseline retains the default watchdog behavior. Valid loaded collapse
-points count as server loss, including zero goodput and 100% deadline loss;
-they end the qualifying latency/goodput curve and remain in the loss curve.
-No scheduler fix or watchdog-disable configuration is part of this baseline.
-Exact diagnostics and restoration receipts are in the
-[port continuation](../../agents/caladan.md).
-
-Busy-owner signal/IPI preemption, zero-core wakeup and core reclamation under
-contention remain separate acceptance work. Caladan memcached integration and
-evaluation remain pending; use the same bounded maintenance scope as
-[Lauberhorn](../applications/memcached.md) before comparing them.
+For [memcached](../applications/memcached.md), pin the revision, pre-size the
+hash table, and match operations, key/value sizes, dataset and maintenance scope.
+The published runtime port lists hash expansion as unfinished. A minimal mlx5
+packet-I/O control may isolate NIC cost but does not replace the Caladan runtime
+baseline. New TCP implementation, general-purpose tracing, NICVF/VNIC porting
+and portability beyond the selected ARM/kernel/NIC setup are outside this scope.
