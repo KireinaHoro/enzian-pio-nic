@@ -128,11 +128,24 @@ collected. These results do not establish a wire-latency distribution or a
 performance comparison. Exact images and evidence paths are in
 [port continuation](../../agents/caladan.md).
 
-## Remaining evaluation scope
+## Loaded scheduling limitation and remaining evaluation
 
-Sustained CPU/queue/ownership stress, busy-owner signal/IPI preemption, zero-core
-wakeup and core reclamation under contention remain separate acceptance work.
-Shared echo correctness is established at the finite scope above; unloaded and
-loaded paper measurements still require campaign integration and validated wire
-collection. Caladan memcached integration/evaluation has no result in this record.
-Use the same bounded maintenance scope as Lauberhorn before comparing it.
+Full unloaded hot echo measurements are archived with the
+[paper figures](../development/paper-charts.md). Loaded acquisition exposed
+receive-side starvation with the inherited 50 us scheduler watchdog. The watchdog
+polls mlx5 before runnable application threads, and mlx5 receive work is queued
+at the head. If successive receive batches exceed the watchdog interval, packet
+processing can monopolize the worker while UDP handlers accumulate. In bounded
+single-worker diagnostics, handlers resumed after traffic stopped; disabling the
+watchdog with the same binary restored timely replies at 125,000 RPC/s. That
+configuration is a diagnostic control, not the selected paper baseline.
+
+A scheduling remedy must guarantee handler progress while retaining timely
+network and timer processing. Sustained overload and multiple-worker validation
+must precede resumed loaded measurements. Exact diagnostics and restoration
+receipts are in the [port continuation](../../agents/caladan.md).
+
+Busy-owner signal/IPI preemption, zero-core wakeup and core reclamation under
+contention remain separate acceptance work. Caladan memcached integration and
+evaluation remain pending; use the same bounded maintenance scope as
+[Lauberhorn](../applications/memcached.md) before comparing them.

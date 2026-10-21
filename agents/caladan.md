@@ -215,38 +215,49 @@ Full service: `echo-campaign-122293d0b1a2.service`; root
 progress polling was performed. Terminal callbacks target the requesting thread;
 inspect on callback or user request. The full dataset is not yet claimed complete.
 
-The full campaign stopped after six unloaded cohorts and six loaded points at
-echo8/one worker/125,000 RPC/s: all activity counters and client replies were
-zero, including warmup. Generator schedule/admission checks passed; both roles
-reported restoration, unchanged NIC error counters and no kernel fault. Failed
-archive member hashes verified. This is a rejected acquisition, not an overload
-measurement. Startup markers passed; the underlying cause remains unresolved.
-`out/caladan-hot-full-20261021/loaded-zero-activity-review.json` preserves the
-diagnosis and explicit one-retry decision. Resumed the same service/root with
-unchanged configuration/artifacts and fresh processes; passing receipts remain
-subject to ordinary integrity checks. No reset or automatic retry loop. If this
-recurs, investigate further before another resume. Await the terminal callback;
-the retry has not been claimed successful.
+The full campaign is stopped at 12/138 cohorts: six unloaded and six loaded
+points, followed by two rejected echo8/one-worker/125,000 RPC/s attempts. Both
+had zero handler activity and client replies despite passing generator schedule
+and admission checks. The intermediate preflight failure and explicit restoration
+review remain in `out/caladan-hot-full-20261021/recovery-live-check/`; both original
+failed attempts and review JSON files are preserved. The paper campaign's hardware
+hold remains set. Do not resume it unchanged.
 
-The first resume stopped in preflight because the recovery hold was still set;
-no acquisition ran. Explicit live recovery subsequently verified current EMG
-ownership, matching kernels, absence of benchmark processes, unloaded Caladan
-modules, restored DUT NIC/sysctls and the generator's original PCI driver through
-the shared harness. Evidence and prior unsafe state are preserved under
-`out/caladan-hot-full-20261021/recovery-live-check/`. Released the hold with that
-review and relaunched the same bounded retry without a reset or artifact change.
+Bounded diagnosis in `out/caladan-loaded-diagnosis/` identifies receive-watchdog
+starvation. Three fresh-process echo8/one-worker diagnostics used the original
+probe-free binary, 32 generator CPUs, one second warmup and three seconds traffic,
+plus five seconds of post-drain observation. Read-only `/proc/PID/mem` sampling
+at 250 ms captured existing scheduler, RX/TX and handler counters. Symbol addresses
+and kthread statistics layout were checked against the exact ELF/disassembly;
+snapshots are approximate, not atomic or timing measurements. `analysis.json`
+records counts and evidence hashes; `summarize.py`, the one-off helper and run
+scripts retain reproduction details. All trials are explicitly non-paper data.
 
-The bounded retry reproduced the zero-activity failure in `attempt-2` of stage
-`286d8c391e69798e830f`. Both role archives verify against their member hashes;
-both wrappers report restored. The hardware hold remains set; do not launch
-another acquisition retry without further diagnosis. The earlier 50,000 RPC/s
-point completed all warmup/measured requests; 75,000 and 100,000 had just one
-on-time warmup reply and no on-time measured replies, with total worker activity
-10,710 and 10,650 respectively. Thus rate-dependent collapse precedes the rejected
-125,000 point; startup failure alone is not established. Runtime RX/drop/run-queue
-and TX diagnostics are needed to distinguish overload, starvation and a stalled
-receive path. No root cause or repaired performance result is claimed.
-`loaded-repeat-failure-review.json` in the campaign root records this stop.
+With the watchdog enabled, 50,000 RPC/s also collapsed in this diagnostic: one
+handler ran during traffic, while RX continued and the runnable ring stayed full.
+At 125,000 RPC/s, zero handlers ran during traffic. After traffic stopped, the
+server drained 69,654 requests/replies; its RX hardware-drop counter reached
+430,162. Thus zero exported activity in the original short drain window did not
+mean no reception or a permanently stuck generator. Earlier success at 50,000
+is not a reliable capacity threshold.
+
+The causal comparison changed only runtime configuration (`disable_watchdog 1`),
+with the same sampler and binary at 125,000 RPC/s: all 125,000 warmup and 375,000
+measured requests completed on time, no generator misses/admission failures or
+RX hardware drops, and 500,000 final handler calls/replies. All three role pairs
+passed restoration and archive integrity checks. No reset, FPGA access, binary
+change or paper-campaign hold release occurred.
+
+Mechanism: `runtime/sched.c` checks the 50 us watchdog before runnable handlers;
+`softirq_run_locked()` queues mlx5 receive at the head. Receive batches create up
+to 32 UDP handler threads. When RX work repeatedly crosses the watchdog interval,
+it keeps taking priority over those handlers. This ordering is inherited from
+upstream, not newly introduced by the port. Fresh stack allocation is a possible
+amplifier, not separately profiled. A follow-up should bound consecutive RX work
+or otherwise guarantee handler progress while preserving timers and I/O polling,
+then validate sustained load/overload and multiple workers. Disabling the watchdog
+was a causal diagnostic only, not an approved baseline configuration. Preserve
+unloaded data; review any runtime/configuration transition before loaded collection.
 
 Full unloaded chart integration is complete in
 `data/paper/echo/unloaded-20261021/`: 18 cohorts combining historical LH/DPDK
