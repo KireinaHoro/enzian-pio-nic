@@ -18,8 +18,9 @@ checks. Compiled-out symbol gates pass. Local build receipts and test logs are
 in ignored `out/rpc-breakdown-timestamps/`; these are software checks, not new
 acquisition evidence.
 
-**Do not launch or resume campaigns:** the maintainer reserved zuestoll14 for a
-colleague and requested implementation only. No hardware access or acquisition
+**Do not launch or resume campaigns:** timestamp implementation was requested
+without collection. The later reservation-only request reacquired zuestoll14;
+see [hardware state](hardware-state.md#october-21-generator-reacquisition). No hardware access or acquisition
 was performed for this change. Fresh matched unloaded acquisitions are needed
 to produce version-3 numerical comparisons once collection is authorized;
 the loaded grid still needs maintainer revision. Existing stop-after-unloaded

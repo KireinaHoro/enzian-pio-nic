@@ -7,6 +7,21 @@ follow [AGENTS.md](../AGENTS.md) and the [capture procedure](../docs/development
 Do not substitute vulnerable pipeline 515944 for corrected artifacts. Match
 bitstream, trace map, headers and deployment image.
 
+## October 21 generator reacquisition
+
+At the maintainer's request, EMG reserved zuestoll14 again under `pengxu` as
+the load generator. The explicit fresh root is `echo-generator32-z14-20261021`,
+cloned from golden `2025-07-28`; boot selection is
+`pengxu/lauberhorn-6.8.0-146-ptp/{vmlinuz,initrd.img}`, with CPUs 16–47 isolated
+and CPUs 0–15 handling ordinary tasks/IRQs. The former generator volume remains
+preserved. Acquisition and both post-acquisition inventory checks are in
+`out/zuestoll14-generator-reservation-20261021/`.
+
+Only reservation/provisioning was requested and performed: no reboot, boot
+acceptance or campaign launch. The configured root/kernel take effect on the
+next boot through the shared harness. Recheck ownership and live state before
+that operation; the EMG `is_up` flag does not establish generator readiness.
+
 ## October 18 echo topology observation
 
 The October 18 role-swap record reports: both named roots were released and reacquired
