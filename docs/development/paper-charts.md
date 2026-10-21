@@ -67,12 +67,23 @@ The paper's requested filenames are:
 
 `echo-overload-loss.pdf` retains the complete overloaded grid for inspection,
 including 100% deadline-loss points with no replies. The latency/goodput curve
-stops at the contiguous prefix meeting the 1% loss limit; an X marks its last
-qualifying point when an overloaded point has been observed. This marks a sampled
-endpoint, not an exact capacity threshold. Zero-reply points have no latency
-percentile and are not plotted at an invented RTT. Statistics retain the first
-excluded offered rate, its loss and all excluded points' goodput/loss. Later
-recovery at a higher offered rate does not reconnect the qualifying curve.
+stops at the contiguous prefix meeting the 1% loss limit in every repetition.
+When an overloaded point has been observed, a vertical upward arrow from the
+last qualifying point, labelled infinity, marks that stop. Its x position is
+the sampled endpoint, not an interpolated capacity threshold; later recovery
+does not reconnect the curve.
+
+Loaded percentiles use the inverse empirical CDF over **all transmitted
+requests**: rank `ceil(p × transmitted / 100)`. On-time successful replies
+supply finite RTTs; missing replies, deadline-late replies and unsuccessful
+rejections occupy the infinite tail. Thus P99 is finite at exactly 1% deadline
+loss and infinite above 1%. Pool repetitions by summing both RTT counts and
+transmitted counts. The stop policy still applies to the worst repetition, so
+it can stop a curve even when pooled P99 remains finite. Generator/admission
+failures invalidate a trial rather than entering this server-loss population.
+Trial statistics encode infinite quantiles as JSON `null` with an explicit
+`p99_infinite`/`median_infinite` flag. Statistics retain the first excluded rate,
+loss and all excluded points' goodput/loss; zero-reply trials have infinite P99.
 The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/unloaded-20261021/README.md)
 for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/unloaded-20261021/unloaded.json`.
 Both unloaded PDFs are included by the current paper source. Loaded collection is incomplete.

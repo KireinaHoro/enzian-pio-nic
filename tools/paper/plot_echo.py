@@ -6,6 +6,7 @@ are replaced only after a real full campaign and the final visual review.
 """
 import argparse
 import json
+import math
 from pathlib import Path
 import paper_chart as chart
 import numpy as np
@@ -27,8 +28,14 @@ def observations(trials, *, collect=True):
         if checked!=trial: raise ValueError('Trial provenance changed')
         trial_stats=dict(checked)
         if collect:
-            trial_stats.update(median_ns=(values.percentile(50) if isinstance(values,Latencies) else float(np.percentile(values,50))) if values else None,
-                               p99_ns=(values.percentile(99) if isinstance(values,Latencies) else float(np.percentile(values,99))) if values else None)
+            distribution=values if isinstance(values,Latencies) else Latencies()
+            if not isinstance(values,Latencies): distribution.extend(values)
+            for name,percentile in (('median',50),('p99',99)):
+                value=distribution.population_percentile(percentile,checked['transmitted'])
+                trial_stats[name+'_ns']=value if math.isfinite(value) else None
+                trial_stats[name+'_infinite']=not math.isfinite(value)
+            trial_stats['latency_population']='all transmitted requests; deadline failures at +infinity'
+            trial_stats['latency_quantile']='inverse empirical CDF (nearest rank)'
         TRIAL_STATS.setdefault(summaries[0],{}).update(trial_stats)
         pooled.extend(values)
     return pooled
@@ -58,7 +65,7 @@ def render(source,destination, *, rehearsal=False, partial=False):
         raise ValueError('Incomplete or duplicate loaded matrix')
     for record in records:
         for point in record['points']+([] if rehearsal or partial else [record['confirmed']]):
-            observations(point['trials'],collect=False)
+            observations(point['trials'])
         if not rehearsal and not partial and aggregate(record['confirmed']['trials'])['worst_loss']>.01:
             raise ValueError('Confirmed peak exceeds loss threshold')
     destination=Path(destination); destination.mkdir(parents=True,exist_ok=True)
@@ -68,6 +75,7 @@ def render(source,destination, *, rehearsal=False, partial=False):
         for si,system in enumerate(systems):
             for ni,size in enumerate(SIZES):
                 ax=axes[si,ni]
+                if kind=='latency-goodput': ax.set_ylim(0,75)
                 for worker in ((4,) if kind=='latency-goodput' else workers):
                     record=next((r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker)),None)
                     if record is None: continue
@@ -78,14 +86,21 @@ def render(source,destination, *, rehearsal=False, partial=False):
                         values=[observations(p['trials']) for p in points]
                         if any(not len(v) for v in values): raise ValueError('Empty qualifying latency point')
                         x=[a['goodput']/1000 for a in aggregates]
+                        populations=[sum(t['transmitted'] for t in p['trials']) for p in points]
                         for percentile,style in ((99,'-'),):
-                            y=[v.percentile(percentile)/1000 for v in values]
+                            y=[v.population_percentile(percentile,n)/1000 for v,n in zip(values,populations)]
                             ax.plot(x,y,style,color=chart.COLORS[si],marker=('o','s','^')[ni],
                                     markersize=3,label=f'{system} {size} B')
                             if x and len(points)<len(record['points']):
-                                ax.plot(x[-1],y[-1],marker='x',color=chart.COLORS[si],
-                                        markersize=6,label='Last qualifying point')
-                                ax.legend(fontsize=6,loc='best')
+                                # The vertical ray denotes the SLA stop, not an RTT sample.
+                                ax.annotate('',xy=(x[-1],1),xycoords=ax.get_xaxis_transform(),
+                                            xytext=(x[-1],y[-1]),textcoords='data',
+                                            arrowprops=dict(arrowstyle='->',color=chart.COLORS[si],
+                                                            linewidth=1.2,shrinkA=0,shrinkB=0))
+                                ax.annotate(r'$\infty$',xy=(x[-1],1),
+                                            xycoords=ax.get_xaxis_transform(),xytext=(4,-2),
+                                            textcoords='offset points',va='top',color=chart.COLORS[si])
+                        if y: ax.set_ylim(0,max(75,max(y)*1.15))
                         ordered=sorted(record['points'],key=lambda p:p['rate'])
                         excluded=ordered[len(points):]
                         cutoff=(dict(offered_rate=excluded[0]['rate'],
@@ -93,11 +108,16 @@ def render(source,destination, *, rehearsal=False, partial=False):
                                 if excluded else None)
                         stats.append(dict(system=system,size=size,workers=worker,
                             loss_cutoff=cutoff,
+                            latency_population='all transmitted requests; deadline failures at +infinity',
+                            latency_quantile='inverse empirical CDF (nearest rank)',
+                            stop_ray=(dict(goodput_krpc_s=x[-1],p99_us=y[-1],
+                                           meaning='infinite latency beyond per-trial 1% loss stop')
+                                      if x and excluded else None),
                             overload=[dict(rate=p['rate'],goodput=aggregate(p['trials'])['goodput'],
                                            worst_loss=aggregate(p['trials'])['worst_loss']) for p in excluded],
                             rates=[p['rate'] for p in points],goodput=x,
-                            median_us=[v.percentile(50)/1000 for v in values],
-                            p99_us=[v.percentile(99)/1000 for v in values]))
+                            median_us=[v.population_percentile(50,n)/1000 for v,n in zip(values,populations)],
+                            p99_us=[v.population_percentile(99,n)/1000 for v,n in zip(values,populations)]))
                     else:
                         x=[a['offered']/1000 for a in aggregates]
                         # Retain each trial; rate-order connection uses pooled count ratio.
@@ -112,7 +132,6 @@ def render(source,destination, *, rehearsal=False, partial=False):
                     ax.set_title(f'{size} application bytes',fontsize=9)
                     if si==0 and ni==0 and ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
                 if kind=='latency-goodput':
-                    ax.set_ylim(0,75)
                     ax.set_xlabel('Goodput (kRPC/s)')
                     ax.set_ylabel(f'{system}: P99 RTT ($\\mu$s)')
                     ax.set_title(f'{size} B',fontsize=9)

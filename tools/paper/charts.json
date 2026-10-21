@@ -96,18 +96,21 @@
       "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update",
       "status": "review",
       "tex": null
-    }
-  ],
-  "planned_charts": [
+    },
     {
       "id": "echo-loaded-hot-latency-goodput",
       "output": "../paper/plots/echo-loaded-hot-latency-goodput.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-full-20261019/loaded-plots.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json",
-      "status": "partial_collection_pending_inclusion",
-      "tex": "evaluation.tex (commented inclusion)"
-    },
+      "manifest": "out/echo-full-20261019/loaded.json",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-full-20261019/loaded.json --partial",
+      "status": "included",
+      "tex": "evaluation.tex",
+      "measurement_scope": "Partial preserved loaded collection; LH four-worker 8B and 128B curves",
+      "latency_population": "All transmitted requests; deadline failures at infinity; nearest-rank inverse CDF",
+      "stop_marker": "Upward infinity ray at last contiguous point meeting 1% loss in every trial"
+    }
+  ],
+  "planned_charts": [
     {
       "id": "echo-loaded-hot-peak-throughput-workers",
       "output": "../paper/plots/echo-loaded-hot-peak-throughput-workers.pdf",

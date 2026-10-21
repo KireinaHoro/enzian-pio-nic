@@ -1,4 +1,4 @@
-"""Mergeable RTT counts with weighted NumPy-linear percentiles, without expansion."""
+"""Mergeable RTT counts: conditional linear or all-transmission inverse CDF."""
 from collections import Counter
 import math
 
@@ -12,6 +12,25 @@ class Latencies:
 
     def extend(self, other):
         self.counts.update(other.counts if isinstance(other, Latencies) else other)
+
+    def population_percentile(self, percentile, transmitted):
+        """Inverse empirical CDF over all transmissions; deadline failures are +inf.
+
+        Nearest rank keeps P99 finite at exactly 1% deadline loss. No fabricated
+        timeout RTTs or interpolation between a finite observation and infinity.
+        """
+        from fractions import Fraction
+        if (type(transmitted) is not int or transmitted <= 0 or
+                transmitted < len(self) or not 0 < percentile <= 100):
+            raise ValueError('Invalid transmitted population or percentile')
+        fraction = Fraction(str(percentile))/100
+        rank = (transmitted*fraction.numerator + fraction.denominator-1)//fraction.denominator
+        if rank > len(self): return math.inf
+        cumulative = 0
+        for value, count in sorted(self.counts.items()):
+            cumulative += count
+            if cumulative >= rank: return value
+        raise AssertionError('Histogram count mismatch')
 
     def percentile(self, percentile):
         if not 0 <= percentile <= 100 or not len(self):

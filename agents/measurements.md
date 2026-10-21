@@ -25,6 +25,17 @@ to produce version-3 numerical comparisons once collection is authorized;
 the loaded grid still needs maintainer revision. Existing stop-after-unloaded
 campaign control remains in place.
 
+## Loaded chart accounting
+
+Loaded percentile calculation uses all transmitted requests, with deadline
+failures at infinity and inverse-CDF nearest rank. The curve draws an upward
+infinity ray at the last point before the worst-trial 1% loss cutoff. Preserved
+`out/echo-full-20261019/loaded.json` supplies the partial LH four-worker 8B/128B
+curves; revised statistics and reviewed previews are in
+`out/loaded-loss-aware-preview/`. The paper latency/goodput PDF is regenerated
+from this source. No additional loaded measurements were taken. Local campaign
+suite: 90 tests pass, including the exact 1% loss boundary and zero-reply P99.
+
 ## Echo contract and artifact constraints
 
 Active paper microbenchmarks use schema-defined echo RPCs at 8/128/1432

@@ -367,8 +367,9 @@ Warmup and measurement counters remain separate. The measured on-time RTT
 histogram uses 100 ns buckets through the deadline, 100,001 64-bit counters per
 core (25.6 MB across 32 cores), merged after draining. Only occupied buckets are
 exported. Percentiles use bucket midpoints (clamped at the deadline), with at most
-50 ns quantization error; trial pooling sums counts before weighted linear
-percentile calculation, without expanding synthetic request rows. The client
+50 ns quantization error; trial pooling sums counts and transmitted populations before inverse-CDF
+percentile calculation. Deadline failures occupy the infinite tail, and rank
+`ceil(0.99 * transmitted)` selects P99 without expanding synthetic request rows. The client
 also exports start-lag count/sum/max and at most three diagnostic rows per core
 (first measured, largest lag, largest on-time RTT), which can repeat an XID.
 These rows are diagnostic examples, not a representative latency sample.
@@ -555,8 +556,11 @@ nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-u
 ```
 
 The loaded plotting script uses the shared paper library. It pools on-time RTT
-observations across equal-duration repetitions, retains offered-rate ordering
-and nonmonotonic goodput, and shows median/P99. Overload plots retain every rate
+observations across equal-duration repetitions, uses all transmitted requests
+in the percentile denominator with deadline failures at infinity, and retains
+offered-rate ordering and nonmonotonic goodput. A vertical upward infinity ray
+marks the last qualifying point once any repetition exceeds 1% loss. See the
+[chart contract](paper-charts.md) for the exact percentile and stop definitions. Overload plots retain every rate
 and trial, with a 1% line. Confirmed peak plots show the single sustained trial; no between-trial variation is measured.
 Current loaded campaigns cover paced batch arrivals; the earlier fixed-spacing
 measurements remain separate. Poisson arrivals are deferred to memcached.

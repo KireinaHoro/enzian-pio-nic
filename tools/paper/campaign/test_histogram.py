@@ -14,6 +14,19 @@ class Histogram(unittest.TestCase):
         huge=Latencies([(150,10**12),(250,10**12)])
         self.assertEqual(huge.percentile(50),200)
 
+    def test_all_transmitted_percentiles(self):
+        values=Latencies([(i,1) for i in range(1,996)])
+        self.assertEqual(values.population_percentile(99,1000),990)
+        self.assertNotEqual(values.percentile(99),990)
+        boundary=Latencies([(10,989),(500,1)])
+        self.assertEqual(boundary.population_percentile(99,1000),500)
+        self.assertEqual(boundary.population_percentile(99,1001),float('inf'))
+        self.assertEqual(Latencies().population_percentile(99,100),float('inf'))
+        pooled=Latencies([(10,990)]);pooled.extend(Latencies([(20,990)]))
+        self.assertEqual(pooled.population_percentile(99,2000),20)
+        for population in (0,989):
+            with self.assertRaises(ValueError): boundary.population_percentile(99,population)
+
     def test_accounting(self):
         phase=dict(attempted=100,transmitted=100,on_time=80,late=5,duplicates=2,
             generator_misses=0,tx_admission_failures=0,malformed=0,server_rejections=10,
