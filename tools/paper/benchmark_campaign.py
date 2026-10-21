@@ -277,7 +277,20 @@ class Campaign:
         self.completed = 0
         self.total = len(self.systems)*len(SIZES)*2+sum(len(p['rates'])+1 for p in plans)
         self.unloaded('full')
-        self.stage('progress-plots', dict(unloaded=read(self.root/'full-unloaded.json')))
+        from campaign.adapter import stop_after_unloaded
+        stopping=stop_after_unloaded(self.root)
+        result=self.stage('progress-plots', dict(unloaded=read(self.root/'full-unloaded.json'),
+                                                **({'final_unloaded':True} if stopping else {})))
+        if stop_after_unloaded(self.root):
+            if result.get('complete') is not True:
+                result=self.stage('progress-plots',dict(unloaded=read(self.root/'full-unloaded.json'),final_unloaded=True))
+            previews=result.get('previews',[])
+            if result.get('complete') is not True or len(previews)!=2 or any(p not in result['files'] for p in previews):
+                raise ValueError('Requested stop requires validated full unloaded plots')
+            self.total=self.completed
+            self.status('complete',previews=previews,scope='unloaded-full',loaded_collection_started=False,
+                        stop_reason='Requested stop after unloaded; loaded grid awaits revision')
+            return
         collected = []
         for plan in plans:
             points = []

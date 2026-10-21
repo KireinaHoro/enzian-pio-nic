@@ -284,6 +284,11 @@ def rehearsal(config,h,campaign):
                 no_loaded_trace_reads=True,cleanup=True,**{'import':True,'plots':True})
 
 
+def stop_after_unloaded(campaign):
+    control=Path(campaign)/'control.json'
+    return control.exists() and read(control).get('stop_after')=='unloaded'
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('hardware',type=Path);p.add_argument('stage');p.add_argument('request',type=Path);p.add_argument('result',type=Path)
@@ -291,6 +296,8 @@ def main():
     directory=a.request.parent.resolve();campaign=directory.parents[2]
     h=Harness(config,directory)
     if a.stage!=request['stage']: raise ValueError('Stage/request mismatch')
+    if a.stage=='loaded' and stop_after_unloaded(campaign):
+        raise RuntimeError('Requested stop after unloaded; loaded grid awaits revision. No loaded acquisition started.')
     if a.stage=='preflight': result=preflight(config,h,campaign)
     elif a.stage=='build': result=build(config,h)
     elif a.stage in ('loaded','unloaded'): result=Acquisition(config,request,directory,campaign).run()
@@ -300,7 +307,7 @@ def main():
         source=directory/('unloaded.json' if unloaded else 'loaded.json')
         atomic(source,request['unloaded' if unloaded else 'loaded'])
         if unloaded: validate_matched(request['unloaded'],systems=selected_systems(read(campaign/'config.json')))
-        final_unloaded=request.get('final_unloaded',False)
+        final_unloaded=request.get('final_unloaded',False) or (unloaded and stop_after_unloaded(campaign))
         evidence={}
         if final_unloaded:
             if not unloaded: raise ValueError('Unloaded finalization requires unloaded cohorts')

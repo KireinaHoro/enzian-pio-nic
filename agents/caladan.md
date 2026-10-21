@@ -336,3 +336,12 @@ measurement configuration, retaining attempt-1 and rerunning the incomplete
 cohort. Completion is not yet established. Do not poll: inspect on a terminal
 callback or user request, and visually review final plots. Baseline-only plots
 stay in the campaign archive until combined review.
+
+The maintainer subsequently requested stopping after unloaded to revise the
+loaded grid. `out/caladan-hot-rerun-20261021/control.json` now sets
+`stop_after: unloaded`. The running controller predates graceful stop support;
+the adapter guard will reject any loaded stage before board access, after final
+unloaded validation. If its terminal callback reports that requested refusal,
+resume with the updated controller and retained control file to finalize the
+unloaded-only status. Do not remove the control or collect loaded data until the
+revised grid is approved. Current unloaded acquisition was not interrupted.

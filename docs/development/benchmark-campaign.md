@@ -615,3 +615,15 @@ Plotting and controller source hashes are provenance only, not execution or resu
 gates. Raw evidence and acquisition artifacts remain checked. Controller edits
 require restarting its Python process; plot edits apply to the next plot stage.
 Validated progress PDFs are atomically published to `../paper/plots/`.
+
+### Requested stop after unloaded
+
+Write `control.json` in the campaign root with `{"stop_after":"unloaded"}` to
+finish unloaded collection and its final validation before stopping. This leaves
+the frozen acquisition configuration and grid unchanged. The adapter reads this
+control for every new stage and refuses loaded acquisition before board access;
+unloaded plotting performs final evidence and clock checks. Updated controllers
+report unloaded completion. A controller already running older code may report
+the refusal as a requested-stop error; preserve its results and resume with the
+updated controller and the same control file to report unloaded completion.
+Remove the control only after explicit authorization for the revised loaded plan.

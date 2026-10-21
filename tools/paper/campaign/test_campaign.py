@@ -75,6 +75,30 @@ class Policy(unittest.TestCase):
             self.assertTrue(next(r for n,r in requests if n=='progress-plots')['final_unloaded'])
             self.assertFalse(state['loaded_collection_started'])
 
+    def test_full_campaign_requested_unloaded_stop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            controller.atomic(root/'control.json',dict(stop_after='unloaded'))
+            plans=[dict(system='CS-A64',size=n,workers=w,rates=[1000])
+                   for n in (8,128,1432) for w in (1,2,3,4)]
+            campaign=controller.Campaign(root,dict(scope='full',systems=['CS-A64'],grid=plans))
+            requests=[]
+            def stage(name, request):
+                requests.append((name,request))
+                if name=='unloaded':return {'cohort':request}
+                if name=='progress-plots':return {'complete':True,'previews':['cdf','breakdown'],'files':{'cdf':'hash','breakdown':'hash'}}
+                return {}
+            campaign.stage=stage
+            with patch.object(controller,'validate_matched'):
+                campaign.run()
+            self.assertFalse(any(n=='loaded' for n,_ in requests))
+            state=controller.read(root/'status.json')
+            self.assertEqual(state['stage'],'complete')
+            self.assertEqual(state['completed'],6)
+            self.assertEqual(state['total'],6)
+            self.assertFalse(state['loaded_collection_started'])
+            self.assertTrue(next(r for n,r in requests if n=='progress-plots')['final_unloaded'])
+
     def test_prefix_and_nonmonotonic(self):
         points=[dict(rate=r,trials=[trial(n,t)]*3) for r,n,t in [(10,100,100),(20,90,90),(30,197,200),(40,300,300)]]
         self.assertEqual([p['rate'] for p in qualifying(points)],[10,20])
