@@ -18,18 +18,33 @@ checks. Compiled-out symbol gates pass. Local build receipts and test logs are
 in ignored `out/rpc-breakdown-timestamps/`; these are software checks, not new
 acquisition evidence.
 
-**Do not launch or resume campaigns:** timestamp implementation was requested
-without collection. The later reservation-only request reacquired zuestoll14;
-see [hardware state](hardware-state.md#october-21-generator-reacquisition). No hardware access or acquisition
-was performed for this change. Fresh matched unloaded acquisitions are needed
-to produce version-3 numerical comparisons once collection is authorized;
-the loaded grid is now selected: `loaded_sweep: "linear-to-loss"`, manifest-configured steps: LH 20k for 8/128 B and 5k for 1432 B;
-DPDK/CS-A64 50k for 8/128 B and 20k for 1432 B, through the first >1% loss point.
-Warmup/count/duration/repetition settings now live in the campaign `measurement`
-object, resolved and frozen on launch; 96 local campaign tests pass, including
-custom durations, repetitions, steps and chunk warmups. No acquisition ran.
-Zero is the axis origin; no zero-traffic latency sample is fabricated. Existing stop-after-unloaded
-campaign control remains in place.
+## Active full hot campaign — October 21
+
+The maintainer authorized and the controller launched a fresh three-system full
+campaign at `out/hot-full-20261021`, service `echo-campaign-58e3c9b3f957`.
+Do not poll progress: wait for the terminal callback or an explicit status request.
+All 18 unloaded cohorts are reacquired with accounting version 3 before loaded
+collection. No old measurement cohorts are inherited. Historical LH/DPDK and
+Caladan switch-integration proofs were separately hash-verified for reuse.
+
+Frozen manifest: `out/hot-full-20261021/config.json`; preparation and passing
+preflight: `out/hot-full-20261021-preparation/`. The combined image is built from
+platform `8d957fb2`, microbenchmarks `067d50d`, Caladan `enzian-port`; exact hashes
+and compatibility review are preserved in preparation. 97 local campaign tests
+pass. Generator cold boot passed first attempt; live isolation, resources,
+reservations, callback and switch clock qualification passed before launch.
+
+Loaded steps are LH 20k RPC/s for 8/128 B and 5k for 1432 B; DPDK/CS-A64 50k
+and 20k respectively. Each sweep stops after its first >1% loss point. Manifest
+settings freeze 128 warmups per unloaded capture, 10,000 measured requests per
+cohort, loaded 2-second warmup/10-second measurement, one repetition, and
+60-second sustained confirmations. Zero is the axis origin, not a latency sample.
+
+The previous stop-after-unloaded control remains only in its old campaign root.
+This new root is authorized for both modes. On success review final previews;
+on failure inspect the named preserved stage before recovery. No completion or
+new hardware measurement result is implied by service submission. Paper PDFs
+remain unchanged until successful validation and review.
 
 ## Loaded chart accounting
 

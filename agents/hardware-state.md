@@ -17,10 +17,14 @@ and CPUs 0–15 handling ordinary tasks/IRQs. The former generator volume remain
 preserved. Acquisition and both post-acquisition inventory checks are in
 `out/zuestoll14-generator-reservation-20261021/`.
 
-Only reservation/provisioning was requested and performed: no reboot, boot
-acceptance or campaign launch. The configured root/kernel take effect on the
-next boot through the shared harness. Recheck ownership and live state before
-that operation; the EMG `is_up` flag does not establish generator readiness.
+The later full-campaign authorization booted zuestoll14 through the shared
+CPU-only harness; first attempt passed. Preparation evidence is
+`out/hot-full-20261021-preparation/generator-boot/summary.json`. Live preflight
+verified kernel 6.8.0-146, isolated/nohz CPUs 16–47, management routing and RAM
+budgets; both zuestoll07 and zuestoll14 remained reserved to pengxu. The
+three-system campaign is now submitted at `out/hot-full-20261021`; see
+[measurement continuation](measurements.md#active-full-hot-campaign--october-21).
+Recheck live state before any further manual board access.
 
 ## October 18 echo topology observation
 
