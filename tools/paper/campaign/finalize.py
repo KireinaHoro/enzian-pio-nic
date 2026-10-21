@@ -25,6 +25,12 @@ def verify_loaded(records, plans, *, systems=SYSTEMS):
         rates=[p['rate'] for p in record['points']]
         if rates!=sorted(set(rates)) or rates[:len(frozen[key])]!=frozen[key]:
             raise ValueError('Frozen grid was discarded or reordered')
+        plan=next(p for p in plans if (p['system'],p['size'],p['workers'])==key)
+        if 'step' in plan:
+            if rates != list(range(plan['step'], rates[-1]+1, plan['step'])):
+                raise ValueError('Linear sweep skipped a rate')
+            if any(loss(t)>.01 for p in record['points'][:-1] for t in p['trials']):
+                raise ValueError('Linear sweep continued beyond first loss stop')
         if not any(loss(t)>.01 for p in record['points'] for t in p['trials']):
             raise ValueError('Full grid never crossed the loss boundary')
         ranked=candidates(record['points'])

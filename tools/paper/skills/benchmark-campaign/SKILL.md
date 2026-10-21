@@ -54,7 +54,7 @@ validated CDF/breakdown previews and a terminal callback. It never starts loaded
 or full collection. The same maintained controller owns locking and resume.
 
 Run local gates first. Full collection starts directly from its frozen `grid.json`
-(or an explicit complete `grid` in a new campaign configuration); never launch a
+(or an explicit complete `grid` or `loaded_sweep: "linear-to-loss"` in a new campaign configuration); never launch a
 preliminary rehearsal implicitly. Use rehearsal scopes only when explicitly
 requested. Full acquisition requires authorization. Collect and validate all
 full unloaded plots before any loaded run. Refresh loaded plots after every
@@ -122,9 +122,10 @@ cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse
 Use one trial per loaded grid point and one sustained trial per candidate.
 Do not imply a between-trial range when only one trial exists.
 Keep failed attempts and exact rates. One valid point above 1% loss is sufficient
-for rehearsal overload coverage; do not require an additional higher point. Full
-grids use explicitly frozen rates, with geometric extensions only when no
-collected repetition exceeds 1%.
+for rehearsal overload coverage; do not require an additional higher point. New hot full campaigns use `loaded_sweep: "linear-to-loss"`: 5 kRPC/s
+steps for LH, 20 kRPC/s for DPDK/CS-A64, starting at one positive step
+and ending at the first valid >1% loss point. Zero is the chart origin.
+Historical explicit grids retain bounded geometric extensions.
 
 Loaded collection supports `aggregate: true`: online validation, exact counters,
 100 ns mergeable RTT histograms and bounded diagnostic samples. Prefer it after

@@ -224,6 +224,31 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
             self.assertLess(result['confirmed']['rate'],150)
             self.assertEqual(controller.read(root/'status.json')['stage'],'complete')
 
+    def test_linear_sweep_stops_strictly_above_one_percent(self):
+        class Fixture(controller.Campaign):
+            def unloaded(self, phase):
+                controller.atomic(self.root/'full-unloaded.json', [])
+            def stage(self, name, request):
+                if name=='finalize':
+                    return dict({k:True for k in ('complete','hashes','boundaries','failure_accounting','worker_activity','pdf_dimensions','embedded_fonts')},previews=list('abcde'),files={p:'fixture' for p in 'abcde'})
+                return {}
+            def loaded(self, system, size, workers, rate, phase, trial_index=0, sustained=False):
+                step=5000 if system=='LH' else 20000
+                self.completed+=1
+                return trial(rate*(98 if rate>=3*step else 99),rate*100)
+        for system,step in [('LH',5000),('DPDK',20000),('CS-A64',20000)]:
+            with self.subTest(system=system), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                config=dict(systems=[system],scope='full',loaded_sweep='linear-to-loss',max_extensions=1)
+                with patch.object(controller,'SIZES',(8,)), patch.object(controller,'WORKERS',(4,)):
+                    Fixture(root,config).run()
+                    # Replay must keep the same frozen policy and stopping point.
+                    Fixture(root,config).run()
+                record=controller.read(root/'loaded.json')[0]
+                self.assertEqual([p['rate'] for p in record['points']],[step,2*step,3*step])
+                self.assertEqual(record['confirmed']['rate'],2*step)
+                self.assertEqual(controller.read(root/'grid.json')[0]['step'],step)
+
     def test_rehearsal_stops_before_full_collection(self):
         class Fixture(controller.Campaign):
             def unloaded(self, phase):

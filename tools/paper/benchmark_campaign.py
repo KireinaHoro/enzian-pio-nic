@@ -266,11 +266,19 @@ class Campaign:
     def collect_full(self):
         plan_path = self.root/'grid.json'
         plans = read(plan_path) if plan_path.exists() else self.config.get('grid')
+        if plans is None and self.config.get('loaded_sweep') == 'linear-to-loss':
+            plans = [dict(system=s, size=n, workers=w, rates=[5000 if s=='LH' else 20000],
+                          step=5000 if s=='LH' else 20000, stop_loss=.01)
+                     for s in self.systems for n in SIZES for w in WORKERS]
         expected={(s,n,w) for s in self.systems for n in SIZES for w in WORKERS}
         if not plans or len(plans)!=len(expected) or {(p['system'],p['size'],p['workers']) for p in plans}!=expected:
             raise ValueError('Full collection requires an explicit complete frozen grid')
         for p in plans:
             rates=p['rates']
+            if 'step' in p and (type(p['step']) is not int or
+                    p['step'] != (5000 if p['system']=='LH' else 20000) or
+                    rates != [p['step']] or p.get('stop_loss') != LOSS_LIMIT):
+                raise ValueError('Invalid linear-to-loss plan')
             if not rates or rates!=sorted(set(rates)) or any(type(r)!=int or r<=0 for r in rates):
                 raise ValueError('Grid rates must be positive increasing integers')
         if not plan_path.exists(): atomic(plan_path,plans)
@@ -301,14 +309,17 @@ class Campaign:
                 self.stage('progress-plots',dict(loaded=collected+[dict(plan,points=points)]))
             for rate in plan['rates']:
                 points.append(point(rate)); refresh()
-            for _ in range(self.config['max_extensions']):
-                if any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']): break
-                rate = next_rate(points[-1]['rate'])
-                # Persist extension intent before collecting it.
+            # Linear plans terminate on observed loss; legacy frozen grids keep
+            # their bounded geometric extensions. Persist intent before acquisition.
+            extensions = 0
+            while not any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']):
+                if 'step' not in plan and extensions >= self.config['max_extensions']: break
+                rate = points[-1]['rate'] + plan['step'] if 'step' in plan else next_rate(points[-1]['rate'])
                 extension_path=self.root/f"extensions-{plan['system']}-{plan['size']}-{plan['workers']}.json"
                 rates=read(extension_path) if extension_path.exists() else []
                 if rate not in rates: rates.append(rate); atomic(extension_path,rates)
                 self.total += 1; points.append(point(rate)); refresh()
+                extensions += 1
             if not any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']):
                 raise RuntimeError('No overload boundary within extension budget')
             confirmed = None
@@ -333,6 +344,10 @@ class Campaign:
 
 def config_check(config):
     selected_systems(config)
+    if config.get('loaded_sweep') not in (None, 'linear-to-loss'):
+        raise ValueError('Unknown loaded sweep policy')
+    if config.get('loaded_sweep') and config.get('grid') is not None:
+        raise ValueError('Choose loaded_sweep or an explicit frozen grid')
     from campaign.wire import require_capture_backend
     if config.get('scope') != 'unloaded-rehearsal': require_capture_backend(config)
     if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal', 'unloaded-full'):

@@ -23,7 +23,9 @@ without collection. The later reservation-only request reacquired zuestoll14;
 see [hardware state](hardware-state.md#october-21-generator-reacquisition). No hardware access or acquisition
 was performed for this change. Fresh matched unloaded acquisitions are needed
 to produce version-3 numerical comparisons once collection is authorized;
-the loaded grid still needs maintainer revision. Existing stop-after-unloaded
+the loaded grid is now selected: `loaded_sweep: "linear-to-loss"`, 5 kRPC/s
+steps for LH and 20 kRPC/s for DPDK/CS-A64, through the first >1% loss point.
+Zero is the axis origin; no zero-traffic latency sample is fabricated. Existing stop-after-unloaded
 campaign control remains in place.
 
 ## Loaded chart accounting

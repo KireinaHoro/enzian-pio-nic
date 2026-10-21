@@ -132,6 +132,7 @@ def render(source,destination, *, rehearsal=False, partial=False):
                     ax.set_title(f'{size} application bytes',fontsize=9)
                     if si==0 and ni==0 and ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
                 if kind=='latency-goodput':
+                    ax.set_xlim(left=0)
                     ax.set_xlabel('Goodput (kRPC/s)')
                     ax.set_ylabel(f'{system}: P99 RTT ($\\mu$s)')
                     ax.set_title(f'{size} B',fontsize=9)

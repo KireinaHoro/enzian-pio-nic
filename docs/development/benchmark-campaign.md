@@ -212,7 +212,9 @@ an explicit 1,024-request boundary. Raw chunk observations retain local wire
 XIDs; merged rows carry both chunk identity and a chronological observation ID.
 Warmups remain archived and are excluded individually from plots. Full launch
 requires hash-bound `wire_acceptance` from a passing unloaded rehearsal. Full collection runs directly from an existing frozen `grid.json` or an explicit
-complete `grid` configuration (system, size, workers, increasing integer rates).
+complete `grid` configuration (system, size, workers, increasing integer rates),
+or `"loaded_sweep": "linear-to-loss"` without an explicit `grid`. The latter
+freezes a step/stop policy in `grid.json` before any acquisition.
 It never launches a preliminary rehearsal. Rehearsal scopes are explicit tools.
 Full unloaded CDF/breakdown plots pass validation before loaded collection starts.
 Each completed loaded point refreshes partial latency/goodput, loss and available
@@ -437,9 +439,17 @@ Grid cohorts use 2-second warmup, 10-second measurement, one trial;
 sustained candidates use 2+60 seconds and one trial. Rehearsal uses
 1+1 seconds for loaded cohorts and 16+100 requests for unloaded gates. It
 brackets workers 1 and 4 geometrically through the first valid >1% loss
-point. Workers 2/3 start from conservative interpolated brackets; every full
-grid extends geometrically until it crosses 1% or fails a resource/generator
-gate. All grid points are retained. Candidate ranking uses goodput within the
+point. New hot full campaigns use `"loaded_sweep": "linear-to-loss"`:
+Lauberhorn advances by 5,000 RPC/s; DPDK and CS-A64 by 20,000 RPC/s,
+for every payload and worker count. Zero is the chart origin, not a latency
+sample; acquisition starts at one step. Collect sequentially through the first
+valid point with loss strictly greater than 1%, retaining that point for the
+loss chart and collecting no higher rate. Exactly 1% continues the sweep.
+The linear sweep is not limited by `max_extensions`; generator/resource failures
+still stop acquisition as errors. Extensions are persisted before execution and
+resume replays the same frozen policy. Historical explicit grids retain their
+bounded geometric-extension behavior. All measured points are retained.
+Candidate ranking uses goodput within the
 contiguous prefix before the first rate where any repetition exceeds 1% loss;
 failed sustained confirmations step down through that candidate order.
 
