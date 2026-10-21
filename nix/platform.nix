@@ -219,7 +219,7 @@ in
   mkCaladanCampaign = { source, microbenchmarkSource, rpcSource }:
     import ./benchmarks/caladan/campaign.nix {
       inherit pkgs target microbenchmarkSource rpcSource;
-      clientEnvironment = trafficGeneratorDeployment.environment;
+      clientEnvironment = echoCampaignDeployment.environment;
       port = import ./benchmarks/caladan {
         inherit pkgs target kernelBuildTree kernelRelease identity source;
       };

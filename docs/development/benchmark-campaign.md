@@ -212,7 +212,11 @@ through switch export/rearm; DPDK accepts a new consecutive XID sequence only at
 an explicit 1,024-request boundary. Raw chunk observations retain local wire
 XIDs; merged rows carry both chunk identity and a chronological observation ID.
 Warmups remain archived and are excluded individually from plots. Full launch
-requires hash-bound `wire_acceptance` from a passing unloaded rehearsal. Full collection runs directly from an existing frozen `grid.json` or an explicit
+requires hash-bound `wire_acceptance` from a passing unloaded rehearsal. A combined
+campaign can supply a list of proofs, each with an explicit `systems` list;
+the proofs must cover every selected system exactly once, and every proof
+retains its original cohort and receipt hashes. This reuses integration
+acceptance only, not measurement cohorts. Full collection runs directly from an existing frozen `grid.json` or an explicit
 complete `grid` configuration (system, size, workers, increasing integer rates),
 or `"loaded_sweep": "linear-to-loss"` without an explicit `grid`. The latter
 freezes a step/stop policy in `grid.json` before any acquisition.

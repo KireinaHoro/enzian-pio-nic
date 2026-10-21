@@ -162,3 +162,7 @@ The published runtime port lists hash expansion as unfinished. A minimal mlx5
 packet-I/O control may isolate NIC cost but does not replace the Caladan runtime
 baseline. New TCP implementation, general-purpose tracing, NICVF/VNIC porting
 and portability beyond the selected ARM/kernel/NIC setup are outside this scope.
+
+The platform `mkCaladanCampaign` image includes the shared mlx5 generator,
+DPDK responder and Lauberhorn tracing variants alongside both Caladan variants,
+so one immutable image serves a three-system hot campaign.

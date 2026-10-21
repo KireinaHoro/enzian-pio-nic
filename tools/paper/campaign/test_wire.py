@@ -33,3 +33,23 @@ class Wire(unittest.TestCase):
         for scope in ('rehearsal', 'full'):
             with self.assertRaisesRegex(RuntimeError, 'Validated unloaded'):
                 controller.config_check({'scope': scope})
+
+    def test_combined_system_acceptance(self):
+        import json,tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from .import_loaded import digest
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'rehearsal-unloaded.json').write_text('[]')
+            receipt=root/'receipt.json'
+            receipt.write_text(json.dumps({'result':{'passed':True,'unloaded_only':True},'hashes':{}}))
+            proof=dict(root=str(root),cohorts_sha256=digest(root/'rehearsal-unloaded.json'),
+                       validation_receipt=str(receipt),validation_sha256=digest(receipt))
+            config=dict(systems=['LH','DPDK','CS-A64'],wire_acceptance=[
+                dict(proof,systems=['LH','DPDK']),dict(proof,systems=['CS-A64'])])
+            with patch('campaign.import_unloaded.validate_matched') as validate:
+                require_capture_backend(config)
+                self.assertEqual([c.kwargs['systems'] for c in validate.call_args_list],[('LH','DPDK'),('CS-A64',)])
+            config['wire_acceptance'][1]['systems']=['LH']
+            with self.assertRaisesRegex(ValueError,'exactly once'):require_capture_backend(config)

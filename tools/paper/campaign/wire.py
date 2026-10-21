@@ -17,6 +17,15 @@ def require_capture_backend(config=None):
     from .import_unloaded import validate_matched
     proof=(config or {}).get('wire_acceptance',{})
     if not proof:raise RuntimeError('Validated unloaded switch rehearsal required before long collection')
+    if isinstance(proof, list):
+        from .policy import selected_systems
+        covered=[s for item in proof for s in item['systems']]
+        if len(covered)!=len(set(covered)) or set(covered)!=set(selected_systems(config)):
+            raise ValueError('Wire acceptance proofs must cover each selected system exactly once')
+        for item in proof:
+            require_capture_backend(dict(config, systems=item['systems'], wire_acceptance=item))
+        return
+
     root=Path(proof['root'])
     if digest(root/'rehearsal-unloaded.json')!=proof['cohorts_sha256']:
         raise ValueError('Wire acceptance evidence changed')
