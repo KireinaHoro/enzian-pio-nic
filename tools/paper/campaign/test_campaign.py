@@ -233,13 +233,15 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
                     return dict({k:True for k in ('complete','hashes','boundaries','failure_accounting','worker_activity','pdf_dimensions','embedded_fonts')},previews=list('abcde'),files={p:'fixture' for p in 'abcde'})
                 return {}
             def loaded(self, system, size, workers, rate, phase, trial_index=0, sustained=False):
-                step=5000 if system=='LH' else 20000
+                step=controller.measurement_settings(self.config)['loaded']['step_rpc_s'][system][str(size)]
                 self.completed+=1
                 return trial(rate*(98 if rate>=3*step else 99),rate*100)
-        for system,step in [('LH',5000),('DPDK',20000),('CS-A64',20000)]:
+        for system,step in [('LH',20000),('DPDK',50000),('CS-A64',50000),('LH',12345)]:
             with self.subTest(system=system), tempfile.TemporaryDirectory() as directory:
                 root=Path(directory)
-                config=dict(systems=[system],scope='full',loaded_sweep='linear-to-loss',max_extensions=1)
+                config=dict(systems=[system],scope='full',loaded_sweep='linear-to-loss',max_extensions=1,
+                    measurement={'loaded':{'repetitions':2,'confirmation_repetitions':3,
+                                           'step_rpc_s':{system:{'8':step}}}})
                 with patch.object(controller,'SIZES',(8,)), patch.object(controller,'WORKERS',(4,)):
                     Fixture(root,config).run()
                     # Replay must keep the same frozen policy and stopping point.
@@ -247,6 +249,8 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
                 record=controller.read(root/'loaded.json')[0]
                 self.assertEqual([p['rate'] for p in record['points']],[step,2*step,3*step])
                 self.assertEqual(record['confirmed']['rate'],2*step)
+                self.assertEqual(len(record['confirmed']['trials']),3)
+                self.assertTrue(all(len(p['trials'])==2 for p in record['points']))
                 self.assertEqual(controller.read(root/'grid.json')[0]['step'],step)
 
     def test_rehearsal_stops_before_full_collection(self):

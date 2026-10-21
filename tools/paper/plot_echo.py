@@ -151,7 +151,7 @@ def render(source,destination, *, rehearsal=False, partial=False):
                 r=next((r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker)),None)
                 if partial and (r is None or not r.get('confirmed')): continue
                 observed_workers.append(worker)
-                if any(t['duration_ns']!=60_000_000_000 for t in r['confirmed']['trials']): raise ValueError('Peak requires sustained trials')
+                if any(t['duration_ns']!=r.get('measurement',{}).get('loaded',{}).get('confirmation_ms',60000)*1_000_000 for t in r['confirmed']['trials']): raise ValueError('Peak requires sustained trials')
                 trials.append([t['on_time']/(t['duration_ns']/1e9)/1000 for t in r['confirmed']['trials']])
             if not trials: continue
             values=np.asarray(trials); middle=np.median(values,axis=1)

@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import time
+from campaign.settings import measurement_settings
 from campaign.policy import SYSTEMS, selected_systems, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates
 from campaign.import_loaded import load, digest
 from campaign.import_unloaded import validate_matched
@@ -184,9 +185,12 @@ class Campaign:
         return result
 
     def loaded(self, system, size, workers, rate, phase, trial=0, sustained=False):
-        duration = 60_000 if sustained else 10_000
-        warmup = 2_000
-        if phase == 'rehearsal': duration, warmup = 1000, 1000
+        settings = measurement_settings(self.config)
+        loaded = settings['loaded']
+        duration = loaded['confirmation_ms'] if sustained else loaded['measurement_ms']
+        warmup = loaded['warmup_ms']
+        if phase == 'rehearsal':
+            duration, warmup = settings['rehearsal']['loaded_measurement_ms'], settings['rehearsal']['loaded_warmup_ms']
         arrival = (dict(arrival_model='paced-batch', batch_max=self.config['batch_max'],
                         batch_target_ns=self.config.get('batch_target_ns',250000))
                    if self.config.get('batch_max',1)>1 else {})
@@ -199,13 +203,14 @@ class Campaign:
 
     def unloaded(self, phase):
         cohorts=[]
+        settings=measurement_settings(self.config)
         systems=tuple(s for s in ('DPDK','LH','CS-A64') if s in self.systems) if self.config.get('scope') in ('unloaded-rehearsal','unloaded-full') else self.systems
         for system in systems:
             for size in SIZES:
                 for instrumentation in ('off', 'breakdown'):
                     result=self.stage('unloaded', dict(system=system, payload_bytes=size, workers=1,
-                        outstanding=1, count=100 if phase=='rehearsal' else 10000,
-                        warmup=128,
+                        outstanding=1, count=settings['rehearsal']['unloaded_requests'] if phase=='rehearsal' else settings['unloaded']['measurement_requests'],
+                        warmup=settings['unloaded']['warmup_requests'],
                         instrumentation=instrumentation, phase=phase))
                     cohorts.append(result['cohort'])
                     self.completed+=1
@@ -264,11 +269,12 @@ class Campaign:
             return
 
     def collect_full(self):
+        settings=measurement_settings(self.config)['loaded']
         plan_path = self.root/'grid.json'
         plans = read(plan_path) if plan_path.exists() else self.config.get('grid')
         if plans is None and self.config.get('loaded_sweep') == 'linear-to-loss':
-            plans = [dict(system=s, size=n, workers=w, rates=[5000 if s=='LH' else 20000],
-                          step=5000 if s=='LH' else 20000, stop_loss=.01)
+            plans = [dict(system=s, size=n, workers=w, rates=[settings['step_rpc_s'][s][str(n)]],
+                          step=settings['step_rpc_s'][s][str(n)], stop_loss=.01)
                      for s in self.systems for n in SIZES for w in WORKERS]
         expected={(s,n,w) for s in self.systems for n in SIZES for w in WORKERS}
         if not plans or len(plans)!=len(expected) or {(p['system'],p['size'],p['workers']) for p in plans}!=expected:
@@ -276,14 +282,14 @@ class Campaign:
         for p in plans:
             rates=p['rates']
             if 'step' in p and (type(p['step']) is not int or
-                    p['step'] != (5000 if p['system']=='LH' else 20000) or
+                    p['step'] <= 0 or
                     rates != [p['step']] or p.get('stop_loss') != LOSS_LIMIT):
                 raise ValueError('Invalid linear-to-loss plan')
             if not rates or rates!=sorted(set(rates)) or any(type(r)!=int or r<=0 for r in rates):
                 raise ValueError('Grid rates must be positive increasing integers')
         if not plan_path.exists(): atomic(plan_path,plans)
         self.completed = 0
-        self.total = len(self.systems)*len(SIZES)*2+sum(len(p['rates'])+1 for p in plans)
+        self.total = len(self.systems)*len(SIZES)*2+sum(len(p['rates'])*settings['repetitions']+settings['confirmation_repetitions'] for p in plans)
         self.unloaded('full')
         from campaign.adapter import stop_after_unloaded
         stopping=stop_after_unloaded(self.root)
@@ -304,7 +310,7 @@ class Campaign:
             points = []
             def point(rate, sustained=False):
                 return dict(rate=rate, trials=[self.loaded(plan['system'], plan['size'], plan['workers'],
-                    rate, 'sustained' if sustained else 'full', t, sustained) for t in range(1)])
+                    rate, 'sustained' if sustained else 'full', t, sustained) for t in range(settings['confirmation_repetitions'] if sustained else settings['repetitions'])])
             def refresh():
                 self.stage('progress-plots',dict(loaded=collected+[dict(plan,points=points)]))
             for rate in plan['rates']:
@@ -318,19 +324,19 @@ class Campaign:
                 extension_path=self.root/f"extensions-{plan['system']}-{plan['size']}-{plan['workers']}.json"
                 rates=read(extension_path) if extension_path.exists() else []
                 if rate not in rates: rates.append(rate); atomic(extension_path,rates)
-                self.total += 1; points.append(point(rate)); refresh()
+                self.total += settings['repetitions']; points.append(point(rate)); refresh()
                 extensions += 1
             if not any(loss(t)>LOSS_LIMIT for p in points for t in p['trials']):
                 raise RuntimeError('No overload boundary within extension budget')
             confirmed = None
             confirmations = []
             for candidate in candidates(points):
-                if confirmations: self.total += 1
+                if confirmations: self.total += settings['confirmation_repetitions']
                 sustained = point(candidate['rate'], True); confirmations.append(sustained)
                 if all(loss(t)<=LOSS_LIMIT for t in sustained['trials']):
                     confirmed = sustained; break
             if confirmed is None: raise RuntimeError('No sustained qualifying candidate')
-            collected.append(dict(plan, points=points, confirmed=confirmed, confirmations=confirmations))
+            collected.append(dict(plan, measurement=dict(loaded=settings), points=points, confirmed=confirmed, confirmations=confirmations))
             atomic(self.root/'loaded.json', collected)
             self.stage('progress-plots',dict(loaded=collected))
         result = self.stage('finalize', dict(grid=str(plan_path), loaded=str(self.root/'loaded.json'), unloaded=str(self.root/'full-unloaded.json')))
@@ -344,6 +350,7 @@ class Campaign:
 
 def config_check(config):
     selected_systems(config)
+    measurement_settings(config)
     if config.get('loaded_sweep') not in (None, 'linear-to-loss'):
         raise ValueError('Unknown loaded sweep policy')
     if config.get('loaded_sweep') and config.get('grid') is not None:
@@ -395,7 +402,7 @@ def main():
     args = parser.parse_args(); root = args.root.resolve()
     if args.command == 'inheritance-plan':
         from campaign.recovery import inheritance_draft
-        config=read(args.config);config_check(config)
+        config=read(args.config);config['measurement']=measurement_settings(config);config_check(config)
         print(json.dumps(inheritance_draft(args.inherit_reviewed,config,implementation(config)),indent=2))
         return
     if args.command == 'recovery-plan':
@@ -404,7 +411,11 @@ def main():
         return
     if args.command == 'status': print(json.dumps(read(root/'status.json'), indent=2)); return
     if args.command == 'launch':
-        config = read(args.config); config_check(config)
+        config = read(args.config)
+        saved = read(root/'config.json') if (root/'config.json').exists() else None
+        if saved is None or 'measurement' in saved:
+            config['measurement'] = measurement_settings(config)
+        config_check(config)
         if args.recovery_review and not args.resume: raise ValueError('Recovery requires --resume')
         if root.exists() and not args.resume: raise ValueError('Campaign root already exists')
         if bool(args.inherit_reviewed)!=bool(args.inherit_review): raise ValueError('Reviewed inheritance requires source and review')

@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import sys
 
+from .settings import measurement_settings, validate_unloaded_counts
 from .acquire import ROOT
 from .hardware import atomic
 from .import_loaded import digest, load
@@ -15,7 +16,8 @@ from .import_unloaded import validate_matched
 from .policy import SYSTEMS, selected_systems, SIZES, WORKERS, candidates, loss
 
 
-def verify_loaded(records, plans, *, systems=SYSTEMS):
+def verify_loaded(records, plans, *, systems=SYSTEMS, measurement=None):
+    settings=measurement_settings({"measurement": measurement or {}})["loaded"]
     expected={(s,n,w) for s in systems for n in SIZES for w in WORKERS}
     keys=[(r['system'],r['size'],r['workers']) for r in records]
     if len(keys)!=len(expected) or set(keys)!=expected: raise ValueError('Incomplete full matrix')
@@ -39,12 +41,13 @@ def verify_loaded(records, plans, *, systems=SYSTEMS):
         if record['confirmed']!=record['confirmations'][-1]: raise ValueError('Wrong confirmed candidate')
         for point in record['points']+record['confirmations']:
             sustained=point in record['confirmations']
-            if len(point['trials'])!=1: raise ValueError('Expected one trial per loaded point')
+            if len(point['trials'])!=settings['confirmation_repetitions' if sustained else 'repetitions']:
+                raise ValueError('Wrong loaded repetition count')
             for trial in point['trials']:
-                if (trial.get('schema') not in (2,3) or trial['warmup_ns']!=2_000_000_000
+                if (trial.get('schema') not in (2,3) or trial['warmup_ns']!=settings['warmup_ms']*1_000_000
                         or trial.get('benchmark')!='echo'+str(record['size'])):
                     raise ValueError('Missing full-run schedule boundary provenance')
-                if trial['duration_ns']!=(60 if sustained else 10)*1_000_000_000:
+                if trial['duration_ns']!=settings['confirmation_ms' if sustained else 'measurement_ms']*1_000_000:
                     raise ValueError('Wrong measured duration')
                 csvs=[p for p in trial['files'] if p.endswith(('.csv','.csv.gz'))]
                 summaries=[p for p in trial['files'] if p.endswith('.open.json')]
@@ -97,14 +100,16 @@ def finalize(config,h,request,campaign):
             'clock-after',timeout=180)
     loaded=json.loads(Path(request['loaded']).read_text());plans=json.loads(Path(request['grid']).read_text())
     unloaded=json.loads(Path(request['unloaded']).read_text())
-    systems=selected_systems(json.loads((campaign/'config.json').read_text()))
-    verify_loaded(loaded,plans,systems=systems);validate_matched(unloaded,systems=systems)
-    if any(c['count']!=10000 or c['warmup']!=128*len(c.get('chunks',[None])) for c in unloaded): raise ValueError('Wrong full unloaded sample count')
+    manifest=json.loads((campaign/'config.json').read_text())
+    systems=selected_systems(manifest)
+    verify_loaded(loaded,plans,systems=systems,measurement=manifest.get('measurement'));validate_matched(unloaded,systems=systems)
+    validate_unloaded_counts(unloaded,measurement_settings(manifest)['unloaded'])
     destination=Path(config['archive_directory']).resolve()/h.directory.name
     archive=Archive(destination)
     atomic(destination/'loaded.json',archive.records(loaded))
     atomic(destination/'unloaded.json',archive.records(unloaded))
     atomic(destination/'hardware.json',config)
+    atomic(destination/'campaign.json',manifest)
     atomic(destination/'recovery-history.json',[json.loads(p.read_text()) for p in sorted((campaign/'recoveries').glob('*/review.json'))])
     from .policy import validate_loaded_activity, validate_activity_coverage
     activities={}

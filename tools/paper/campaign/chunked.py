@@ -12,8 +12,8 @@ from .tofino import Batch, wire_observations
 
 
 def plan(count, warmup=128):
-    if type(count) is not int or count<=0 or warmup!=128:
-        raise ValueError('Positive measured count and 128 warmups required')
+    if type(count) is not int or count<=0 or type(warmup) is not int or not 0<=warmup<1024:
+        raise ValueError('Positive measured count and 0..1023 warmups required')
     capacity=1024-warmup
     return [min(capacity,count-i) for i in range(0,count,capacity)]
 
@@ -26,6 +26,8 @@ def write_rows(path, data):
 
 def merge(cohorts):
     first=cohorts[0]
+    warmup=first['warmup']
+    plan(1,warmup)
     result={k:v for k,v in first.items() if k not in ('rows','files','count','warmup','raw_capture','rx_preparation_ns')}
     result.update(rows=[],files={},count=0,warmup=0,chunks=[])
     for index,cohort in enumerate(cohorts):
@@ -33,16 +35,16 @@ def merge(cohorts):
             raise ValueError('Incompatible capture chunks')
         if cohort.get('cpu_partition_version')!=first.get('cpu_partition_version'):
             raise ValueError('Incompatible CPU accounting versions across chunks')
-        if cohort['warmup']!=128 or not 0<cohort['count']<=896 or len(cohort['rows'])!=cohort['count']+128:
+        if cohort['warmup']!=warmup or not 0<cohort['count']<=1024-warmup or len(cohort['rows'])!=cohort['count']+warmup:
             raise ValueError('Invalid capture chunk size')
-        result['chunks'].append(dict(index=index,count=cohort['count'],warmup=128,
+        result['chunks'].append(dict(index=index,count=cohort['count'],warmup=warmup,
                                      raw_capture=cohort['raw_capture']))
         for i,row in enumerate(cohort['rows'],1):
-            if row['request_id']!=i or row['warmup']!=int(i<=128):
+            if row['request_id']!=i or row['warmup']!=int(i<=warmup):
                 raise ValueError('Invalid chunk identity or warmup')
             result['rows'].append(dict(row,wire_xid=i,chunk=index,request_id=len(result['rows'])+1))
         result['files'].update(cohort['files'])
-        result['count']+=cohort['count'];result['warmup']+=128
+        result['count']+=cohort['count'];result['warmup']+=warmup
     result['correlation']='Capture session plus wire XID; request_id is chronological observation index'
     return result
 
@@ -50,6 +52,7 @@ def merge(cohorts):
 def run(a):
     from .hardware import Acquisition, atomic
     c,r=a.config,a.request
+    warmup=r['warmup']
     from .tofino import check_backend
     check_backend(c['tofino'])
     counts=plan(r['count'],r['warmup'])
@@ -65,7 +68,7 @@ def run(a):
     backend=c['tofino'];endpoint=c['dut_endpoint'] if not service else c['fpga_endpoint']
     server_request=a.role('server') if not service else None
     if server_request:
-        server_request.update(count=sum(counts)+128*(len(counts)-1),warmup=128,
+        server_request.update(count=sum(counts)+warmup*(len(counts)-1),warmup=warmup,
                               chunk_requests=1024,deadline_ms=120000,timeout_seconds=14400)
     acquisitions=[];files={}
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -84,13 +87,13 @@ def run(a):
                 selector=backend['rpc_selectors'][str(r['payload_bytes'])]
                 capture=Batch(backend,dict(session_id=child.label,dev_port=backend['ports'][r['system']],
                     client_ip=c['peer_endpoint']['ip'],server_ip=endpoint['ip'],client_udp_port=49152,
-                    server_udp_port=12345,**selector,expected_count=count+128,timeout_s=600,
+                    server_udp_port=12345,**selector,expected_count=count+warmup,timeout_s=600,
                     pacing_gap_ns=backend['gap_ns'],exclusive_tx_fifo_ack=True,
                     expected_artifact_sha256=backend['expected_artifact_sha256']),directory/'tofino')
                 paths,evidence=child.execute_roles(capture,external_server=True)
                 for item in evidence.values():files.update(item['files'])
                 wire=capture.output/'wire.json'
-                atomic(wire,wire_observations(child.paired,child.label,count+128))
+                atomic(wire,wire_observations(child.paired,child.label,count+warmup))
                 acquisitions.append((child,paths,capture,wire))
         finally:
             if server and r['system']=='CS-A64':
@@ -110,26 +113,26 @@ def run(a):
         if not json.loads((a.directory/'health.json').read_text())['passed']:raise ValueError('DUT health failed')
         if r['instrumentation']=='breakdown':
             server_rows=rows(after/'server.csv')
-            if len(server_rows)!=a.state['setup_count']+sum(counts)+128*len(counts):
+            if len(server_rows)!=a.state['setup_count']+sum(counts)+warmup*len(counts):
                 raise ValueError('Incomplete resident runtime trace')
             server_rows=server_rows[a.state['setup_count']:]
-    if server_rows is not None and len(server_rows)!=sum(counts)+128*len(counts):
+    if server_rows is not None and len(server_rows)!=sum(counts)+warmup*len(counts):
         raise ValueError('Incomplete resident server samples')
     cohorts=[];offset=0
     for child,paths,capture,wire in acquisitions:
-        count=child.request['count'];options=dict(count=count,warmup=128,instrumentation=r['instrumentation'],
+        count=child.request['count'];options=dict(count=count,warmup=warmup,instrumentation=r['instrumentation'],
                                                payload_bytes=r['payload_bytes'],wire_path=wire)
         if server_rows is not None:
             server_csv=child.directory/'server-slice.csv'
-            write_rows(server_csv,server_rows[offset:offset+count+128]);options['server_path']=server_csv
+            write_rows(server_csv,server_rows[offset:offset+count+warmup]);options['server_path']=server_csv
         if service:cohort=lauberhorn(paths['client']/'samples.csv',setup_count=0,**options)
         elif r['system']=='CS-A64':
             from .import_caladan import caladan
             cohort=caladan(paths['client']/'samples.csv',
                 status_path=server_path/'samples.csv.status.json',
-                export_rows=sum(counts)+128*len(counts),**dict({'server_path':None},**options))
+                export_rows=sum(counts)+warmup*len(counts),**dict({'server_path':None},**options))
         else:cohort=dpdk(paths['client']/'samples.csv',**options)
-        offset+=count+128
+        offset+=count+warmup
         cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
         cohort['raw_capture']=dict(path=str(capture.output/'pairs.json'),sha256=digest(capture.output/'pairs.json'))
         for row,raw in zip(cohort['rows'],child.paired['pairs']):

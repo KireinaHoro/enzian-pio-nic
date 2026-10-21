@@ -23,8 +23,11 @@ without collection. The later reservation-only request reacquired zuestoll14;
 see [hardware state](hardware-state.md#october-21-generator-reacquisition). No hardware access or acquisition
 was performed for this change. Fresh matched unloaded acquisitions are needed
 to produce version-3 numerical comparisons once collection is authorized;
-the loaded grid is now selected: `loaded_sweep: "linear-to-loss"`, 5 kRPC/s
-steps for LH and 20 kRPC/s for DPDK/CS-A64, through the first >1% loss point.
+the loaded grid is now selected: `loaded_sweep: "linear-to-loss"`, manifest-configured steps: LH 20k for 8/128 B and 5k for 1432 B;
+DPDK/CS-A64 50k for 8/128 B and 20k for 1432 B, through the first >1% loss point.
+Warmup/count/duration/repetition settings now live in the campaign `measurement`
+object, resolved and frozen on launch; 96 local campaign tests pass, including
+custom durations, repetitions, steps and chunk warmups. No acquisition ran.
 Zero is the axis origin; no zero-traffic latency sample is fabricated. Existing stop-after-unloaded
 campaign control remains in place.
 

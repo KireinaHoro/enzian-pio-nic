@@ -165,8 +165,8 @@ real-workload unloaded rehearsal with matching acceptance hashes.
 ### Full unloaded collection
 
 Use `scope: "unloaded-full"` for only the full unloaded dataset: both systems,
-8/128/1432-byte echo, probes off and breakdown, 10,000 measured observations per
-cohort with 128 warmups per capture chunk. It starts directly without a rehearsal
+8/128/1432-byte echo, probes off and breakdown, with manifest-configured observation counts
+(default 10,000 measured per cohort and 128 warmups per capture chunk). It starts directly without a rehearsal
 or loaded grid, validates/publishes the CDF and breakdown, sends the terminal
 callback and stops. Existing real-workload wire acceptance remains required.
 
@@ -205,8 +205,9 @@ used 10 ms). The ordinary hardware adapter still owns boot, software roles,
 health checks, archival and restoration. The session CLI arms capture before the client runs,
 writes finish after traffic stops, exports and pairs with the actual client ledger. No synthetic
 responder or FPGA/NIC timestamp path is involved. Loaded roles never arm capture.
-Full unloaded cohorts use `campaign/chunked.py`: eleven chunks of 896 measured
-requests and one of 144, each preceded by 128 warmups. The server stays resident
+Full unloaded cohorts use `campaign/chunked.py`: each chunk holds at most
+`1024 - warmup_requests` measured requests. Defaults yield eleven chunks of 896
+and one of 144, each preceded by 128 warmups. The server stays resident
 through switch export/rearm; DPDK accepts a new consecutive XID sequence only at
 an explicit 1,024-request boundary. Raw chunk observations retain local wire
 XIDs; merged rows carry both chunk identity and a chronological observation ID.
@@ -435,13 +436,52 @@ matching, budgets, isolated CPUs, prior-state preservation and actual callback
 delivery. The final stage must archive raw observations and provenance, validate
 all cohorts, generate figures, validate dimensions/fonts and supply previews.
 
-Grid cohorts use 2-second warmup, 10-second measurement, one trial;
-sustained candidates use 2+60 seconds and one trial. Rehearsal uses
-1+1 seconds for loaded cohorts and 16+100 requests for unloaded gates. It
-brackets workers 1 and 4 geometrically through the first valid >1% loss
-point. New hot full campaigns use `"loaded_sweep": "linear-to-loss"`:
-Lauberhorn advances by 5,000 RPC/s; DPDK and CS-A64 by 20,000 RPC/s,
-for every payload and worker count. Zero is the chart origin, not a latency
+### Measurement parameters
+
+Set `measurement` in the campaign manifest JSON (not the hardware manifest).
+The same settings drive acquisition requests, capture chunking, final validation,
+and sustained-throughput plotting. Defaults are shown below; partial overrides
+are allowed, unknown keys and invalid values are rejected. Counts, durations,
+steps and repetitions are positive integers; warmups may be zero. Unloaded
+warmup must be below 1,024 requests to leave capture room for measurements.
+Warmup requests are per capture chunk; measurement requests are the cohort total.
+Loaded warmup is a duration preceding every repetition, not separate trials.
+
+```json
+{
+  "loaded_sweep": "linear-to-loss",
+  "measurement": {
+    "unloaded": {"warmup_requests": 128, "measurement_requests": 10000},
+    "loaded": {
+      "warmup_ms": 2000,
+      "measurement_ms": 10000,
+      "repetitions": 1,
+      "confirmation_ms": 60000,
+      "confirmation_repetitions": 1,
+      "step_rpc_s": {
+        "LH": {"8": 20000, "128": 20000, "1432": 5000},
+        "DPDK": {"8": 50000, "128": 50000, "1432": 20000},
+        "CS-A64": {"8": 50000, "128": 50000, "1432": 20000}
+      }
+    },
+    "rehearsal": {
+      "unloaded_requests": 100,
+      "loaded_warmup_ms": 1000,
+      "loaded_measurement_ms": 1000
+    }
+  }
+}
+```
+
+Launch resolves defaults into the saved `config.json`; partial input manifests
+are therefore frozen with every measurement setting. The immutable campaign manifest
+and frozen grid preserve acquisition choices; changing settings requires a new
+campaign root. Historical manifests without `measurement` retain the prior
+counts/durations; existing frozen rate grids remain authoritative. Final archives
+include `campaign.json`, and loaded records carry resolved measurement settings.
+Rehearsal brackets workers 1 and 4 geometrically through the first valid >1%
+loss point. Full `linear-to-loss` sweeps use the per-system/payload steps above.
+Zero is the chart origin, not a latency
 sample; acquisition starts at one step. Collect sequentially through the first
 valid point with loss strictly greater than 1%, retaining that point for the
 loss chart and collecting no higher rate. Exactly 1% continues the sweep.

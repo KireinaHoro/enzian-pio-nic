@@ -19,6 +19,7 @@ from .harness import Harness
 from .hardware import Acquisition, atomic
 from .import_loaded import digest, load
 from .recovery import invalidated
+from .settings import measurement_settings, validate_unloaded_counts
 from .import_unloaded import validate_matched
 from .policy import SYSTEMS, selected_systems, SIZES, WORKERS, loss, qualifying
 
@@ -311,9 +312,8 @@ def main():
         evidence={}
         if final_unloaded:
             if not unloaded: raise ValueError('Unloaded finalization requires unloaded cohorts')
+            validate_unloaded_counts(request['unloaded'],measurement_settings(read(campaign/'config.json'))['unloaded'])
             for cohort in request['unloaded']:
-                if cohort['count']!=10000 or cohort['warmup']!=128*len(cohort.get('chunks',[None])):
-                    raise ValueError('Wrong full unloaded sample count')
                 evidence.update(cohort['files'])
             if any(digest(path)!=sha for path,sha in evidence.items()):
                 raise ValueError('Unloaded acquisition evidence changed')

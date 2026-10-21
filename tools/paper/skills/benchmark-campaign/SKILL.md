@@ -84,7 +84,7 @@ clock/reboot changes. Bounded integration trials remain outside paper inputs;
 real-workload validation still gates long collection. See the campaign document
 for the manifest and per-chunk limit. `campaign/wire.py` requires hashed real
 unloaded rehearsal acceptance before long collection; fixtures never authorize
-capture. Full collection uses resident-worker chunks with 128 warmups after each
+capture. Full collection uses resident-worker chunks with manifest-configured warmups (default 128) after each
 rearm. Existing integration evidence is checked without launching extra trials.
 Preserve compatible prior acquisitions through the explicit review path.
 For bounded software-only board acceptance use
@@ -119,11 +119,13 @@ and validated by the maintained generator and importer. Record the actual batch
 size and arrival model; describe this as bursty paced traffic. Use identical
 batch policy for both systems, and do not merge earlier fixed-spacing loaded
 cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse.
-Use one trial per loaded grid point and one sustained trial per candidate.
+Set counts, warmups, durations, repetitions and per-payload sweep steps in the
+campaign manifest `measurement` object; see the campaign guide. Defaults use
+one trial per loaded grid point and one sustained trial per candidate.
 Do not imply a between-trial range when only one trial exists.
 Keep failed attempts and exact rates. One valid point above 1% loss is sufficient
-for rehearsal overload coverage; do not require an additional higher point. New hot full campaigns use `loaded_sweep: "linear-to-loss"`: 5 kRPC/s
-steps for LH, 20 kRPC/s for DPDK/CS-A64, starting at one positive step
+for rehearsal overload coverage; do not require an additional higher point. New hot full campaigns use `loaded_sweep: "linear-to-loss"`: manifest steps
+(default LH 20k for 8/128 B, 5k for 1432 B; DPDK/CS-A64 50k and 20k respectively), starting at one positive step
 and ending at the first valid >1% loss point. Zero is the chart origin.
 Historical explicit grids retain bounded geometric extensions.
 

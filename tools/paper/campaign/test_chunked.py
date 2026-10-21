@@ -28,14 +28,14 @@ class Chunked(unittest.TestCase):
         for count in (0,-1,1.5):
             with self.assertRaises(ValueError):plan(count)
 
-    def chunk(self,count,system='DPDK',size=8,mode='off'):
+    def chunk(self,count,system='DPDK',size=8,mode='off',warmup=128):
         observations=[]
-        for i in range(count+128):
-            row=dict(request_id=i+1,flow_id=0,warmup=int(i<128),wire_ns=1000)
+        for i in range(count+warmup):
+            row=dict(request_id=i+1,flow_id=0,warmup=int(i<warmup),wire_ns=1000)
             if mode=='breakdown':row['components_ns']={**dict.fromkeys(COMPONENTS,0),'cpu_wire':1000}
             observations.append(row)
         return dict(system=system,payload_bytes=size,instrumentation=mode,build_config_sha256=mode,
-                    rows=observations,files={},count=count,warmup=128,raw_capture={'path':'fixture'},
+                    rows=observations,files={},count=count,warmup=warmup,raw_capture={'path':'fixture'},
                     paper_inputs=True,wire_available=True,methodology='tofino-wire-v1')
 
     def test_requested_warmups_are_per_chunk(self):
@@ -89,5 +89,17 @@ class Chunked(unittest.TestCase):
         with self.assertRaises(ValueError):merge([a,b])
         b=self.chunk(4);b['rows'][0]['request_id']=2
         with self.assertRaises(ValueError):merge([a,b])
+
+    def test_custom_warmup_chunk_pairing(self):
+        from .import_unloaded import validate_matched
+        for warmup in (0,32,256):
+            chunks=plan(1500,warmup)
+            cohorts=[merge([self.chunk(n,mode=mode,warmup=warmup) for n in chunks])
+                     for mode in ('off','breakdown')]
+            validate_matched(cohorts,systems=('DPDK',),sizes=(8,))
+            for c in cohorts:
+                self.assertEqual(c['warmup'],warmup*len(chunks))
+                validate_request(c,dict(system='DPDK',payload_bytes=8,
+                    instrumentation=c['instrumentation'],count=1500,warmup=warmup))
 
 if __name__=='__main__':unittest.main()

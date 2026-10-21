@@ -200,16 +200,18 @@ def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS, sizes=SIZES):
         expected_warmups=[int(i<c['warmup']) for i in range(len(c['rows']))]
         if c.get('chunks'):
             expected_warmups=[]
-            if sum(x['count'] for x in c['chunks'])!=c['count'] or c['warmup']!=128*len(c['chunks']):
+            if sum(x['count'] for x in c['chunks'])!=c['count'] or c['warmup']!=sum(x['warmup'] for x in c['chunks']):
                 raise ValueError('Invalid chunk totals')
             offset=0
             for index,chunk in enumerate(c['chunks']):
-                if chunk['index']!=index or chunk['warmup']!=128 or not 0<chunk['count']<=896:
+                warmup=chunk['warmup']
+                if (chunk['index']!=index or type(warmup) is not int or not 0<=warmup<1024
+                        or not 0<chunk['count']<=1024-warmup):
                     raise ValueError('Invalid capture chunk')
-                for xid in range(1,chunk['count']+129):
+                for xid in range(1,chunk['count']+warmup+1):
                     row=c['rows'][offset];offset+=1
                     if row['chunk']!=index or row['wire_xid']!=xid:raise ValueError('Invalid chunk wire identity')
-                    expected_warmups.append(int(xid<=128))
+                    expected_warmups.append(int(xid<=warmup))
         for i,row in enumerate(c['rows'],1):
             if row['request_id']!=i or row['warmup']!=expected_warmups[i-1] or not row.get('wire_ns',0)>0:
                 raise ValueError('Invalid unloaded identity, warmup or wire duration')

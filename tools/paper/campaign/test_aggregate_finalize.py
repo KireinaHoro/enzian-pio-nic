@@ -10,6 +10,14 @@ from .policy import SYSTEMS, SIZES, WORKERS
 
 class AggregateFinalize(unittest.TestCase):
     def test_full_matrix_and_sustained_boundaries(self):
+        self.check_matrix(10,60)
+
+    def test_manifest_durations(self):
+        self.check_matrix(3,7)
+
+    def check_matrix(self,measurement_seconds,confirmation_seconds):
+        settings={'loaded':{'measurement_ms':measurement_seconds*1000,
+                            'confirmation_ms':confirmation_seconds*1000}}
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             def trial(name,rate,seconds,missing=0,size=8):
@@ -31,9 +39,9 @@ class AggregateFinalize(unittest.TestCase):
                 return load(csv,summary)[0]
             records=[];plans=[]
             for size in SIZES:
-                low=trial(f'low-{size}',100,10,size=size)
-                high=trial(f'high-{size}',150,10,30,size=size)
-                peak=trial(f'peak-{size}',100,60,size=size)
+                low=trial(f'low-{size}',100,measurement_seconds,size=size)
+                high=trial(f'high-{size}',150,measurement_seconds,30,size=size)
+                peak=trial(f'peak-{size}',100,confirmation_seconds,size=size)
                 points=[dict(rate=100,trials=[low]),dict(rate=150,trials=[high])]
                 confirmed=dict(rate=100,trials=[peak])
                 for system in SYSTEMS:
@@ -41,10 +49,10 @@ class AggregateFinalize(unittest.TestCase):
                         key=dict(system=system,size=size,workers=workers)
                         plans.append(dict(key,rates=[100,150]))
                         records.append(dict(key,points=points,confirmations=[confirmed],confirmed=confirmed))
-            verify_loaded(records,plans)
+            verify_loaded(records,plans,measurement=settings)
             extra=copy.deepcopy(records)
             extra[0]['points'][0]['trials']*=3
-            with self.assertRaisesRegex(ValueError,'one trial'):verify_loaded(extra,plans)
+            with self.assertRaisesRegex(ValueError,'repetition count'):verify_loaded(extra,plans,measurement=settings)
             bad=copy.deepcopy(records)
             bad[0]['points'][1]['trials'][0]['on_time']+=1
-            with self.assertRaisesRegex(ValueError,'evidence changed'):verify_loaded(bad,plans)
+            with self.assertRaisesRegex(ValueError,'evidence changed'):verify_loaded(bad,plans,measurement=settings)
