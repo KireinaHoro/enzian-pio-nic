@@ -22,14 +22,17 @@ CPU-only harness; first attempt passed. Preparation evidence is
 `out/hot-full-20261021-preparation/generator-boot/summary.json`. Live preflight
 verified kernel 6.8.0-146, isolated/nohz CPUs 16–47, management routing and RAM
 budgets; both zuestoll07 and zuestoll14 remained reserved to pengxu. The
-three-system campaign is now submitted at `out/hot-full-20261021`; see
-[measurement continuation](measurements.md#active-full-hot-campaign--october-21).
-The first campaign stage subsequently failed at generator image launch because
-`/nix/store` was absent. DUT boot/ECI/module gates passed; exceptional trace
-receiver launch failed for the same mountpoint error. DUT recorder remains
-frozen and campaign state unsafe; no reset is authorized after this failed
-capture. See the measurement continuation for exact preserved evidence and the
-pending CMAC retry decision. Recheck live state before further board access.
+first campaign `out/hot-full-20261021` failed at generator image launch because
+`/nix/store` was absent; DUT boot/ECI/module gates passed. Exceptional trace
+receiver launch failed for the same reason. Old evidence and unsafe state remain
+preserved. The maintainer then explicitly authorized starting from scratch,
+including cold reset without recovering that frozen 1,216-byte trace.
+
+The corrected image launcher passed a live no-traffic bootstrap on zuestoll14,
+and fresh preflight passed before submission of `out/hot-full-20261021-r2`.
+Authorization and receipts: `out/hot-full-20261021-r2-preparation/`.
+See [measurement continuation](measurements.md#active-full-hot-campaign--october-21).
+Recheck live state before further manual board access.
 
 ## October 18 echo topology observation
 

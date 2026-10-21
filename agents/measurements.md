@@ -20,32 +20,33 @@ acquisition evidence.
 
 ## Active full hot campaign — October 21
 
-The maintainer authorized and the controller launched a fresh three-system full
-campaign at `out/hot-full-20261021`, service `echo-campaign-58e3c9b3f957`.
-Terminal failure arrived before the first unloaded cohort: DUT boot/module checks
-passed, but the fresh generator lacked `/nix/store`, so both the first client role
-and exceptional trace receiver failed before running. The shared image launcher
-now creates its mountpoint; 98 local tests pass, including a fresh-root shell test.
-Campaign remains stopped with `hardware-state.json` unsafe. Do not reset or
-resume automatically: the failed capture rule requires preserving the frozen
-recorder. Next action requires explicit authorization to retry CMAC preservation
-with the fixed launcher, then assess recovery before resume.
-Evidence: `stages/a7f44c1dc8aae63fe0fc/attempt-1/board/summary.json` and its
-`echo-58e3c9b3-4b49cc684019-9010e3992b25b811-failure-dump/capture.json`.
-Capture receiver never became ready; no trace bytes were acquired. Frozen
-write pointer is 19 slots (1,216 bytes), wrapped=0, sample_lost=1, dma_error=0;
-controls restored with trace_stop=1. Sticky loss does not establish when loss
-occurred. Preserve all failure files and the old safe=false state.
-All 18 unloaded cohorts are reacquired with accounting version 3 before loaded
-collection. No old measurement cohorts are inherited. Historical LH/DPDK and
-Caladan switch-integration proofs were separately hash-verified for reuse.
+The maintainer explicitly requested starting from scratch after the first attempt
+failed before measurement traffic. A fresh full three-system campaign was submitted
+at `out/hot-full-20261021-r2`, service `echo-campaign-ea02e2a5b298`.
+Do not poll progress; wait for terminal callback or an explicit status request.
 
-Frozen manifest: `out/hot-full-20261021/config.json`; preparation and passing
-preflight: `out/hot-full-20261021-preparation/`. The combined image is built from
-platform `8d957fb2`, microbenchmarks `067d50d`, Caladan `enzian-port`; exact hashes
-and compatibility review are preserved in preparation. 97 local campaign tests
-pass. Generator cold boot passed first attempt; live isolation, resources,
-reservations, callback and switch clock qualification passed before launch.
+The old `out/hot-full-20261021` remains unchanged, including unsafe state and
+failed capture evidence. The fresh-start authorization explicitly allows the new
+harness cold reset without recovery of the old frozen 19-slot/1,216-byte trace.
+Recording had wrapped=0, sample_lost=1, dma_error=0; no dump bytes were acquired.
+Failure was the missing `/nix/store` on the fresh generator, blocking both the
+first client and trace receiver before execution. Shared launcher fix `8df4e149`
+creates the mountpoint; 98 local tests pass. The fixed launcher also passed a
+live no-traffic image/Python bootstrap check on zuestoll14 before the new launch.
+
+Frozen manifest: `out/hot-full-20261021-r2/config.json`; preparation,
+authorization, passing preflight and live bootstrap receipt are under
+`out/hot-full-20261021-r2-preparation/`. All 18 unloaded cohorts are reacquired
+with accounting version 3 before loaded collection; no measurements are inherited.
+The unchanged matched image is from platform `8d957fb2`, microbenchmarks `067d50d`,
+Caladan `enzian-port`; the launcher fix is host-side. Original separately hashed
+LH/DPDK and Caladan switch-acceptance proofs remain verified. Current reservations,
+isolation, resource budgets, artifact hashes and callback delivery passed fresh
+preflight. The preceding successful generator boot and switch clock qualification
+are retained as preparation evidence.
+
+Maintainer instruction: future pushes for this work must use `git push -o ci.skip`
+to avoid triggering CI.
 
 Loaded steps are LH 20k RPC/s for 8/128 B and 5k for 1432 B; DPDK/CS-A64 50k
 and 20k respectively. Each sweep stops after its first >1% loss point. Manifest
