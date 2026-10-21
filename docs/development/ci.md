@@ -23,7 +23,8 @@ digest alone does not pin that separately maintained installation.
 CI sets `GIT_LFS_SKIP_SMUDGE=1` before checkout so fresh job clones do not
 download measurement traces. A job that needs LFS evidence must fetch only its
 required paths explicitly with `git lfs pull --include="PATH" --exclude=""`.
-Small echo campaign evidence is stored directly in Git.
+Application experiment evidence is bundled into one LFS archive per coherent
+dataset; see [campaign storage](paper-charts.md#campaign-storage).
 
 ## Scheduled hardware-build follow-up
 

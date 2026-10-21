@@ -10,6 +10,7 @@ import math
 from pathlib import Path
 import paper_chart as chart
 import numpy as np
+from campaign.experiment import input_file
 from campaign.policy import SYSTEMS, observed_systems, SIZES, WORKERS, aggregate, qualifying
 from campaign.import_loaded import load
 from campaign.histogram import Latencies
@@ -50,6 +51,11 @@ def panels(columns=3, rows=2):
 
 
 def render(source,destination, *, rehearsal=False, partial=False):
+    with input_file(source, "loaded.json") as extracted:
+        return _render(extracted, destination, rehearsal=rehearsal, partial=partial)
+
+
+def _render(source,destination, *, rehearsal=False, partial=False):
     TRIAL_STATS.clear()
     workers=(1,4) if rehearsal else WORKERS
     source=Path(source).resolve()

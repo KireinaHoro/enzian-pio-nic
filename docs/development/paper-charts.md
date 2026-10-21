@@ -84,10 +84,10 @@ failures invalidate a trial rather than entering this server-loss population.
 Trial statistics encode infinite quantiles as JSON `null` with an explicit
 `p99_infinite`/`median_infinite` flag. Statistics retain the first excluded rate,
 loss and all excluded points' goodput/loss; zero-reply trials have infinite P99.
-The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/unloaded-20261021/README.md)
-for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/unloaded-20261021/unloaded.json`.
+The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/README.md)
+for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/hot-unloaded-20261021.tar.gz`.
 Both unloaded PDFs are included by the current paper source. The completed
-LH/DPDK loaded dataset is `out/echo-loaded-shared-20261019/loaded.json` (24
+LH/DPDK loaded dataset is `data/paper/echo/hot-loaded-20261019.tar.gz` (24
 cohorts covering all payloads and worker counts); its three figures are included.
 Regenerate them without `--partial`. The earlier
 `out/echo-full-20261019/loaded.json` contains only a partial LH matrix and is not
@@ -108,7 +108,7 @@ Commit implementation, acquisition tooling and measurement provenance normally.
 Leave chart layout, presentation and PDF iteration uncommitted until requested.
 
 For the completed 8-byte hot rerun comparison, use
-`--input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update`.
+`--input data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update`.
 This standalone review retains historical LH/DPDK and fresh Caladan provenance;
 it does not replace the full-payload paper figures while collection continues.
 
@@ -123,8 +123,32 @@ same central observations and total instrumented median.
 
 ### Campaign storage
 
-Echo campaign evidence under `data/paper/echo/` is stored as ordinary Git files,
-including compressed logs and samples. Preserve the paths and hashes used by
-the manifests; do not add a blanket LFS rule for campaign evidence. Large FPGA
-trace dumps elsewhere under `data/` remain in LFS. CI skips automatic LFS
-downloads; fetch specific trace paths explicitly when reproducing those figures.
+Freeze each coherent experiment dataset for one application and measurement
+mode (hot unloaded, hot loaded, cold, memcached, etc.) into one `.tar.gz` archive.
+Include the full comparison matrix, measurements, raw evidence and provenance;
+do not split by cohort, capture chunk, system, payload or worker count. Distinct
+acquisitions/configurations remain separate datasets. Keep a readable README
+outside the archive and point the chart inventory at the archive plus its
+`manifest_member`. Individual raw files stay inside it.
+
+Experiment archives at `data/paper/APPLICATION/EXPERIMENT.tar.gz` use Git LFS. CI skips automatic LFS
+downloads; fetch only the needed archive with
+`git lfs pull --include="data/paper/echo/hot-unloaded-20261021.tar.gz" --exclude=""`.
+Echo plotters accept the archive directly, verify its complete SHA-256 inventory,
+and unpack into a temporary directory. Live JSON inputs remain supported for
+in-progress acquisition under ignored `out/`.
+
+`archive_echo_unloaded.py --input INPUT.json ... --output DATASET.tar.gz`
+validates and freezes full unloaded comparisons. Campaign finalization emits
+separate hot-loaded and hot-unloaded archives. For other applications, assemble
+a self-contained dataset directory with relative evidence references, then run:
+
+```sh
+nix develop -c python3 -m tools.paper.campaign.experiment \
+  out/frozen-experiment data/paper/APPLICATION/EXPERIMENT.tar.gz
+```
+
+The packer preserves file bytes, records all member hashes and produces
+reproducible archives without replacing an existing dataset. Update the owning
+plotter to use `campaign.experiment.input_file` for archive input. Do not commit
+extracted staging directories or add blanket LFS rules for individual logs.

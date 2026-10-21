@@ -2,7 +2,9 @@
 """Freeze full unloaded cohorts from campaigns without requiring loaded completion."""
 import argparse
 import json
+import tempfile
 from pathlib import Path
+from campaign.experiment import pack
 from campaign.finalize import Archive
 from campaign.hardware import atomic
 from campaign.import_loaded import digest
@@ -11,6 +13,13 @@ from campaign.policy import observed_systems
 
 
 def archive_unloaded(inputs, destination):
+    with tempfile.TemporaryDirectory(prefix="echo-unloaded-") as directory:
+        root = Path(directory)
+        _archive_unloaded(inputs, root)
+        pack(root, destination)
+
+
+def _archive_unloaded(inputs, destination):
     records=[]
     sources=[]
     for source in inputs:

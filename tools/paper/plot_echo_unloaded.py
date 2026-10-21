@@ -5,12 +5,18 @@ import json
 from pathlib import Path
 import paper_chart as chart
 import numpy as np
+from campaign.experiment import input_file
 from campaign.import_unloaded import validate_matched, correct_cpu_submission
 from campaign.import_loaded import digest
 from campaign.policy import SIZES, observed_systems
 
 
 def render(source,output, *, rehearsal=False, sizes=SIZES):
+    with input_file(source, "unloaded.json") as extracted:
+        return _render(extracted, output, rehearsal=rehearsal, sizes=sizes)
+
+
+def _render(source,output, *, rehearsal=False, sizes=SIZES):
     count,warmup=(100,128) if rehearsal else (10000,128)
     source=Path(source).resolve()
     cohorts=json.loads(source.read_text()); systems=observed_systems(cohorts)

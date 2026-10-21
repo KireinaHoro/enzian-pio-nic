@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 import shutil
 import sys
+import tempfile
+
+from .experiment import pack
 
 from .settings import measurement_settings, validate_unloaded_counts
 from .acquire import ROOT
@@ -104,7 +107,7 @@ def finalize(config,h,request,campaign):
     systems=selected_systems(manifest)
     verify_loaded(loaded,plans,systems=systems,measurement=manifest.get('measurement'));validate_matched(unloaded,systems=systems)
     validate_unloaded_counts(unloaded,measurement_settings(manifest)['unloaded'])
-    destination=Path(config['archive_directory']).resolve()/h.directory.name
+    destination=h.directory/'archive-staging'
     archive=Archive(destination)
     atomic(destination/'loaded.json',archive.records(loaded))
     atomic(destination/'unloaded.json',archive.records(unloaded))
@@ -155,8 +158,56 @@ def finalize(config,h,request,campaign):
         loaded='loaded.json',unloaded='unloaded.json',provenance='acquisition.json',
         files={str(p.relative_to(destination)):digest(p) for p in destination.iterdir() if p.is_file()},
         visual_review='pending terminal callback'))
+    # One frozen archive per workload mode, across the complete comparison matrix.
+    published=Path(config['archive_directory']).resolve()/h.directory.name
+    published.mkdir(parents=True,exist_ok=True)
+    bundles=[]
+    for mode in ('loaded','unloaded'):
+        bundle=published/('echo-hot-'+mode+'.tar.gz')
+        pack_mode(destination,bundle,mode)
+        bundles.append(bundle)
     from .adapter import stop_transfer
     stop_transfer(config,h)
     return dict(passed=True,complete=True,hashes=True,boundaries=True,failure_accounting=True,
         worker_activity=True,pdf_dimensions=True,embedded_fonts=True,previews=previews,
-        files={str(p):digest(p) for p in destination.rglob('*') if p.is_file()})
+        files={str(p):digest(p) for p in bundles})
+
+
+def pack_mode(source, destination, mode):
+    """Split finalization staging by mode, retaining shared campaign provenance."""
+    if mode not in ('loaded', 'unloaded'):
+        raise ValueError('Unknown experiment mode')
+    other = 'unloaded' if mode == 'loaded' else 'loaded'
+    with tempfile.TemporaryDirectory(prefix='echo-freeze-') as directory:
+        root = Path(directory)
+        # Stage receipts/configuration describe the combined run and remain
+        # shared provenance. The other mode's observations are not paper inputs.
+        omitted = {other+'.json'}
+        omitted.update({'echo-unloaded-statistics.json'} if mode == 'loaded'
+                       else {'echo-statistics.json', 'echo-trials.json'})
+        required = set()
+        def references(value):
+            if isinstance(value, dict):
+                required.update(value.get('files', {}))
+                for key, item in value.items():
+                    if key != 'files': references(item)
+            elif isinstance(value, list):
+                for item in value: references(item)
+        references(json.loads((source/(mode+'.json')).read_text()))
+        required.update(json.loads((source/'acquisition.json').read_text())['files'])
+        for path in source.iterdir():
+            if path.is_file() and path.name not in omitted | {'manifest.json'}:
+                shutil.copyfile(path,root/path.name)
+        for name in required:
+            relative = Path(name)
+            if relative.is_absolute() or '..' in relative.parts:
+                raise ValueError('Nonportable experiment reference')
+            target = root/relative
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(source/relative,target)
+        manifest=json.loads((source/'manifest.json').read_text())
+        manifest.pop(other,None)
+        manifest['experiment']='echo-hot-'+mode
+        manifest['files']={str(p.relative_to(root)):digest(p) for p in root.iterdir() if p.is_file()}
+        atomic(root/'manifest.json',manifest)
+        pack(root,destination)

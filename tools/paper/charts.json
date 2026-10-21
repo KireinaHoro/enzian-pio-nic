@@ -55,79 +55,86 @@
       "id": "echo-unloaded-hot-latency-cdf",
       "output": "../paper/plots/echo-unloaded-hot-latency-cdf.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/unloaded-20261021/manifest.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-20261021/unloaded.json",
+      "manifest": "data/paper/echo/hot-unloaded-20261021.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-20261021.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
         "LH",
         "DPDK",
         "CS-A64"
-      ]
+      ],
+      "manifest_member": "manifest.json"
     },
     {
       "id": "echo-unloaded-hot-latency-breakdown",
       "output": "../paper/plots/echo-unloaded-hot-latency-breakdown.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/unloaded-20261021/manifest.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-20261021/unloaded.json",
+      "manifest": "data/paper/echo/hot-unloaded-20261021.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-20261021.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
         "LH",
         "DPDK",
         "CS-A64"
-      ]
+      ],
+      "manifest_member": "manifest.json"
     },
     {
       "id": "echo-unloaded-8b-cdf",
       "output": "out/caladan-8b-chart-update/echo-unloaded-hot-latency-cdf.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/unloaded-8b-20261021/manifest.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update",
+      "manifest": "data/paper/echo/hot-unloaded-8b-20261021.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update",
       "status": "review",
-      "tex": null
+      "tex": null,
+      "manifest_member": "manifest.json"
     },
     {
       "id": "echo-unloaded-8b-breakdown",
       "output": "out/caladan-8b-chart-update/echo-unloaded-hot-latency-breakdown.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/unloaded-8b-20261021/manifest.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update",
+      "manifest": "data/paper/echo/hot-unloaded-8b-20261021.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update",
       "status": "review",
-      "tex": null
+      "tex": null,
+      "manifest_member": "manifest.json"
     },
     {
       "id": "echo-loaded-hot-latency-goodput",
       "output": "../paper/plots/echo-loaded-hot-latency-goodput.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-loaded-shared-20261019/loaded.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-loaded-shared-20261019/loaded.json",
+      "manifest": "data/paper/echo/hot-loaded-20261019.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input data/paper/echo/hot-loaded-20261019.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers",
       "latency_population": "All transmitted requests; deadline failures at infinity; nearest-rank inverse CDF",
-      "stop_marker": "Upward infinity ray at last contiguous point meeting 1% loss in every trial"
+      "stop_marker": "Upward infinity ray at last contiguous point meeting 1% loss in every trial",
+      "manifest_member": "manifest.json"
     },
     {
       "id": "echo-loaded-hot-peak-throughput-workers",
       "output": "../paper/plots/echo-loaded-hot-peak-throughput-workers.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-loaded-shared-20261019/loaded.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-loaded-shared-20261019/loaded.json",
+      "manifest": "data/paper/echo/hot-loaded-20261019.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input data/paper/echo/hot-loaded-20261019.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
-      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers"
+      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers",
+      "manifest_member": "manifest.json"
     },
     {
       "id": "echo-overload-loss",
       "output": "../paper/plots/echo-overload-loss.pdf",
       "script": "tools/paper/plot_echo.py",
-      "manifest": "out/echo-loaded-shared-20261019/loaded.json",
-      "command": "nix develop -c python3 tools/paper/plot_echo.py --input out/echo-loaded-shared-20261019/loaded.json",
+      "manifest": "data/paper/echo/hot-loaded-20261019.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo.py --input data/paper/echo/hot-loaded-20261019.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
-      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers"
+      "measurement_scope": "Completed 24-cohort LH/DPDK loaded dataset; 8/128/1432 B and 1\u20134 workers",
+      "manifest_member": "manifest.json"
     }
   ],
   "planned_charts": []
