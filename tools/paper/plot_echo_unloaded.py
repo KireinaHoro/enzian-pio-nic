@@ -44,7 +44,7 @@ def render(source,output, *, rehearsal=False):
             ax.plot(p99,.99,'D',color=chart.COLORS[i],markersize=3)
             ax.text(.03 if len(systems)!=2 else (.75 if size==1432 else .97),
                     (-.18-i*.21) if len(systems)>2 else .73-i*.30,
-                    f'{system}: median {median:.3f}, P99 {p99:.3f} '+r'$\mu$s',
+                    f'P50 {median:.3f}, P99 {p99:.3f}',
                     transform=ax.get_yaxis_transform() if len(systems)>2 else ax.transAxes,
                     ha='left' if len(systems)!=2 else 'right',va='center',fontsize=6,
                     color=chart.COLORS[i])
