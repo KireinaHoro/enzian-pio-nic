@@ -337,11 +337,13 @@ cohort. Completion is not yet established. Do not poll: inspect on a terminal
 callback or user request, and visually review final plots. Baseline-only plots
 stay in the campaign archive until combined review.
 
-The maintainer subsequently requested stopping after unloaded to revise the
-loaded grid. `out/caladan-hot-rerun-20261021/control.json` now sets
-`stop_after: unloaded`. The running controller predates graceful stop support;
-the adapter guard will reject any loaded stage before board access, after final
-unloaded validation. If its terminal callback reports that requested refusal,
-resume with the updated controller and retained control file to finalize the
-unloaded-only status. Do not remove the control or collect loaded data until the
-revised grid is approved. Current unloaded acquisition was not interrupted.
+The requested unloaded-only stop has completed: six full cohorts (8/128/1432
+bytes, off/breakdown, 10,000 measured observations each). Final validation at
+`stages/26edcf559781b0087596/attempt-1/result.json` passed, all evidence hashes
+were rechecked, and both final previews were visually reviewed. Hardware state
+is safe. The legacy controller reports `failed` at loaded because the adapter
+refused that stage before any acquisition, exactly as requested; its log at
+`stages/18f3042c1965452ac95b/attempt-1/log.txt` confirms the intentional stop.
+No loaded traffic was started. Preserve the original status/attempt records;
+no restart is needed merely to change their label. Keep `control.json` with
+`stop_after: unloaded` until the revised loaded grid is explicitly authorized.
