@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]))
-from tools.enzian.image import python_script, downloaded_python, PYTHON
+from tools.enzian.image import python_script, downloaded_python, PYTHON, NAMESPACE
 
 
 class Image(unittest.TestCase):
@@ -39,3 +39,13 @@ class Image(unittest.TestCase):
             with patch('urllib.request.urlopen') as download:
                 download.return_value.read.return_value=b'incorrect script'
                 with self.assertRaisesRegex(ValueError,'script hash'):exec(payload,{})
+
+    def test_fresh_root_creates_mountpoint(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            mountpoint=Path(directory)/'nix/store'
+            script=NAMESPACE.replace(PYTHON,'/bin/true').replace('/nix/store',str(mountpoint))
+            # Exercise the real bootstrap shell with only mount syscalls stubbed.
+            stubs='mountpoint() { return 1; }; mount() { if [ "$1" = "-o" ]; then test -d "$4"; fi; };\n'
+            subprocess.run(['bash','-c',stubs+script,'image','fixture.img','pass'],check=True)
+            self.assertTrue(mountpoint.is_dir())

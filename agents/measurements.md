@@ -22,7 +22,20 @@ acquisition evidence.
 
 The maintainer authorized and the controller launched a fresh three-system full
 campaign at `out/hot-full-20261021`, service `echo-campaign-58e3c9b3f957`.
-Do not poll progress: wait for the terminal callback or an explicit status request.
+Terminal failure arrived before the first unloaded cohort: DUT boot/module checks
+passed, but the fresh generator lacked `/nix/store`, so both the first client role
+and exceptional trace receiver failed before running. The shared image launcher
+now creates its mountpoint; 98 local tests pass, including a fresh-root shell test.
+Campaign remains stopped with `hardware-state.json` unsafe. Do not reset or
+resume automatically: the failed capture rule requires preserving the frozen
+recorder. Next action requires explicit authorization to retry CMAC preservation
+with the fixed launcher, then assess recovery before resume.
+Evidence: `stages/a7f44c1dc8aae63fe0fc/attempt-1/board/summary.json` and its
+`echo-58e3c9b3-4b49cc684019-9010e3992b25b811-failure-dump/capture.json`.
+Capture receiver never became ready; no trace bytes were acquired. Frozen
+write pointer is 19 slots (1,216 bytes), wrapped=0, sample_lost=1, dma_error=0;
+controls restored with trace_stop=1. Sticky loss does not establish when loss
+occurred. Preserve all failure files and the old safe=false state.
 All 18 unloaded cohorts are reacquired with accounting version 3 before loaded
 collection. No old measurement cohorts are inherited. Historical LH/DPDK and
 Caladan switch-integration proofs were separately hash-verified for reuse.

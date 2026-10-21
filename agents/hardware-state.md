@@ -24,7 +24,12 @@ verified kernel 6.8.0-146, isolated/nohz CPUs 16–47, management routing and RA
 budgets; both zuestoll07 and zuestoll14 remained reserved to pengxu. The
 three-system campaign is now submitted at `out/hot-full-20261021`; see
 [measurement continuation](measurements.md#active-full-hot-campaign--october-21).
-Recheck live state before any further manual board access.
+The first campaign stage subsequently failed at generator image launch because
+`/nix/store` was absent. DUT boot/ECI/module gates passed; exceptional trace
+receiver launch failed for the same mountpoint error. DUT recorder remains
+frozen and campaign state unsafe; no reset is authorized after this failed
+capture. See the measurement continuation for exact preserved evidence and the
+pending CMAC retry decision. Recheck live state before further board access.
 
 ## October 18 echo topology observation
 

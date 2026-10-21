@@ -4,6 +4,7 @@ import re
 PYTHON = '/nix/store/lauberhorn-client/bin/python3'
 NAMESPACE = '''set -eu
 mount --make-rprivate /
+mkdir -p /nix/store
 if mountpoint -q /nix/store; then umount /nix/store; fi
 mount -o loop,ro "$1" /nix/store
 export PATH=/nix/store/lauberhorn-client/bin:/nix/store/lauberhorn-client/sbin
