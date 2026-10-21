@@ -84,6 +84,7 @@ def run(config, peer):
             'host_gateway '+config['caladan_gateway'],
             'runtime_kthreads '+str(len(cores)),
             'runtime_guaranteed_kthreads '+str(len(cores)),
+            'runtime_spinning_kthreads '+str(len(cores)),
             'runtime_priority be','enable_directpath 1',
             'static_arp '+config['endpoint'][1]+' '+config['endpoint'][2]])+'\n')
         env=dict(os.environ)
@@ -109,7 +110,8 @@ def run(config, peer):
         steering=next((name for name in ('flow','queue') if 'selected '+name+' steering mode' in log),None)
         if steering is None:raise ValueError('Missing negotiated directpath steering mode')
         save('runtime.json',dict(steering=steering,control_cpu=pool[0],dataplane_cpu=pool[1],
-                                worker_cpus=cores,guaranteed_kthreads=len(cores),
+                                worker_cpus=cores,runtime_kthreads=len(cores),
+                                guaranteed_kthreads=len(cores),spinning_kthreads=len(cores),
                                 control_cpus_boot_isolated=set(pool[:2])<=namespace['cpus'](before['isolated_cpus']),
                                 activity_counters=True))
         peer['put'](url+'/'+label+'-ready',b'ready\n')

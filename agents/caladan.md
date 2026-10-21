@@ -22,9 +22,13 @@ passed; native x86 traced build/RPC checks and six Caladan campaign tests passed
 The cross backend now invokes its checks explicitly because cross stdenv disables
 `doCheck`; prior successful cross-builds alone did not establish test execution.
 
-The campaign generator omits `runtime_spinning_kthreads` (default zero).
-Before claiming resident-worker measurements, set the intended spinning count
-and check parking behavior; guarantees alone do not ensure residency.
+Hot campaign generation now sets `runtime_kthreads`,
+`runtime_guaranteed_kthreads` and `runtime_spinning_kthreads` to the worker count
+and records them in runtime metadata. Existing datasets retain their original
+settings; do not relabel them as resident-worker results. Collection remains
+paused pending the remaining paper configuration changes. Later cold
+microbenchmarks must vary all three settings and compare against Lauberhorn;
+that sweep still needs implementation. Check residency on the next authorized run.
 
 Busy-owner signal/IPI preemption, zero-core wakeup and contention/core
 reclamation remain checks for competing-tenant scheduling experiments. The hot

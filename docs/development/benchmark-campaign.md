@@ -33,6 +33,12 @@ policy, mlx5 directpath, and a resident guaranteed worker pool. It records
 negotiated steering, actual worker activity/CPU masks, and control placement.
 The hot campaign does not exercise competing tenants or core reclamation.
 
+For both hot unloaded and loaded cases, Caladan sets `runtime_kthreads`,
+`runtime_guaranteed_kthreads` and `runtime_spinning_kthreads` to the number of
+RPC workers and records all three counts in `runtime.json`. The inherited
+receive watchdog remains enabled. Historical data keeps its original settings;
+a future cold comparison against Lauberhorn will vary these thread counts.
+
 The Caladan adapter requires an idle CX-5 and no existing scheduler modules or
 Caladan processes. It uses the shared console and verified private image
 namespace without resetting the CPU or touching FPGA state. It restores NIC

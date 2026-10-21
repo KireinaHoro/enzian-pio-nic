@@ -32,7 +32,7 @@ an unchanged upstream default does not by itself establish a paper setting.
 | Receive/softirq watchdog | Not described in the paper. October 2020 source (`47a22d5`) already sets `RUNTIME_WATCHDOG_US=50`. | Unchanged, enabled, 50 µs; checked on scheduler entry, not a periodic interrupt. See the limitation below. |
 | User-thread quantum | Current upstream default `runtime_quantum_us=100`; consumed by IAS time sharing. | Inactive under simple; not a 100 µs preemption guarantee. |
 | NIC queue-delay measurement | Paper: packet arrival timestamps in NIC RX descriptors. | Enabled by default: NIC CQ timestamps and the mapped CX-5 clock. `no_hw_qdel` selects queue scanning/software estimation for a diagnostic fallback. |
-| Core entitlement and residency | Paper evaluation: 22 guaranteed logical cores for LC tasks. | Campaign: maximum and guaranteed kthreads both equal the configured worker count; priority BE. `runtime_spinning_kthreads` is omitted, hence zero. Guarantees do not prevent parking. |
+| Core entitlement and residency | Paper evaluation: 22 guaranteed logical cores for LC tasks. | Hot campaign: `runtime_kthreads`, `runtime_guaranteed_kthreads` and `runtime_spinning_kthreads` all equal the configured worker count; priority BE. |
 | Idle handoff | Paper: MONITOR/MWAIT. | Repeated callbacks of up to 64 acquire polls; increased idle CPU/power, potentially lower activation latency. |
 | Compiler optimization | Paper does not specify these flags; upstream optimized build enables native targeting, LTO and fast-math. | `CONFIG_OPTIMIZE=y` with overridden flags: release `-O3`, explicit `-mcpu=thunderx+crc`, `-mno-outline-atomics`, LTO and fat LTO objects. No build-host native targeting or fast-math. The shared echo link inherits target/LTO flags. |
 | Storage | Paper includes SPDK for its storage workload. | `CONFIG_SPDK=n`; outside the selected network baseline. |
@@ -57,10 +57,12 @@ does not supply those policies.
 
 A guaranteed core is an entitlement, not a permanently running worker. With
 `runtime_spinning_kthreads=0`, a worker may park after its work-search timeout.
-For a resident-worker hot experiment, explicitly set the spinning count to the
-intended resident-worker count; measure idle-to-active behavior separately.
-The current campaign generator does not set that option, so its guarantee field
-alone cannot establish residency between requests. Spinning prevents voluntary
+The hot unloaded and loaded campaigns set maximum, guaranteed and spinning
+kthreads to the worker count. Historical acquisitions with spinning omitted
+retain their original configuration and do not establish residency between
+requests. Future cold microbenchmarks will vary these three settings and compare
+idle-to-active behavior against Lauberhorn; that sweep is not yet implemented.
+Spinning prevents voluntary
 parking below the configured count; IOKernel-requested cede/park still wins.
 It keeps workers executing in userspace rather than configuring Linux cpuidle.
 Even a parked ARM core polls in the kernel idle handoff, but needs runtime
