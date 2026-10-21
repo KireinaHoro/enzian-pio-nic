@@ -170,8 +170,11 @@ the imported notes are retained in Caladan Git at `d6a6be2`.
 Platform master now has explicit system selection, the Caladan image composition,
 shared role lifecycle, probe-mode import, resident chunking and selected-matrix
 plot/finalization checks. The shared backend activity export is committed in
-microbenchmarks `dfa04eb` on its existing `caladan-backend` branch. Caladan itself
-is `e05e580` on `enzian-port`. Campaign Python tests: 80 passed in
+microbenchmarks `dfa04eb`, integrated into `master`. Caladan itself
+is `e05e580` on `enzian-port`, the maintainer-selected branch. Platform and
+microbenchmarks use `master`; all three are pushed to their private remotes.
+A duplicate Caladan `master` ref was created before that branch preference was
+clarified; it contains the same commit and is not the active checkout. Campaign Python tests: 80 passed in
 `out/caladan-integration/tests-launch.log`; the AArch64 image build includes the
 shared RPC/QEMU checks and probe-free symbol gate.
 
