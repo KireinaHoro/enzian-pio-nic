@@ -25,6 +25,18 @@ failed before measurement traffic. A fresh full three-system campaign was submit
 at `out/hot-full-20261021-r2`, service `echo-campaign-ea02e2a5b298`.
 Do not poll progress; wait for terminal callback or an explicit status request.
 
+After all 12 LH/DPDK unloaded cohorts passed, the first Caladan cohort failed
+before capture/traffic: ksched loaded but `/dev/ksched` was absent after the
+CPU-only boot. Fix `b4de23bf` creates/validates cdev 280:0 and removes only a node
+owned by the trial. 102 local tests pass. Live cleanup verification confirmed
+no Caladan processes/modules, idle unaddressed mlx5 NIC and restored sysctls;
+all completed receipt/evidence hashes verified. Recovery review is
+`out/hot-full-20261021-r2-preparation/caladan-device-recovery/review.json`.
+The same campaign was resumed, retaining all 12 cohorts and all failed-attempt
+evidence. No reset occurred. Source-only setup fix changes no benchmark binary,
+traffic policy or measurement boundary. Resume receipt: preparation `resume.json`.
+
+
 The old `out/hot-full-20261021` remains unchanged, including unsafe state and
 failed capture evidence. The fresh-start authorization explicitly allows the new
 harness cold reset without recovery of the old frozen 19-slot/1,216-byte trace.
