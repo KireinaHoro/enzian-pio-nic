@@ -25,10 +25,11 @@ The cross backend now invokes its checks explicitly because cross stdenv disable
 Hot campaign generation now sets `runtime_kthreads`,
 `runtime_guaranteed_kthreads` and `runtime_spinning_kthreads` to the worker count
 and records them in runtime metadata. Existing datasets retain their original
-settings; do not relabel them as resident-worker results. Collection remains
-paused pending the remaining paper configuration changes. Later cold
+settings; do not relabel them as resident-worker results. The maintainer has
+authorized a fresh full hot rerun with these settings (see below). Later cold
 microbenchmarks must vary all three settings and compare against Lauberhorn;
-that sweep still needs implementation. Check residency on the next authorized run.
+that sweep still needs implementation. Inspect runtime metadata and residency
+evidence from the fresh hot run.
 
 Busy-owner signal/IPI preemption, zero-core wakeup and contention/core
 reclamation remain checks for competing-tenant scheduling experiments. The hot
@@ -279,15 +280,14 @@ and positive standalone-readiness/unloaded checks remain required. Qualifying
 latency/goodput curves stop at the first >1% loss point; collapse stays in the
 loss curve, with no fabricated latency for zero replies.
 
-Collection is explicitly paused by the maintainer pending configuration changes
-to match the paper. Do not launch or resume the campaign. The original failed
+The original campaign must not resume unchanged. The original failed
 attempts remain failed records; no receipts or evidence were relabelled, and the
 original hardware hold remains set. Local campaign regression tests passed (82);
 fixture plots verified cutoff/recovery/zero-reply behavior, fixed PDF dimensions,
 embedded fonts and visual review. The preserved original attempt-2 payloads pass
 the corrected local gates as zero goodput/100% loss; no receipt was rewritten.
-No hardware run was made for this orchestration change. Preserve unloaded data and review configuration
-compatibility before any later collection.
+No hardware run was made for that orchestration change. Historical unloaded
+data retains its original configuration and provenance.
 
 Full unloaded chart integration is complete in
 `data/paper/echo/unloaded-20261021/`: 18 cohorts combining historical LH/DPDK
@@ -296,3 +296,29 @@ verified during archive/render. Both paper PDFs include all three systems;
 fixed-column dimensions, embedded fonts, conserved breakdowns and visual review
 passed. The current paper source includes both filenames. Loaded acquisition
 remains stopped as above; these figures make no loaded-performance claim.
+
+## Fresh hot rerun
+
+The maintainer authorized rerunning all Caladan hot unloaded and loaded data.
+Launched `out/caladan-hot-rerun-20261021` as
+`echo-campaign-cd7037336846.service`; preparation and frozen inputs are in
+`out/caladan-hot-rerun-20261021-preparation/`. No measurements are inherited.
+Six unloaded cohorts (10,000 measured requests each) precede the 120 initial
+loaded points across three payloads and one through four workers, with geometric
+extensions and sustained confirmations handled by the controller.
+
+The image is `/nix/store/1a38dq2mscsl70k05jx7mki3d5xd4rh1-caladan-campaign.img`,
+SHA256 `d5fca85d78708544ad8e2bf178201ae722abe3f05476970323fa951177a71ccf`.
+It includes ThunderX tuning/LTO; the runner enables hardware queue delay,
+sets maximum/guaranteed/spinning counts to workers, and retains the watchdog.
+The generator binary is unchanged. Historical switch integration evidence is
+hash-validated; every new cohort must pass current acquisition gates.
+
+All 82 local campaign tests passed. Live preflight passed reservations,
+isolation, artifact hashes, budgets and callback reuse. The read-only switch
+clock check passed; server-facing link state is preserved in preparation.
+Live restoration checks verified the previous failure's role archives and idle
+hosts without reset; the old campaign's hold and receipts remain unchanged.
+Launch submission succeeded; completion is not yet established. Do not poll:
+inspect on a terminal callback or user request, and visually review final plots.
+Baseline-only plots stay in the campaign archive until combined review.
