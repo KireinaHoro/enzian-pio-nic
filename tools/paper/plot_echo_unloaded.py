@@ -78,10 +78,10 @@ def render(source,output, *, rehearsal=False, sizes=SIZES):
     original.remove()
     axes=fig.subplots(len(sizes),1,sharex=True,squeeze=False)[:,0]
     fig.subplots_adjust(left=.25,right=.975,bottom=.19 if len(sizes)==1 else .09,top=.78 if len(sizes)==1 else .88,hspace=.30)
-    categories=(('handler',),('rpc_receive','rpc_transmit','cpu_other'),
+    categories=(('handler',),('rpc_receive','rpc_transmit'),('cpu_other',),
                 ('rx_network','tx_network'),('rx_queue','tx_submission'),('cpu_wire',))
-    labels=('Handler','RPC runtime','Network stack','CPU--NIC','NIC--wire')
-    colors=(*chart.COLORS,'#888888')
+    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','CPU--NIC','NIC--wire')
+    colors=(chart.COLORS[0],chart.COLORS[1],'#E6AB02',chart.COLORS[2],chart.COLORS[3],'#888888')
     for ax,size in zip(axes,sizes):
         panel_max=max(float(np.median([r['wire_ns'] for r in c['rows'] if not r['warmup']]))/1000
                       for c in cohorts if c['payload_bytes']==size and c['instrumentation']=='breakdown')
@@ -104,7 +104,7 @@ def render(source,output, *, rehearsal=False, sizes=SIZES):
                 elif mean>=.5:
                     ax.text(center,len(systems)-1-i,f'{mean:.3f}',ha='center',va='center',fontsize=6.5,rotation=90)
                 else:
-                    below=j==2
+                    below=label=='Network stack'
                     ax.annotate('0' if mean==0 else f'{mean:.3f}',
                                 (center,len(systems)-1-i+(-.225 if below else .225)),
                                 xytext=(0,-3 if below else 3),textcoords='offset points',ha='center',

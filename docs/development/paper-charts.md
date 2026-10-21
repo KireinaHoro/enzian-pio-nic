@@ -95,3 +95,11 @@ For the completed 8-byte hot rerun comparison, use
 `--input data/paper/echo/unloaded-8b-20261021/unloaded.json --payload 8 --output out/caladan-8b-chart-update`.
 This standalone review retains historical LH/DPDK and fresh Caladan provenance;
 it does not replace the full-payload paper figures while collection continues.
+
+The unloaded breakdown displays `rpc_receive + rpc_transmit` as **RPC (un)marshal**
+and `cpu_other` as **Runtime/dispatch**. These are the recorded stage boundaries,
+not a codec-only cost: receive/transmit intervals also include their enclosed
+wrapper/dispatch work. Runtime/dispatch is the residual CPU interval after the
+explicit queue, network, RPC, handler and submission stages; it includes waits
+and scheduling inside that interval. Splitting these categories preserves the
+same central observations and total instrumented median.
