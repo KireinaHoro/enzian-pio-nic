@@ -31,6 +31,8 @@ def merge(cohorts):
     for index,cohort in enumerate(cohorts):
         if any(cohort[k]!=first[k] for k in ('system','payload_bytes','instrumentation','build_config_sha256')):
             raise ValueError('Incompatible capture chunks')
+        if cohort.get('cpu_partition_version')!=first.get('cpu_partition_version'):
+            raise ValueError('Incompatible CPU accounting versions across chunks')
         if cohort['warmup']!=128 or not 0<cohort['count']<=896 or len(cohort['rows'])!=cohort['count']+128:
             raise ValueError('Invalid capture chunk size')
         result['chunks'].append(dict(index=index,count=cohort['count'],warmup=128,

@@ -1,5 +1,8 @@
 /* Shared dispatch/decode/handler/outcome/cleanup hot path. */
 static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
+#if LH_ENABLE_TRACING
+    w->rx_trace.rpc_enter_ns = server_trace_stamp(&w->rx_trace);
+#endif
     // Hardware begins on incoming call delivery; completion RX alone does not
     // imply a fiber resumed. Immediate inline-to-fiber deferral keeps this interval.
     w->execution_active = w->ctx->_watchdog_enabled;
@@ -14,7 +17,7 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     r.trace.request_bytes = desc->payload_len;
     r.trace.unmarshal_enter_ns = server_trace_stage(&r.trace, LH_PMU_unmarshal_enter);
 #endif
-    r.args = decode(w->dp.rx_view.data, desc->payload_len, r.codec, true);
+    r.args = decode(w->dp.rx_view.data, desc->payload_len, r.codec, true, LH_TRACE_PTR(&r.trace));
 #if LH_ENABLE_TRACING
     r.trace.unmarshal_exit_ns = server_trace_stage(&r.trace, LH_PMU_unmarshal_exit);
 #endif
@@ -33,6 +36,9 @@ static void rpc_handle_call(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) 
     r.trace.entry_exit_ns = r.trace.handler_exit_ns;
     r.trace.handler_active_ns = r.trace.handler_exit_ns - r.trace.handler_enter_ns;
     server_trace_inline = previous;
+#endif
+#if LH_ENABLE_TRACING
+    r.trace.outcome_enter_ns = server_trace_stamp(&r.trace);
 #endif
     if (!consume_outcome(&r, outcome, true)) release_request(&r);
 }

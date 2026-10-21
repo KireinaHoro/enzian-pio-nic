@@ -13,11 +13,25 @@ static void destroy_outcome(lauberhorn_outcome_t *o) {
 static void release_request(struct request *r) {
     r->codec->ops->free(r->args, RPC_FREE_CALL, r->codec->priv);
 }
-static void *decode(void *data, size_t len, rpc_codec_t *codec, bool call) {
+static void *decode(void *data, size_t len, rpc_codec_t *codec, bool call, struct server_trace_row *trace) {
+#if LH_ENABLE_TRACING
+    if (trace) trace->alloc_enter_ns = server_trace_stamp(trace);
+#else
+    (void)trace;
+#endif
     void *out = codec->ops->alloc(call ? RPC_ALLOC_CALL : RPC_ALLOC_RESP, codec->priv);
+#if LH_ENABLE_TRACING
+    if (trace) trace->alloc_exit_ns = server_trace_stamp(trace);
+#endif
     if (!out) { errno = ENOMEM; return NULL; }
+#if LH_ENABLE_TRACING
+    if (trace) trace->decode_enter_ns = server_trace_stamp(trace);
+#endif
     int ret = call ? codec->ops->unmarshal_call(data, out, len, codec->priv)
                    : codec->ops->unmarshal_resp(data, out, len, codec->priv);
+#if LH_ENABLE_TRACING
+    if (trace) trace->decode_exit_ns = server_trace_stamp(trace);
+#endif
     if (ret < 0) {
         codec->ops->free(out, call ? RPC_FREE_CALL : RPC_FREE_RESP, codec->priv);
         errno = EINVAL;

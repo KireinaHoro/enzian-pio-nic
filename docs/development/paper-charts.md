@@ -97,9 +97,10 @@ This standalone review retains historical LH/DPDK and fresh Caladan provenance;
 it does not replace the full-payload paper figures while collection continues.
 
 The unloaded breakdown displays `rpc_receive + rpc_transmit` as **RPC (un)marshal**
-and `cpu_other` as **Runtime/dispatch**. These are the recorded stage boundaries,
-not a codec-only cost: receive/transmit intervals also include their enclosed
-wrapper/dispatch work. Runtime/dispatch is the residual CPU interval after the
-explicit queue, network, RPC, handler and submission stages; it includes waits
-and scheduling inside that interval. Splitting these categories preserves the
+and `cpu_other` as **Runtime/dispatch**. New accounting version 3 measures the
+codec calls separately from allocation and TX-buffer reservation, and retains
+runtime subintervals including Caladan dispatch wait. See the
+[exact timestamp and segment contract](rpc-breakdown.md). Historical versions
+1/2 use broader RPC spans containing wrapper/dispatch work. Comparisons using
+version 3 require version 3 for every breakdown cohort. The split preserves the
 same central observations and total instrumented median.

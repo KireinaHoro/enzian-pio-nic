@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "lauberhorn/trace.h"
+/* Accounting schema 3: exported timestamps, separate from the PMU stage ABI. */
+#define SERVER_TRACE_ACCOUNTING_TIMES(X) \
+    X(backend_enter) X(lookup_enter) X(lookup_exit) X(rpc_enter) \
+    X(alloc_enter) X(alloc_exit) X(decode_enter) X(decode_exit) \
+    X(outcome_enter) X(reserve_enter) X(reserve_exit) \
+    X(encode_enter) X(encode_exit) X(reply_enter) X(reply_ready)
 #if LH_ENABLE_TRACING
 #define LH_TRACE_PTR(value) (value)
 #include "pmu.h"
@@ -37,6 +43,7 @@ struct server_trace_row {
 #define TRACE_FIELD(name) uint64_t name##_ns;
     SERVER_TRACE_TIMES(TRACE_FIELD)
     SERVER_TRACE_EXTRA_TIMES(TRACE_FIELD)
+    SERVER_TRACE_ACCOUNTING_TIMES(TRACE_FIELD)
 #undef TRACE_FIELD
     uint64_t defer_enqueue_ns, forward_submit_ns, forward_complete_ns;
     uint64_t entry_enter_ns, entry_exit_ns;

@@ -60,6 +60,17 @@ class Chunked(unittest.TestCase):
         self.assertEqual(result['rows'][1152]['warmup'],0)
         self.assertEqual(sum(not r['warmup'] for r in result['rows']),900)
 
+    def test_accounting_version_guards(self):
+        a,b=self.chunk(896),self.chunk(4)
+        a['cpu_partition_version']=3; b['cpu_partition_version']=2
+        with self.assertRaisesRegex(ValueError,'accounting versions'): merge([a,b])
+        matrix=[merge([self.chunk(4,s,n,m)])
+                for s in ('LH','DPDK') for n in (8,128,1432) for m in ('off','breakdown')]
+        for c in matrix:
+            if c['instrumentation']=='breakdown': c['cpu_partition_version']=2
+        matrix[1]['cpu_partition_version']=3
+        with self.assertRaisesRegex(ValueError,'legacy coarse'): validate_matched(matrix)
+
     def test_matrix_checks_chunk_identity_and_counts(self):
         matrix=[merge([self.chunk(896,s,n,m),self.chunk(4,s,n,m)])
                 for s in ('LH','DPDK') for n in (8,128,1432) for m in ('off','breakdown')]

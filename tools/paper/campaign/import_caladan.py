@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from .import_unloaded import client_rows, rows, cpu_partition, finish
 from .import_loaded import digest
+from . import accounting
 
 
 def caladan(client_path, server_path, status_path, *, count, warmup,
@@ -21,6 +22,7 @@ def caladan(client_path, server_path, status_path, *, count, warmup,
     by_id = {int(r['request_context']): r for r in server}
     if len(by_id) != len(server) or set(by_id) != {int(c['request_id']) for c in client}:
         raise ValueError('Duplicate or mismatched Caladan XID sets')
+    partition_version = accounting.version(server)
     software = []
     for cl in client:
         sw = by_id[int(cl['request_id'])]
@@ -49,6 +51,7 @@ def caladan(client_path, server_path, status_path, *, count, warmup,
             'tx_network': (t('network_tx_enter'), t('network_tx_exit')),
             'tx_submission': (t('network_tx_exit'), t('submit_return')),
         })
+        if partition_version == 3: part = accounting.partition(sw, 'CS-A64')
         part.update(flow_id=0, request_id=int(cl['request_id']))
         software.append(part)
     result = finish(client_path, client, software, system='CS-A64', count=count,
@@ -56,7 +59,7 @@ def caladan(client_path, server_path, status_path, *, count, warmup,
                     wire_path=wire_path, server_path=server_path,
                     correlation='Exact Caladan flow/XID; shared client validation')
     result['files'][str(status_path)] = digest(status_path)
-    result['cpu_partition_version'] = 2
+    result['cpu_partition_version'] = partition_version
     result['clock'] = 'CLOCK_MONOTONIC_RAW'
     result['timestamp_count_scope'] = 'Shared RPC probes only; packet boundaries are additional'
     return result

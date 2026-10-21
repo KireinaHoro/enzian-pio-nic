@@ -11,7 +11,7 @@
       flake = false;
     };
     microbenchmarks = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master&rev=297819cf458bf353588516c0de141ba580da2516";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master&rev=067d50d64ab7f6a306a35cc6df516f5e382ab739";
       flake = false;
     };
     memcached = {

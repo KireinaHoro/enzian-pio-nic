@@ -26,18 +26,15 @@ CPU **durations**, never timestamps from different clocks. Report one combined
 CPU–wire residual, not separate RX/TX transport intervals. No mlx5 hardware
 RX/TX timestamping or completion timestamp extension is required.
 
-The contiguous CPU interval starts when a valid RX CQE is observed and ends
-after the reply SQ publication and required doorbell. Partition it into:
-
-| Component | CPU-NIC implementations | Lauberhorn |
-| --- | --- | --- |
-| RX queue processing | Valid CQE observation through packet delivery, including CQ advancement and receive-queue bookkeeping on this path | No software CQ processing |
-| RX network processing | Ethernet/IP/UDP parsing and validation | Hardware work remains in the residual |
-| RPC receive | Unmarshaling and dispatch | Unmarshaling and dispatch |
-| Handler | Echo handler execution | Echo handler execution |
-| RPC transmit | Reply marshaling | Reply marshaling |
-| TX network processing | Ethernet/IP/UDP construction and checksum preparation | Hardware work remains in the residual |
-| TX submission | Packet ready through SQ construction, publication, ordering, doorbell and PMD return bookkeeping | TX entry through doorbell return, including descriptor stores and barriers |
+The [version-3 timestamp contract](../development/rpc-breakdown.md) lists every
+capture point, exact per-system outer interval, component formula and runtime
+subinterval. The CPU interval starts at CQ observation for DPDK/Caladan and just
+after the RX control-line read for LH. It ends after reply submission. The
+plotted segments are Handler, codec-only RPC (un)marshal, Runtime/dispatch,
+Network stack, CPU–NIC and the combined NIC–wire residual. Allocation and
+Caladan's request dispatch wait belong to Runtime/dispatch; TX-buffer reservation
+belongs to CPU–NIC. Historical accounting versions retain their broader RPC
+intervals and LH receive-return boundary.
 
 RX instrumentation belongs inside the selected mlx5/Caladan receive path;
 wrapping rx_burst includes empty polling and misses the required CQE boundary.
@@ -51,7 +48,7 @@ path must be exercised by acceptance tests before collection. See the
 [DPDK baseline instrumentation](dpdk-baseline.md#software-probes) and
 [board readiness](../development/validation.md#dpdk-baseline-readiness).
 
-For Lauberhorn use CPU receive return through transport return as the outer
+For Lauberhorn use RX control-line read completion through transport return as the outer
 interval; retain RPC/handler boundaries and the exact doorbell read/return interval.
 Post-doorbell transport cleanup is other CPU work.
 Any unclassified CPU gap must be explicit, not silently assigned to the wire.
@@ -95,17 +92,13 @@ cleanup and plots. Old MAC/RTT acquisitions cannot satisfy wire-to-wire gates.
 Full collection remains gated on that rehearsal. Caladan is not marked complete
 until its port and instrumentation pass the same checks.
 
-The plotted CPU–NIC category combines RX queue processing and TX submission.
-DPDK TX submission ends at `tx_return`, including post-doorbell mbuf tracking
-and counters. NIC–wire is the separate wire-minus-CPU residual. Other CPU
-contains uncovered dispatch/transport work and instrumentation; it is not a
-measurement of probe overhead. Probe costs also occur inside named intervals.
-
-LH CPU–NIC starts at `server_tx_enter_ns` and ends at
-`server_tx_doorbell_return_ns`. The dispatch/outcome/reply-setup gaps and
-post-return cleanup stay in RPC runtime, as does DPDK remaining Other CPU.
-Payload-dependent pre-doorbell time includes ordering barriers; the recorded
-interval cannot isolate barrier cost from descriptor accesses and probing.
+The plotted CPU–NIC category combines RX metadata/queue processing, TX-buffer
+reservation and TX submission. Runtime/dispatch contains all remaining CPU gaps,
+including dispatch waits and instrumentation. Probe costs also occur inside
+named intervals. Payload-dependent pre-doorbell time includes ordering barriers;
+the recorded interval cannot isolate barrier cost from descriptor accesses and
+probing. See the timestamp contract for exact boundaries and post-submission
+cleanup scope.
 
 ## Accounting and instrumentation controls
 

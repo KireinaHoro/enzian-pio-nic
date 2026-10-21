@@ -144,7 +144,10 @@ and user-thread-specific request context. Schema, handler, XDR and synchronous
 RPC code are shared with DPDK. The probe-free build removes timing hooks while
 preserving scheduling. Optional packet-stage tracing follows RX through UDP
 spawning and TX through deferred submission; `SIGRTMIN+4` exports the shared
-collector without consuming preemption signals.
+collector without consuming preemption signals. The
+[RPC timestamp contract](../development/rpc-breakdown.md) maps these packet
+markers and shared probes to codec, allocation, reservation and dispatch-delay
+intervals; dispatch delay is included in Runtime/dispatch.
 
 Distinguish client RTT, switch NIC-to-NIC timing and CPU intervals; preserve
 request correlation, raw evidence and tracing-off controls. `no_hw_qdel` controls

@@ -139,7 +139,9 @@ server implementation.
 ## Canonical measurement contract
 
 See [hot measurement methodology](../research/hot-measurement.md) for the
-boundary definitions and queue instrumentation requirements. Unloaded CDF and
+boundary definitions and queue instrumentation requirements. The
+[RPC timestamp contract](rpc-breakdown.md) specifies version-3 codec, allocation,
+reservation and runtime/dispatch accounting for all three responders. Unloaded CDF and
 breakdown totals are Tofino wire-to-wire; breakdowns subtract CPU durations to
 obtain one combined CPU–wire residual. No mlx5 hardware timestamping is used.
 Loaded cases retain uninstrumented client RTT with no packet trace capture.

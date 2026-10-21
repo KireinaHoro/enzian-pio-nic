@@ -9,6 +9,7 @@ import json
 from .import_loaded import digest
 from .policy import SIZES, SYSTEMS
 from .wire import COMPONENTS, METHOD, join_durations
+from . import accounting
 
 def rows(path):
     opener=gzip.open if str(path).endswith('.gz') else open
@@ -77,6 +78,9 @@ def finish(client_path, client, software, *, system, count, warmup, instrumentat
         observations=[dict(flow_id=r['flow_id'],request_id=r['request_id'],wire_ns=None) for r in keys]
         if software:
             for row,sw in zip(observations,software): row.update({k:sw[k] for k in ('cpu_duration_ns','components_ns')})
+    if software:
+        for row, sw in zip(observations, software):
+            if 'accounting' in sw: row['accounting'] = sw['accounting']
     for row,cl in zip(observations,client): row['warmup']=int(cl['warmup'])
     return dict(system=system,methodology=METHOD,wire_available=wire_path is not None,
                 paper_inputs=wire_path is not None,instrumentation=instrumentation,
@@ -90,6 +94,7 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_by
     if len(by_id)!=len(server) or set(by_id)!={int(r['request_id']) for r in client}:
         raise ValueError('Duplicate or mismatched DPDK XID sets')
     software=[]
+    partition_version=accounting.version(server) if instrumentation=='breakdown' else None
     for cl in client:
         sw=by_id[int(cl['request_id'])]
         if sw['status']!='1' or sw['warmup']!=cl['warmup'] or int(sw['profile'])!=int(instrumentation=='breakdown'):
@@ -109,13 +114,14 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_by
                 'rpc_transmit':(t('handler_end'),t('rpc_tx_end')),
                 'tx_network':(t('network_tx_begin'),t('network_tx_end')),
                 'tx_submission':(t('network_tx_end'),t('tx_return'))})
+            if partition_version==3: part=accounting.partition(sw,'DPDK')
             part.update(flow_id=0,request_id=int(cl['request_id']))
             software.append(part)
     result=finish(client_path,client,software if instrumentation=='breakdown' else None,
         system='DPDK',count=count,warmup=warmup,instrumentation=instrumentation,
         payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path)
     if software:
-        result['cpu_partition_version']=2
+        result['cpu_partition_version']=partition_version
         result['rx_preparation_ns']=[int(by_id[int(c['request_id'])]['rx_cqe_ns'])-int(by_id[int(c['request_id'])]['rx_poll_enter_ns']) for c in client]
         result['rx_preparation_scope']='Successful poll before CQE observation; outside CPU critical interval'
     return result
@@ -150,6 +156,7 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
     if instrumentation=='breakdown':
         server=rows(server_path)
         if len(server)!=setup_count+len(client): raise ValueError('Incomplete runtime cohort')
+        partition_version=accounting.version(server)
         previous=0
         for cl,sw in zip(client,server[setup_count:]):
             t=lambda k:int(sw['server_'+k+'_ns'])
@@ -160,15 +167,16 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
                 'handler':(t('handler_enter'),t('handler_exit')),
                 'rpc_transmit':(t('marshal_enter'),t('marshal_exit')),
                 'tx_submission':(t('tx_enter'),t('tx_doorbell_return'))})
+            if partition_version==3: part=accounting.partition(sw,'LH')
             part.update(flow_id=0,request_id=int(cl['request_id']));software.append(part)
-            bounds.append((t('rx_exit'),t('tx_exit'),int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])))
+            bounds.append((t('rx_unblock') if partition_version==3 else t('rx_exit'),t('tx_exit'),int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])))
     result=finish(client_path,client,software if instrumentation=='breakdown' else None,
         system='LH',count=count,warmup=warmup,instrumentation=instrumentation,
         payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path,
         correlation='Exact single-outstanding runtime order; client wire XID validation')
     if bounds:
         result['causal_cpu_client']=clock_bounds(bounds)
-        result['cpu_partition_version']=2
+        result['cpu_partition_version']=partition_version
     return result
 
 
@@ -178,6 +186,9 @@ def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS, sizes=SIZES):
     expected={(s,n,m) for s in systems for n in sizes for m in ('off','breakdown')}
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
+    versions={c.get('cpu_partition_version',1) for c in cohorts if c['instrumentation']=='breakdown'}
+    if 3 in versions and versions!={3}:
+        raise ValueError('Cannot compare schema-3 codec accounting with legacy coarse RPC accounting')
     for system in systems:
         builds={m:{c['build_config_sha256'] for c in cohorts if c['system']==system and c['instrumentation']==m} for m in ('off','breakdown')}
         if any(len(v)!=1 for v in builds.values()) or builds['off']==builds['breakdown']:

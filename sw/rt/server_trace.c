@@ -249,6 +249,7 @@ static void write_header(void) {
 #define TRACE_HEADER(name) fputs("server_" #name "_ns,", output);
     SERVER_TRACE_TIMES(TRACE_HEADER)
     SERVER_TRACE_EXTRA_TIMES(TRACE_HEADER)
+    SERVER_TRACE_ACCOUNTING_TIMES(TRACE_HEADER)
 #undef TRACE_HEADER
     fputs("timestamp_overhead_ns,timestamp_call_count,request_id_valid,request_context,"
           "tx_worker_id,execution_kind,reply_status,transport_status,rx_cpu_id,tx_cpu_id,"
@@ -366,6 +367,7 @@ static void write_row(const struct server_trace_row *r) {
 #define TRACE_VALUE(name) fprintf(output, "%" PRIu64 ",", r->name##_ns);
     SERVER_TRACE_TIMES(TRACE_VALUE)
     SERVER_TRACE_EXTRA_TIMES(TRACE_VALUE)
+    SERVER_TRACE_ACCOUNTING_TIMES(TRACE_VALUE)
 #undef TRACE_VALUE
     fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64,
             overhead_ns, r->timestamp_calls, r->id_valid, r->request_context,

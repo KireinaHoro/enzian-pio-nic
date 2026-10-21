@@ -30,6 +30,9 @@ struct deferred_request {
 
 static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t len,
                        struct server_trace_row *trace) {
+#if LH_ENABLE_TRACING
+    trace->reply_enter_ns = server_trace_stamp(trace);
+#endif
     lauberhorn_worker_t w = worker_get_current();
     lauberhorn_pkt_desc_t desc = {
         .type = TY_ONCRPC_REPLY_TX, .payload_len = len,
@@ -42,6 +45,7 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
     }
 #if LH_ENABLE_TRACING
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
+    trace->reply_ready_ns = server_trace_stamp(trace);
     trace->tx_enter_ns = server_trace_stage(trace, LH_PMU_tx_enter);
     int result = core_eci_tx_commit_traced_full(w->dp_base, &w->dp, &desc,
         trace->enabled ? &trace->tx_doorbell_ns : NULL,
@@ -261,7 +265,7 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
         return;
     }
     void *data = desc->oncrpc_reply_rx.status ? NULL :
-        decode(w->dp.rx_view.data, desc->payload_len, c->codec, false);
+        decode(w->dp.rx_view.data, desc->payload_len, c->codec, false, NULL);
     rpc_result_t result = {.data = data, .codec = c->codec,
         .code = data ? LAUBERHORN_RPC_SUCCESS :
             desc->oncrpc_reply_rx.status == LAUBERHORN_RPC_SYSTEM_ERR ?
@@ -272,6 +276,7 @@ void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
     /* Record every delivered call/completion, so FPGA dispatch order can be
      * joined without confusing a nested completion with a new incoming call. */
 #if LH_ENABLE_TRACING
+    w->rx_trace.backend_enter_ns = server_trace_stamp(&w->rx_trace);
     uint32_t identity = desc->type == TY_ONCRPC_CALL_RX ?
         desc->oncrpc_call_rx.request_token : desc->oncrpc_reply_rx.xid;
     server_trace_event(&w->rx_trace, LH_TRACE_RX_PACKET, desc->type, identity);

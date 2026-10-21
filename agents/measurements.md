@@ -1,5 +1,30 @@
 # Measurement continuation
 
+## Timestamp accounting implementation — October 21
+
+Hot unloaded accounting version 3 separates allocation, codec decode/encode,
+TX-buffer reservation, backend lookup, reply preparation and named runtime
+handoffs for LH, DPDK and CS-A64. See the
+[exact timestamp/formula contract](../docs/development/rpc-breakdown.md).
+Platform pins microbenchmarks master `067d50d`; Caladan's existing packet probes
+supply its queue/network/thread-ready boundaries, with no runtime-tree change.
+Historical paper datasets and temporary preview outputs retain their original
+accounting; version 3 cannot be mixed with legacy coarse RPC breakdown cohorts.
+
+Local validation: 89 campaign unit tests; LH AArch64 runtime trace/off builds;
+Caladan AArch64 trace/off builds with shared RPC tests in both modes under QEMU;
+native and AArch64 DPDK trace/off builds, with native shared RPC and mlx5 probe
+checks. Compiled-out symbol gates pass. Local build receipts and test logs are
+in ignored `out/rpc-breakdown-timestamps/`; these are software checks, not new
+acquisition evidence.
+
+**Do not launch or resume campaigns:** the maintainer reserved zuestoll14 for a
+colleague and requested implementation only. No hardware access or acquisition
+was performed for this change. Fresh matched unloaded acquisitions are needed
+to produce version-3 numerical comparisons once collection is authorized;
+the loaded grid still needs maintainer revision. Existing stop-after-unloaded
+campaign control remains in place.
+
 ## Echo contract and artifact constraints
 
 Active paper microbenchmarks use schema-defined echo RPCs at 8/128/1432
