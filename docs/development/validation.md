@@ -35,48 +35,14 @@ and its [evaluation scope](../applications/dandelion.md).
 
 ## Check access and reserve
 
-Use `emg` exclusively for Enzian provisioning, including reservations, boot-image
-and kernel selection, kernel arguments, and root-volume setup. Never edit PXE/GRUB
-configuration or iSCSI/TGT exports directly, or manage their backing volumes by
-hand. This applies to both DUTs and traffic-generator/capture peers. If the needed
-operation is unclear, inspect the supported `emg` workflow rather than bypassing
-it. Continue to use the repository harness for BMC power sequencing, FPGA
-programming, boot validation and tests.
-
 Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
-`enzian-ba2`. Check `ssh enzian-gateway 'emg list-machines'` every session; never
-assume the previous reservation persists. For an unreserved zuestoll14, select an available golden image and a
-checked-unused volume name using the [safeguards below](#fresh-root-volume-safeguards).
-Build and rsync `bootFiles` using the
-[boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then run on
-the gateway:
-
-```sh
-emg acquire zuestoll14 -n NEW_UNUSED_VOLUME \
-  -a 'isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force' \
-  -k "$USER/lauberhorn-6.8.0-146-ptp/vmlinuz" \
-  -i "$USER/lauberhorn-6.8.0-146-ptp/initrd.img" \
-  -g SELECTED_GOLDEN_DATE
-```
-
-### Fresh root-volume safeguards
-
-For a new test machine, derive a fresh root volume from an explicitly selected
-available golden image (`emg acquire MACHINE -g DATE -n NEW_NAME ...`). Inspect
-`emg list-machines` and `emg list-images` immediately before acquisition; confirm
-the machine is unreserved and NEW_NAME is absent from the user's existing volumes.
-Use a purpose/machine/date-specific name. EMG does not reject an existing name:
-`-n` reuses that volume, so `-g` alone does not guarantee a fresh golden-image clone.
-Do not reuse a golden image's name or another experiment's root-volume name.
-If the name exists, choose another and recheck; do not delete or overwrite it.
-
-Named volumes persist after release. Their iSCSI export is shared by user and
-volume name, not reservation; using the same name on two boards can couple their
-root disks, and releasing either reservation can disrupt the other. Never share
-an active root-volume name. Keep user-designated busy boards and their volumes
-untouched. Confirm acquisition with both inventory commands and retain the board,
-new volume name, golden-image date, boot bundle and kernel arguments in run
-provenance. Reservation is not evidence of boot or hardware acceptance.
+`enzian-ba2`. Follow the [Enzian skill's recorded EMG use cases](../../tools/enzian/skills/enzian-deploy/references/emg.md)
+for inventories, fresh reservations, existing-volume reacquisition, CPU isolation,
+boot overrides and release. Its [command safety rules](../../tools/enzian/skills/enzian-deploy/SKILL.md#emg-command-safety)
+prohibit help/option probes. Build and stage matching boot files using the
+[boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then use the
+repository harness for power sequencing, FPGA programming, boot validation and
+tests below.
 
 ### Kernel and console matching
 
@@ -293,12 +259,11 @@ for known failures and repeatability limits; historical results are not a new te
 
 ## Use a second Enzian as the traffic generator
 
-Acquire an available machine with `emg acquire MACHINE`; `-g 2025-07-28`
-selects the newer golden image if needed. Do not copy the DUT's isolated-core
-kernel arguments to the client machine. Verify its reservation, boot Linux,
-and check `ip route get DUT_FPGA_IP`: `cpu40g1` is in the FPGA NIC VLAN.
-Use `cpu40g1` for traffic/capture on the client and `lauberhorn0` on the DUT;
-keep management/root storage on `cpu40g0`.
+Reserve and provision the peer using the [Enzian skill's traffic-generator
+profile](../../tools/enzian/skills/enzian-deploy/references/emg.md#boot-bundle-and-cpu-isolation-profiles).
+Verify its reservation, boot Linux, and check `ip route get DUT_FPGA_IP`:
+`cpu40g1` is in the FPGA NIC VLAN. Use `cpu40g1` for traffic/capture on the client
+and `lauberhorn0` on the DUT; keep management/root storage on `cpu40g0`.
 
 Build `.#trafficGeneratorImage` on the build host and deploy that runtime-only
 image to the client. Cross-build all client binaries and tools; do not ship
@@ -328,10 +293,9 @@ reservation listing as proof of Linux readiness.
 
 For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
 verified cold power sequence and BDK handling, skips FPGA programming, and
-requires Linux login. This is not FPGA/ECI acceptance. Provision its kernel and
-isolation arguments through EMG first. For the 32-core echo generator, use
-CPUs 16–47 with housekeeping on 0–15; the shared DPDK runner additionally verifies
-and temporarily corrects device IRQ, RPS and unbound-workqueue placement.
+requires Linux login. This is not FPGA/ECI acceptance. Provision the peer using
+the skill profile linked above; the shared DPDK runner additionally verifies and
+temporarily corrects device IRQ, RPS and unbound-workqueue placement.
 
 For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.
 Keep every test's client machine, software and capture paths in its manifest.

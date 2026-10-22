@@ -10,9 +10,10 @@ measurements retain their original semantics and provenance.
 ## Board setup and acceptance
 
 Build the matched DUT and generator images with the [development workflow](workflow.md).
-Use [validation](validation.md#board-validation) for EMG provisioning, image
-staging, boot/module/ABI gates, automated acceptance and interactive target
-commands. Campaign orchestration below adds workload scheduling, switch capture,
+Use the [Enzian skill](../../tools/enzian/skills/enzian-deploy/SKILL.md) for EMG
+provisioning and [validation](validation.md#board-validation) for image staging,
+boot/module/ABI gates, automated acceptance and interactive target commands.
+Campaign orchestration below adds workload scheduling, switch capture,
 resume and measurement validation to those shared board procedures. Recheck
 reservations and preserve existing failures before a deployment or reset.
 
@@ -655,9 +656,9 @@ as unsuccessful requests for the loss threshold. They do not invalidate an
 otherwise healthy overloaded acquisition.
 
 The current generator uses CPUs 16–47, leaving 0–15 for housekeeping. Provision
-boot isolation through EMG (`isolcpus=nohz,domain,managed_irq,16-47`,
-`nohz_full=16-47`, `rcu_nocbs=16-47`, `irqaffinity=0-15`,
-`kthread_cpus=0-15`, `rcu_nocb_poll`). Boot flags alone are insufficient:
+boot isolation using the [Enzian skill generator
+profile](../../tools/enzian/skills/enzian-deploy/references/emg.md#boot-bundle-and-cpu-isolation-profiles).
+Boot flags alone are insufficient:
 `tools/enzian/dpdk_run.py` uses `cpu_isolation.py` to move device IRQs,
 unbound workqueues and software receive steering away from benchmark CPUs,
 verify effective IRQ affinity, and restore saved controls after each role.

@@ -37,8 +37,9 @@ reservations after testing.
 
 User-reported CX-5 boards are zuestoll03, zuestoll05, zuestoll06 and zuestoll07.
 Check live reservations before selection; do not interrupt active experiments.
-Use a checked-unused golden-derived EMG volume and the
-[canonical board-validation workflow](validation.md#board-validation).
+Provision the selected board using the [Enzian skill
+EMG use cases](../../tools/enzian/skills/enzian-deploy/references/emg.md), then follow
+the [canonical board-validation workflow](validation.md#board-validation).
 Current scope is in the [baseline](../research/caladan-enzian.md).
 Keep diagnostic outputs in ignored `out/`.
 

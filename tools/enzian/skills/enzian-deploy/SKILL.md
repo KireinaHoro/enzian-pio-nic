@@ -1,6 +1,6 @@
 ---
 name: enzian-deploy
-description: Deploy matched Lauberhorn artifacts to reserved Enzian boards, run hardware acceptance, and recover BMC or boot failures using EMG and the repository harness. Use for real hardware deployment, not simulation or chart presentation.
+description: Reserve and provision Enzian boards through recorded EMG commands, deploy matched Lauberhorn artifacts, run hardware acceptance, and recover BMC or boot failures using the repository harness. Use for real board access, not simulation or chart presentation.
 ---
 
 # Enzian deployment
@@ -46,12 +46,16 @@ the recorded existing volume and boot settings; create a new volume only when
 requested. Verify the resulting reservation and volume assignment through the
 recorded inventory commands.
 
-## Fresh reservations and root-volume names
+## EMG reservations and boot selection
 
-Follow [fresh root-volume safeguards](../../../../docs/development/validation.md#fresh-root-volume-safeguards).
-Check both inventories immediately before acquiring a reservation; existing names
-reuse volumes, and active volume names must not be shared. Retain acquisition
-provenance and recheck live state rather than relying on dated notes.
+Use the [recorded EMG use cases](references/emg.md) for inventory, fresh
+acquisition, existing-volume reacquisition, DUT/generator CPU isolation,
+kernel/initrd overrides and release. This skill owns provisioning instructions;
+validation and build documentation link here. Read the applicable use case before
+running EMG, retain the selected settings and resulting inventories, and check live
+ownership before board access. Reservation is not boot or hardware acceptance.
+
+## Board acceptance
 
 Use `tools/enzian/test.py CASES.json --logs NEW_DIR --repeats N` for the shared
 reset/program/boot/module/RPC acceptance flow. Require verified rails off before
