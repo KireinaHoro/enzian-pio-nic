@@ -37,12 +37,28 @@ and its [evaluation scope](../applications/dandelion.md).
 
 Requires local Python with `pexpect`, Nix, and SSH access to `enzian-gateway` and
 `enzian-ba2`. Follow the [Enzian skill's recorded EMG use cases](../../tools/enzian/skills/enzian-deploy/references/emg.md)
-for inventories, fresh reservations, existing-volume reacquisition, CPU isolation,
-boot overrides and release. Its [command safety rules](../../tools/enzian/skills/enzian-deploy/SKILL.md#emg-command-safety)
+for inventories, fresh reservations, existing-volume reacquisition, passing boot
+settings and release. Its [command safety rules](../../tools/enzian/skills/enzian-deploy/SKILL.md#emg-command-safety)
 prohibit help/option probes. Build and stage matching boot files using the
 [boot bundle workflow](workflow.md#thunderx-cpu-nic-timestamps), then use the
 repository harness for power sequencing, FPGA programming, boot validation and
 tests below.
+
+### Board-acceptance provisioning settings
+
+Board acceptance uses the [matched boot bundle](workflow.md#thunderx-cpu-nic-timestamps)
+and selects its root volume in the test's provisioning record. For a fresh-root
+test, record the chosen available golden image; `2025-07-28` is the previously
+used selection. Reacquisition uses the test's existing named volume.
+The four-worker acceptance configuration uses:
+
+```sh
+kernel_args='isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force'
+```
+
+Benchmark campaigns own their [DUT and generator provisioning settings](benchmark-campaign.md#provisioning-configuration).
+Select the configuration for the actual workload and board role before applying
+the skill's acquisition command.
 
 ### Kernel and console matching
 
@@ -259,8 +275,8 @@ for known failures and repeatability limits; historical results are not a new te
 
 ## Use a second Enzian as the traffic generator
 
-Reserve and provision the peer using the [Enzian skill's traffic-generator
-profile](../../tools/enzian/skills/enzian-deploy/references/emg.md#boot-bundle-and-cpu-isolation-profiles).
+Reserve and provision the peer using the [campaign's traffic-generator
+settings](benchmark-campaign.md#provisioning-configuration).
 Verify its reservation, boot Linux, and check `ip route get DUT_FPGA_IP`:
 `cpu40g1` is in the FPGA NIC VLAN. Use `cpu40g1` for traffic/capture on the client
 and `lauberhorn0` on the DUT; keep management/root storage on `cpu40g0`.
@@ -294,7 +310,7 @@ reservation listing as proof of Linux readiness.
 For a CPU-only traffic-generator peer, `boot.py --cpu-only` reuses the same
 verified cold power sequence and BDK handling, skips FPGA programming, and
 requires Linux login. This is not FPGA/ECI acceptance. Provision the peer using
-the skill profile linked above; the shared DPDK runner additionally verifies and
+the workflow settings linked above; the shared DPDK runner additionally verifies and
 temporarily corrects device IRQ, RPS and unbound-workqueue placement.
 
 For a cross-built AArch64 benchmark client, use `trafficGeneratorImage`.

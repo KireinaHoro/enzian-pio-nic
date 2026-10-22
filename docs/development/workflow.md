@@ -110,10 +110,19 @@ patched modules. The signed stock kernel is unchanged. Module selection, ABI,
 byte identity and iSCSI boot support are checked during the build. No target-side
 compilation or manually generated initramfs is an input.
 
-Select the staged boot bundle through the [Enzian skill's EMG boot-selection
-workflow](../../tools/enzian/skills/enzian-deploy/references/emg.md#change-boot-selection-or-board-role).
-That reference owns kernel/initrd overrides, root-volume reuse, isolation profiles
-and the release/reacquire sequence. Use the normal cold-boot test harness.
+This boot bundle selects the following gateway-relative kernel/initrd paths:
+
+```sh
+boot_kernel="$USER/lauberhorn-6.8.0-146-ptp/vmlinuz"
+boot_initrd="$USER/lauberhorn-6.8.0-146-ptp/initrd.img"
+```
+
+Workflows using this bundle include `copymods=force` in their kernel command
+line and match deployment modules to `6.8.0-146-generic`. The board-validation or
+campaign workflow supplies its root volume and remaining kernel options. Apply
+those values using the [Enzian skill's EMG command forms](../../tools/enzian/skills/enzian-deploy/references/emg.md#select-a-kernel-and-supply-its-command-line);
+follow its release/reacquire procedure for a boot-selection change. Use the
+normal cold-boot test harness.
 The stock `copymods` hook mounts the initramfs module tree in RAM over
 `/lib/modules` in the running system. Thus boot-time and later module loads
 use the same packaged files without modifying the persistent root module tree.

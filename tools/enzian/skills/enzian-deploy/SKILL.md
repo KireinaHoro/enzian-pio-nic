@@ -40,7 +40,7 @@ successful acquisition evidence, or explicit maintainer instructions. Never prob
 discover usage. This prohibition includes help flags after a valid machine name:
 `emg acquire MACHINE --help` can acquire a machine and create a volume.
 
-When the needed command is not recorded, inspect the script read-only and ask the
+When the needed command form or option is not recorded, inspect the script read-only and ask the
 maintainer for the supported command before executing it. For reacquisition, use
 the recorded existing volume and boot settings; create a new volume only when
 requested. Verify the resulting reservation and volume assignment through the
@@ -48,12 +48,13 @@ recorded inventory commands.
 
 ## EMG reservations and boot selection
 
-Use the [recorded EMG use cases](references/emg.md) for inventory, fresh
-acquisition, existing-volume reacquisition, DUT/generator CPU isolation,
-kernel/initrd overrides and release. This skill owns provisioning instructions;
-validation and build documentation link here. Read the applicable use case before
-running EMG, retain the selected settings and resulting inventories, and check live
-ownership before board access. Reservation is not boot or hardware acceptance.
+Use the [recorded EMG use cases](references/emg.md) for inventory, creating or
+selecting root volumes, selecting staged kernels/initrds, supplying a kernel
+command line and release/reacquisition. This skill owns command mechanics and
+safety. Calling workflows own their image names, golden-image selection, kernel
+artifacts and command-line options; read their configuration before using EMG.
+Retain the selected settings and resulting inventories, and check live ownership
+before board access. Reservation is not boot or hardware acceptance.
 
 ## Board acceptance
 

@@ -17,6 +17,34 @@ Campaign orchestration below adds workload scheduling, switch capture,
 resume and measurement validation to those shared board procedures. Recheck
 reservations and preserve existing failures before a deployment or reset.
 
+## Provisioning configuration
+
+Hot echo campaigns own these provisioning settings. Apply them using the
+[Enzian skill's recorded command forms](../../tools/enzian/skills/enzian-deploy/references/emg.md).
+Use the kernel/initrd paths from the [matched boot bundle](workflow.md#thunderx-cpu-nic-timestamps),
+which supplies kernel `6.8.0-146-generic` and requires `copymods=force`.
+The recorded named roots are:
+
+| Role | Board | Existing volume |
+| --- | --- | --- |
+| DUT | zuestoll07 | `lauberhorn-linux-6.8` |
+| Generator | zuestoll14 | `echo-generator32-z14-20261021` |
+
+These assignments are configuration records, not proof of live ownership. Reuse
+the recorded volume when reacquiring; a requested fresh generator root uses a
+checked-unused name and an available golden image (recorded choice `2025-07-28`).
+The complete per-role kernel command lines are:
+
+```sh
+worker_args='isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force'
+generator_args='isolcpus=nohz,domain,managed_irq,16-47 nohz_full=16-47 rcu_nocbs=16-47 irqaffinity=0-15 kthread_cpus=0-15 rcu_nocb_poll copymods=force'
+```
+
+Pass the appropriate string as the skill's `kernel_args` value. The campaign
+manifest owns its application/deployment images, binary hashes and actual CPU
+placement. Preserve these settings and acquisition output with the campaign's
+provenance; changing them requires its compatibility/recovery review.
+
 ## Baseline selection and launch gates
 
 Campaign configuration accepts `systems`, a nonempty distinct list drawn from
@@ -656,8 +684,7 @@ as unsuccessful requests for the loss threshold. They do not invalidate an
 otherwise healthy overloaded acquisition.
 
 The current generator uses CPUs 16–47, leaving 0–15 for housekeeping. Provision
-boot isolation using the [Enzian skill generator
-profile](../../tools/enzian/skills/enzian-deploy/references/emg.md#boot-bundle-and-cpu-isolation-profiles).
+boot isolation using this campaign's [generator settings](#provisioning-configuration).
 Boot flags alone are insufficient:
 `tools/enzian/dpdk_run.py` uses `cpu_isolation.py` to move device IRQs,
 unbound workqueues and software receive steering away from benchmark CPUs,

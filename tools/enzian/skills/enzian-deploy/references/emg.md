@@ -24,85 +24,62 @@ acquisition and again afterwards. Confirm ownership of both DUT and peer before
 board access. `is_up` is not proof of Linux readiness or hardware acceptance.
 Leave user-designated busy boards and their volumes untouched.
 
-## Boot bundle and CPU isolation profiles
+## Workflow-supplied configuration
 
-Build and stage the matching kernel/initrd using the
-[boot bundle workflow](../../../../../docs/development/workflow.md#thunderx-cpu-nic-timestamps).
-The recorded bundle is kernel `6.8.0-146-generic`; modules and the deployment
-manifest must match it. In the gateway shell, the recorded settings are:
+The calling workflow owns the target board, existing/new volume choice, volume
+name, golden-image selection, kernel/initrd artifacts and kernel command line.
+Read those values from its documentation, manifest or preserved reservation
+record. This skill defines how to apply them and does not select defaults.
 
-```sh
-boot_kernel="$USER/lauberhorn-6.8.0-146-ptp/vmlinuz"
-boot_initrd="$USER/lauberhorn-6.8.0-146-ptp/initrd.img"
-worker_args='isolcpus=nohz,domain,managed_irq,44-47 nohz_full=44-47 rcu_nocbs=44-47 irqaffinity=0-43 kthread_cpus=0-43 rcu_nocb_poll copymods=force'
-generator_args='isolcpus=nohz,domain,managed_irq,16-47 nohz_full=16-47 rcu_nocbs=16-47 irqaffinity=0-15 kthread_cpus=0-15 rcu_nocb_poll copymods=force'
-```
+## Create a volume from a golden image
 
-The DUT profile reserves CPUs 44–47 for RPC workers. The 32-core generator
-profile reserves CPUs 16–47, leaving 0–15 for housekeeping. Select the profile
-for the actual role; do not copy DUT isolation onto the generator.
-`copymods=force` selects the boot bundle's module tree. The DPDK runner also
-checks and temporarily corrects IRQ, RPS and workqueue placement.
-
-## Acquire a fresh root volume
-
-For a new test requiring a fresh root, choose an available golden-image date and
-a checked-unused, purpose/board/date-specific volume name. The recorded golden
-selection is `2025-07-28`; check that it is available before using it. For example,
-after setting the profile above:
+For a workflow requiring a fresh root, select its golden image from the inventory
+and confirm its requested new volume name is unused. Supply the workflow's board,
+volume name, golden-image identifier, kernel/initrd paths and complete kernel
+command line with the recorded options:
 
 ```sh
-emg acquire zuestoll14 -n NEW_UNUSED_VOLUME -g SELECTED_GOLDEN_DATE \
-  -a "$generator_args" -k "$boot_kernel" -i "$boot_initrd"
+emg acquire MACHINE -n NEW_UNUSED_VOLUME -g GOLDEN_IMAGE \
+  -a "$kernel_args" -k "$boot_kernel" -i "$boot_initrd"
 ```
 
-The machine must be unreserved and the new volume name absent from the owner's
-inventory. `-n` reuses an existing volume: `-g` does not force a fresh clone.
-Never reuse a golden image's name or another experiment's volume name. If the
-name exists, choose another and recheck; do not delete or overwrite it.
+`-n` names the root volume; `-g` selects the source for a new clone. The machine
+must be unreserved and the new volume name absent from the owner's inventory.
+`-n` reuses an existing volume: `-g` does not force a fresh clone. If a fresh-root
+name exists, choose another and recheck; do not delete or overwrite it. Never
+reuse a golden image's name or another experiment's active volume name.
 
-## Reacquire an existing volume
+## Select an existing volume
 
-When reacquiring a released board, restore its recorded named volume, kernel,
-initrd and arguments. Create a new volume only when requested. Confirm that the
-volume exists and is not in use by another reservation. Omit `-g` when reusing it.
-The recorded hot-echo assignments are:
-
-| Role | Board | Existing volume | Arguments |
-| --- | --- | --- | --- |
-| DUT | zuestoll07 | `lauberhorn-linux-6.8` | `worker_args` |
-| Generator | zuestoll14 | `echo-generator32-z14-20261021` | `generator_args` |
-
-These names record prior assignments, not live reservations. After inventory and
-ownership checks, the recorded command forms with the settings above are:
-
-DUT reacquisition:
+Confirm that the workflow's named volume exists and is not in use by another
+reservation. Omit `-g` when reusing it:
 
 ```sh
-emg acquire zuestoll07 -n lauberhorn-linux-6.8 \
-  -a "$worker_args" -k "$boot_kernel" -i "$boot_initrd"
+emg acquire MACHINE -n EXISTING_VOLUME \
+  -a "$kernel_args" -k "$boot_kernel" -i "$boot_initrd"
 ```
 
-Generator reacquisition:
+Require EMG's output to confirm the named volume already exists and creation was
+skipped. Reacquisition restores the workflow's recorded volume and boot settings;
+create a new volume only when requested. Preserve existing contents and avoid an
+unnecessary reboot when recovering an accidentally released reservation. The
+calling workflow owns its failure/restoration checks and resume policy.
 
-```sh
-emg acquire zuestoll14 -n echo-generator32-z14-20261021 \
-  -a "$generator_args" -k "$boot_kernel" -i "$boot_initrd"
-```
+## Select a kernel and supply its command line
 
-Execute only the command for the requested board. Require EMG's output to confirm
-the named volume already exists and creation was skipped. The generator volume
-was originally cloned from golden `2025-07-28`; reacquisition retains its contents.
-Restore an accidentally released reservation without rebooting unless boot or
-configuration recovery is needed. Inspect campaign failure/restoration evidence
-before resuming; preserve accepted acquisitions and failed attempts.
+`-k` selects the staged kernel and `-i` its matching initrd. Their values are paths
+relative to the gateway's user-kernel directory, supplied by the artifact-building
+workflow. Stage and verify those artifacts before acquisition. `-a` supplies the
+complete kernel command line as one quoted argument. The calling workflow owns
+all options in that string, including isolation, IRQ placement and module-loading
+options. Do not substitute another workflow's kernel, image or CPU profile.
 
 ## Change boot selection or board role
 
 For an intentional boot/profile change, preserve measurements and failure captures,
 stop workloads and shut down using the repository harness before release. Recheck
 both inventories, release the owned reservation, then reacquire its intended
-volume using the explicit `-a`, `-k` and `-i` settings above. A role swap must not
+volume using its workflow-supplied `-a`, `-k` and `-i` settings. A role swap must not
 leave the same root volume attached to two active boards. Boot with the normal
 harness and validate the new kernel, command line and matching artifacts.
 
