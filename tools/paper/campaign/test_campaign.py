@@ -253,6 +253,31 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
                 self.assertTrue(all(len(p['trials'])==2 for p in record['points']))
                 self.assertEqual(controller.read(root/'grid.json')[0]['step'],step)
 
+    def test_reused_points_regenerate_one_plot_per_complete_case(self):
+        class Fixture(controller.Campaign):
+            def unloaded(self, phase):
+                controller.atomic(self.root/'full-unloaded.json',[])
+            def stage(self, name, request):
+                if name=='progress-plots' and 'loaded' in request:
+                    self.loaded_plots+=1
+                if name=='finalize':
+                    return dict({k:True for k in ('complete','hashes','boundaries','failure_accounting','worker_activity','pdf_dimensions','embedded_fonts')},previews=list('abcde'),files={p:'fixture' for p in 'abcde'})
+                return {}
+            def loaded(self, system, size, workers, rate, phase, trial_index=0, sustained=False):
+                self.last_stage_reused = rate not in self.fresh_rates
+                self.completed+=1
+                return trial(98 if rate>=30 else 100)
+        for fresh_rates,expected_plots in ((set(),1),({30},2),({10,20,30},4)):
+            with self.subTest(fresh_rates=fresh_rates),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                config=dict(systems=['LH'],scope='full',loaded_sweep='linear-to-loss',max_extensions=1,
+                            measurement={'loaded':{'step_rpc_s':{'LH':{'8':10}}}})
+                campaign=Fixture(root,config);campaign.loaded_plots=0;campaign.fresh_rates=fresh_rates
+                with patch.object(controller,'SIZES',(8,)),patch.object(controller,'WORKERS',(1,)):
+                    campaign.run()
+                self.assertEqual(campaign.loaded_plots,expected_plots)
+                self.assertEqual([p['rate'] for p in controller.read(root/'loaded.json')[0]['points']],[10,20,30])
+
     def test_rehearsal_stops_before_full_collection(self):
         class Fixture(controller.Campaign):
             def unloaded(self, phase):

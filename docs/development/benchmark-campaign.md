@@ -608,6 +608,9 @@ and every review identity and evidence hash must match. The new root retains
 `inheritance-review.json` alongside unchanged source receipts pointing to their
 original evidence. No failed attempt is promoted or overwritten. Use `--resume`
 only if the new root was already prepared with a reviewed hardware-state file.
+Replaying inherited loaded points regenerates comparison plots once per complete
+case; fresh points still refresh their plots after each acquisition. Finalization
+combines inherited and fresh observations into the same mode archive.
 
 Completed `unloaded-full` campaigns can be promoted to `full` through the explicit
 `inheritance-plan` / `--inherit-reviewed` workflow. Review all acquisition receipts

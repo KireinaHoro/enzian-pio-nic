@@ -80,6 +80,7 @@ class Campaign:
         self.completed = 0
         self.total = None
         self.latest = None
+        self.last_stage_reused = False
 
     def status(self, stage, **extra):
         state = dict(stage=stage, completed=self.completed, total=self.total,
@@ -89,6 +90,7 @@ class Campaign:
             stream.write(json.dumps(state, sort_keys=True)+'\n'); stream.flush(); os.fsync(stream.fileno())
 
     def stage(self, name, request):
+        self.last_stage_reused = False
         snapshot=self.root/'code.json'
         token = hashlib.sha256(json.dumps([name, request], sort_keys=True).encode()).hexdigest()[:20]
         directory = self.root/'stages'/token
@@ -99,6 +101,7 @@ class Campaign:
             if any(digest(path) != sha for path, sha in saved['hashes'].items()):
                 raise ValueError('Completed stage evidence changed: '+str(directory))
             self.latest = next((p for p in saved['hashes'] if Path(p).name=='result.json'), self.latest)
+            self.last_stage_reused = True
             return saved['result']
         # Explicit resume preserves prior attempts, including incomplete hardware actions.
         attempt = directory/str(len(list(directory.glob('attempt-*')))+1)
@@ -308,11 +311,20 @@ class Campaign:
         collected = []
         for plan in plans:
             points = []
+            refresh_pending = False
             def point(rate, sustained=False):
-                return dict(rate=rate, trials=[self.loaded(plan['system'], plan['size'], plan['workers'],
-                    rate, 'sustained' if sustained else 'full', t, sustained) for t in range(settings['confirmation_repetitions'] if sustained else settings['repetitions'])])
+                nonlocal refresh_pending
+                trials=[]
+                for t in range(settings['confirmation_repetitions'] if sustained else settings['repetitions']):
+                    trials.append(self.loaded(plan['system'], plan['size'], plan['workers'],
+                        rate, 'sustained' if sustained else 'full', t, sustained))
+                    refresh_pending |= not self.last_stage_reused
+                return dict(rate=rate, trials=trials)
             def refresh():
-                self.stage('progress-plots',dict(loaded=collected+[dict(plan,points=points)]))
+                nonlocal refresh_pending
+                if refresh_pending:
+                    self.stage('progress-plots',dict(loaded=collected+[dict(plan,points=points)]))
+                    refresh_pending = False
             for rate in plan['rates']:
                 points.append(point(rate)); refresh()
             # Linear plans terminate on observed loss; legacy frozen grids keep

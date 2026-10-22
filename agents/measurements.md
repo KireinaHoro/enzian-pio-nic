@@ -20,6 +20,38 @@ acquisition evidence.
 
 ## Active full hot campaign — October 21
 
+The active collector is the reviewed October 22 continuation
+`out/hot-full-20261021-r3`, service `echo-campaign-4cc3347796da`.
+The maintainer authorized all 12 Caladan loaded cases with Lauberhorn's steps:
+20,000 RPC/s for 8/128 B and 5,000 RPC/s for 1432 B. Warmup, measurement and
+confirmation remain 2/10/60 seconds with one repetition each, paced batches,
+32 generator CPUs and a 10 ms deadline. The 18 unloaded and 694 LH/DPDK loaded
+acquisitions are inherited intact; both old Caladan loaded points are excluded
+and reacquired under the new runtime/grid. Offline controller replay verified
+all 694 reused requests and no fresh LH/DPDK acquisition. Reused cases regenerate
+one comparison plot each; fresh points retain per-point progress plots.
+
+The final combined three-system archives are written back under the original
+`out/hot-full-20261021-r2/archive/attempt-N/echo-hot-{loaded,unloaded}.tar.gz`.
+Both frozen configurations and failed attempts remain preserved. Preparation,
+the per-receipt compatibility review, live restoration checks, passing preflight,
+both image bootstraps and submission receipt are in
+`out/hot-full-20261022-caladan-preparation/`. 107 orchestration tests pass.
+Callback delivery proof was reused; the switch control master was alive at
+launch for final clock qualification. Do not poll after launch.
+
+The new image is
+`/nix/store/mx2k860hdwaghqzy19435wmlgvmfvffa-caladan-campaign.img`, SHA256
+`524c90de602d4db6324b7fe45fde7dcb6be8fed46ca63a84f72d28fbe4394039`.
+It links Caladan `62a953e` and retains the exact original client environment
+`q3w88q634kyp42ffgvlnx89qi39h6yfa-lauberhorn-client-environment`; generator,
+LH and DPDK bytes were checked against the source campaign. Caladan unloaded
+reuse was explicitly reviewed: serial warmed requests reused stacks without
+mapping exhaustion, and RPC/timestamp/wire semantics are unchanged by the raw
+syscall failure checks. Source receipt and evidence hashes were verified before
+inheritance. Live recovery confirmed no benchmark processes/modules, an idle
+CX-5, and restored hugepages, sysctls and core pattern; no reset occurred.
+
 The maintainer explicitly requested starting from scratch after the first attempt
 failed before measurement traffic. A fresh full three-system campaign was submitted
 at `out/hot-full-20261021-r2`, service `echo-campaign-ea02e2a5b298`.
@@ -69,8 +101,8 @@ round-trip preservation and a real kernel dump-filter check. Caladan commit
 `62a953e` fixes the raw mmap/mprotect failure checks; native x86, AArch64/QEMU
 fault injection, all existing ARM CPU checks and the ARM runtime build passed.
 See `out/caladan-stack-fix-20261022/` and [Caladan continuation](caladan.md).
-The fix is not deployed; collection remains stopped pending a rebuilt image
-and Caladan grid review. Do not classify the preserved resource-exhaustion crash
+That stopped attempt is superseded by the reviewed continuation above. Do not
+classify the preserved resource-exhaustion crash
 as an ordinary accepted loss point or tune the watchdog to conceal it.
 
 

@@ -22,13 +22,14 @@ checks and the optimized ARM runtime build also passed. Evidence is
 `platform/out/caladan-stack-fix-20261022/`. Built outputs are
 `/nix/store/bkswgsvihxb2i89a4lyv30zwzj0vp5yi-caladan-arm-context-checks` and
 `/nix/store/97wwgh5rwi77v7nm9v6ij01vf6vlmzq6-caladan-directpath-aarch64-unknown-linux-gnu-0.1`.
-No patched artifact was deployed and no new traffic was launched for this fix.
-The stopped campaign still uses its original image; rebuild the statically
-linked echo variants before future acquisition and review compatibility rather
-than replacing frozen artifacts. Before selecting a finer Caladan grid, locate
-a repeatable 60-second loss boundary below 50 kRPC/s. The old 10-second 50k point
-passed, whereas its 60-second confirmations collapsed, so it does not establish
-sustained capacity. Keep the inherited watchdog and hot thread settings.
+The patched static echo variants are built and staged for the authorized full
+loaded continuation, with reviewed reuse and a merged comparison archive; see
+[active measurements](measurements.md#active-full-hot-campaign--october-21).
+The selected Caladan steps are now 20k RPC/s for 8/128 B and 5k for 1432 B,
+matching Lauberhorn. Collect all 12 payload/worker cases before assessing whether
+that grid is sufficient. The old 10-second 50k point passed, whereas its
+60-second confirmations collapsed, so it does not establish sustained capacity.
+Keep the inherited watchdog and hot thread settings.
 
 New builds enable ThunderX targeting and LTO; default launches now omit
 `no_hw_qdel`. Existing datasets retain their original compiler/configuration
