@@ -37,20 +37,38 @@ evidence. No reset occurred. Source-only setup fix changes no benchmark binary,
 traffic policy or measurement boundary. Resume receipt: preparation `resume.json`.
 
 
-At 714 completed cohorts, loaded CS-A64 8 B / one worker / 50 kRPC/s
-failed in its 60-second confirmation (`e7add995c96442b8372b/attempt-1`).
-The generator transmitted all 3 million measured requests on schedule with zero
-replies. Apport records responder PID 27405 crashing at 07:45:39 UTC on October
-22; it discarded the core because the process had a separate mount namespace.
-The original wrapper omitted the exit signal. This attempt is invalid acquisition,
-not an accepted loss boundary; the crash cause remains unresolved. Diagnostic-only
-runner changes retain process status before and after cleanup. 103 local tests
-pass. Evidence and restoration review live in
-`out/hot-full-20261021-r2-preparation/caladan-loaded-failure/`.
-Retry the failed point after live restoration and receipt-hash verification,
-preserving all completed cohorts and original failed evidence. If it recurs,
-use the recorded exit signal to guide crash diagnosis; do not tune the watchdog
-or classify process death as ordinary loss.
+At 714 completed acquisitions, CS-A64 8 B / one worker / 50 kRPC/s
+failed twice in its 60-second confirmation; the second attempt records SIGSEGV.
+A separate dump-enabled retry reproduced SIGSEGV / SEGV_MAPERR at `0xf8ff4`.
+Recovered stack: `mlx5_softirq -> net_rx_trans -> udp_par_recv -> __tcache_alloc
+-> tcache_alloc_mag`. The host mapping limit is 1,048,576; the core has 1,048,578
+program headers. Raw mmap failure `-ENOMEM` (-12) passes `stack_create`'s check
+for only MAP_FAILED (-1), producing stack handle `0xf9000 - 12 = 0xf8ff4`.
+The allocator faults when linking that invalid handle. Runtime behavior is
+unchanged; the campaign stays stopped with all 714 completed acquisitions intact.
+
+Evidence is in
+`out/hot-full-20261021-r2-preparation/caladan-core-retry/attempt-2/`:
+`diagnosis.json`, `registers.json`, `backtrace-recovered.txt`, the original sparse
+archive and its checksum, and a derived `core.analysis-view`. The original dump
+is partial: old cleanup terminated the process while dumping, leaving the
+extended ELF metadata unfinished. Original signal/register notes and the worker
+stack survived. The derived view retains those bytes and uses separately saved
+startup maps for its file mapping note; missing mappings are listed explicitly.
+The archive is 65,423,411 bytes (SHA256
+`0f5fe8e0e4d688c4e16237d27995179580cbc01026c0599dbfe3d2a0ee880f17`).
+Its original core is 295,791,738,880 bytes logically, 1,533,624,320 bytes allocated;
+sparse extent hashes verify after transfer. The normal exporter was stopped
+while scanning holes; no workload or board reset followed. Shared-harness final
+checks confirm modules, NIC, hugepages, sysctls and core pattern restored.
+
+Diagnostic capture now waits up to 300 seconds for an active kernel dump and
+uses GNU sparse archives plus extent hashes. Diagnostic roles are explicitly
+excluded from accepted measurements. 106 local tests pass, including sparse
+round-trip preservation and a real kernel dump-filter check. Further runtime
+repair or campaign resumption must account for the raw mmap/mprotect error path
+and mapping exhaustion; do not classify this resource-exhaustion crash as an
+ordinary accepted loss point or tune the watchdog to conceal it.
 
 
 The old `out/hot-full-20261021` remains unchanged, including unsafe state and

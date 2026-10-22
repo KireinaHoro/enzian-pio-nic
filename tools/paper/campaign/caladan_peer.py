@@ -4,10 +4,13 @@ The caller supplies the shared peer upload/control helpers. All processes and
 kernel/network changes are bounded and restored before exporting the archive.
 """
 import hashlib
+import errno
 import ipaddress
 import json
 import os
 from pathlib import Path
+import resource
+import shutil
 import signal
 import stat
 import subprocess
@@ -42,6 +45,82 @@ def process_status(process):
                 signal=signal.strsignal(-code) if code is not None and code<0 else None)
 
 
+def enable_core_dump():
+    resource.setrlimit(resource.RLIMIT_CORE,(8*1024**3,8*1024**3))
+    # Include anonymous, shared, file-backed and hugepage mappings.
+    Path('/proc/self/coredump_filter').write_text('0x7f')
+
+
+def snapshot_process(process, directory):
+    directory.mkdir(parents=True,exist_ok=True)
+    proc=Path('/proc')/str(process.pid)
+    errors={}
+    for name in ('maps','status','limits','smaps_rollup','auxv','stack','syscall','stat'):
+        try:(directory/name).write_bytes((proc/name).read_bytes())
+        except OSError as exc:errors[name]=str(exc)
+    # Preserve the exact executable and mapped libraries for offline core analysis.
+    paths={str(Path(process.args[0]).resolve())}
+    if (directory/'maps').exists():
+        for line in (directory/'maps').read_text().splitlines():
+            fields=line.split(None,5)
+            if len(fields)==6 and fields[5].startswith('/nix/store/'):
+                paths.add(fields[5])
+    for path in paths:
+        try:
+            target=directory/'rootfs'/path.lstrip('/')
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(path,target)
+        except OSError as exc:errors[path]=str(exc)
+    (directory/'snapshot-errors.json').write_text(json.dumps(errors,indent=2)+'\n')
+
+
+def sparse_core_inventory(path):
+    """Hash allocated extents; core virtual-address holes can span hundreds of GB."""
+    info=path.stat();extents=[]
+    with path.open('rb') as stream:
+        position=0
+        while position<info.st_size:
+            try:start=os.lseek(stream.fileno(),position,os.SEEK_DATA)
+            except OSError as exc:
+                if exc.errno==errno.ENXIO:break
+                raise
+            end=os.lseek(stream.fileno(),start,os.SEEK_HOLE)
+            stream.seek(start);sha=hashlib.sha256();left=end-start
+            while left:
+                block=stream.read(min(left,1024*1024))
+                if not block:raise ValueError('Truncated core extent')
+                sha.update(block);left-=len(block)
+            extents.append(dict(start=start,end=end,sha256=sha.hexdigest()))
+            position=end
+    return dict(logical_bytes=info.st_size,allocated_bytes=info.st_blocks*512,extents=extents)
+
+
+def upload_diagnostics(root,url):
+    cores={p.name:sparse_core_inventory(p) for p in root.glob('core.*') if p.is_file()}
+    (root/'sparse-core-manifest.json').write_text(json.dumps(cores,indent=2)+'\n')
+    hashes={}
+    for path in root.rglob('*'):
+        if not path.is_file() or path.name=='files.json' or path.parent==root and path.name in cores:continue
+        sha=hashlib.sha256()
+        with path.open('rb') as stream:
+            for block in iter(lambda:stream.read(1024*1024),b''):sha.update(block)
+        hashes[str(path.relative_to(root))]=sha.hexdigest()
+    (root/'files.json').write_text(json.dumps(hashes,sort_keys=True)+'\n')
+    archive=root.with_suffix('.tar.gz')
+    # Host GNU tar/gzip remain available inside the private Nix mount namespace.
+    subprocess.run(['/bin/tar','--sparse','--hole-detection=seek','--format=pax',
+                    '-I','/bin/gzip -1','-cf',str(archive),'-C',str(root.parent),root.name],check=True)
+    with archive.open('rb') as stream:
+        request=urllib.request.Request(url+'/'+archive.name,data=stream,method='PUT',
+            headers={'Content-Length':str(archive.stat().st_size)})
+        with urllib.request.urlopen(request,timeout=600) as response:response.read()
+
+
+def core_in_progress(process):
+    try:return 'CoreDumping:\t1' in (Path('/proc')/str(process.pid)/'status').read_text()
+    except FileNotFoundError:return False
+
+
 def run(config, peer):
     root=Path(config['output']);root.mkdir(parents=True,exist_ok=False)
     (root/'request.json').write_text(json.dumps(config,indent=2)+'\n')
@@ -67,6 +146,7 @@ def run(config, peer):
     nic_before=json.loads(command('ip','-j','-s','link','show','dev',interface))[0]
     save('nic-before.json',nic_before)
     processes=[];modules=[];created_device=False;changed=False;error=None;restored=False;isolation=None
+    core_pattern=None
     manifest=json.loads(Path(config['manifest']).read_text())
     (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     before=dict(binary_sha256=hashlib.sha256(Path(config['binary']).read_bytes()).hexdigest(),
@@ -74,6 +154,13 @@ def run(config, peer):
                 timestamp_provenance=None,caladan_cpus=pool,settings=original,nic=nic)
     save('before.json',before)
     try:
+        if config.get('crash_dumps',False):
+            space=os.statvfs(root)
+            if space.f_bavail*space.f_frsize<16*1024**3:raise ValueError('Insufficient space for crash dumps')
+            core_pattern=Path('/proc/sys/kernel/core_pattern').read_text()
+            save('core-capture.json',dict(previous_pattern=core_pattern,
+                pattern='core.%e.%p.%t',limit_bytes=8*1024**3,coredump_filter='0x7f',diagnostic_only=True))
+            Path('/proc/sys/kernel/core_pattern').write_text('core.%e.%p.%t')
         if manifest['tracing']!=(mode=='breakdown'): raise ValueError('Compiled Caladan probe mode mismatch')
         if (len(pool)!=len(cores)+2 or pool[2:]!=cores or len(set(pool))!=len(pool)
                 or pool!=sorted(pool) or any(type(cpu) is not int or not 0<=cpu<64 for cpu in pool)):
@@ -123,9 +210,12 @@ def run(config, peer):
         for argv,name,marker in jobs:
             log=root/(name+'.log')
             with log.open('w') as stream:
-                process=subprocess.Popen(argv,env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
+                process=subprocess.Popen(argv,env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True,
+                    cwd=root if config.get('crash_dumps',False) else None,
+                    preexec_fn=enable_core_dump if config.get('crash_dumps',False) else None)
             processes.append(process)
             wait_for(lambda:marker in log.read_text(),processes,90,name+' readiness')
+            if config.get('crash_dumps',False):snapshot_process(process,runner/'diagnostics'/name)
         if f'sched: dataplane on {pool[1]}, control on {pool[0]}' not in (root/'iokernel.log').read_text():
             raise ValueError('IOKernel placement differs from requested CPUs')
         log=(root/'server.log').read_text()
@@ -152,12 +242,18 @@ def run(config, peer):
         # Preserve spontaneous exit status before our own termination signals.
         save('processes-before-cleanup.json',[process_status(p) for p in processes])
         for process in reversed(processes):
+            if config.get('crash_dumps',False) and core_in_progress(process):
+                try:process.wait(timeout=300)
+                except subprocess.TimeoutExpired:cleanup.append('core dump exceeded 300 seconds')
             if process.poll() is None:
                 process.send_signal(signal.SIGINT)
                 try:process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     process.kill();process.wait();cleanup.append('forced process termination')
         save('processes-after-cleanup.json',[process_status(p) for p in processes])
+        if core_pattern is not None:
+            try:Path('/proc/sys/kernel/core_pattern').write_text(core_pattern)
+            except Exception as exc:cleanup.append('core pattern restoration: '+str(exc))
         for path in Path('/dev/hugepages').glob(prefix+'*'):
             if path.is_file():path.unlink()
         for name in reversed(modules):
@@ -178,7 +274,9 @@ def run(config, peer):
                 save('interrupts.json',isolation.verify());isolation.restore()
             except Exception as exc:cleanup.append(str(exc))
         after={p:Path(p).read_text().strip() for p in settings}
-        faults=[line for line in command('dmesg').splitlines() if line not in baseline and
+        kernel_delta=[line for line in command('dmesg').splitlines() if line not in baseline]
+        if config.get('crash_dumps',False):save('kernel-log.json',kernel_delta)
+        faults=[line for line in kernel_delta if
                 any(word in line for word in ('BUG:','Oops:','Call trace:','Internal error','soft lockup'))]
         nic_after=json.loads(command('ip','-j','-s','link','show','dev',interface))[0]
         save('nic-after.json',nic_after)
@@ -190,5 +288,6 @@ def run(config, peer):
         save('after.json',dict(settings=after,kernel_faults=faults,cleanup=cleanup))
         save('summary.json',dict(status='pass' if not error else 'fail',restored=restored))
         (root/'result.json').write_text(json.dumps(dict(returncode=0 if not error else 1,error=error))+'\n')
-        peer['upload'](root,url)
+        if config.get('crash_dumps',False):upload_diagnostics(root,url)
+        else:peer['upload'](root,url)
     if error:raise RuntimeError(error)

@@ -116,6 +116,53 @@ if __name__ == '__main__': unittest.main()
 
 
 class CaladanDeviceTests(unittest.TestCase):
+    def test_sparse_core_archive_roundtrip(self):
+        from unittest.mock import patch
+        import hashlib
+        from .caladan_peer import upload_diagnostics
+        from .acquire import extract,validate_role
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'server';root.mkdir()
+            core=root/'core.echo_caladan.123'
+            with core.open('wb') as stream:
+                stream.write(b'header');stream.seek(32*1024**2);stream.write(b'registers')
+            (root/'result.json').write_text('{}')
+            with patch('urllib.request.urlopen'):
+                upload_diagnostics(root,'http://test.invalid')
+            archive=root.with_suffix('.tar.gz')
+            self.assertLess(archive.stat().st_size,1024**2)
+            restored=extract(archive,Path(tmp)/'extracted',root.name)
+            copied=restored/core.name
+            self.assertEqual(copied.stat().st_size,core.stat().st_size)
+            self.assertLess(copied.stat().st_blocks*512,1024**2)
+            manifest=json.loads((restored/'sparse-core-manifest.json').read_text())[core.name]
+            with copied.open('rb') as stream:
+                for extent in manifest['extents']:
+                    stream.seek(extent['start'])
+                    self.assertEqual(hashlib.sha256(stream.read(extent['end']-extent['start'])).hexdigest(),extent['sha256'])
+                stream.seek(32*1024**2);self.assertEqual(stream.read(),b'registers')
+            with self.assertRaisesRegex(ValueError,'excluded'):
+                validate_role(restored,{'crash_dumps':True},'unused')
+
+    def test_core_capture_includes_hugepage_and_shared_mappings(self):
+        from unittest.mock import patch
+        from .caladan_peer import enable_core_dump
+        import resource
+        with patch('resource.setrlimit') as limit,patch('pathlib.Path.write_text') as write:
+            enable_core_dump()
+        limit.assert_called_once_with(resource.RLIMIT_CORE,(8*1024**3,8*1024**3))
+        write.assert_called_once_with('0x7f')
+
+    def test_core_capture_filter_is_accepted_by_kernel(self):
+        import subprocess,sys
+        result=subprocess.run([sys.executable,'-c',
+            "from campaign.caladan_peer import enable_core_dump; "
+            "from pathlib import Path; enable_core_dump(); "
+            "assert int(Path('/proc/self/coredump_filter').read_text(),16)==127"],
+            env={**__import__('os').environ,'PYTHONPATH':str(Path(__file__).resolve().parents[1])},
+            capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+
     def test_create_validate_and_reject_device(self):
         import os,stat
         from types import SimpleNamespace

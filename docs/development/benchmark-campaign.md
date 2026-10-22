@@ -54,6 +54,19 @@ software timing, switch capture, or FPGA readout.
 The runner records each process's PID, command, exit code and terminating signal
 before and after cleanup. A spontaneous process exit fails acquisition; retain
 it for diagnosis rather than accepting its missing replies as a loss point.
+For a separate diagnostic retry, the Caladan server role accepts `crash_dumps:
+true`. It temporarily selects file-based cores in the role output directory,
+sets an 8 GiB per-process core limit, and includes shared and hugepage mappings.
+It preserves process maps, limits, status, exact executables/mapped libraries and
+new kernel messages alongside any cores; unavailable proc files are recorded.
+The prior host core pattern is restored during cleanup. Require 16 GiB free in
+the output filesystem. These diagnostic retries stay outside accepted campaign
+measurements.
+Large virtual-address gaps make core files sparse: logical size can exceed the
+core limit while allocated storage remains bounded. Diagnostic export uses host
+GNU tar/gzip with sparse extents and records extent offsets and SHA256 hashes in
+`sparse-core-manifest.json`; it never scans the virtual-address holes. Cleanup
+allows an in-progress kernel core dump up to 300 seconds before termination.
 
 Set hardware `publish_plots: false` for a baseline-only acquisition so its
 previews remain in the campaign archive until a combined comparison is reviewed.

@@ -32,6 +32,7 @@ def cpu_set(text):
 
 
 def validate_role(root, request, binary_sha):
+    if request.get('crash_dumps',False):raise ValueError('Diagnostic core runs are excluded from accepted measurements')
     root=Path(root)
     read=lambda name:json.loads((root/name).read_text())
     for name,sha in read('files.json').items():
