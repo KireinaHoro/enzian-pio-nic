@@ -5,8 +5,8 @@
 The maintainer authorized fresh unloaded and loaded collection with `go`.
 `out/hot-full-20261022/` was launched as user service
 `echo-campaign-7cd6f693f03c`; preparation and launch receipts are in
-`out/hot-full-20261022-preparation/`. Do not poll after launch: wait for the
-terminal callback or a status request. No measurement cohorts are inherited.
+`out/hot-full-20261022-preparation/`. The terminal failure callback arrived
+October 23 after three accepted cohorts. No measurement cohorts are inherited.
 The controller validates all 18 unloaded cohorts before the 36 loaded
 payload/worker configurations across LH, DPDK and resident-worker CS-A64.
 
@@ -27,6 +27,23 @@ image is GC-rooted there. The maintainer's Nix GC reclaimed space and removed
 the separate host client environment; its metadata and generator hash were
 recovered directly from the unchanged, hash-verified image. Preparation retains
 both its initial metadata-hash failure and the corrected passing preflight.
+
+Failure: LH 128 B breakdown, stage `bfa88fad727e7775274b/attempt-1`, completed
+all capture chunks but import rejected two negative CPU–wire residuals.
+`out/hot-full-20261022-diagnosis/analysis.json` and its `analyze.py` verify all
+11,536 client/wire/CPU associations and per-chunk causal bounds, with hashes.
+Measured chunk 3 XIDs 914/957 have wire 11,128/12,576 ns and CPU
+11,620/13,170 ns. CPU transport return after the doorbell read returns costs
+600/690 ns; truncating only for diagnosis gives positive 108/96 ns residuals.
+The full CPU interval can extend beyond transmission, so requiring a
+nonnegative additive wire partition is unsafe. No samples were clipped,
+dropped or retried. Health passed; hardware-state remains unsafe after the
+import failure. No manual board access or reset occurred during diagnosis.
+An asynchronous question asks the maintainer whether to retain the full CPU
+breakdown with an independent wire-total marker. Wait for that methodology
+decision before changing accounting or resuming; preserve all three passing
+cohorts and the failed attempt. Restoration and current reservation checks
+are still required before resume.
 
 ## Prepared dedicated generator — October 22
 
