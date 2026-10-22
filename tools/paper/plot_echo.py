@@ -11,7 +11,7 @@ from pathlib import Path
 import paper_chart as chart
 import numpy as np
 from campaign.experiment import input_file
-from campaign.policy import SYSTEMS, observed_systems, SIZES, WORKERS, aggregate, qualifying
+from campaign.policy import SYSTEMS, observed_systems, SIZES, WORKERS, aggregate, qualifying, system_label
 from campaign.import_loaded import load
 from campaign.histogram import Latencies
 
@@ -96,7 +96,7 @@ def _render(source,destination, *, rehearsal=False, partial=False):
                         for percentile,style in ((99,'-'),):
                             y=[v.population_percentile(percentile,n)/1000 for v,n in zip(values,populations)]
                             ax.plot(x,y,style,color=chart.COLORS[si],marker=('o','s','^')[ni],
-                                    markersize=3,label=f'{system} {size} B')
+                                    markersize=3,label=f'{system_label(system,records)} {size} B')
                             if x and len(points)<len(record['points']):
                                 # The vertical ray denotes the SLA stop, not an RTT sample.
                                 ax.annotate('',xy=(x[-1],1),xycoords=ax.get_xaxis_transform(),
@@ -134,13 +134,13 @@ def _render(source,destination, *, rehearsal=False, partial=False):
                 if kind=='overload-loss':
                     ax.axhline(1,color='.4',linestyle=':',linewidth=.7)
                     ax.set_xlabel('Offered load (kRPC/s)')
-                    ax.set_ylabel(f'{system}: Loss (\\%)')
+                    ax.set_ylabel(system_label(system,records,multiline=True)+': Loss (\\%)')
                     ax.set_title(f'{size} application bytes',fontsize=9)
                     if si==0 and ni==0 and ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
                 if kind=='latency-goodput':
                     ax.set_xlim(left=0)
                     ax.set_xlabel('Goodput (kRPC/s)')
-                    ax.set_ylabel(f'{system}: P99 RTT ($\\mu$s)')
+                    ax.set_ylabel(system_label(system,records,multiline=True)+': P99 RTT ($\\mu$s)')
                     ax.set_title(f'{size} B',fontsize=9)
         filename='echo-loaded-hot-latency-goodput.pdf' if kind=='latency-goodput' else 'echo-overload-loss.pdf'
         chart.save(fig,destination/filename)
@@ -162,7 +162,7 @@ def _render(source,destination, *, rehearsal=False, partial=False):
             if not trials: continue
             values=np.asarray(trials); middle=np.median(values,axis=1)
             ax.errorbar(observed_workers,middle,yerr=[middle-values.min(axis=1),values.max(axis=1)-middle],
-                        fmt=('o','s','^')[ni]+'-',color=chart.COLORS[si],label=f'{system} {size} B',capsize=2)
+                        fmt=('o','s','^')[ni]+'-',color=chart.COLORS[si],label=f'{system_label(system,records)} {size} B',capsize=2)
     ax.set_xlabel('Workers'); ax.set_ylabel('Confirmed goodput (kRPC/s)')
     ax.set_xticks(WORKERS)
     ax.set_yscale('log')

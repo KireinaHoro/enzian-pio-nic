@@ -7,6 +7,18 @@ from .import_caladan import caladan
 
 
 class CaladanImportTests(unittest.TestCase):
+    def test_execution_model_labels_keep_legacy_spawner_distinct(self):
+        from .policy import system_label,caladan_execution_model
+        legacy=[dict(system='CS-A64')]
+        self.assertEqual(caladan_execution_model(legacy[0]),'udp-spawner')
+        self.assertEqual(system_label('CS-A64',legacy),'CS-A64 spawner')
+        resident=[dict(system='CS-A64',execution_model='resident-workers')]
+        self.assertEqual(system_label('CS-A64',resident),'CS-A64 resident')
+        with self.assertRaisesRegex(ValueError,'combine'):
+            system_label('CS-A64',legacy+resident)
+        with self.assertRaisesRegex(ValueError,'Unknown'):
+            caladan_execution_model(dict(execution_model='unknown'))
+
     def test_process_exit_evidence(self):
         from unittest.mock import Mock
         import signal

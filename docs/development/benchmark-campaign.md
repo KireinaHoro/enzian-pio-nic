@@ -47,6 +47,14 @@ provenance; changing them requires its compatibility/recovery review.
 
 ## Baseline selection and launch gates
 
+The current Caladan acquisition is the **UDP-spawner variant**, labelled
+`CS-A64 spawner`; it is retained as a separate execution-model experiment and
+continues to completion. LH/DPDK hot echo execute inline. The base Caladan echo
+comparison requires a resident-worker implementation and fresh measurements.
+Derived archives record `execution_model: "udp-spawner"` for legacy CS-A64
+cohorts without changing their original receipts or system identifiers.
+
+
 Campaign configuration accepts `systems`, a nonempty distinct list drawn from
 `LH`, `DPDK`, and `CS-A64`; omission preserves the LH/DPDK matrix. A CS-A64-only
 full campaign collects six unloaded cohorts before its twelve loaded

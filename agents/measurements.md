@@ -20,6 +20,12 @@ acquisition evidence.
 
 ## Active full hot campaign — October 21
 
+The maintainer selected the current Caladan data as the **UDP-spawner variant**:
+let the running campaign finish, label figures `CS-A64 spawner`, retain system
+identity/receipts and record execution model in derived archives. This is a
+separate configuration; resident workers are required for the base echo baseline.
+No controller restart or acquisition change is authorized by this relabelling.
+
 The active collector is the reviewed October 22 continuation
 `out/hot-full-20261021-r4`, service `echo-campaign-11a57abd167b`.
 The maintainer authorized all 12 Caladan loaded cases with Lauberhorn's steps:

@@ -8,7 +8,7 @@ import numpy as np
 from campaign.experiment import input_file
 from campaign.import_unloaded import validate_matched, correct_cpu_submission
 from campaign.import_loaded import digest
-from campaign.policy import SIZES, observed_systems
+from campaign.policy import SIZES, observed_systems, system_label
 
 
 def render(source,output, *, rehearsal=False, sizes=SIZES):
@@ -43,7 +43,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
             c=next(c for c in cohorts if c['system']==system and c['payload_bytes']==size and c['instrumentation']=='off')
             values=np.sort([r['wire_ns']/1000 for r in c['rows'] if not r['warmup']])
             if len(values)!=count or np.any(values<=0): raise ValueError('Invalid CDF observations')
-            ax.step(values,np.arange(1,len(values)+1)/len(values),where='post',label=system,color=chart.COLORS[i])
+            ax.step(values,np.arange(1,len(values)+1)/len(values),where='post',label=system_label(system,cohorts),color=chart.COLORS[i])
             statistics[str(size)][system]=dict(p50_us=float(np.percentile(values,50)),p99_us=float(np.percentile(values,99)),max_us=float(values[-1]))
             median,p99=np.percentile(values,[50,99])
             ax.plot(median,.5,'o',color=chart.COLORS[i],markersize=3)
@@ -120,7 +120,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
             statistics[str(size)][system]['breakdown_us']=combined
             if not np.isclose(bottom,np.median([r['wire_ns'] for r in measured])/1000):
                 raise ValueError('Combined components do not conserve median wire latency')
-        ax.set_yticks(list(reversed(range(len(systems)))),systems)
+        ax.set_yticks(list(reversed(range(len(systems)))),[system_label(s,cohorts,multiline=True) for s in systems])
         ax.set_ylim(-.55,len(systems)-.45)
         ax.grid(False)
         ax.text(.97,.03,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)

@@ -16,7 +16,7 @@ from .hardware import atomic
 from .import_loaded import digest, load
 from .recovery import invalidated
 from .import_unloaded import validate_matched
-from .policy import SYSTEMS, selected_systems, SIZES, WORKERS, candidates, loss
+from .policy import SYSTEMS, selected_systems, SIZES, WORKERS, candidates, loss, caladan_execution_model
 
 
 def verify_loaded(records, plans, *, systems=SYSTEMS, measurement=None):
@@ -104,6 +104,8 @@ def finalize(config,h,request,campaign):
     loaded=json.loads(Path(request['loaded']).read_text());plans=json.loads(Path(request['grid']).read_text())
     unloaded=json.loads(Path(request['unloaded']).read_text())
     manifest=json.loads((campaign/'config.json').read_text())
+    for record in loaded+unloaded:
+        if record['system']=='CS-A64':record['execution_model']=caladan_execution_model(record)
     systems=selected_systems(manifest)
     verify_loaded(loaded,plans,systems=systems,measurement=manifest.get('measurement'));validate_matched(unloaded,systems=systems)
     validate_unloaded_counts(unloaded,measurement_settings(manifest)['unloaded'])

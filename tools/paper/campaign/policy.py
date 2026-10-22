@@ -14,6 +14,24 @@ def observed_systems(records):
     selected_systems({'systems': list(names)})
     return tuple(s for s in SUPPORTED_SYSTEMS if s in names)
 
+
+def caladan_execution_model(record):
+    # All legacy CS-A64 acquisitions used udp_create_spawner. Preserve system
+    # identity and acquisition receipts; distinguish the execution model in views.
+    model=record.get('execution_model','udp-spawner')
+    if model not in ('udp-spawner','resident-workers'):
+        raise ValueError('Unknown Caladan execution model')
+    return model
+
+
+def system_label(system, records, *, multiline=False):
+    if system!='CS-A64':return system
+    models={caladan_execution_model(r) for r in records if r['system']==system}
+    if len(models)!=1:raise ValueError('Cannot combine Caladan execution models in one series')
+    suffix='spawner' if models=={'udp-spawner'} else 'resident'
+    return 'CS-A64'+('\n' if multiline else ' ')+suffix
+
+
 SIZES = (8, 128, 1432)
 WORKERS = (1, 2, 3, 4)
 LOSS_LIMIT = .01

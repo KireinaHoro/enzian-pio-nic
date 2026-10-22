@@ -1,6 +1,6 @@
 # CS-A64: Caladan Simple on AArch64
 
-**CS-A64** is the paper's Caladan baseline: ThunderX-1 ARMv8, ConnectX-5,
+**CS-A64** names the Caladan setup: ThunderX-1 ARMv8, ConnectX-5,
 mlx5 directpath and the **simple** scheduling policy. Applications access NIC
 queues directly; the IOKernel retains core allocation and preemption. IAS and
 its interference-control claims are outside this baseline's scope. Native x86
@@ -146,8 +146,12 @@ versions with each dataset. Keep resident-worker, idle-to-active and busy-owner
 preemption experiments distinct. Use the [shared hot-path methodology](hot-measurement.md)
 and [campaign workflow](../development/caladan.md#unattended-hot-echo-campaigns).
 
-The shared echo backend uses Caladan's UDP spawner, one user thread per datagram,
-and user-thread-specific request context. Schema, handler, XDR and synchronous
+The collected **UDP-spawner variant** uses Caladan's UDP spawner, one user
+thread per datagram, and user-thread-specific request context. It is a separate
+execution-model experiment: LH and DPDK hot echo execute synchronously without
+per-request fiber creation. The primary base-echo comparison requires resident
+Caladan workers receiving, handling and replying synchronously; spawner results
+cannot substitute for that baseline. Schema, handler, XDR and synchronous
 RPC code are shared with DPDK. The probe-free build removes timing hooks while
 preserving scheduling. Optional packet-stage tracing follows RX through UDP
 spawning and TX through deferred submission; `SIGRTMIN+4` exports the shared
