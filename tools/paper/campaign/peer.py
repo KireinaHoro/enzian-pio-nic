@@ -89,7 +89,9 @@ def run(config):
             stride=((slots+cores-1)//cores+63)//64*64
             tracking=cores*(stride+window*128+100001*8)
             output=4*1024*1024
-        tracking+=8*slots
+        windows=(config['duration_ms']+config.get('window_ms',0)-1)//config['window_ms'] if config.get('window_ms',0) else 0
+        tracking+=8*slots+len(config['cpus'])*windows*(128+100001*8)
+        output+=windows*2*1024*1024
         mem=dict(line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())
         available=int(mem['MemAvailable'].split()[0])*1024
         space=os.statvfs(root);free=space.f_bavail*space.f_frsize
@@ -119,7 +121,7 @@ def run(config):
             if config.get('chunk_requests'):env['LH_ECHO_CHUNK_REQUESTS']=str(config['chunk_requests'])
     elif loaded:
         env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',
-                   LH_BENCH_SLOT_NS=str(config['slot_ns']),LH_BENCH_SEED=str(config['seed']),
+                   LH_BENCH_WINDOW_MS=str(config.get('window_ms',0)),LH_BENCH_SLOT_NS=str(config['slot_ns']),LH_BENCH_SEED=str(config['seed']),
                    LH_BENCH_MAX_SEND_LAG_NS=str(config['max_send_lag_ns']),
                    LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),

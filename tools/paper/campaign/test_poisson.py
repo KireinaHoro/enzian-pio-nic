@@ -61,6 +61,24 @@ class Poisson(unittest.TestCase):
             rows[-1]['client_tx_submit_ns']=rows[-1]['scheduled_ns']+10001;write()
             with self.assertRaisesRegex(ValueError,'lag bound'):load(p/'samples.csv',p/'summary.json')
 
+    def test_window_conservation_and_partial_final_window(self):
+        s=self.summary();s.update(schema=3,observation_mode='aggregate',histogram_bin_ns=100,
+            timestamp_retention_ns=30000000,rx_forward_limit_ns=10000000)
+        def phase(n):
+            return dict(attempted=n,transmitted=n,on_time=0,late=0,duplicates=0,
+                generator_misses=0,tx_admission_failures=0,malformed=0,server_rejections=0,
+                lag_count=n,lag_sum_ns=n*100,lag_max_ns=100 if n else 0,schedule_violations=0)
+        s['phases']=[phase(s['warmup_count']),phase(s['scheduled_count'])]
+        s.update(latency_histogram=[],server_rejections=0,window_ns=600000,window_assignment='scheduled-arrival',
+            windows=[dict(phase(0),start_ns=0,duration_ns=600000,latency_histogram=[]),
+                     dict(phase(s['scheduled_count']),start_ns=600000,duration_ns=400000,latency_histogram=[])])
+        validate_aggregate(s)
+        for modify in [lambda x:x['windows'][1].update(start_ns=600001),
+                       lambda x:x['windows'][1].update(duplicates=1),
+                       lambda x:x['windows'][1].update(latency_histogram=[[100,1]])]:
+            bad=copy.deepcopy(s);modify(bad)
+            with self.assertRaises(ValueError):validate_aggregate(bad)
+
     def test_aggregate_random_counts_and_rejection_gates(self):
         s=self.summary();s.update(schema=3,observation_mode='aggregate',histogram_bin_ns=100,
             timestamp_retention_ns=30000000,rx_forward_limit_ns=10000000,phases=[{},{}])

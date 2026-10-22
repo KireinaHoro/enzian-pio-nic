@@ -437,6 +437,44 @@ hashes), per-mode `server_sha256`, and per-system/per-mode build fingerprints.
 Snapshots check the running executable, runtime mapping and image manifest.
 The general `trafficGeneratorImage` remains independent of native runtime builds.
 
+### Windowed duration qualification
+
+The top-level campaign option `window_ms` (default 0) enables scheduled-arrival
+measurement windows in aggregate mode; the generator variable is
+`LH_BENCH_WINDOW_MS`. Warmup remains separate. Each measured request belongs to
+the window containing its scheduled slot. Late replies, duplicates and server
+rejections amend that same window, including replies received after timestamp
+retirement. Counters and exact 100 ns RTT histograms are retained for every
+window and must conserve all whole-measurement totals. The final partial window
+uses its actual duration. All-transmission percentile populations apply per
+window as well as to pooled windows.
+
+Storage is allocated and faulted in before traffic. Each generator core needs
+one counter block and 100,001 64-bit histogram buckets per window; resource
+budgets include this memory and the larger JSON export. Windowing is optional
+because it adds accounting work to the generator.
+
+For a bounded duration study, use the maintained qualification runner after
+artifact staging, current reservations and resident readiness checks:
+
+```sh
+python3 tools/paper/qualify_loaded.py --hardware HARDWARE.json \
+  --plan QUALIFICATION.json --output NEW_DIR
+```
+
+The plan sets `scope: "loaded-duration-qualification"`, `slot_ns`,
+`max_send_lag_ns`, `warmup_ms`, `pilot_seed`, independent `seeds`,
+`refinement_points` and up to six cases with `system`, `payload_bytes`, `workers`
+and increasing `pilot_rates`. The runner brackets loss with 10-second pilots,
+refines the bracket, then measures the last contiguous qualifying rate for
+60 seconds per seed. One-second windows produce six disjoint 10-second blocks
+and a pooled minute. CPU-NIC checks use an already prepared idle host; LH uses
+the ordinary matched board lifecycle. All traffic, exports, validation and
+restoration use the shared acquisition harness. Failure evidence is retained
+and a generator failure stops the study. Qualification outputs are explicitly
+excluded from paper inputs; selecting a paper duration requires reviewing
+window stability, seed variability and generator timing.
+
 ## Compact loaded observations
 
 Set `aggregate: true` in both launch and hardware manifests to select

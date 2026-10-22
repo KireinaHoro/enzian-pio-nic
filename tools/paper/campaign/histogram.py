@@ -86,15 +86,42 @@ def validate_aggregate(summary):
             raise ValueError('Poisson release lag exceeds bound')
     if any(s['phases'][1][k] != s[k] for k in fields[1:9]):
         raise ValueError('Aggregate summary counters disagree')
+    values=validate_histogram(s['latency_histogram'],s['on_time'],s['deadline_ns'])
+    if 'windows' in s:
+        width=s.get('window_ns')
+        if (type(width) is not int or width<=0 or s.get('window_assignment')!='scheduled-arrival'
+                or len(s['windows'])!=(s['duration_ns']+width-1)//width):
+            raise ValueError('Invalid measurement window layout')
+        pooled=Counter()
+        for index,window in enumerate(s['windows']):
+            if (window['start_ns']!=index*width or window['duration_ns']!=min(width,s['duration_ns']-index*width)
+                    or any(type(window[k]) is not int or window[k]<0 for k in fields)
+                    or window['attempted']!=window['transmitted'] or window['lag_count']!=window['attempted']
+                    or window['on_time']+window['late']>window['transmitted']
+                    or window['server_rejections']>window['transmitted']+window['duplicates']
+                    or any(window[k] for k in ('generator_misses','tx_admission_failures','malformed','schedule_violations'))
+                    or not window['lag_max_ns']<=window['lag_sum_ns']<=window['lag_count']*window['lag_max_ns']
+                    or window['lag_max_ns']>s['max_send_lag_ns']):
+                raise ValueError('Invalid measurement window accounting')
+            validate_histogram(window['latency_histogram'],window['on_time'],s['deadline_ns'])
+            pooled.update(dict(window['latency_histogram']))
+        for key in fields:
+            actual=max((w[key] for w in s['windows']),default=0) if key=='lag_max_ns' else sum(w[key] for w in s['windows'])
+            if actual!=s['phases'][1][key]:raise ValueError('Window counters do not conserve measurement totals')
+        if dict(pooled)!=dict(s['latency_histogram']):raise ValueError('Window histograms do not conserve RTT counts')
+    return values
+
+
+def validate_histogram(histogram,on_time,deadline):
     counts = []
     previous = -1
-    for bucket, count in s['latency_histogram']:
+    for bucket, count in histogram:
         if (type(bucket) is not int or type(count) is not int or count <= 0
-                or not previous < bucket <= s['deadline_ns']//100):
+                or not previous < bucket <= deadline//100):
             raise ValueError('Invalid aggregate histogram')
         previous = bucket
-        counts.append((min(bucket*100+50,s['deadline_ns']),count))
+        counts.append((min(bucket*100+50,deadline),count))
     values = Latencies(counts)
-    if len(values) != s['on_time']:
+    if len(values) != on_time:
         raise ValueError('Histogram count differs from on-time replies')
     return values

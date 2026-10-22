@@ -148,6 +148,8 @@ class Campaign:
             validate(trial)
             if any(trial.get(k)!=request[k] for k in ('seed','slot_ns','max_send_lag_ns')):
                 raise ValueError('Slotted-Poisson configuration differs from plan')
+            if trial.get('window_ns',0)!=request.get('window_ms',0)*1_000_000:
+                raise ValueError('Measurement window configuration differs from plan')
             if trial['rate'] != request['rate'] or trial['duration_ns'] != request['duration_ms']*1_000_000:
                 raise ValueError('Acquisition duration/rate differs from frozen plan')
             files.update(trial['files'])
@@ -196,7 +198,7 @@ class Campaign:
         warmup = loaded['warmup_ms']
         if phase == 'rehearsal':
             duration, warmup = settings['rehearsal']['loaded_measurement_ms'], settings['rehearsal']['loaded_warmup_ms']
-        arrival=dict(arrival_model='slotted-poisson',slot_ns=self.config.get('slot_ns',1000),
+        arrival=dict(arrival_model='slotted-poisson',window_ms=self.config.get('window_ms',0),slot_ns=self.config.get('slot_ns',1000),
                      seed=(self.config.get('arrival_seed',1)+trial+(0x1000000 if sustained else 0)-1)%0xffffffff+1,
                      max_send_lag_ns=self.config.get('max_send_lag_ns',10000))
         result = self.stage('loaded', dict(**arrival, **self.execution_model_request(system), system=system, payload_bytes=size, workers=workers,
@@ -383,6 +385,10 @@ def config_check(config):
         raise ValueError('Only slotted-poisson loaded arrivals are supported')
     if any(k in config for k in ('batch_max','batch_target_ns')):
         raise ValueError('Retired deterministic pacing options; use slot_ns')
+    if type(config.get('window_ms',0)) is not int or not 0<=config.get('window_ms',0)<=60000:
+        raise ValueError('Invalid measurement window width')
+    if config.get('window_ms',0) and not config.get('aggregate',False):
+        raise ValueError('Measurement windows require aggregate observations')
     if (type(config.get('arrival_seed',1)) is not int or not 1<=config.get('arrival_seed',1)<=0xffffffff
             or type(config.get('slot_ns',1000)) is not int or not 1<=config.get('slot_ns',1000)<=1000000
             or type(config.get('max_send_lag_ns',10000)) is not int
@@ -438,7 +444,7 @@ def main():
         config = read(args.config)
         saved = read(root/'config.json') if (root/'config.json').exists() else None
         if saved is None:
-            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,max_send_lag_ns=10000).items():
+            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,max_send_lag_ns=10000,window_ms=0).items():
                 config.setdefault(k,v)
         if saved is None or 'measurement' in saved:
             config['measurement'] = measurement_settings(config)
