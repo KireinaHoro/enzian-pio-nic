@@ -150,6 +150,8 @@ class Campaign:
                 raise ValueError('Slotted-Poisson configuration differs from plan')
             if trial.get('window_ns',0)!=request.get('window_ms',0)*1_000_000:
                 raise ValueError('Measurement window configuration differs from plan')
+            if 'accounting_cpu' in request and trial.get('accounting_cpu')!=request['accounting_cpu']:
+                raise ValueError('Accounting CPU differs from plan')
             if trial['rate'] != request['rate'] or trial['duration_ns'] != request['duration_ms']*1_000_000:
                 raise ValueError('Acquisition duration/rate differs from frozen plan')
             files.update(trial['files'])
@@ -201,6 +203,7 @@ class Campaign:
         arrival=dict(arrival_model='slotted-poisson',window_ms=self.config.get('window_ms',0),slot_ns=self.config.get('slot_ns',1000),
                      seed=(self.config.get('arrival_seed',1)+trial+(0x1000000 if sustained else 0)-1)%0xffffffff+1,
                      max_send_lag_ns=self.config.get('max_send_lag_ns',10000))
+        if self.config.get('aggregate',False):arrival['accounting_cpu']=self.config.get('accounting_cpu',8)
         result = self.stage('loaded', dict(**arrival, **self.execution_model_request(system), system=system, payload_bytes=size, workers=workers,
             rate=rate, phase=phase, repetition=trial, duration_ms=duration, warmup_ms=warmup,
             deadline_ms=10, generator_cpus=self.config['generator_cpus'], flows=self.config['flows']))
@@ -387,6 +390,8 @@ def config_check(config):
         raise ValueError('Retired deterministic pacing options; use slot_ns')
     if type(config.get('window_ms',0)) is not int or not 0<=config.get('window_ms',0)<=60000:
         raise ValueError('Invalid measurement window width')
+    if type(config.get('accounting_cpu',8)) is not int or not 0<=config.get('accounting_cpu',8)<1024:
+        raise ValueError('Invalid accounting CPU')
     if config.get('window_ms',0) and not config.get('aggregate',False):
         raise ValueError('Measurement windows require aggregate observations')
     if (type(config.get('arrival_seed',1)) is not int or not 1<=config.get('arrival_seed',1)<=0xffffffff
@@ -444,7 +449,7 @@ def main():
         config = read(args.config)
         saved = read(root/'config.json') if (root/'config.json').exists() else None
         if saved is None:
-            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,max_send_lag_ns=10000,window_ms=0).items():
+            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,max_send_lag_ns=10000,window_ms=0,accounting_cpu=8).items():
                 config.setdefault(k,v)
         if saved is None or 'measurement' in saved:
             config['measurement'] = measurement_settings(config)

@@ -47,13 +47,22 @@ def main():
         p.error('worker-lcores must be comma-separated CPU numbers')
     if min(lcores) < 0 or len(set(lcores)) != len(lcores):
         p.error('lcores must be distinct nonnegative CPU numbers')
+    requested_cpus=set(lcores)
+    if os.environ.get('LH_BENCH_AGGREGATE')=='1' and 'LH_BENCH_ACCOUNTING_CPU' in os.environ:
+        try:
+            accounting_cpu=int(os.environ['LH_BENCH_ACCOUNTING_CPU'])
+        except ValueError:
+            p.error('accounting CPU must be a nonnegative CPU number')
+        if accounting_cpu<0 or accounting_cpu in requested_cpus:
+            p.error('accounting CPU must be outside generator lcores')
+        requested_cpus.add(accounting_cpu)
     # A login shell can inherit a mask excluding isolated CPUs. Expand this
     # process's mask explicitly; the kernel still enforces its cpuset cgroup.
     try:
-        os.sched_setaffinity(0, os.sched_getaffinity(0) | set(lcores))
+        os.sched_setaffinity(0, os.sched_getaffinity(0) | requested_cpus)
     except (OSError, ValueError) as exc:
         p.error(f'cannot enable requested lcore: {exc}')
-    if not set(lcores) <= os.sched_getaffinity(0):
+    if not requested_cpus <= os.sched_getaffinity(0):
         p.error('requested lcore is offline or excluded by the cpuset cgroup')
     if args.hugepages_mb <= 0 or args.timeout <= 0:
         p.error('positive hugepage budget and timeout required')

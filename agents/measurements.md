@@ -1,5 +1,45 @@
 # Measurement continuation
 
+## Generator accounting CPU — October 22
+
+Microbenchmarks `951ec9c` moves aggregate schedule checks, counters, histograms,
+window accounting and diagnostic selection to one pinned housekeeping pthread.
+Campaign `accounting_cpu` defaults to Linux CPU 8, outside generator CPUs 16–47.
+Workers own live timestamp slots/status ledgers and hand immutable records and
+late-reply amendments through SPSC queues (8,192 records each, 32 MiB total).
+Queue exhaustion invalidates a point; shutdown drains every published record.
+NIC health is sampled when all RX polling stops, before final accounting drain.
+
+`out/generator-accounting-core-20261022/` preserves native/AArch64 builds,
+concurrent retirement/queue-wrap/exhaustion checks, eight real PCAP cases, four
+NIC-health replay cases and 117 campaign tests. The first PCAP attempt missed a
+detailed-mode deadline while image construction was concurrent; the retained
+retry and final suite passed. NIC-health replay cannot initialize EAL inside the
+Nix sandbox (no visible CPU sysfs); the packaged tests and exported interposer
+were run outside it. Full repository copying exhausted local pool space during
+build; builds used the existing exact pinned Nixpkgs store source instead.
+
+With accounting actually on CPU 8 and the separately recorded 100 µs diagnostic
+guard, DPDK 8 B / 4 workers / 3 M RPC/s passed 10 seconds (seed 42) and 60 seconds
+(seed 101), with all 29,995,524 / 180,001,886 measured requests on time. Queue
+high-water marks were 980 / 978 of 8,192; measured start lag maxima were
+20.73 / 21.37 µs. The final image, which moves NIC-health sampling before the
+accounting drain, passed another 10-second check with all 29,995,524 requests
+on time and 19.72 µs maximum start lag. The minute-long probe predates only that
+post-RX boundary change; its NIC error counters were zero across the longer
+snapshot interval. All are diagnostic data, separate from paper archives.
+
+The default 10 µs guard still fails in opening warmup: 37 attempts, 30 TX,
+7 generator misses, largest recorded start lag 10.92 µs, no measured requests.
+Failure occurred before 30 ms retirement begins, so startup timing is a separate
+next investigation. Do not silently relax the campaign guard or claim faithful
+1 µs wire timing. `comparison.json` links the exact trials; the strict failure
+and restoration evidence are retained. `cleanup.json` confirms both boards idle,
+original drivers and zero hugepages restored, both temporary images removed and
+transfer service 18874 stopped. `artifact-provenance.json` checks production
+source hashes and the actual immutable runner against the working tree. No full
+campaign was launched and no EMG provisioning or board reset was needed.
+
 ## Loaded duration qualification — October 22
 
 The maintainer authorized a bounded duration study before the next full hot
@@ -25,8 +65,9 @@ whole-minute 1% loss classification; block P99s stayed within roughly 1%.
 
 `duration-comparison.json` and its ignored `analyze.py` reproduce the comparison.
 Keep 10-second sweeps and 60-second throughput confirmation. This qualifies
-only representative four-worker / 8 B duration behavior; DPDK duration remains
-unqualified, and generator lag/wire timing must be resolved before full paper
+only representative four-worker / 8 B duration behavior; the initial DPDK
+attempt was unqualified (see the off-core retry above). Generator startup lag
+and wire timing must be resolved before full paper
 collection. No new full campaign was launched. `cleanup.json` confirms both hosts idle with
 original NIC drivers and zero hugepages, runtime modules/processes absent, test
 images removed and transfer service 18873 stopped. The DUT used the shared
@@ -53,7 +94,7 @@ Loaded generation now uses configurable aggregate `slot_ns` (default 1000),
 `arrival_seed` and `max_send_lag_ns` (default 10000). Independent slot counts,
 round-robin slot ownership, phase/core XID ranges, split TX calls above 64 and
 sampled phase counts replace deterministic open-loop pacing and rate×duration
-assumptions. Platform pins microbenchmarks `5546da8`, including phase-count
+assumptions. Platform pins microbenchmarks `951ec9c`, including phase-count
 overflow checks
 and optional exact measurement windows. Closed-loop unloaded pacing and accepted
 historical archives remain unchanged. The campaign guide documents

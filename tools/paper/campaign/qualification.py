@@ -53,6 +53,7 @@ class Qualification:
                      arrival_model='slotted-poisson',slot_ns=self.plan['slot_ns'],seed=seed,
                      max_send_lag_ns=self.plan['max_send_lag_ns'],window_ms=1000)
         if case['system']=='CS-A64':request['execution_model']='resident-workers'
+        if self.hardware.get('aggregate',False):request['accounting_cpu']=self.hardware.get('accounting_cpu',8)
         atomic(directory/'request.json',request)
         acquisition=Acquisition(self.hardware,request,directory,self.root)
         if case['system']=='LH':
@@ -69,6 +70,8 @@ class Qualification:
             csv,summary=paths['client']/'samples.csv.gz',paths['client']/'samples.csv.open.json'
             activity=evidence['server']['worker_activity']
         trial,_=load(csv,summary,collect_latencies=False)
+        if 'accounting_cpu' in request and trial.get('accounting_cpu')!=request['accounting_cpu']:
+            raise ValueError('Accounting CPU differs from qualification request')
         statistics=temporal_statistics(trial)
         result=dict(passed=True,paper_data=False,request=request,worker_activity=activity,
                     summary=str(summary.resolve()),csv=str(csv.resolve()),statistics=statistics)

@@ -483,14 +483,28 @@ The send schedule, full payload validation, RX-burst RTT endpoint and 10 ms
 response deadline are unchanged. Unloaded measurements retain detailed rows.
 Detailed loaded CSV mode remains available with `aggregate: false` for diagnosis.
 
+Aggregate accounting runs on a separate housekeeping CPU. The campaign manifest
+sets `accounting_cpu` (default 8), passed as `LH_BENCH_ACCOUNTING_CPU`; it must be
+outside the 32 generator CPUs (currently 16–47). Direct generator invocation
+without that variable selects an allowed CPU outside its EAL lcores. Accounting
+is a pinned pthread and does not consume a generator lcore or NIC queue.
+The summary records its actual CPU, processed event count and queue high-water
+mark; acquisition checks the CPU against the frozen request.
+
 Each generator retains timestamps for 30 ms, with capacity for 50 ms of sends
-plus two batches. It validates phase, schedule, admission and return boundaries
-online before retiring records. RX-to-owner forwarding exceeding 10 ms invalidates
+plus two batches. Workers hand immutable retired records and subsequent late-reply
+amendments to per-worker SPSC queues. The accounting CPU validates phase, schedule,
+admission and return boundaries and updates counters, histograms and diagnostic
+samples. Worker-owned timestamp slots and status ledgers are never concurrently
+modified by the accounting thread. Each queue holds 8,192 records (1 MiB per
+generator CPU on this platform); exhaustion invalidates the point. Pending events
+drain after all workers stop, before merging or formatting output.
+RX-to-owner forwarding exceeding 10 ms invalidates
 the point: this bound ensures a reply processed after timestamp retirement cannot
 have been on time. A one-byte status ledger per scheduled XID retains exact late,
 duplicate and rejection accounting after retirement. Exhaustion is terminal and
 never throttles offered traffic. All storage is allocated and prefaulted first.
-The resource budget includes this ledger, bounded timestamps and histograms;
+The resource budget includes this ledger, bounded timestamps, accounting queues and histograms;
 it no longer reserves a full timestamp record and CSV row per request.
 
 Warmup and measurement counters remain separate. The measured on-time RTT

@@ -70,6 +70,14 @@ def validate_aggregate(summary):
               'lag_sum_ns','lag_max_ns','schedule_violations')
     if len(s['phases']) != 2:
         raise ValueError('Aggregate needs warmup and measurement')
+    if 'accounting_cpu' in s:
+        if (type(s['accounting_cpu']) is not int or s['accounting_cpu']<0 or s['accounting_cpu'] in s['generator_cpus']
+                or type(s.get('accounting_events')) is not int
+                or s['accounting_events']<sum(p['attempted'] for p in s['phases'])
+                or s.get('accounting_queue_capacity')!=8192
+                or type(s.get('accounting_queue_high_water')) is not int
+                or not 0<s['accounting_queue_high_water']<=s['accounting_queue_capacity']):
+            raise ValueError('Invalid off-core accounting placement or queue conservation')
     for index,(phase,duration) in enumerate(zip(s['phases'], (s['warmup_ns'],s['duration_ns']))):
         expected=(s['warmup_count'] if index==0 else s['scheduled_count']) if poisson else None
         if any(type(phase[k]) is not int or phase[k] < 0 for k in fields):

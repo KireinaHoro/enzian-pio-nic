@@ -87,7 +87,7 @@ def run(config):
             cores=len(config['cpus'])
             window=(config['rate']*50_000_000+cores*1_000_000_000-1)//(cores*1_000_000_000)+1024
             stride=((slots+cores-1)//cores+63)//64*64
-            tracking=cores*(stride+window*128+100001*8)
+            tracking=cores*(stride+window*128+100001*8+8192*128)
             output=4*1024*1024
         windows=(config['duration_ms']+config.get('window_ms',0)-1)//config['window_ms'] if config.get('window_ms',0) else 0
         tracking+=8*slots+len(config['cpus'])*windows*(128+100001*8)
@@ -126,6 +126,11 @@ def run(config):
                    LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),
                    LH_BENCH_TRACKING_MIB=str(config['tracking_mib']),LH_BENCH_DRAINED_FILE=str(root/'drained'))
+        if config.get('aggregate',False):
+            accounting_cpu=config.get('accounting_cpu',8)
+            if type(accounting_cpu) is not int or accounting_cpu<0 or accounting_cpu in cores:
+                raise ValueError('Accounting CPU must be outside generator CPUs')
+            env['LH_BENCH_ACCOUNTING_CPU']=str(accounting_cpu)
     if not loaded and not server:
         # With no window override, the single-outstanding client loop carries
         # next_send across warmup and measurement. load_phase resets it.

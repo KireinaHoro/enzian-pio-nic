@@ -72,10 +72,15 @@ class Poisson(unittest.TestCase):
         s.update(latency_histogram=[],server_rejections=0,window_ns=600000,window_assignment='scheduled-arrival',
             windows=[dict(phase(0),start_ns=0,duration_ns=600000,latency_histogram=[]),
                      dict(phase(s['scheduled_count']),start_ns=600000,duration_ns=400000,latency_histogram=[])])
+        s.update(accounting_cpu=8,accounting_events=s['warmup_count']+s['scheduled_count'],
+                 accounting_queue_capacity=8192,accounting_queue_high_water=2)
         validate_aggregate(s)
         for modify in [lambda x:x['windows'][1].update(start_ns=600001),
                        lambda x:x['windows'][1].update(duplicates=1),
-                       lambda x:x['windows'][1].update(latency_histogram=[[100,1]])]:
+                       lambda x:x['windows'][1].update(latency_histogram=[[100,1]]),
+                       lambda x:x.update(accounting_cpu=16),
+                       lambda x:x.update(accounting_events=0),
+                       lambda x:x.update(accounting_queue_high_water=8193)]:
             bad=copy.deepcopy(s);modify(bad)
             with self.assertRaises(ValueError):validate_aggregate(bad)
 
