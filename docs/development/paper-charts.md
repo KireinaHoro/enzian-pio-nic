@@ -92,14 +92,14 @@ failures invalidate a trial rather than entering this server-loss population.
 Trial statistics encode infinite quantiles as JSON `null` with an explicit
 `p99_infinite`/`median_infinite` flag. Statistics retain the first excluded rate,
 loss and all excluded points' goodput/loss; zero-reply trials have infinite P99.
-The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/README.md)
-for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/hot-unloaded-20261022.tar.gz`.
-Both unloaded PDFs are included by the current paper source. The completed
-LH/DPDK loaded dataset is `data/paper/echo/hot-loaded-20261019.tar.gz` (24
-cohorts covering all payloads and worker counts); its three figures are included.
-Regenerate them without `--partial`. The earlier
-`out/echo-full-20261019/loaded.json` contains only a partial LH matrix and is not
-the combined paper input. Caladan loaded acquisition remains pending.
+The completed full hot comparison uses the tracked
+[mode archives](../../data/paper/echo/README.md):
+`hot-unloaded-spawner-20261022.tar.gz` (18 cohorts, accounting version 3) and
+`hot-loaded-spawner-20261022.tar.gz` (36 cases). Both cover LH, DPDK and
+CS-A64 spawner at 8/128/1432 B; loaded covers one through four workers.
+All five final previews were visually reviewed and their PDFs are included by
+the paper. Regenerate using the inventory commands without `--partial`.
+Resident-worker Caladan needs a separate validated acquisition.
 The inventory is [charts.json](../../tools/paper/charts.json). Do not replace active PDFs with
 rehearsal or synthetic inputs. Existing measurement archives retain their
 original workload and provenance; use the echo campaign for new acquisition.

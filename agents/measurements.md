@@ -1,5 +1,17 @@
 # Measurement continuation
 
+## Full hot campaign complete — October 22
+
+`out/hot-full-20261021-r4` completed 959/959 acquisitions. Final stage
+`a516e0301b85b9b5cbad/attempt-1` passed completeness, hashes, timestamp boundaries,
+failure accounting, worker activity, PDF geometry and embedded-font checks.
+All five final PNG previews passed visual review. The final mode archives are
+indexed in `data/paper/echo/manifest.json`; `tools/paper/charts.json` identifies
+reproduction commands. The paper PDFs were refreshed; paper presentation changes
+remain uncommitted alongside the maintainer's existing `evaluation.tex` edit.
+Caladan remains the explicitly labelled UDP-spawner variant. No resident run
+was started. Native resident acceptance and new collection remain pending.
+
 ## Resident base echo preparation — October 22
 
 The current campaign remains the UDP-spawner experiment. Figure legends/axes say
@@ -45,7 +57,7 @@ same immutable spawner campaign resumed as `echo-campaign-11a57abd167b`, preserv
 all 873 acquisitions and the failed plot attempt; no reset or acquisition change
 occurred. Submission receipt: recovery directory `resume.json`. Do not poll.
 
-## Active full hot campaign — October 21
+## Full hot campaign acquisition context — October 21
 
 The maintainer selected the current Caladan data as the **UDP-spawner variant**:
 let the running campaign finish, label figures `CS-A64 spawner`, retain system
