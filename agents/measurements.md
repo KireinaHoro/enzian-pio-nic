@@ -1,5 +1,33 @@
 # Measurement continuation
 
+## Active full hot campaign — October 22
+
+The maintainer authorized fresh unloaded and loaded collection with `go`.
+`out/hot-full-20261022/` was launched as user service
+`echo-campaign-7cd6f693f03c`; preparation and launch receipts are in
+`out/hot-full-20261022-preparation/`. Do not poll after launch: wait for the
+terminal callback or a status request. No measurement cohorts are inherited.
+The controller validates all 18 unloaded cohorts before the 36 loaded
+payload/worker configurations across LH, DPDK and resident-worker CS-A64.
+
+The frozen manifest uses 1 µs slotted Poisson, prepared TX release RTT,
+2-second loaded warmup, 10-second measurement and 60-second sustained
+confirmation, one trial each. Steps are LH 20k/20k/5k RPC/s and DPDK/CS-A64
+50k/50k/20k for 8/128/1432 B. All three Caladan kthread settings equal workers.
+Paper PDF publication is disabled until final preview review; archive outputs
+use the current loaded/unloaded archive format. Platform launch revision is
+`28c701c3`, microbenchmarks `478437e`, Caladan `8b7a063`.
+
+Foreground preflight and image staging passed: live reservations, hashes,
+CPU isolation, RAM/storage and reused callback evidence. Switch clock-before
+qualification passed. Device port 60 is up; port 32 was down before the normal
+LH cold-program/boot stage, which must establish forwarding before capture.
+Read-only port-manager evidence is retained in preparation. The exact tested
+image is GC-rooted there. The maintainer's Nix GC reclaimed space and removed
+the separate host client environment; its metadata and generator hash were
+recovered directly from the unchanged, hash-verified image. Preparation retains
+both its initial metadata-hash failure and the corrected passing preflight.
+
 ## Prepared dedicated generator — October 22
 
 Microbenchmarks master `478437e` replaces the loaded sender with preallocated,
@@ -53,7 +81,7 @@ The older accounting/lag experiments remain under
 are superseded and never qualify the prepared generator. Avoid copying the full
 platform into Nix merely to resolve a package: source-defined targeted builds
 use the exact pinned Nixpkgs store source, and pin locks are generated with a
-minimal temporary flake. No new full paper acquisition is authorized here.
+minimal temporary flake. The active full campaign above uses this qualification.
 
 ## Loaded duration qualification — October 22
 
