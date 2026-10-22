@@ -36,6 +36,12 @@ def nic_errors_unchanged(before, after):
                for direction in ('rx','tx'))
 
 
+def process_status(process):
+    code=process.poll()
+    return dict(pid=process.pid,argv=process.args,returncode=code,
+                signal=signal.strsignal(-code) if code is not None and code<0 else None)
+
+
 def run(config, peer):
     root=Path(config['output']);root.mkdir(parents=True,exist_ok=False)
     (root/'request.json').write_text(json.dumps(config,indent=2)+'\n')
@@ -45,7 +51,8 @@ def run(config, peer):
     def wait_for(predicate, processes, seconds, label):
         end=time.monotonic()+seconds
         while not predicate():
-            if any(p.poll() is not None for p in processes): raise RuntimeError(label+': process exited')
+            exited=[process_status(p) for p in processes if p.poll() is not None]
+            if exited: raise RuntimeError(label+': process exited: '+json.dumps(exited))
             if time.monotonic()>end: raise TimeoutError(label)
             time.sleep(.1)
     def interrupted(signum,frame): raise RuntimeError('Caladan role interrupted')
@@ -142,12 +149,15 @@ def run(config, peer):
     except BaseException as exc: error=str(exc)
     finally:
         cleanup=[]
+        # Preserve spontaneous exit status before our own termination signals.
+        save('processes-before-cleanup.json',[process_status(p) for p in processes])
         for process in reversed(processes):
             if process.poll() is None:
                 process.send_signal(signal.SIGINT)
                 try:process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     process.kill();process.wait();cleanup.append('forced process termination')
+        save('processes-after-cleanup.json',[process_status(p) for p in processes])
         for path in Path('/dev/hugepages').glob(prefix+'*'):
             if path.is_file():path.unlink()
         for name in reversed(modules):

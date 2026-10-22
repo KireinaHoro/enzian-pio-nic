@@ -51,6 +51,9 @@ their isolation status explicitly. A single resident server spans every unloaded
 capture chunk; the collector exports after the last client drains. Loaded
 cohorts use a probe-free server and quiescent activity-counter export, with no
 software timing, switch capture, or FPGA readout.
+The runner records each process's PID, command, exit code and terminating signal
+before and after cleanup. A spontaneous process exit fails acquisition; retain
+it for diagnosis rather than accepting its missing replies as a loss point.
 
 Set hardware `publish_plots: false` for a baseline-only acquisition so its
 previews remain in the campaign archive until a combined comparison is reviewed.

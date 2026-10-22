@@ -37,6 +37,22 @@ evidence. No reset occurred. Source-only setup fix changes no benchmark binary,
 traffic policy or measurement boundary. Resume receipt: preparation `resume.json`.
 
 
+At 714 completed cohorts, loaded CS-A64 8 B / one worker / 50 kRPC/s
+failed in its 60-second confirmation (`e7add995c96442b8372b/attempt-1`).
+The generator transmitted all 3 million measured requests on schedule with zero
+replies. Apport records responder PID 27405 crashing at 07:45:39 UTC on October
+22; it discarded the core because the process had a separate mount namespace.
+The original wrapper omitted the exit signal. This attempt is invalid acquisition,
+not an accepted loss boundary; the crash cause remains unresolved. Diagnostic-only
+runner changes retain process status before and after cleanup. 103 local tests
+pass. Evidence and restoration review live in
+`out/hot-full-20261021-r2-preparation/caladan-loaded-failure/`.
+Retry the failed point after live restoration and receipt-hash verification,
+preserving all completed cohorts and original failed evidence. If it recurs,
+use the recorded exit signal to guide crash diagnosis; do not tune the watchdog
+or classify process death as ordinary loss.
+
+
 The old `out/hot-full-20261021` remains unchanged, including unsafe state and
 failed capture evidence. The fresh-start authorization explicitly allows the new
 harness cold reset without recovery of the old frozen 19-slot/1,216-byte trace.

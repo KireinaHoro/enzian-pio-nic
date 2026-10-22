@@ -7,6 +7,19 @@ from .import_caladan import caladan
 
 
 class CaladanImportTests(unittest.TestCase):
+    def test_process_exit_evidence(self):
+        from unittest.mock import Mock
+        import signal
+        from .caladan_peer import process_status
+        process=Mock(pid=123,args=['echo_caladan','runtime.config'])
+        for code in (None,0,1,-signal.SIGABRT,-signal.SIGRTMIN-5):
+            process.poll.return_value=code
+            status=process_status(process)
+            self.assertEqual(status['returncode'],code)
+            self.assertEqual(status['pid'],123)
+            self.assertEqual(status['argv'],process.args)
+            self.assertEqual(status['signal'],signal.strsignal(-code) if code is not None and code<0 else None)
+
     def test_partition_and_rejections(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
