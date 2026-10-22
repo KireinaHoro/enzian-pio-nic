@@ -69,8 +69,14 @@ cohort, loaded 2-second warmup/10-second measurement, one repetition, and
 The previous stop-after-unloaded control remains only in its old campaign root.
 This new root is authorized for both modes. On success review final previews;
 on failure inspect the named preserved stage before recovery. No completion or
-new hardware measurement result is implied by service submission. Paper PDFs
-remain unchanged until successful validation and review.
+new hardware measurement result is implied by service submission.
+
+The two unloaded paper PDFs were visually reviewed and updated on October 22
+from the completed 18-cohort version-3 dataset. Small breakdown labels and
+1432 B CDF arrows were separated. Source archive:
+`data/paper/echo/hot-unloaded-20261022.tar.gz`; previews and PDF checks:
+`out/unloaded-reviewed-20261022/`. Paper presentation changes remain uncommitted;
+colleague prose edits were untouched. Loaded figure replacement awaits completion.
 
 ## Loaded chart accounting
 

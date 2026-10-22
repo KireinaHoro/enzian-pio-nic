@@ -49,7 +49,7 @@ def _archive_unloaded(inputs, destination):
         instrumentation='CDF probes compiled out; breakdown uses separate probe-enabled cohorts',
         warmup='128 excluded requests per resident-worker capture chunk',
         resources='One RPC worker per system; CS-A64 additionally uses IOKernel control CPU42 and dataplane CPU43',
-        limitations='Historical LH/DPDK and new CS-A64 acquisitions retain separate identities. CPU-wire residual is combined, not directional. Loaded data excluded.'))
+        limitations='Original acquisition identities are retained. CPU-wire residual is combined, not directional. Loaded data excluded.'))
 
 
 if __name__=='__main__':

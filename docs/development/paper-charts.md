@@ -85,7 +85,7 @@ Trial statistics encode infinite quantiles as JSON `null` with an explicit
 `p99_infinite`/`median_infinite` flag. Statistics retain the first excluded rate,
 loss and all excluded points' goodput/loss; zero-reply trials have infinite P99.
 The unloaded comparison uses the tracked [18-cohort archive](../../data/paper/echo/README.md)
-for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/hot-unloaded-20261021.tar.gz`.
+for LH, DPDK and CS-A64. Regenerate it with `--input data/paper/echo/hot-unloaded-20261022.tar.gz`.
 Both unloaded PDFs are included by the current paper source. The completed
 LH/DPDK loaded dataset is `data/paper/echo/hot-loaded-20261019.tar.gz` (24
 cohorts covering all payloads and worker counts); its three figures are included.

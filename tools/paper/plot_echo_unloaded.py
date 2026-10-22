@@ -55,9 +55,9 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
                 128: {'LH': ((.43,.38),(.43,.82)),
                       'DPDK': ((.17,.18),(.17,.66)),
                       'CS-A64': ((.70,.38),(.70,.82))},
-                1432: {'LH': ((.49,.28),(.49,.80)),
+                1432: {'LH': ((.84,.28),(.84,.78)),
                        'DPDK': ((.29,.18),(.29,.70)),
-                       'CS-A64': ((.72,.40),(.72,.84))},
+                       'CS-A64': ((.53,.31),(.59,.84))},
             }
             for label,value,probability,position in zip(
                     ('P50','P99'),(median,p99),(.5,.99),positions[size][system]):
@@ -110,7 +110,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
                 elif mean>=.5:
                     ax.text(center,len(systems)-1-i,f'{mean:.3f}',ha='center',va='center',fontsize=6.5,rotation=90)
                 else:
-                    below=label=='Network stack'
+                    below=label in ('RPC (un)marshal','Network stack')
                     ax.annotate('0' if mean==0 else f'{mean:.3f}',
                                 (center,len(systems)-1-i+(-.225 if below else .225)),
                                 xytext=(0,-3 if below else 3),textcoords='offset points',ha='center',

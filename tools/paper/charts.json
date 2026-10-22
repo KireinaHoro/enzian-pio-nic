@@ -55,8 +55,8 @@
       "id": "echo-unloaded-hot-latency-cdf",
       "output": "../paper/plots/echo-unloaded-hot-latency-cdf.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/hot-unloaded-20261021.tar.gz",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-20261021.tar.gz",
+      "manifest": "data/paper/echo/hot-unloaded-20261022.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-20261022.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
@@ -70,8 +70,8 @@
       "id": "echo-unloaded-hot-latency-breakdown",
       "output": "../paper/plots/echo-unloaded-hot-latency-breakdown.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/hot-unloaded-20261021.tar.gz",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-20261021.tar.gz",
+      "manifest": "data/paper/echo/hot-unloaded-20261022.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-20261022.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
