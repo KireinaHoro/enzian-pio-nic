@@ -149,7 +149,8 @@ def finalize(config,h,request,campaign):
         if source.exists(): shutil.copyfile(source,destination/name)
     atomic(destination/'acquisition.json',dict(files=provenance,source=str(campaign),
         arrivals=sorted({t.get('arrival_model','fixed-spacing') for r in loaded for p in r['points'] for t in p['trials']}),
-        arrival_coverage='Poisson deferred to memcached',
+        arrival_coverage=('slotted Poisson hot echo' if all(t.get('arrival_model')=='slotted-poisson'
+            for r in loaded for p in r['points'] for t in p['trials']) else 'legacy loaded arrival models'),
         loaded_boundary='call entry to RX-burst observation; 10 ms response deadline',
         unloaded_boundary='Tofino wire-to-wire CDF; CPU queue/protocol/handler breakdown with combined CPU-wire residual uses its own instrumented cohort'))
     output=h.directory/'plots'
