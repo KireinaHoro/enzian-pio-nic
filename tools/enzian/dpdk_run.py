@@ -167,6 +167,10 @@ def main():
             summary['status'] = 'failed'
         try:
             if mlx5:
+                # PMD initialization can change MTU while the bifurcated driver
+                # remains bound. Restore it before verifying the saved netdev.
+                command('ip','link','set',interface,'mtu',str(addresses['mtu']),
+                        'address',addresses['address'])
                 command('ip','link','set',interface,'up' if 'UP' in addresses['flags'] else 'down')
             if changed_driver:
                 write(dev/'driver_override',original_driver)
