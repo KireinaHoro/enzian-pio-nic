@@ -65,13 +65,13 @@ def validate_role(root, request, binary_sha):
         with (root/'samples.csv').open() as stream: workers=list(csv.DictReader(stream))
         if len(workers)!=len(request['cpus']) or [int(r['lcore']) for r in workers]!=request['cpus']:
             raise ValueError('Responder worker placement differs')
-        activity=[int(r['measured']) for r in workers]
+        activity=[int(r['completed']) for r in workers]
         from .policy import validate_activity
         validate_activity(activity,len(request['cpus']),allow_zero=True)
         nic=read('samples.csv.nic.json')
         if any(nic[k] for k in ('rx_errors','tx_errors','rx_no_buffer')):
             raise ValueError('Responder NIC health/resource failure')
-        result.update(worker_activity=activity,nic=nic)
+        result.update(worker_activity=activity,worker_activity_scope='warmup-through-drain',nic=nic)
     return result
 
 

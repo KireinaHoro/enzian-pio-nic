@@ -50,18 +50,19 @@ class Latencies:
 
 def validate_aggregate(summary):
     s = summary
+    poisson=s.get('arrival_model')=='slotted-poisson'
+    if poisson:
+        from .poisson import validate
+        validate(s)
     if (s.get('observation_mode') != 'aggregate' or s.get('histogram_bin_ns') != 100
             or s.get('tx_phase_boundary') != 'admission-entry'
-            or s.get('arrival_model') != 'paced-batch'
+            or s.get('arrival_model') not in ('paced-batch','slotted-poisson')
             or s.get('timestamp_retention_ns') != 30_000_000
             or s.get('rx_forward_limit_ns') != 10_000_000):
         raise ValueError('Unknown aggregate observation contract')
     cores = len(s['generator_cpus'])
     if not 1 <= cores <= 32 or len(set(s['generator_cpus'])) != cores:
         raise ValueError('Invalid aggregate placement')
-    batch = max(1,min(s['batch_max'],s['rate']*s['batch_target_ns']//(cores*1_000_000_000)))
-    if not 1 < s['batch_max'] <= 64 or not 0 < s['batch_target_ns'] <= 1_000_000 or s['batch_size'] != batch:
-        raise ValueError('Invalid aggregate batch configuration')
     if s['send_end_ns']-s['send_start_ns'] != s['duration_ns']:
         raise ValueError('Aggregate send interval mismatch')
     fields = ('attempted','transmitted','on_time','late','duplicates','generator_misses',
@@ -69,10 +70,11 @@ def validate_aggregate(summary):
               'lag_sum_ns','lag_max_ns','schedule_violations')
     if len(s['phases']) != 2:
         raise ValueError('Aggregate needs warmup and measurement')
-    for phase, duration in zip(s['phases'], (s['warmup_ns'],s['duration_ns'])):
+    for index,(phase,duration) in enumerate(zip(s['phases'], (s['warmup_ns'],s['duration_ns']))):
+        expected=(s['warmup_count'] if index==0 else s['scheduled_count']) if poisson else None
         if any(type(phase[k]) is not int or phase[k] < 0 for k in fields):
             raise ValueError('Invalid aggregate counters')
-        if (duration*s['rate'] % 1_000_000_000 or phase['attempted'] != duration*s['rate']//1_000_000_000
+        if ((poisson and phase['attempted'] != expected)
                 or phase['attempted'] != phase['transmitted']
                 or any(phase[k] for k in ('generator_misses','tx_admission_failures','malformed','schedule_violations'))
                 or phase['on_time']+phase['late'] > phase['transmitted']
@@ -80,6 +82,8 @@ def validate_aggregate(summary):
                 or phase['lag_count'] != phase['attempted']
                 or not phase['lag_max_ns'] <= phase['lag_sum_ns'] <= phase['lag_count']*phase['lag_max_ns']):
             raise ValueError('Aggregate phase accounting or schedule violation')
+        if poisson and phase['lag_max_ns']>s['max_send_lag_ns']:
+            raise ValueError('Poisson release lag exceeds bound')
     if any(s['phases'][1][k] != s[k] for k in fields[1:9]):
         raise ValueError('Aggregate summary counters disagree')
     counts = []

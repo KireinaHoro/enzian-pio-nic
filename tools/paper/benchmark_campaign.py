@@ -144,13 +144,10 @@ class Campaign:
                 raise ValueError('Workload/warmup boundary provenance differs from plan')
             if trial['generator_cpus'] != self.config['generator_cpus']:
                 raise ValueError('Actual generator CPU placement differs from manifest')
-            if self.config.get('batch_max',1)>1:
-                if (trial.get('arrival_model')!='paced-batch'
-                        or trial.get('batch_max')!=self.config['batch_max']
-                        or trial.get('batch_target_ns')!=self.config.get('batch_target_ns',250000)):
-                    raise ValueError('Batch arrival configuration differs from plan')
-            elif trial.get('arrival_model')=='paced-batch':
-                raise ValueError('Unexpected batched arrivals')
+            from campaign.poisson import validate
+            validate(trial)
+            if any(trial.get(k)!=request[k] for k in ('seed','slot_ns','max_send_lag_ns')):
+                raise ValueError('Slotted-Poisson configuration differs from plan')
             if trial['rate'] != request['rate'] or trial['duration_ns'] != request['duration_ms']*1_000_000:
                 raise ValueError('Acquisition duration/rate differs from frozen plan')
             files.update(trial['files'])
@@ -199,9 +196,9 @@ class Campaign:
         warmup = loaded['warmup_ms']
         if phase == 'rehearsal':
             duration, warmup = settings['rehearsal']['loaded_measurement_ms'], settings['rehearsal']['loaded_warmup_ms']
-        arrival = (dict(arrival_model='paced-batch', batch_max=self.config['batch_max'],
-                        batch_target_ns=self.config.get('batch_target_ns',250000))
-                   if self.config.get('batch_max',1)>1 else {})
+        arrival=dict(arrival_model='slotted-poisson',slot_ns=self.config.get('slot_ns',1000),
+                     seed=(self.config.get('arrival_seed',1)+trial+(0x1000000 if sustained else 0)-1)%0xffffffff+1,
+                     max_send_lag_ns=self.config.get('max_send_lag_ns',10000))
         result = self.stage('loaded', dict(**arrival, **self.execution_model_request(system), system=system, payload_bytes=size, workers=workers,
             rate=rate, phase=phase, repetition=trial, duration_ms=duration, warmup_ms=warmup,
             deadline_ms=10, generator_cpus=self.config['generator_cpus'], flows=self.config['flows']))
@@ -382,10 +379,16 @@ def config_check(config):
         raise ValueError('Scope must be unloaded-full, unloaded-rehearsal, rehearsal or full')
     if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):
         raise ValueError('Between one and 32 distinct isolated generator CPUs required')
-    if not 1<=config.get('batch_max',1)<=64 or not 0<config.get('batch_target_ns',250000)<=1_000_000:
-        raise ValueError('Invalid batching configuration')
-    if type(config.get('aggregate',False)) is not bool or (config.get('aggregate',False) and config.get('batch_max',1)==1):
-        raise ValueError('Aggregate observations require paced batches and a boolean flag')
+    if config.get('arrival_model','slotted-poisson')!='slotted-poisson':
+        raise ValueError('Only slotted-poisson loaded arrivals are supported')
+    if any(k in config for k in ('batch_max','batch_target_ns')):
+        raise ValueError('Retired deterministic pacing options; use slot_ns')
+    if (type(config.get('arrival_seed',1)) is not int or not 1<=config.get('arrival_seed',1)<=0xffffffff
+            or type(config.get('slot_ns',1000)) is not int or not 1<=config.get('slot_ns',1000)<=1000000
+            or type(config.get('max_send_lag_ns',10000)) is not int
+            or not 1<=config.get('max_send_lag_ns',10000)<=1000000
+            or type(config.get('aggregate',False)) is not bool):
+        raise ValueError('Invalid slotted-Poisson schedule/observation configuration')
     if config['flows'] < len(config['generator_cpus']) or config['initial_rate'] < 1 or not 1 <= config['max_extensions'] <= 30:
         raise ValueError('Invalid flow/rate/extension budget')
     if not config.get('thread') or not config.get('adapter'):
@@ -434,6 +437,9 @@ def main():
     if args.command == 'launch':
         config = read(args.config)
         saved = read(root/'config.json') if (root/'config.json').exists() else None
+        if saved is None:
+            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,max_send_lag_ns=10000).items():
+                config.setdefault(k,v)
         if saved is None or 'measurement' in saved:
             config['measurement'] = measurement_settings(config)
         config_check(config)

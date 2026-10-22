@@ -62,11 +62,13 @@ class Acquisition:
             source_cidr=source['ip']+'/'+str(source['prefix']),
             deadline_ms=1000 if server and not loaded and c.get('tofino') else 10,flows=c['flows'] if loaded else 1,
             payload_bytes=r['payload_bytes'],count=16 if setup else r.get('count',1),warmup=0 if setup else r.get('warmup',0),
-            aggregate=c.get('aggregate',False),batch_max=c.get('batch_max',1),batch_target_ns=c.get('batch_target_ns',250000),
+            aggregate=c.get('aggregate',False),
             rate=r.get('rate',0),duration_ms=r.get('duration_ms',0),warmup_ms=r.get('warmup_ms',0),
             instrumentation='off' if setup else r.get('instrumentation','off'),
             tracking_mib=c['tracking_mib'],timeout_seconds=900,
             gap_ns=0 if setup or loaded else c.get('tofino',{}).get('gap_ns',0))
+        if loaded:
+            result.update(arrival_model='slotted-poisson',slot_ns=r['slot_ns'],seed=r['seed'],max_send_lag_ns=r['max_send_lag_ns'])
         if server and system=='CS-A64':
             mode=result['instrumentation']; variant=c['caladan_variants'][mode]
             helper=Path(__file__).with_name('caladan_peer.py')
@@ -358,6 +360,7 @@ assert pathlib.Path('/sys/class/net/enP5p144s0np0/device/driver').resolve().name
                 else: activity=evidence['server']['worker_activity']
                 result.update(csv=str(paths['client']/'samples.csv.gz'),summary=str(paths['client']/'samples.csv.open.json'),
                     generator_cpus=c['generator_cpus'],flows=c['flows'],worker_activity=activity,
+                    worker_activity_scope='warmup-through-drain',
                     trace_readouts=0,software_profiling=False,fpga_recording=False)
             else:
                 options={k:r[k] for k in ('count','warmup','instrumentation','payload_bytes')}

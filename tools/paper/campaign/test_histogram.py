@@ -32,9 +32,9 @@ class Histogram(unittest.TestCase):
             generator_misses=0,tx_admission_failures=0,malformed=0,server_rejections=10,
             lag_count=100,lag_sum_ns=10000,lag_max_ns=100,schedule_violations=0)
         s=dict(schema=3,observation_mode='aggregate',histogram_bin_ns=100,
-            tx_phase_boundary='admission-entry',arrival_model='paced-batch',
+            tx_phase_boundary='admission-entry',arrival_model='slotted-poisson',schedule_version='splitmix64-knuth-slots-v1',seed=1,slot_ns=1000,max_send_lag_ns=10000,tx_burst_max=64,warmup_count=100,scheduled_count=100,phase_core_counts=[[100],[100]],
             timestamp_retention_ns=30_000_000,rx_forward_limit_ns=10_000_000,
-            generator_cpus=[16],batch_max=64,batch_target_ns=250000,batch_size=1,
+            generator_cpus=[16],
             rate=100,warmup_ns=1_000_000_000,duration_ns=1_000_000_000,
             send_start_ns=2_000_000_000,send_end_ns=3_000_000_000,deadline_ns=10_000_000,
             phases=[dict(phase),dict(phase)],latency_histogram=[[120,79],[100000,1]],**phase)
@@ -47,6 +47,6 @@ class Histogram(unittest.TestCase):
                 lambda x:x.update(latency_histogram=[[120,78],[100000,1]]),
                 lambda x:x.update(latency_histogram=[[120,79],[120,1]]),
                 lambda x:x.update(send_end_ns=x['send_end_ns']+1),
-                lambda x:x.update(batch_size=2)):
+                lambda x:x.update(slot_ns=0)):
             bad=copy.deepcopy(s);modify(bad)
             with self.assertRaises(ValueError):validate_aggregate(bad)

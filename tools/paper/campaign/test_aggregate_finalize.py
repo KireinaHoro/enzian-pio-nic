@@ -25,11 +25,13 @@ class AggregateFinalize(unittest.TestCase):
                     return dict(attempted=n,transmitted=n,on_time=n,late=0,duplicates=0,
                         generator_misses=0,tx_admission_failures=0,malformed=0,server_rejections=0,
                         lag_count=n,lag_sum_ns=n*100,lag_max_ns=100,schedule_violations=0)
-                measured=phase(rate*seconds);measured['on_time']-=missing
+                measured=phase(rate*seconds+7);measured['on_time']-=missing
                 s=dict(schema=3,observation_mode='aggregate',histogram_bin_ns=100,
                     timestamp_retention_ns=30_000_000,rx_forward_limit_ns=10_000_000,
-                    generator_cpus=[16],arrival_model='paced-batch',batch_max=64,
-                    batch_target_ns=250000,batch_size=1,tx_phase_boundary='admission-entry',
+                    generator_cpus=[16],arrival_model='slotted-poisson',schedule_version='splitmix64-knuth-slots-v1',
+                    seed=1,slot_ns=1000,max_send_lag_ns=10000,tx_burst_max=64,
+                    warmup_count=2*rate,scheduled_count=rate*seconds+7,phase_core_counts=[[2*rate],[rate*seconds+7]],
+                    tx_phase_boundary='admission-entry',
                     benchmark='echo'+str(size),rate=rate,warmup_ns=2_000_000_000,duration_ns=seconds*10**9,
                     send_start_ns=2_000_000_000,send_end_ns=(2+seconds)*10**9,
                     deadline_ns=10_000_000,valid=True,phases=[phase(2*rate),measured],

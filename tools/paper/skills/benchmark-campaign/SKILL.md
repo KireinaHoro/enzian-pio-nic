@@ -113,12 +113,15 @@ detailed diagnostic mode); do not count duplicate rejection
 replies as additional lost requests. Generator misses, admission failure, corruption and resource exhaustion invalidate
 a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
 not invalidation conditions; enforce the requested absolute send schedule in
-both warmup and measurement. The current high-throughput campaign uses paced
-adaptive TX batches (up to 64 packets, target 250 microseconds per core), configured
-and validated by the maintained generator and importer. Record the actual batch
-size and arrival model; describe this as bursty paced traffic. Use identical
-batch policy for both systems, and do not merge earlier fixed-spacing loaded
-cohorts into a batched grid. Unloaded cohorts remain eligible for reviewed reuse.
+both warmup and measurement. Loaded generation uses slotted Poisson batches: configurable aggregate
+`slot_ns` (default 1000 ns), reproducible `arrival_seed`, and bounded
+`max_send_lag_ns`. Successive slots belong to successive generator cores;
+Poisson draws are never clipped to the 64-packet TX-call limit. Record sampled
+phase/core counts; do not require rate × duration requests. Equal-spacing and
+adaptive deterministic-batch senders are retired. Use the same slot length
+across systems/rates and qualify its sustainable rate before collection.
+Do not merge old arrival models into a slotted-Poisson series.
+Unloaded cohorts remain eligible for reviewed reuse.
 Set counts, warmups, durations, repetitions and per-payload sweep steps in the
 campaign manifest `measurement` object; see the campaign guide. Defaults use
 one trial per loaded grid point and one sustained trial per candidate.

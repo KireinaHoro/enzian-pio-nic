@@ -79,15 +79,17 @@ def run(config):
     server=config['role']=='server'; loaded=config['mode']=='loaded'
     if loaded and not server:
         slots=config['rate']*(config['warmup_ms']+config['duration_ms'])//1000
+        import math
+        slots+=math.ceil(32*math.sqrt(slots)+1024)
         # ThunderX cache-line alignment makes each tracking record 128 bytes.
         tracking=slots*128;output=slots*256
         if config.get('aggregate',False):
             cores=len(config['cpus'])
-            batch=max(1,min(config['batch_max'],config['rate']*config['batch_target_ns']//(cores*1_000_000_000)))
-            window=(config['rate']*50_000_000+cores*1_000_000_000-1)//(cores*1_000_000_000)+2*batch
+            window=(config['rate']*50_000_000+cores*1_000_000_000-1)//(cores*1_000_000_000)+1024
             stride=((slots+cores-1)//cores+63)//64*64
             tracking=cores*(stride+window*128+100001*8)
             output=4*1024*1024
+        tracking+=8*slots
         mem=dict(line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())
         available=int(mem['MemAvailable'].split()[0])*1024
         space=os.statvfs(root);free=space.f_bavail*space.f_frsize
@@ -116,8 +118,9 @@ def run(config):
             if config['instrumentation']=='breakdown': env['LH_ECHO_PROFILE']='1'
             if config.get('chunk_requests'):env['LH_ECHO_CHUNK_REQUESTS']=str(config['chunk_requests'])
     elif loaded:
-        env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',LH_BENCH_BATCH_MAX=str(config.get('batch_max',1)),
-                   LH_BENCH_BATCH_TARGET_NS=str(config.get('batch_target_ns',250000)),
+        env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',
+                   LH_BENCH_SLOT_NS=str(config['slot_ns']),LH_BENCH_SEED=str(config['seed']),
+                   LH_BENCH_MAX_SEND_LAG_NS=str(config['max_send_lag_ns']),
                    LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),
                    LH_BENCH_TRACKING_MIB=str(config['tracking_mib']),LH_BENCH_DRAINED_FILE=str(root/'drained'))
@@ -126,7 +129,9 @@ def run(config):
         # next_send across warmup and measurement. load_phase resets it.
         env['LH_BENCH_GAP_NS']=str(config.get('gap_ns',0))
     count=config.get('count',1)
-    warmup=config['rate']*config['warmup_ms']//1000 if loaded and server else config.get('warmup',0)
+    # Loaded responder activity covers all traffic; only the client owns the
+    # sampled warmup/measurement split. Never estimate an XID threshold as rate*T.
+    warmup=0 if loaded and server else config.get('warmup',0)
     args=runner+[config['binary'],'--',*map(str,config['endpoint']),str(count),str(warmup),
                  str(config['deadline_ms']*1000),'echo'+str(config['payload_bytes']),str(root/'samples.csv')]
     original=None; process=None; failure=None; code=None

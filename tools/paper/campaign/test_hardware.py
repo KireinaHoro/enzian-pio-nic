@@ -111,7 +111,7 @@ class Hardware(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             for stage,flows in (('unloaded',1),('loaded',64)):
-                request=dict(stage=stage,system='DPDK',workers=1,payload_bytes=8)
+                request=dict(stage=stage,slot_ns=1000,seed=1,max_send_lag_ns=10000,system='DPDK',workers=1,payload_bytes=8)
                 (root/'request.json').write_text(json.dumps(request))
                 acquisition=Acquisition(config,request,root,root)
                 for role in ('client','server'):

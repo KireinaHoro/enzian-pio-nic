@@ -1,5 +1,39 @@
 # Measurement continuation
 
+## Slotted Poisson generator — October 22
+
+Loaded generation now uses configurable aggregate `slot_ns` (default 1000),
+`arrival_seed` and `max_send_lag_ns` (default 10000). Independent slot counts,
+round-robin slot ownership, phase/core XID ranges, split TX calls above 64 and
+sampled phase counts replace deterministic open-loop pacing and rate×duration
+assumptions. Platform pins microbenchmarks `689c085` (the hardware-tested generator was
+`99cfadb`; `689c085` adds a pre-traffic overflow rejection); closed-loop unloaded pacing
+and accepted historical archives remain unchanged. The campaign guide documents
+the schedule and storage contract.
+
+Validation is in `out/slotted-poisson-20261022/`: native/AArch64 Nix builds,
+native packaged C checks, seven real PCAP replay cases including induced stalls
+and >64-packet draws, and 114 campaign tests pass. An ambient `nix develop`
+`make check` could not link libtirpc; packaged native Nix checks did pass.
+
+Two brief 1 µs / 3.25 M RPC/s hardware attempts exceeded the strict 10 µs lag
+bound during opening warmup slots; neither reached measurement. A separate
+100 µs-lag capacity diagnostic completed 200 ms warmup plus two seconds measured:
+8 B at requested 3.25 M RPC/s transmitted all 6,499,938 sampled requests;
+1432 B at 1.32 M transmitted all 2,640,883. No generator misses, partial TX
+admission, or client RX misses occurred. Measured mean start lags were 2.282 and
+2.154 µs; maxima 75.53 and 78.21 µs. This establishes brief capacity under the
+relaxed guard, not faithful 1 µs wire timing. Wire arrival distribution was not
+captured. Keep all four diagnostic attempts outside paper datasets. No full
+campaign or resident-Caladan acquisition was started.
+
+The first failed server wrapper exposed a pre-existing mlx5 MTU restoration
+omission. The shared runner now restores MTU/MAC before checking the netdev.
+The saved 9000-byte MTU was restored without reset; the retry and diagnostics
+report both roles restored. Test cleanup and final host checks are recorded in
+that evidence directory. Keep 1 µs timing unqualified until send lag/wire timing
+is resolved; do not loosen the default guard silently for a paper campaign.
+
 ## Full hot campaign complete — October 22
 
 `out/hot-full-20261021-r4` completed 959/959 acquisitions. Final stage
@@ -20,7 +54,7 @@ original system IDs, requests and raw evidence remain intact. The maintainer
 asked that collection finish. The base echo build now defaults to resident
 workers (microbenchmarks `84c68c0`, Caladan `8b7a063`); native acceptance and fresh
 measurements remain pending. See [Caladan continuation](caladan.md#resident-base-echo-preparation--october-22).
-Platform pins `84c68c0`. Validation and reviewed partial previews are in
+Resident preparation validation and reviewed partial previews are in
 `out/caladan-resident-preparation/`; no resident image was deployed or launched.
 
 ## Timestamp accounting implementation — October 21

@@ -136,7 +136,7 @@ payloads. The same generator drives both Lauberhorn and DPDK responders.
 The client needs neither a programmed FPGA nor the Lauberhorn kernel module.
 
 Unloaded acquisition uses one outstanding request and Tofino server-facing
-wire timestamps. Loaded acquisition uses response-independent paced batches
+wire timestamps. Loaded acquisition uses response-independent slotted Poisson batches
 across generator CPUs and aggregate client RTT observations. Warmup is excluded
 from reported distributions but retained in detailed records where required for
 correlation. Request IDs distinguish matching replies from stale or unrelated
@@ -331,28 +331,49 @@ isolated CPUs and identical flows for both systems. Do not set profiling or
 FPGA recording. Single-outstanding unloaded acquisition omits the open-loop
 variables and the legacy window variable.
 
-Loaded campaigns may select paced batches with `batch_max: 64` and
-`batch_target_ns: 250000` in both launch and hardware manifests. These become
-`LH_BENCH_BATCH_MAX` and `LH_BENCH_BATCH_TARGET_NS` on the client. The actual
-batch size is `clamp(floor(rate * target_ns / (cores * 1e9)), 1, batch_max)`.
-Each core submits one mbuf burst per absolute batch opportunity; core schedules
-are staggered over the first half of each equal-duration round. The partial
-final round gets the same duration as earlier rounds, leaving preparation and
-admission margin at the phase boundary. Warmup and measurement
-are scheduled separately so a burst never contains both phases. Missed batches
-are recorded without catch-up sends; partial TX admission invalidates the point.
-This is a paced, bursty workload, not evenly spaced individual arrivals or
-Poisson traffic. Record the actual batch size and schedule in every summary.
-Both systems use the same policy. Do not combine these loaded points with the
-older fixed-spacing cohorts; compatible unloaded evidence can be inherited.
+Loaded operation uses **slotted Poisson arrivals**. Configure the campaign
+manifest with `"slot_ns": 1000`, `"arrival_seed": 1` and
+`"max_send_lag_ns": 10000`; defaults are frozen into new campaign configurations.
+These become `LH_BENCH_SLOT_NS`, `LH_BENCH_SEED` and
+`LH_BENCH_MAX_SEND_LAG_NS` on the generator. Slot length is the aggregate
+interval: slot k belongs to generator core `k % cores`, so 32 cores at 1 µs
+aggregate spacing each handle one slot every 32 µs. Each slot independently
+draws `Poisson(rate * slot_width_ns / 1e9)` requests; the final partial slot uses
+its actual width. Empty slots transmit nothing. All requests in a slot retain
+the slot deadline. Measured counts fluctuate around rate × duration; validate
+against the sampled counts, never an assumed exact product.
 
-With the default `batch_max: 1`, the legacy fixed-spacing mode is retained.
-The aggregate schedule is `start + floor(slot * 1e9 / rate)`; core `i` owns
-slots `i, i+cores, ...`. Replies and TX stalls never reset it. A slot missed by
-one local interarrival interval is recorded as a generator miss; no queued
-catch-up batch is transmitted. RTT starts before encoding and ends at the
-RX-burst observation, before forwarding to the owner and validation. Scheduled
-start and lag are separate CSV fields. Reply classification uses that original
+SplitMix64 and chunked Knuth sampling define the versioned reproducible schedule
+`splitmix64-knuth-slots-v1`. Warmup uses a separate seeded stream; repetitions
+and sustained confirmations record their resolved seeds. Generation and storage
+allocation occur before traffic. XIDs form contiguous core ranges within each
+phase; XID order is not temporal order. Reply routing and bounded aggregate
+retirement use the recorded core/phase ownership. Every summary retains the
+seed, slot length, actual phase/core counts, TX burst limit and send-lag bound.
+Loaded responder activity counts completed calls from warmup through drain;
+the client owns the sampled phase split and measured goodput population.
+
+The sender bulk-allocates and encodes each sampled batch, then submits TX calls
+of at most 64 packets. Larger draws use additional calls at the same deadline;
+counts are never truncated. Warmup and measurement batches remain separate.
+Preparation, lock contention or TX calls exceeding the slot's send-lag bound
+invalidate the trial; missed slots never cause catch-up traffic. The bound
+measures generator scheduling error, not an allowance to change the slot length.
+RTT still starts before request encoding and ends at RX-burst observation.
+The phase is selected by the scheduled slot; bounded TX completion may extend
+past the nominal phase boundary. Absolute scheduled time and start lag remain
+separate observations.
+
+The former equal-spacing and adaptive deterministic-batch generators and their
+rate × duration count assumptions are retired. Their environment/configuration
+options are rejected. Historical accepted archives remain immutable and readable
+for plotting; archive loading retains counters and hashes without reimplementing
+the retired schedule. New slotted cohorts require a fresh campaign identity.
+Before a paper run, qualify the chosen slot length at the intended maximum rates
+and check actual emission timing; scheduled slots and CPU admission timestamps
+alone do not establish the wire arrival distribution.
+
+Reply classification uses that original
 RX timestamp even if owner processing is delayed. The 10 ms deadline is
 relative to call entry; the final drain does not extend the send interval.
 A bounded additional 10 ms drain observes late replies; later arrivals remain
@@ -419,7 +440,7 @@ The general `trafficGeneratorImage` remains independent of native runtime builds
 ## Compact loaded observations
 
 Set `aggregate: true` in both launch and hardware manifests to select
-`LH_BENCH_AGGREGATE=1`. This requires paced batches and exports schema 3.
+`LH_BENCH_AGGREGATE=1`. This exports schema 3 for slotted Poisson batches.
 The send schedule, full payload validation, RX-burst RTT endpoint and 10 ms
 response deadline are unchanged. Unloaded measurements retain detailed rows.
 Detailed loaded CSV mode remains available with `aggregate: false` for diagnosis.
@@ -539,6 +560,13 @@ Loaded warmup is a duration preceding every repetition, not separate trials.
     }
   }
 }
+```
+
+The top-level arrival controls are independent of the per-payload sweep steps:
+
+```json
+{"arrival_model": "slotted-poisson", "slot_ns": 1000,
+ "arrival_seed": 1, "max_send_lag_ns": 10000}
 ```
 
 Launch resolves defaults into the saved `config.json`; partial input manifests
@@ -685,8 +713,8 @@ offered-rate ordering and nonmonotonic goodput. A vertical upward infinity ray
 marks the last qualifying point once any repetition exceeds 1% loss. See the
 [chart contract](paper-charts.md) for the exact percentile and stop definitions. Overload plots retain every rate
 and trial, with a 1% line. Confirmed peak plots show the single sustained trial; no between-trial variation is measured.
-Current loaded campaigns cover paced batch arrivals; the earlier fixed-spacing
-measurements remain separate. Poisson arrivals are deferred to memcached.
+New loaded campaigns use configurable slotted Poisson arrivals. Historical
+paced-batch datasets remain separate and retain their recorded arrival model.
 Unloaded CDF and breakdown use separate cohorts under the
 [wire-to-wire contract](../research/hot-measurement.md). Do not assign
 instrumented components to uninstrumented totals or describe elapsed service

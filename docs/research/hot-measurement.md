@@ -57,7 +57,7 @@ Reject unexplained negative residuals; do not clamp. Report clock-rate and
 probe uncertainty. These elapsed components are not CPU utilization estimates.
 
 Loaded cases use compiled-out probes and client RTT, without switch capture,
-FPGA readout or NIC PTP. Keep the existing 32-core paced batches, deadline,
+FPGA readout or NIC PTP. Use configurable aggregate slotted-Poisson arrivals over 32 generator cores; retain the deadline,
 loss/rejection accounting, aggregate histograms and complete overload grid.
 
 For historical FPGA-recorder comparisons, use the
