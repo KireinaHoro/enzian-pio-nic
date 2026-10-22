@@ -31,6 +31,21 @@ exports directly. Stage matching bitstream, generated headers, module, runtime
 and application artifacts with hashes. Use Nix and source-defined build targets.
 Dated board notes are provenance, not current reservations or current state.
 
+## EMG command safety
+
+`emg` is a simple Bash script with fragile argument parsing. Execute only command
+forms and options already recorded in the repository's provisioning documentation,
+successful acquisition evidence, or explicit maintainer instructions. Never probe
+`emg` with `--help`, `-h`, guessed options/subcommands, or a bare invocation to
+discover usage. This prohibition includes help flags after a valid machine name:
+`emg acquire MACHINE --help` can acquire a machine and create a volume.
+
+When the needed command is not recorded, inspect the script read-only and ask the
+maintainer for the supported command before executing it. For reacquisition, use
+the recorded existing volume and boot settings; create a new volume only when
+requested. Verify the resulting reservation and volume assignment through the
+recorded inventory commands.
+
 ## Fresh reservations and root-volume names
 
 Follow [fresh root-volume safeguards](../../../../docs/development/validation.md#fresh-root-volume-safeguards).
