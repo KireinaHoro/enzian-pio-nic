@@ -78,19 +78,21 @@ def run(config):
     (root/'manifest.json').write_bytes(manifest.read_bytes())
     server=config['role']=='server'; loaded=config['mode']=='loaded'
     if loaded and not server:
+        if not 4<=len(config['cpus'])<=32 or len(config['cpus'])%4:
+            raise ValueError('Loaded generator CPU pool requires groups of four')
         slots=config['rate']*(config['warmup_ms']+config['duration_ms'])//1000
         import math
         slots+=math.ceil(32*math.sqrt(slots)+1024)
         # ThunderX cache-line alignment makes each tracking record 128 bytes.
         tracking=slots*128;output=slots*256
         if config.get('aggregate',False):
-            cores=len(config['cpus'])
+            cores=len(config['cpus'])//4
             window=(config['rate']*50_000_000+cores*1_000_000_000-1)//(cores*1_000_000_000)+1024
             stride=((slots+cores-1)//cores+63)//64*64
             tracking=cores*(stride+window*128+100001*8+8192*128)
             output=4*1024*1024
         windows=(config['duration_ms']+config.get('window_ms',0)-1)//config['window_ms'] if config.get('window_ms',0) else 0
-        tracking+=8*slots+len(config['cpus'])*windows*(128+100001*8)
+        tracking+=8*slots+(len(config['cpus'])//4)*windows*(128+100001*8)
         output+=windows*2*1024*1024
         mem=dict(line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())
         available=int(mem['MemAvailable'].split()[0])*1024
@@ -99,7 +101,7 @@ def run(config):
             raise ValueError('Peer tracking/CSV/archive budget exhausted before acquisition')
     cores=config['cpus']
     if not cores or len(set(cores))!=len(cores): raise ValueError('Invalid CPU list')
-    if not server and ((not 1 <= len(cores) <= 32) if loaded else len(cores)!=1): raise ValueError('Wrong generator CPU count')
+    if not server and ((not 4 <= len(cores) <= 32 or len(cores)%4) if loaded else len(cores)!=1): raise ValueError('Wrong generator CPU count')
     if loaded and config['deadline_ms']!=10: raise ValueError('Loaded deadline must be 10 ms')
     env=dict(os.environ)
     for key in list(env):
@@ -122,7 +124,6 @@ def run(config):
     elif loaded:
         env.update(LH_BENCH_AGGREGATE='1' if config.get('aggregate',False) else '0',
                    LH_BENCH_WINDOW_MS=str(config.get('window_ms',0)),LH_BENCH_SLOT_NS=str(config['slot_ns']),LH_BENCH_SEED=str(config['seed']),
-                   LH_BENCH_MAX_SEND_LAG_NS=str(config['max_send_lag_ns']),
                    LH_BENCH_RATE=str(config['rate']),LH_BENCH_WARMUP_MS=str(config['warmup_ms']),
                    LH_BENCH_DURATION_MS=str(config['duration_ms']),
                    LH_BENCH_TRACKING_MIB=str(config['tracking_mib']),LH_BENCH_DRAINED_FILE=str(root/'drained'))

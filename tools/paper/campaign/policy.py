@@ -65,6 +65,8 @@ def loss(t):
 def aggregate(trials):
     if not trials or len({t['duration_ns'] for t in trials}) != 1:
         raise ValueError('Pooling requires equal-duration repetitions')
+    if len({(t.get('arrival_model'),t.get('pipeline'),t.get('tx_phase_boundary')) for t in trials})!=1:
+        raise ValueError('Cannot pool different loaded arrival or RTT boundary contracts')
     for t in trials:
         validate_trial(t)
     seconds = sum(t['duration_ns'] for t in trials) / 1e9

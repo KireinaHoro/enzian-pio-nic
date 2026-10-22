@@ -331,13 +331,19 @@ isolated CPUs and identical flows for both systems. Do not set profiling or
 FPGA recording. Single-outstanding unloaded acquisition omits the open-loop
 variables and the legacy window variable.
 
-Loaded operation uses **slotted Poisson arrivals**. Configure the campaign
-manifest with `"slot_ns": 1000`, `"arrival_seed": 1` and
-`"max_send_lag_ns": 10000`; defaults are frozen into new campaign configurations.
-These become `LH_BENCH_SLOT_NS`, `LH_BENCH_SEED` and
-`LH_BENCH_MAX_SEND_LAG_NS` on the generator. Slot length is the aggregate
-interval: slot k belongs to generator core `k % cores`, so 32 cores at 1 µs
-aggregate spacing each handle one slot every 32 µs. Each slot independently
+Loaded operation uses **slotted Poisson arrivals**. Configure `"slot_ns": 1000`
+and `"arrival_seed": 1`; new campaigns freeze these defaults. The environment
+uses `LH_BENCH_SLOT_NS` and `LH_BENCH_SEED`. A loaded CPU pool contains groups of
+four (4–32 cores): exclusive TX owners, RX pollers, packet preparers and reply
+trackers, in that order. The current 32-core pool supplies eight exclusive TX
+queues; this avoids requesting unavailable ThunderX secondary queue sets.
+Slot k belongs to TX owner `k % senders`; at 1 µs aggregate spacing each sender
+has an 8 µs period. Preparation happens ahead of the slot. The only TX timing
+limit is completion before `scheduled + senders * slot_ns`; missed opportunities
+invalidate the trial without catch-up. `max_send_lag_ns` and its environment
+variable are retired configuration inputs. Historical readers retain the field;
+new summaries derive it from `sender_period_ns` rather than an independent guard.
+Each slot independently
 draws `Poisson(rate * slot_width_ns / 1e9)` requests; the final partial slot uses
 its actual width. Empty slots transmit nothing. All requests in a slot retain
 the slot deadline. Measured counts fluctuate around rate × duration; validate
@@ -463,7 +469,7 @@ python3 tools/paper/qualify_loaded.py --hardware HARDWARE.json \
 ```
 
 The plan sets `scope: "loaded-duration-qualification"`, `slot_ns`,
-`max_send_lag_ns`, `warmup_ms`, `pilot_seed`, independent `seeds`,
+`warmup_ms`, `pilot_seed`, independent `seeds`,
 `refinement_points` and up to six cases with `system`, `payload_bytes`, `workers`
 and increasing `pilot_rates`. The runner brackets loss with 10-second pilots,
 refines the bracket, then measures the last contiguous qualifying rate for
@@ -491,13 +497,13 @@ is a pinned pthread and does not consume a generator lcore or NIC queue.
 The summary records its actual CPU, processed event count and queue high-water
 mark; acquisition checks the CPU against the frozen request.
 
-Each generator retains timestamps for 30 ms, with capacity for 50 ms of sends
+Each tracking owner retains timestamps for 30 ms, with capacity for 50 ms of sends
 plus two batches. Workers hand immutable retired records and subsequent late-reply
 amendments to per-worker SPSC queues. The accounting CPU validates phase, schedule,
 admission and return boundaries and updates counters, histograms and diagnostic
 samples. Worker-owned timestamp slots and status ledgers are never concurrently
 modified by the accounting thread. Each queue holds 8,192 records (1 MiB per
-generator CPU on this platform); exhaustion invalidates the point. Pending events
+TX owner on this platform); exhaustion invalidates the point. Pending events
 drain after all workers stop, before merging or formatting output.
 RX-to-owner forwarding exceeding 10 ms invalidates
 the point: this bound ensures a reply processed after timestamp retirement cannot
@@ -509,7 +515,7 @@ it no longer reserves a full timestamp record and CSV row per request.
 
 Warmup and measurement counters remain separate. The measured on-time RTT
 histogram uses 100 ns buckets through the deadline, 100,001 64-bit counters per
-core (25.6 MB across 32 cores), merged after draining. Only occupied buckets are
+TX owner (6.4 MB across eight owners), merged after draining. Only occupied buckets are
 exported. Percentiles use bucket midpoints (clamped at the deadline), with at most
 50 ns quantization error; trial pooling sums counts and transmitted populations before inverse-CDF
 percentile calculation. Deadline failures occupy the infinite tail, and rank
@@ -618,7 +624,7 @@ The top-level arrival controls are independent of the per-payload sweep steps:
 
 ```json
 {"arrival_model": "slotted-poisson", "slot_ns": 1000,
- "arrival_seed": 1, "max_send_lag_ns": 10000}
+ "arrival_seed": 1}
 ```
 
 Launch resolves defaults into the saved `config.json`; partial input manifests
@@ -802,10 +808,11 @@ RX polling has stopped by then, so these diagnostic counts do not invalidate
 the observation. In-window NIC misses still invalidate the point.
 
 The single ThunderX VF exposes eight queues without additional queue-set VFs.
-Up to 32 generator threads share eight serialized TX queues; eight threads own
-RX polling and forward replies to their request owners. Absolute schedules
-remain partitioned across all generator threads. Deadlines are rechecked after
-TX lock acquisition; contention is generator failure, never server loss.
+Eight TX owners each use an exclusive queue; the other reserved cores perform
+RX polling, packet preparation and reply tracking. Absolute schedules partition
+across TX owners. There is no TX queue lock. Before the schedule, each queue sends
+128 non-RPC EtherType 0x88b5 frames to prime cold driver code, descriptors and DMA
+mappings, then drains their DMA completions; these frames are excluded from RPC counts and distribution checks.
 
 Placement/build changes require a new configuration root. To retain reviewed
 unloaded rehearsal acquisitions, pass `--inherit-unloaded OLD_ROOT
@@ -843,3 +850,51 @@ report unloaded completion. A controller already running older code may report
 the refusal as a requested-stop error; preserve its results and resume with the
 updated controller and the same control file to report unloaded completion.
 Remove the control only after explicit authorization for the revised loaded plan.
+
+### Prepared loaded pipeline
+
+`pipeline: "prepared-dedicated-v1"` records four disjoint CPU lists (`tx_cpus`,
+`rx_cpus`, `preparation_cpus`, `tracking_cpus`) whose concatenation is
+`generator_cpus`. Phase/core counts refer to TX owners. The separate aggregate
+accounting CPU remains outside this pool. With the current peer CPU list:
+
+| Role | Peer Linux CPUs | Queue ownership |
+| --- | --- | --- |
+| TX | 16–23 | One hardware TX queue per core |
+| RX | 24–31 | One hardware RX queue per core |
+| Preparation | 32–39 | One prepared-packet producer per TX owner |
+| Tracking | 40–47 | One live request ledger per TX owner |
+| Aggregate accounting | 8 | One consumer for retired-record queues |
+
+Each owner has a bounded three-stage
+ring: prepare publishes immutable packet pointers, TX publishes one timing record
+per call, and tracking consumes it before reusing the descriptor. Larger Poisson
+draws use successive calls of at most 64 packets at the same deadline.
+
+Two preallocated packet rings per TX owner retain warmup and measurement packets.
+Ring lengths repeat both flow ports and payload patterns. Encoding, allocation,
+headers and checksums finish before traffic; preparation patches only RPC XID,
+after observing DMA completion through the mbuf reference count. TX fast-free is
+disabled so the application reference survives NIC completion. TX queues have
+one owner and no locks. RX uses a separate pool and dedicated pollers. Each
+RX-to-tracker pair has its own SPSC forwarding ring, so a preempted RX producer
+cannot delay another producer through shared ring-tail publication. Parsing,
+payload validation, retirement and histograms execute on other cores.
+
+`tx_phase_boundary: "prepared-slot-release"` means `client_tx_ready_ns` precedes
+`client_call_enter_ns`; call entry equals TX admission entry, and RTT ends at the
+RX burst timestamp. Loaded RTT therefore excludes preparation. This boundary
+requires a new loaded series; old admission-entry observations remain readable.
+Unloaded timestamps and accounting remain unchanged.
+
+`rx_observation` records each queue's packet/poll counts, full bursts, maximum
+poll gap, observed occupancy and continuously non-draining interval.
+`max_active_poll_gap_ns` restricts gaps to bursts that returned packets;
+`delayed_poll_packets` counts packets from polls spaced beyond a sender period,
+so idle startup gaps cannot be mistaken for receiver-added RTT. These counters
+are diagnostic; sustained non-draining queues establish capacity overload. A nonempty
+queue across full bursts lasting longer than a sender period invalidates RTT;
+forwarding exhaustion and NIC drops also invalidate. These observations detect
+receiver pressure; software burst timestamps still cannot prove exact wire
+arrival times. Distribution diagnostics must distinguish scheduled Poisson draws,
+software release timing and independently captured wire timing.

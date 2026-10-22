@@ -31,6 +31,23 @@ class Poisson(unittest.TestCase):
             deadline_ns=10000000,transmitted=sum(counts[1]),on_time=0,late=0,duplicates=0,
             generator_misses=0,tx_admission_failures=0,malformed=0,valid=True)
 
+    def test_prepared_ownership_period_and_receiver_pressure(self):
+        from .poisson import validate
+        s=self.summary()
+        s.update(pipeline='prepared-dedicated-v1',tx_phase_boundary='prepared-slot-release',
+                 generator_cpus=list(range(16,24)),tx_cpus=[16,17],rx_cpus=[18,19],
+                 preparation_cpus=[20,21],tracking_cpus=[22,23],sender_period_ns=2000,max_send_lag_ns=2000,
+                 rx_observation=[dict(queue=i,packets=10,polls=100,max_poll_gap_ns=500,
+                     max_busy_ns=500,max_occupancy=1,full_bursts=1,occupancy_supported=True) for i in range(2)])
+        validate(s)
+        s['rx_observation'][0]['max_busy_ns']=2001
+        with self.assertRaisesRegex(ValueError,'overloaded'):validate(s)
+        s['rx_observation'][0]['max_busy_ns']=500
+        s['max_send_lag_ns']=10000
+        with self.assertRaisesRegex(ValueError,'sender period'):validate(s)
+        s['max_send_lag_ns']=2000;s['rx_cpus']=[16,19]
+        with self.assertRaisesRegex(ValueError,'placement'):validate(s)
+
     def test_detailed_replays_each_deadline_and_phase(self):
         s=self.summary()
         with tempfile.TemporaryDirectory() as d:

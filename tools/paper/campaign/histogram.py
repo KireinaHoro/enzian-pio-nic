@@ -55,13 +55,13 @@ def validate_aggregate(summary):
         from .poisson import validate
         validate(s)
     if (s.get('observation_mode') != 'aggregate' or s.get('histogram_bin_ns') != 100
-            or s.get('tx_phase_boundary') != 'admission-entry'
+            or s.get('tx_phase_boundary') not in ('admission-entry','prepared-slot-release')
             or s.get('arrival_model') not in ('paced-batch','slotted-poisson')
             or s.get('timestamp_retention_ns') != 30_000_000
             or s.get('rx_forward_limit_ns') != 10_000_000):
         raise ValueError('Unknown aggregate observation contract')
-    cores = len(s['generator_cpus'])
-    if not 1 <= cores <= 32 or len(set(s['generator_cpus'])) != cores:
+    cores = len(s.get('tx_cpus',s['generator_cpus']))
+    if not 1 <= cores <= 32 or len(set(s.get('tx_cpus',s['generator_cpus']))) != cores:
         raise ValueError('Invalid aggregate placement')
     if s['send_end_ns']-s['send_start_ns'] != s['duration_ns']:
         raise ValueError('Aggregate send interval mismatch')

@@ -34,7 +34,7 @@ def load(csv_path, summary_path, *, collect_latencies=True):
     if poisson:
         from .poisson import schedule
         arrivals=iter(schedule(summary))
-        if summary.get('tx_phase_boundary')!='admission-entry':
+        if summary.get('tx_phase_boundary') not in ('admission-entry','prepared-slot-release'):
             raise ValueError('Poisson requires TX admission timestamps')
     if summary['send_end_ns']-summary['send_start_ns']!=summary['duration_ns']:
         raise ValueError('Send interval differs from duration')
@@ -67,6 +67,8 @@ def load(csv_path, summary_path, *, collect_latencies=True):
                     admitted=int(row['client_tx_admit_enter_ns'])
                     if not scheduled<=enter<=admitted<=submitted<=scheduled+summary['max_send_lag_ns']:
                         raise ValueError('TX admission outside Poisson slot lag bound')
+                    if summary.get('pipeline')=='prepared-dedicated-v1' and not int(row['client_tx_ready_ns'])<=enter==admitted:
+                        raise ValueError('Prepared TX timestamp boundary mismatch')
                     key=(warmup,scheduled)
                     if key!=batch_key:batch_key=key;batch_index=0
                     call=(admitted,submitted)

@@ -146,7 +146,7 @@ class Campaign:
                 raise ValueError('Actual generator CPU placement differs from manifest')
             from campaign.poisson import validate
             validate(trial)
-            if any(trial.get(k)!=request[k] for k in ('seed','slot_ns','max_send_lag_ns')):
+            if any(trial.get(k)!=request[k] for k in ('seed','slot_ns','max_send_lag_ns','pipeline')):
                 raise ValueError('Slotted-Poisson configuration differs from plan')
             if trial.get('window_ns',0)!=request.get('window_ms',0)*1_000_000:
                 raise ValueError('Measurement window configuration differs from plan')
@@ -202,7 +202,8 @@ class Campaign:
             duration, warmup = settings['rehearsal']['loaded_measurement_ms'], settings['rehearsal']['loaded_warmup_ms']
         arrival=dict(arrival_model='slotted-poisson',window_ms=self.config.get('window_ms',0),slot_ns=self.config.get('slot_ns',1000),
                      seed=(self.config.get('arrival_seed',1)+trial+(0x1000000 if sustained else 0)-1)%0xffffffff+1,
-                     max_send_lag_ns=self.config.get('max_send_lag_ns',10000))
+                     max_send_lag_ns=len(self.config['generator_cpus'])//4*self.config.get('slot_ns',1000),
+                     pipeline='prepared-dedicated-v1')
         if self.config.get('aggregate',False):arrival['accounting_cpu']=self.config.get('accounting_cpu',8)
         result = self.stage('loaded', dict(**arrival, **self.execution_model_request(system), system=system, payload_bytes=size, workers=workers,
             rate=rate, phase=phase, repetition=trial, duration_ms=duration, warmup_ms=warmup,
@@ -382,12 +383,12 @@ def config_check(config):
     if config.get('scope') != 'unloaded-rehearsal': require_capture_backend(config)
     if config.get('scope', 'rehearsal') not in ('rehearsal', 'full', 'unloaded-rehearsal', 'unloaded-full'):
         raise ValueError('Scope must be unloaded-full, unloaded-rehearsal, rehearsal or full')
-    if not 1 <= len(config['generator_cpus']) <= 32 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):
-        raise ValueError('Between one and 32 distinct isolated generator CPUs required')
+    if not 4 <= len(config['generator_cpus']) <= 32 or len(config['generator_cpus'])%4 or len(set(config['generator_cpus'])) != len(config['generator_cpus']):
+        raise ValueError('Four to 32 distinct isolated generator CPUs in groups of four required')
     if config.get('arrival_model','slotted-poisson')!='slotted-poisson':
         raise ValueError('Only slotted-poisson loaded arrivals are supported')
-    if any(k in config for k in ('batch_max','batch_target_ns')):
-        raise ValueError('Retired deterministic pacing options; use slot_ns')
+    if any(k in config for k in ('batch_max','batch_target_ns','max_send_lag_ns')):
+        raise ValueError('Retired pacing/lag options; use slot_ns and its derived sender period')
     if type(config.get('window_ms',0)) is not int or not 0<=config.get('window_ms',0)<=60000:
         raise ValueError('Invalid measurement window width')
     if type(config.get('accounting_cpu',8)) is not int or not 0<=config.get('accounting_cpu',8)<1024:
@@ -396,8 +397,6 @@ def config_check(config):
         raise ValueError('Measurement windows require aggregate observations')
     if (type(config.get('arrival_seed',1)) is not int or not 1<=config.get('arrival_seed',1)<=0xffffffff
             or type(config.get('slot_ns',1000)) is not int or not 1<=config.get('slot_ns',1000)<=1000000
-            or type(config.get('max_send_lag_ns',10000)) is not int
-            or not 1<=config.get('max_send_lag_ns',10000)<=1000000
             or type(config.get('aggregate',False)) is not bool):
         raise ValueError('Invalid slotted-Poisson schedule/observation configuration')
     if config['flows'] < len(config['generator_cpus']) or config['initial_rate'] < 1 or not 1 <= config['max_extensions'] <= 30:
@@ -449,7 +448,7 @@ def main():
         config = read(args.config)
         saved = read(root/'config.json') if (root/'config.json').exists() else None
         if saved is None:
-            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,max_send_lag_ns=10000,window_ms=0,accounting_cpu=8).items():
+            for k,v in dict(arrival_model='slotted-poisson',slot_ns=1000,arrival_seed=1,window_ms=0,accounting_cpu=8).items():
                 config.setdefault(k,v)
         if saved is None or 'measurement' in saved:
             config['measurement'] = measurement_settings(config)

@@ -114,8 +114,13 @@ replies as additional lost requests. Generator misses, admission failure, corrup
 a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
 not invalidation conditions; enforce the requested absolute send schedule in
 both warmup and measurement. Loaded generation uses slotted Poisson batches: configurable aggregate
-`slot_ns` (default 1000 ns), reproducible `arrival_seed`, and bounded
-`max_send_lag_ns`. Successive slots belong to successive generator cores;
+`slot_ns` (default 1000 ns) and reproducible `arrival_seed`. The 32-core pool
+uses eight exclusive TX owners plus dedicated RX, preparation and tracking cores.
+Successive slots belong to successive TX owners; completion must precede the
+next opportunity for that owner (`senders * slot_ns`). Independent send-lag
+guards are retired. Reject receiver backlog that persists beyond a sender period;
+record RX occupancy and polling gaps. Prepared loaded RTT begins at TX release,
+so keep it separate from historical pre-encoding RTT series;
 Poisson draws are never clipped to the 64-packet TX-call limit. Record sampled
 phase/core counts; do not require rate × duration requests. Equal-spacing and
 adaptive deterministic-batch senders are retired. Use the same slot length

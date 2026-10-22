@@ -51,7 +51,8 @@ class Qualification:
         request=dict(stage='loaded',**{k:case[k] for k in ('system','payload_bytes','workers')},
                      rate=rate,duration_ms=duration_ms,warmup_ms=self.plan['warmup_ms'],deadline_ms=10,
                      arrival_model='slotted-poisson',slot_ns=self.plan['slot_ns'],seed=seed,
-                     max_send_lag_ns=self.plan['max_send_lag_ns'],window_ms=1000)
+                     max_send_lag_ns=len(self.hardware['generator_cpus'])//4*self.plan['slot_ns'],
+                     pipeline='prepared-dedicated-v1',window_ms=1000)
         if case['system']=='CS-A64':request['execution_model']='resident-workers'
         if self.hardware.get('aggregate',False):request['accounting_cpu']=self.hardware.get('accounting_cpu',8)
         atomic(directory/'request.json',request)
@@ -134,7 +135,7 @@ def main():
     if (not 1<=len(plan['seeds'])<=5 or len(set(plan['seeds']))!=len(plan['seeds'])
             or any(type(s) is not int or not 1<=s<=0xffffffff for s in [plan.get('pilot_seed'),*plan['seeds']])
             or type(plan.get('slot_ns')) is not int or not 1<=plan['slot_ns']<=1000000
-            or type(plan.get('max_send_lag_ns')) is not int or not 1<=plan['max_send_lag_ns']<=1000000):
+            or 'max_send_lag_ns' in plan):
         raise ValueError('Invalid qualification seeds/arrival configuration')
     if len(plan.get('cases',[]))>6 or not plan.get('cases'):raise ValueError('Qualification requires one through six cases')
     for case in plan['cases']:

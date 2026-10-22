@@ -61,7 +61,7 @@ let
       inherit name;
       value = builtins.hashFile "sha256" (microbenchmarkSource + "/${name}");
     }) [ "bench.x" "echo_registry.py" "client/bench_dpdk.c" "server/dpdk/echo_server.c"
-         "server/echo_handler.h" "server/echo_handler.c" "server/dpdk/rpc_backend.h" "common/benchmarks.c" "common/benchmark.h" "common/wire.h" "client/load.h"
+         "server/echo_handler.h" "server/echo_handler.c" "server/dpdk/rpc_backend.h" "common/benchmarks.c" "common/benchmark.h" "common/wire.h" "client/load.h" "client/prepared.h"
          "client/aggregate.h" "client/open_loop.h" "client/Makefile" "server/dpdk/Makefile" ]);
     hostRequirements = [ "compatible Enzian kernel and nicvf/vfio-pci modules" "root access" ];
   });

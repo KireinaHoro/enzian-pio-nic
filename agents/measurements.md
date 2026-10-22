@@ -1,44 +1,59 @@
 # Measurement continuation
 
-## Generator accounting CPU — October 22
+## Prepared dedicated generator — October 22
 
-Microbenchmarks `951ec9c` moves aggregate schedule checks, counters, histograms,
-window accounting and diagnostic selection to one pinned housekeeping pthread.
-Campaign `accounting_cpu` defaults to Linux CPU 8, outside generator CPUs 16–47.
-Workers own live timestamp slots/status ledgers and hand immutable records and
-late-reply amendments through SPSC queues (8,192 records each, 32 MiB total).
-Queue exhaustion invalidates a point; shutdown drains every published record.
-NIC health is sampled when all RX polling stops, before final accounting drain.
+Microbenchmarks master `478437e` replaces the loaded sender with preallocated,
+pre-encoded packet rings and exclusive TX queues. The 32 peer CPUs form four
+ordered groups: TX 16–23, RX 24–31, preparation 32–39, tracking 40–47. Aggregate
+accounting remains on CPU 8. Each RX-to-tracker pair has a dedicated SPSC ring;
+all generator handoffs are independent of other producers. The sender releases
+prepared batches at slot start, without allocation, encoding, locks, RX or
+retirement. Completion must precede `scheduled + senders * slot_ns` (8 µs for
+eight senders and 1 µs slots). Independent lag guards are retired configuration.
+Warmup and measurement packet rings retain application mbuf references until DMA
+completion; fast-free is disabled. Non-RPC priming frames and their completion
+reclamation finish before the timed schedule.
 
-`out/generator-accounting-core-20261022/` preserves native/AArch64 builds,
-concurrent retirement/queue-wrap/exhaustion checks, eight real PCAP cases, four
-NIC-health replay cases and 117 campaign tests. The first PCAP attempt missed a
-detailed-mode deadline while image construction was concurrent; the retained
-retry and final suite passed. NIC-health replay cannot initialize EAL inside the
-Nix sandbox (no visible CPU sysfs); the packaged tests and exported interposer
-were run outside it. Full repository copying exhausted local pool space during
-build; builds used the existing exact pinned Nixpkgs store source instead.
+Loaded RTT now begins at TX release (`prepared-slot-release`), after preparation.
+Historical pre-encoding observations remain readable but cannot be pooled with
+this boundary. Unloaded acquisition is unchanged. RX reports sustained backlog,
+active polling gaps and packets observed after gaps beyond a sender period.
+These distinguish capacity overload from isolated receiver pauses; software
+release distributions do not establish wire arrival timing.
 
-With accounting actually on CPU 8 and the separately recorded 100 µs diagnostic
-guard, DPDK 8 B / 4 workers / 3 M RPC/s passed 10 seconds (seed 42) and 60 seconds
-(seed 101), with all 29,995,524 / 180,001,886 measured requests on time. Queue
-high-water marks were 980 / 978 of 8,192; measured start lag maxima were
-20.73 / 21.37 µs. The final image, which moves NIC-health sampling before the
-accounting drain, passed another 10-second check with all 29,995,524 requests
-on time and 19.72 µs maximum start lag. The minute-long probe predates only that
-post-RX boundary change; its NIC error counters were zero across the longer
-snapshot interval. All are diagnostic data, separate from paper archives.
+Final SPSC validation is in `out/generator-rx-spsc-20261022/`. Native/AArch64
+builds, three-rate PCAP packet/reuse/batching checks and four NIC-health cases
+pass. Platform has 118 campaign tests. Physical checks passed at 50k/8 B, 500k/128 B, 1M/1432 B and 3M/8 B, each with
+100 ms warmup and 200 ms measurement at 1 µs slots. All measured replies were
+on time. Released-count Fano factors were 0.9945–1.0027, lag-1 correlations near
+zero and empirical Poisson CDF distances below 0.002; TX release-lag P99 was
+120 ns at all four points. `distribution-validation.json` and the reviewed
+`poisson-slot-distributions.png/pdf` retain the analysis and figure.
 
-The default 10 µs guard still fails in opening warmup: 37 attempts, 30 TX,
-7 generator misses, largest recorded start lag 10.92 µs, no measured requests.
-Failure occurred before 30 ms retirement begins, so startup timing is a separate
-next investigation. Do not silently relax the campaign guard or claim faithful
-1 µs wire timing. `comparison.json` links the exact trials; the strict failure
-and restoration evidence are retained. `cleanup.json` confirms both boards idle,
-original drivers and zero hugepages restored, both temporary images removed and
-transfer service 18874 stopped. `artifact-provenance.json` checks production
-source hashes and the actual immutable runner against the working tree. No full
-campaign was launched and no EMG provisioning or board reset was needed.
+The final 10-second / 3M / 8 B aggregate check (seed 101, 1 s warmup) returned all
+30,007,589 measured requests on time. Maximum TX release lag was 2.18 µs;
+accounting high-water was 3,189 of 8,192. RX had no full bursts, sustained queue
+backlog or NIC drops. Only three of 33,007,987 replies including warmup/drain
+were observed after poll gaps beyond 8 µs; maximum active gap was 9.49 µs.
+The shorter 3M comparison saw one delayed-poll packet after SPSC forwarding,
+versus 1,789 with shared MPSC rings. This comparison is diagnostic, not a
+statistical guarantee of wire latency or future interruption rates.
+`artifact-provenance.json` verifies final production sources, immutable runner,
+image/binary hashes and trials. `cleanup.json` confirms both boards idle,
+original drivers and zero hugepages restored, test images removed and transfer
+service 18876 stopped. No reset, EMG provisioning or full paper campaign ran.
+Earlier immutable evidence in `out/generator-review-20261022/` includes two
+opening driver/reclamation failures, their verified restoration, passing 1 µs
+50k/500k/3M distribution checks and a zero-loss 10-second 3M aggregate check.
+Its cleanup confirms both boards idle, drivers restored, zero hugepages, test
+images removed and service 18875 stopped. Its results precede the final SPSC handoff change.
+
+The older accounting/lag experiments remain under
+`out/generator-accounting-core-20261022/`; their independent 10/100 µs guards
+are superseded and never qualify the prepared generator. Avoid copying the full
+platform into Nix merely to resolve a package: source-defined targeted builds
+use the exact pinned Nixpkgs store source, and pin locks are generated with a
+minimal temporary flake. No new full paper acquisition is authorized here.
 
 ## Loaded duration qualification — October 22
 
@@ -88,13 +103,14 @@ used `window_ms=1000`, comparing the first 10 s, all six disjoint
 10 s blocks and the pooled minute. Optional accounting does add generator work;
 these diagnostics do not qualify timing without window accounting enabled.
 
-## Slotted Poisson generator — October 22
+## Earlier slotted Poisson validation — October 22
 
 Loaded generation now uses configurable aggregate `slot_ns` (default 1000),
-`arrival_seed` and `max_send_lag_ns` (default 10000). Independent slot counts,
+`arrival_seed`. Prepared dedicated TX owners derive their deadline from
+`senders * slot_ns`; independent `max_send_lag_ns` inputs are retired. Independent slot counts,
 round-robin slot ownership, phase/core XID ranges, split TX calls above 64 and
 sampled phase counts replace deterministic open-loop pacing and rate×duration
-assumptions. Platform pins microbenchmarks `951ec9c`, including phase-count
+assumptions. The earlier microbenchmarks `951ec9c` added phase-count
 overflow checks
 and optional exact measurement windows. Closed-loop unloaded pacing and accepted
 historical archives remain unchanged. The campaign guide documents

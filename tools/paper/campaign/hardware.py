@@ -68,7 +68,7 @@ class Acquisition:
             tracking_mib=c['tracking_mib'],timeout_seconds=900,
             gap_ns=0 if setup or loaded else c.get('tofino',{}).get('gap_ns',0))
         if loaded:
-            result.update(arrival_model='slotted-poisson',window_ms=r.get('window_ms',0),slot_ns=r['slot_ns'],seed=r['seed'],max_send_lag_ns=r['max_send_lag_ns'])
+            result.update(arrival_model='slotted-poisson',window_ms=r.get('window_ms',0),slot_ns=r['slot_ns'],seed=r['seed'],max_send_lag_ns=r['max_send_lag_ns'],pipeline=r['pipeline'])
             if not server and result['aggregate']:
                 result['accounting_cpu']=r.get('accounting_cpu',c.get('accounting_cpu',8))
         if server and system=='CS-A64':
