@@ -83,6 +83,13 @@ including zero goodput and 100% deadline loss: they end the qualifying
 latency/goodput curve and remain in the loss curve. Diagnostic provenance is in
 [agent context](../../agents/caladan.md).
 
+Stack creation handles the assembly wrappers' raw negative syscall errors from
+`mmap` and guard-page `mprotect`. Failed guard setup unmaps the allocation;
+failed stack batches return already allocated stacks to the cache. UDP receive
+drops a request when its thread cannot be allocated. This error handling also
+covers Linux virtual-memory mapping exhaustion. It retains the inherited
+receive watchdog and hot thread-count settings.
+
 ## ARM port differences
 
 This comparison is with x86 using the same simple policy and signal preemption.

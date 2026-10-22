@@ -65,10 +65,13 @@ checks confirm modules, NIC, hugepages, sysctls and core pattern restored.
 Diagnostic capture now waits up to 300 seconds for an active kernel dump and
 uses GNU sparse archives plus extent hashes. Diagnostic roles are explicitly
 excluded from accepted measurements. 106 local tests pass, including sparse
-round-trip preservation and a real kernel dump-filter check. Further runtime
-repair or campaign resumption must account for the raw mmap/mprotect error path
-and mapping exhaustion; do not classify this resource-exhaustion crash as an
-ordinary accepted loss point or tune the watchdog to conceal it.
+round-trip preservation and a real kernel dump-filter check. Caladan commit
+`62a953e` fixes the raw mmap/mprotect failure checks; native x86, AArch64/QEMU
+fault injection, all existing ARM CPU checks and the ARM runtime build passed.
+See `out/caladan-stack-fix-20261022/` and [Caladan continuation](caladan.md).
+The fix is not deployed; collection remains stopped pending a rebuilt image
+and Caladan grid review. Do not classify the preserved resource-exhaustion crash
+as an ordinary accepted loss point or tune the watchdog to conceal it.
 
 
 The old `out/hot-full-20261021` remains unchanged, including unsafe state and

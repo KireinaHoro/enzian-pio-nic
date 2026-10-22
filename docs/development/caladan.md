@@ -118,6 +118,10 @@ The Nix check cross-compiles and runs these bounded tests under QEMU user mode:
   odd tails, zero/all-ones/patterned buffers and long carry-heavy buffers.
 - `signal.c`: 10,000 unmasked nested deliveries through production entry/prepare,
   disabled-counter deferral and synthetic PCs at each entry-region instruction.
+- `stack_alloc.c`: production stack creation and batch allocation with injected
+  raw `mmap`/`mprotect` errors, guard-failure unmapping and partial-batch rollback.
+  Checks the real assembly syscall error convention and repeats on native x86
+  and AArch64/QEMU. This requires no NIC or runtime deployment.
 
 Checks use unconditional assertions even in release builds. Context/direct tests
 use real TLS and assembly counter operations; the cold preemption endpoint is a
