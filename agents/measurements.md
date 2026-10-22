@@ -21,36 +21,55 @@ acquisition evidence.
 ## Active full hot campaign — October 21
 
 The active collector is the reviewed October 22 continuation
-`out/hot-full-20261021-r3`, service `echo-campaign-4cc3347796da`.
+`out/hot-full-20261021-r4`, service `echo-campaign-11a57abd167b`.
 The maintainer authorized all 12 Caladan loaded cases with Lauberhorn's steps:
 20,000 RPC/s for 8/128 B and 5,000 RPC/s for 1432 B. Warmup, measurement and
 confirmation remain 2/10/60 seconds with one repetition each, paced batches,
-32 generator CPUs and a 10 ms deadline. The 18 unloaded and 694 LH/DPDK loaded
-acquisitions are inherited intact; both old Caladan loaded points are excluded
-and reacquired under the new runtime/grid. Offline controller replay verified
-all 694 reused requests and no fresh LH/DPDK acquisition. Reused cases regenerate
-one comparison plot each; fresh points retain per-point progress plots.
+32 generator CPUs and a 10 ms deadline. All 723 passing acquisitions from r3
+are inherited: 18 unloaded, 227 LH loaded, 467 DPDK loaded and 11 CS-A64 loaded.
+Offline replay verified all 705 loaded requests, 25 completed-case plots and
+first fresh request CS-A64 8 B / two workers / 160,000 RPC/s. Do not poll after
+launch; wait for a terminal callback or explicit status request.
 
-The final combined three-system archives are written back under the original
+The final combined three-system archives still target
 `out/hot-full-20261021-r2/archive/attempt-N/echo-hot-{loaded,unloaded}.tar.gz`.
-Both frozen configurations and failed attempts remain preserved. Preparation,
-the per-receipt compatibility review, live restoration checks, passing preflight,
-both image bootstraps and submission receipt are in
-`out/hot-full-20261022-caladan-preparation/`. 107 orchestration tests pass.
-Callback delivery proof was reused; the switch control master was alive at
-launch for final clock qualification. Do not poll after launch.
+Frozen configurations, original acquisition identities and failed attempts remain
+preserved. Preparation, per-receipt review, restoration checks, preflight,
+both image bootstraps and launch receipt are in
+`out/hot-full-20261022-generator-preparation/`. Callback delivery proof was reused.
+Platform and microbenchmarks fixes were pushed with CI skipped.
 
-The new image is
-`/nix/store/mx2k860hdwaghqzy19435wmlgvmfvffa-caladan-campaign.img`, SHA256
-`524c90de602d4db6324b7fe45fde7dcb6be8fed46ca63a84f72d28fbe4394039`.
-It links Caladan `62a953e` and retains the exact original client environment
-`q3w88q634kyp42ffgvlnx89qi39h6yfa-lauberhorn-client-environment`; generator,
-LH and DPDK bytes were checked against the source campaign. Caladan unloaded
-reuse was explicitly reviewed: serial warmed requests reused stacks without
-mapping exhaustion, and RPC/timestamp/wire semantics are unchanged by the raw
-syscall failure checks. Source receipt and evidence hashes were verified before
-inheritance. Live recovery confirmed no benchmark processes/modules, an idle
-CX-5, and restored hugepages, sysctls and core pattern; no reset occurred.
+The r3 failure at 723 acquisitions was generator NIC misses at the first
+8 B / two-worker / 160k point: 17,251 misses in the summary, 19,331 by final
+stderr. Both Caladan processes were alive before cleanup and both runners
+restored successfully. This is separate from the earlier fixed stack-allocation
+SIGSEGV. Old counter sampling occurred after RX polling stopped, during result
+formatting; preserved counters cannot distinguish in-window from post-drain
+misses. The failed point remains invalid and is reacquired.
+
+Microbenchmarks master `80de8b0` freezes NIC counters immediately after RX drain,
+before the drained marker and reporting. In-window misses remain invalid;
+post-drain misses are separately diagnostic. Send/receive loops, scheduling,
+RTT/histogram boundaries and all server binaries are unchanged. Every inherited
+loaded summary had zero NIC counters over the older, longer window, justifying
+reuse. Four actual PCAP PMD health-injection cases (detailed/aggregate,
+in-window/post-drain) and seven open-loop replay cases pass, along with native
+wire/open-loop/schema/aggregate checks and the AArch64 generator build.
+Platform `a97ee09c` repairs chained inheritance request lookup; 108 campaign
+tests pass, including original receipt preservation and corruption rejection
+across successive roots. Live reservations and both hosts' restored process,
+driver/address and DUT resource state were checked without reset.
+
+The r4 image is
+`/nix/store/wk8wh9dzsrcn2kzdpvl1qk1w3wfyqwyz-caladan-campaign.img`, SHA256
+`ae3103bc3868ed4ca25b7ed39d5c58e82184e3cf929c2eef719a9c641121faae`.
+Generator SHA256 is
+`12814e3c75def0e889678f70b50f0ad8303ae923f571276acc983688b40d9d3f`.
+It retains the exact r3 Caladan `62a953e` server/runtime and original LH/DPDK
+executables, wrappers and modules, replacing only the generator and its manifest.
+The prior r3 image/review remains under
+`out/hot-full-20261022-caladan-preparation/`; its patched runtime/grid replaced
+both old r2 Caladan loaded points while retaining unaffected unloaded data.
 
 The maintainer explicitly requested starting from scratch after the first attempt
 failed before measurement traffic. A fresh full three-system campaign was submitted
