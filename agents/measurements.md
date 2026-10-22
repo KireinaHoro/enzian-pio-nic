@@ -30,6 +30,11 @@ are inherited: 18 unloaded, 227 LH loaded, 467 DPDK loaded and 11 CS-A64 loaded.
 Offline replay verified all 705 loaded requests, 25 completed-case plots and
 first fresh request CS-A64 8 B / two workers / 160,000 RPC/s. Do not poll after
 launch; wait for a terminal callback or explicit status request.
+The same service resumed after an accidental generator reservation release at
+833 accepted acquisitions. Both roles passed/restored; only final temporary-file
+cleanup was blocked. Existing-volume reacquisition, live restoration review and
+cleanup preceded resume; all 833 acquisitions remain accepted. See
+`out/zuestoll14-reacquire-20261022/` for evidence and submission receipt.
 
 The final combined three-system archives still target
 `out/hot-full-20261021-r2/archive/attempt-N/echo-hot-{loaded,unloaded}.tar.gz`.

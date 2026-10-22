@@ -7,6 +7,25 @@ follow [AGENTS.md](../AGENTS.md) and the [capture procedure](../docs/development
 Do not substitute vulnerable pipeline 515944 for corrected artifacts. Match
 bitstream, trace map, headers and deployment image.
 
+## October 22 generator reservation recovery
+
+After an accidental release, EMG reacquired zuestoll14 on the existing
+`echo-generator32-z14-20261021` volume with the same kernel/initrd and CPU
+isolation arguments. No reboot/reset occurred. An attempted `emg acquire
+zuestoll14 --help` unexpectedly acquired a generated volume; this was corrected
+through EMG release/reacquire before board access. EMG confirmed the named old
+volume already existed and skipped creation. Inventory/acquisition logs and live
+restoration checks are in `out/zuestoll14-reacquire-20261022/`.
+
+Campaign r4 stopped at 833 accepted acquisitions because its final client-file
+cleanup required a reservation. Both roles had passed/restored and exported
+intact evidence. After both hosts' live process/NIC/resource restoration checks,
+the maintained cleanup completed and the same campaign/service resumed, retaining
+all accepted data and retrying CS-A64 1432 B / two workers / 55 kRPC/s. The failed
+attempt remains preserved; no acquisition/configuration or binary change occurred.
+Restoration review and submission receipt are `restoration-review.json` and
+`resume.json` in that recovery directory. Do not poll after launch.
+
 ## October 21 generator reacquisition
 
 At the maintainer's request, EMG reserved zuestoll14 again under `pengxu` as
