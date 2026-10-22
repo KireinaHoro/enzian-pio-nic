@@ -1,14 +1,62 @@
 # Measurement continuation
 
+## Loaded duration qualification — October 22
+
+The maintainer authorized a bounded duration study before the next full hot
+campaign. `out/hot-duration-qualification-20261022/` holds the immutable image,
+readiness, frozen plan and foreground `qualification/` acquisitions. Native
+resident Caladan CPU accounting/readiness passes for 8/128/1432 B (144 replies
+and version-3 trace rows each); no switch timestamps or paper cohorts were
+collected. Four-worker 8 B Caladan resident trials passed three 60-second seeds
+at 1 M RPC/s with zero loss. Minute P99s were 108.85/112.25/105.35 µs; each
+10-second block stayed within roughly 1% of its pooled minute. The pilot bracket
+was [1 M, 1.125 M] RPC/s (4.70% loss at the upper point), with all workers active.
+
+DPDK passed 2 M and 2.8 M pilots, then stopped at 3 M on a generator TX-call lag
+violation about 30 ms into measurement. Both roles restored; hashes were
+verified and their failed remote roots removed. Do not accept this as server loss.
+
+LH initial pilots remained below 1% through 600k; `qualification-lh-extended/`
+reuses that verified pilot and the safe live service, with a hashed `reuse.json`
+receipt. Refinement selected 850k (0.755% pilot loss); 875k had 1.288% loss.
+Three LH minutes passed at 850k with 0.753–0.755% loss and 30.65–30.75 µs P99.
+All six 10-second blocks in every LH and Caladan minute agreed with their
+whole-minute 1% loss classification; block P99s stayed within roughly 1%.
+
+`duration-comparison.json` and its ignored `analyze.py` reproduce the comparison.
+Keep 10-second sweeps and 60-second throughput confirmation. This qualifies
+only representative four-worker / 8 B duration behavior; DPDK duration remains
+unqualified, and generator lag/wire timing must be resolved before full paper
+collection. No new full campaign was launched. `cleanup.json` confirms both hosts idle with
+original NIC drivers and zero hugepages, runtime modules/processes absent, test
+images removed and transfer service 18873 stopped. The DUT used the shared
+CPU-only cold boot to end its native worker pool; the peer was not reset.
+
+The maintained `tools/paper/qualify_loaded.py` runner brackets each knee,
+then uses seeds 101/202/303 in 60-second runs with 1-second accounting windows.
+Cases are CS-A64 resident, DPDK and LH, all four workers / 8 B. The generator
+retains 1 µs aggregate slots with an explicit 100 µs diagnostic send-lag bound;
+this study cannot qualify faithful 1 µs wire arrivals or supply paper data.
+
+Optional campaign `window_ms` (default 0) adds per-window exact counters and
+100 ns histograms assigned by scheduled arrival. Late/duplicate/rejection
+updates conserve their original window and the whole-run ledger. The native
+packaged C tests, seven PCAP replay cases and 117 campaign tests pass. Window
+storage is faulted in before traffic and included in peer budgets. The study
+used `window_ms=1000`, comparing the first 10 s, all six disjoint
+10 s blocks and the pooled minute. Optional accounting does add generator work;
+these diagnostics do not qualify timing without window accounting enabled.
+
 ## Slotted Poisson generator — October 22
 
 Loaded generation now uses configurable aggregate `slot_ns` (default 1000),
 `arrival_seed` and `max_send_lag_ns` (default 10000). Independent slot counts,
 round-robin slot ownership, phase/core XID ranges, split TX calls above 64 and
 sampled phase counts replace deterministic open-loop pacing and rate×duration
-assumptions. Platform pins microbenchmarks `689c085` (the hardware-tested generator was
-`99cfadb`; `689c085` adds a pre-traffic overflow rejection); closed-loop unloaded pacing
-and accepted historical archives remain unchanged. The campaign guide documents
+assumptions. Platform pins microbenchmarks `5546da8`, including phase-count
+overflow checks
+and optional exact measurement windows. Closed-loop unloaded pacing and accepted
+historical archives remain unchanged. The campaign guide documents
 the schedule and storage contract.
 
 Validation is in `out/slotted-poisson-20261022/`: native/AArch64 Nix builds,
@@ -24,8 +72,9 @@ bound during opening warmup slots; neither reached measurement. A separate
 admission, or client RX misses occurred. Measured mean start lags were 2.282 and
 2.154 µs; maxima 75.53 and 78.21 µs. This establishes brief capacity under the
 relaxed guard, not faithful 1 µs wire timing. Wire arrival distribution was not
-captured. Keep all four diagnostic attempts outside paper datasets. No full
-campaign or resident-Caladan acquisition was started.
+captured. Keep all four diagnostic attempts outside paper datasets. These
+original generator checks preceded resident readiness; no full
+campaign was started.
 
 The first failed server wrapper exposed a pre-existing mlx5 MTU restoration
 omission. The shared runner now restores MTU/MAC before checking the netdev.
@@ -43,19 +92,22 @@ All five final PNG previews passed visual review. The final mode archives are
 indexed in `data/paper/echo/manifest.json`; `tools/paper/charts.json` identifies
 reproduction commands. The paper PDFs were refreshed; paper presentation changes
 remain uncommitted alongside the maintainer's existing `evaluation.tex` edit.
-Caladan remains the explicitly labelled UDP-spawner variant. No resident run
-was started. Native resident acceptance and new collection remain pending.
+Caladan remains the explicitly labelled UDP-spawner variant in this archive.
+Resident readiness and duration diagnostics are separate acquisitions; full
+resident collection remains pending.
 
 ## Resident base echo preparation — October 22
 
-The current campaign remains the UDP-spawner experiment. Figure legends/axes say
+The accepted campaign archive is the UDP-spawner experiment. Figure legends/axes say
 `CS-A64 spawner`; derived archives record `execution_model="udp-spawner"` while
 original system IDs, requests and raw evidence remain intact. The maintainer
 asked that collection finish. The base echo build now defaults to resident
-workers (microbenchmarks `84c68c0`, Caladan `8b7a063`); native acceptance and fresh
+workers (microbenchmarks `84c68c0`, Caladan `8b7a063`); native CPU readiness now
+passes, while wire acceptance and fresh paper
 measurements remain pending. See [Caladan continuation](caladan.md#resident-base-echo-preparation--october-22).
-Resident preparation validation and reviewed partial previews are in
-`out/caladan-resident-preparation/`; no resident image was deployed or launched.
+Build validation and reviewed spawner previews are in
+`out/caladan-resident-preparation/`; subsequent native resident readiness is in
+the duration-qualification evidence above.
 
 ## Timestamp accounting implementation — October 21
 

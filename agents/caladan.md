@@ -11,9 +11,10 @@ Human references: [baseline](../docs/research/caladan-enzian.md),
 
 ## Resident base echo preparation — October 22
 
-The maintainer selected the ongoing dataset as the separate **UDP-spawner**
-variant and requested resident workers for base echo. Keep campaign r4 running
-on its immutable spawner image; do not deploy or collect resident data yet.
+The completed r4 dataset is the separate **UDP-spawner** variant. The maintainer
+authorized resident-worker readiness and bounded duration qualification on
+October 22. Keep those diagnostic results separate from the accepted spawner
+archive; no fresh full resident campaign has started.
 
 Caladan `enzian-port` `8b7a063` propagates UDP socket RX boundaries through the
 trace-only `udp_read_from_traced` API and carries socket TX trace slots to the
@@ -32,14 +33,21 @@ builds (both models × probes off/on), shared RPC tests under QEMU, probe-free
 symbol gates, 112 campaign tests, Nix composition using the updated lock, and
 visual review of spawner-labelled unloaded/partial loaded previews. Both new
 server variants compile at O3 with target/LTO flags. Initial parallel compiler
-process crashed; bounded-parallelism rebuild succeeded. No native hardware run.
+process crashed; bounded-parallelism rebuild succeeded. Native checks now pass
+as described below.
 
-Next: validate resident readiness and worker distribution with real traffic,
-confirm shared-socket buffering/loss/restoration, and validate RX/TX boundary
-coverage and exported request counts under probes. Explicitly review activity
-counter costs and the unchanged watchdog before drawing performance conclusions.
-Only then collect a fresh resident dataset; retain spawner data separately and
-never relabel those acquisitions as resident.
+Native readiness now passes for all three payloads: 144 replies and CPU trace
+rows per case, loss-free exports, accounting version 3 ordering/partitioning,
+resident execution model and all three kthread settings equal to one. Four-worker
+loaded pilots use all four resident workers. Three 60-second seeds at 1 M RPC/s
+passed with zero loss; within-run 10-second P99 blocks stayed within roughly 1%
+of each pooled minute.
+Evidence: `out/hot-duration-qualification-20261022/`. The foreground duration
+study compares 10-second windows within 60-second runs near each system's knee.
+It uses the separately recorded 100 µs generator-lag diagnostic guard; faithful
+1 µs wire timing remains outside this evidence. Wire-to-wire unloaded acceptance
+and the new full resident acquisition still require their normal campaign gates.
+Retain the default watchdog and keep all spawner data labelled separately.
 
 ## Next checks and integration constraints
 
