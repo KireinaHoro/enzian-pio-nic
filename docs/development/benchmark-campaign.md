@@ -606,7 +606,9 @@ Only loaded/unloaded passing acquisitions can be inherited; preflight, builds,
 validation and plots run again. The source must be stopped, the scope unchanged,
 and every review identity and evidence hash must match. The new root retains
 `inheritance-review.json` alongside unchanged source receipts pointing to their
-original evidence. No failed attempt is promoted or overwritten. Use `--resume`
+original evidence, including when a prior root already inherited those receipts.
+Each transition rechecks the original evidence hashes. No failed attempt is
+promoted or overwritten. Use `--resume`
 only if the new root was already prepared with a reviewed hardware-state file.
 Replaying inherited loaded points regenerates comparison plots once per complete
 case; fresh points still refresh their plots after each acquisition. Finalization
@@ -666,6 +668,14 @@ temporary controls. Validity depends on delivering the absolute send schedule
 through both warmup and measurement: missed opportunities and TX admission
 failures still invalidate the point. Corruption, resource, hardware health and
 restoration failures retain their existing checks.
+
+The generator freezes NIC health counters immediately after RX drain, before
+writing its drained marker or formatting results. Its `nic_rx_*`/`nic_tx_errors`
+validity fields cover initialization through that snapshot, identified by
+`nic_health_scope: "through-rx-drain"` and `nic_health_snapshot_ns`. Additional
+RX misses during reporting are retained as `post_observation_nic_rx_missed`;
+RX polling has stopped by then, so these diagnostic counts do not invalidate
+the observation. In-window NIC misses still invalidate the point.
 
 The single ThunderX VF exposes eight queues without additional queue-set VFs.
 Up to 32 generator threads share eight serialized TX queues; eight threads own

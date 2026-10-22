@@ -50,8 +50,10 @@ def prepare(root, code, review, atomic):
             raise ValueError('Receipt action must be reuse or rerun')
         if any(digest(p)!=sha for p,sha in saved['hashes'].items()):
             raise ValueError('Completed stage evidence changed: '+name)
+        # Inherited receipts keep paths in their original root; stage tokens
+        # identify the request across roots without rewriting its provenance.
         requests=[Path(p) for p in saved['hashes'] if Path(p).name=='request.json' and Path(p).parent.name.startswith('attempt-')
-                      and Path(p).parent.parent==path.parent]
+                      and Path(p).parent.parent.name==path.parent.name]
         if len(requests)!=1: raise ValueError('Ambiguous stage request: '+name)
         stage=json.loads(requests[0].read_text())['stage']
         # Derived outputs must be regenerated after any revision transition;
@@ -162,8 +164,9 @@ def inherit_reviewed(source, destination, config, code, review, atomic):
                 raise ValueError('Invalid inheritance action')
             if any(digest(p)!=sha for p,sha in saved['hashes'].items()):
                 raise ValueError('Source evidence changed: '+name)
+            # A prior reviewed root may itself contain inherited receipts.
             requests=[Path(p) for p in saved['hashes'] if Path(p).name=='request.json' and Path(p).parent.name.startswith('attempt-')
-                      and Path(p).parent.parent==path.parent]
+                      and Path(p).parent.parent.name==path.parent.name]
             if len(requests)!=1:raise ValueError('Ambiguous source request')
             stage=json.loads(requests[0].read_text())['stage']
             if decision['action']=='reuse':

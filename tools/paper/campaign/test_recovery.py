@@ -50,6 +50,33 @@ class Recovery(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'evidence changed'):
             inherit_reviewed(self.root,target,config,self.new,review,controller.atomic)
 
+    def test_chained_inheritance_keeps_original_acquisition_identity(self):
+        controller.atomic(self.root/'config.json',dict(scope='full'))
+        controller.atomic(self.root/'status.json',dict(stage='failed'))
+        original=self.receipts[0].read_bytes()
+        source=self.root
+        for name in ('second','third'):
+            target=self.root/name;target.mkdir()
+            config=dict(scope='full')
+            review=inheritance_draft(source,config,self.new)
+            review.update(reason='Reviewed diagnostic-only transition',evidence=self.new)
+            for receipt,decision in review['receipts'].items():
+                decision.update(action='reuse' if Path(receipt).parent.name==self.receipts[0].parent.name else 'rerun',
+                                reason='Preserve original acquisition; regenerate derived output')
+            inherit_reviewed(source,target,config,self.new,review,controller.atomic)
+            inherited=target/'stages'/self.receipts[0].parent.name/'receipt.json'
+            self.assertEqual(inherited.read_bytes(),original)
+            controller.atomic(target/'config.json',config)
+            controller.atomic(target/'code.json',self.new)
+            controller.atomic(target/'status.json',dict(stage='failed'))
+            source=target
+        (self.receipts[0].parent/'attempt-1/result.json').write_text('{}')
+        review=inheritance_draft(source,config,self.new)
+        review.update(reason='Reject corrupt original evidence',evidence=self.new)
+        for decision in review['receipts'].values():decision.update(action='reuse',reason='Test integrity gate')
+        with self.assertRaisesRegex(ValueError,'evidence changed'):
+            inherit_reviewed(source,self.root/'fourth',config,self.new,review,controller.atomic)
+
     def test_completed_rehearsal_can_promote_but_failed_cannot(self):
         controller.atomic(self.root/'config.json',dict(scope='rehearsal'))
         target=self.root/'full';target.mkdir()
