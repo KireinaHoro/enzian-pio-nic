@@ -97,20 +97,25 @@ scheduler or watchdog behavior is required.
 | `rx_observed` | `PT_OBSERVED`: timestamp saved on CQ readiness observation in `runtime/net/directpath/mlx5/mlx5_init_common.c`; RX gather entry is the fallback when no readiness timestamp exists. CPU interval start. |
 | `rx_queue_enter`, `rx_queue_exit` | `PT_RX_ENTER/EXIT`: RX gather entry through packet delivery after CQ/RQ bookkeeping in `mlx5_rxtx.c` or `mlx5_rx_stride.c`. |
 | `network_rx_enter` | `PT_NET_RX`: `runtime/net/core.c`, before network ingress processing. |
-| `network_rx_exit` | `PT_NET_RX_EXIT`: `udp_par_recv` in `runtime/net/udp.c`, after UDP header extraction and before creating the request user thread. |
-| `dispatch_ready` | `PT_READY`: after creating/filling the spawned thread's argument, immediately before `thread_ready`. |
-| `dispatch_enter` | `PT_DISPATCH`: first timestamp in the echo UDP callback, also used as `backend_enter`. |
-| `network_tx_enter` | `PT_NET_TX`: entry to `udp_respond`, before mbuf allocation/copy and UDP/IP construction. |
+| `network_rx_exit` | `PT_NET_RX_EXIT`: after UDP header extraction in `runtime/net/udp.c`: `udp_par_recv` before thread creation (spawner), `udp_conn_recv` before socket queue locking (resident). |
+| `dispatch_ready` | `PT_READY`: after filling the spawned thread argument, before `thread_ready` (spawner); after socket queue publication, before waking a reader (resident). |
+| `dispatch_enter` | `PT_DISPATCH`: first timestamp in the shared echo datagram handler, after socket read/copy for residents; also used as `backend_enter`. |
+| `network_tx_enter` | `PT_NET_TX`: entry to `udp_send` via `udp_respond` (spawner), or `udp_write_to2` (resident), before buffer admission/allocation/copy and UDP/IP construction. |
 | `network_tx_exit` | `PT_SUBMIT`: entry to `net_tx_raw`, before kthread acquisition and directpath/deferred submission. |
 | `driver_enter` | `PT_DRIVER`: entry to mlx5 single-packet transmit. |
 | `tx_doorbell` | `PT_DOORBELL`: after BlueFlame MMIO write and flush. |
 | `submit_return` | `PT_TX_RETURN`: after doorbell bookkeeping and `putk`, before completion/export callback. Also exported as `tx_exit`; CPU interval end. |
 
-`dispatch_ready → dispatch_enter` includes runnable-queue publication, scheduling
-and delivery to the request user thread; it is runtime dispatch delay.
+For the spawner, `dispatch_ready → dispatch_enter` includes runnable-queue
+publication, scheduling and delivery to the request user thread; it is runtime dispatch delay.
 `network_rx_exit → dispatch_ready` includes thread creation/argument setup.
-`rx_observed → rx_queue_enter` includes deferred RX servicing. These all remain
-in Runtime/dispatch. `network_tx_exit → submit_return` includes any deferred TX
+For resident workers, `network_rx_exit → dispatch_ready` instead includes socket
+queue locking/publication; `dispatch_ready → dispatch_enter` includes queue wait,
+reader wakeup/scheduling, dequeue and payload copying. `udp_read_from_traced`
+copies the RX markers before the mbuf is freed; socket TX attaches the request's
+persistent trace slot to the outgoing mbuf. The common NIC/PMD markers are
+unchanged. `rx_observed → rx_queue_enter` includes deferred RX servicing. These
+all remain in Runtime/dispatch. `network_tx_exit → submit_return` includes any deferred TX
 submission before driver entry. These are elapsed request intervals, including
 waiting where present. A batched queue span is shared elapsed context, not an
 amortized per-packet CPU-service estimate; paper unloaded requests are single
@@ -197,7 +202,7 @@ acquisition before making a numerical comparison with this accounting.
 
 The outer interval ends at reply submission. LH/DPDK outcome destruction,
 argument freeing and RX retirement performed afterwards lie outside it.
-Caladan performs shared outcome/argument cleanup before `udp_respond`, so that
+Caladan performs shared outcome/argument cleanup before UDP reply submission, so that
 work is inside its outer interval. Caladan's later UDP release/export and other
 post-submission work lie outside. These breakdowns measure the request-to-reply
 critical elapsed path, not total CPU work per request or steady-state capacity.

@@ -216,9 +216,9 @@ in
   mkCaladan = args: import ./benchmarks/caladan ({
     inherit pkgs target kernelBuildTree kernelRelease identity;
   } // args);
-  mkCaladanCampaign = { source, microbenchmarkSource, rpcSource }:
+  mkCaladanCampaign = { source, microbenchmarkSource, rpcSource, executionModel ? "resident-workers" }:
     import ./benchmarks/caladan/campaign.nix {
-      inherit pkgs target microbenchmarkSource rpcSource;
+      inherit pkgs target microbenchmarkSource rpcSource executionModel;
       clientEnvironment = echoCampaignDeployment.environment;
       port = import ./benchmarks/caladan {
         inherit pkgs target kernelBuildTree kernelRelease identity source;

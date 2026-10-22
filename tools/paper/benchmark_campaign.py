@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 from campaign.settings import measurement_settings
-from campaign.policy import SYSTEMS, selected_systems, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates
+from campaign.policy import SYSTEMS, selected_systems, SIZES, WORKERS, LOSS_LIMIT, loss, grid, next_rate, candidates, caladan_execution_model
 from campaign.import_loaded import load, digest
 from campaign.import_unloaded import validate_matched
 from campaign.recovery import prepare as prepare_recovery, invalidated
@@ -187,6 +187,11 @@ class Campaign:
         self.latest = str(result_path)
         return result
 
+    def execution_model_request(self,system):
+        if system=='CS-A64' and 'caladan_execution_model' in self.config:
+            return dict(execution_model=self.config['caladan_execution_model'])
+        return {}
+
     def loaded(self, system, size, workers, rate, phase, trial=0, sustained=False):
         settings = measurement_settings(self.config)
         loaded = settings['loaded']
@@ -197,7 +202,7 @@ class Campaign:
         arrival = (dict(arrival_model='paced-batch', batch_max=self.config['batch_max'],
                         batch_target_ns=self.config.get('batch_target_ns',250000))
                    if self.config.get('batch_max',1)>1 else {})
-        result = self.stage('loaded', dict(**arrival, system=system, payload_bytes=size, workers=workers,
+        result = self.stage('loaded', dict(**arrival, **self.execution_model_request(system), system=system, payload_bytes=size, workers=workers,
             rate=rate, phase=phase, repetition=trial, duration_ms=duration, warmup_ms=warmup,
             deadline_ms=10, generator_cpus=self.config['generator_cpus'], flows=self.config['flows']))
         self.completed += 1
@@ -211,7 +216,7 @@ class Campaign:
         for system in systems:
             for size in SIZES:
                 for instrumentation in ('off', 'breakdown'):
-                    result=self.stage('unloaded', dict(system=system, payload_bytes=size, workers=1,
+                    result=self.stage('unloaded', dict(**self.execution_model_request(system),system=system, payload_bytes=size, workers=1,
                         outstanding=1, count=settings['rehearsal']['unloaded_requests'] if phase=='rehearsal' else settings['unloaded']['measurement_requests'],
                         warmup=settings['unloaded']['warmup_requests'],
                         instrumentation=instrumentation, phase=phase))
@@ -279,6 +284,8 @@ class Campaign:
             plans = [dict(system=s, size=n, workers=w, rates=[settings['step_rpc_s'][s][str(n)]],
                           step=settings['step_rpc_s'][s][str(n)], stop_loss=.01)
                      for s in self.systems for n in SIZES for w in WORKERS]
+        for plan in plans or []:
+            plan.update(self.execution_model_request(plan['system']))
         expected={(s,n,w) for s in self.systems for n in SIZES for w in WORKERS}
         if not plans or len(plans)!=len(expected) or {(p['system'],p['size'],p['workers']) for p in plans}!=expected:
             raise ValueError('Full collection requires an explicit complete frozen grid')
@@ -363,6 +370,8 @@ class Campaign:
 def config_check(config):
     selected_systems(config)
     measurement_settings(config)
+    if 'caladan_execution_model' in config:
+        caladan_execution_model(dict(execution_model=config['caladan_execution_model']))
     if config.get('loaded_sweep') not in (None, 'linear-to-loss'):
         raise ValueError('Unknown loaded sweep policy')
     if config.get('loaded_sweep') and config.get('grid') is not None:

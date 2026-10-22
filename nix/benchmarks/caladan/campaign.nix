@@ -1,5 +1,5 @@
 # One immutable image for both probe modes and the shared generator/harness.
-{ pkgs, target, port, clientEnvironment, microbenchmarkSource, rpcSource }:
+{ pkgs, target, port, clientEnvironment, microbenchmarkSource, rpcSource, executionModel ? "resident-workers" }:
 let
   server = tracing: target.callPackage (microbenchmarkSource + "/server/caladan/package.nix") {
     source = microbenchmarkSource;
@@ -7,7 +7,7 @@ let
     qemu = pkgs.qemu;
     caladan = port.runtime.override { inherit tracing; };
     inherit (port) rdmaCore;
-    inherit tracing;
+    inherit tracing executionModel;
   };
   off = server false;
   breakdown = server true;

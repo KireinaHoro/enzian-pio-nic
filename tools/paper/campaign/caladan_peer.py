@@ -18,6 +18,13 @@ import time
 import urllib.request
 
 
+def require_execution_model(manifest,config):
+    model=manifest.get('executionModel','udp-spawner')
+    if model not in ('udp-spawner','resident-workers') or model!=config.get('execution_model','udp-spawner'):
+        raise ValueError('Caladan execution model differs from campaign request')
+    return model
+
+
 def ensure_ksched_device(path=Path('/dev/ksched')):
     """ksched registers a cdev but relies on setup_machine.sh for its node."""
     device=os.makedev(280,0)
@@ -162,6 +169,7 @@ def run(config, peer):
                 pattern='core.%e.%p.%t',limit_bytes=8*1024**3,coredump_filter='0x7f',diagnostic_only=True))
             Path('/proc/sys/kernel/core_pattern').write_text('core.%e.%p.%t')
         if manifest['tracing']!=(mode=='breakdown'): raise ValueError('Compiled Caladan probe mode mismatch')
+        execution_model=require_execution_model(manifest,config)
         if (len(pool)!=len(cores)+2 or pool[2:]!=cores or len(set(pool))!=len(pool)
                 or pool!=sorted(pool) or any(type(cpu) is not int or not 0<=cpu<64 for cpu in pool)):
             raise ValueError('Caladan requires two separate IOKernel CPUs and the requested worker pool')
@@ -221,7 +229,9 @@ def run(config, peer):
         log=(root/'server.log').read_text()
         steering=next((name for name in ('flow','queue') if 'selected '+name+' steering mode' in log),None)
         if steering is None:raise ValueError('Missing negotiated directpath steering mode')
-        save('runtime.json',dict(steering=steering,control_cpu=pool[0],dataplane_cpu=pool[1],
+        if 'executionModel' in manifest and 'execution_model='+execution_model not in log:
+            raise ValueError('Caladan executable execution model differs from manifest')
+        save('runtime.json',dict(execution_model=execution_model,steering=steering,control_cpu=pool[0],dataplane_cpu=pool[1],
                                 worker_cpus=cores,runtime_kthreads=len(cores),
                                 guaranteed_kthreads=len(cores),spinning_kthreads=len(cores),
                                 control_cpus_boot_isolated=set(pool[:2])<=namespace['cpus'](before['isolated_cpus']),

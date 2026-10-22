@@ -105,7 +105,10 @@ def finalize(config,h,request,campaign):
     unloaded=json.loads(Path(request['unloaded']).read_text())
     manifest=json.loads((campaign/'config.json').read_text())
     for record in loaded+unloaded:
-        if record['system']=='CS-A64':record['execution_model']=caladan_execution_model(record)
+        if record['system']=='CS-A64':
+            record['execution_model']=caladan_execution_model(record)
+            if record['execution_model']!=manifest.get('caladan_execution_model','udp-spawner'):
+                raise ValueError('Caladan archive execution model differs from campaign')
     systems=selected_systems(manifest)
     verify_loaded(loaded,plans,systems=systems,measurement=manifest.get('measurement'));validate_matched(unloaded,systems=systems)
     validate_unloaded_counts(unloaded,measurement_settings(manifest)['unloaded'])

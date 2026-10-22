@@ -149,9 +149,12 @@ and [campaign workflow](../development/caladan.md#unattended-hot-echo-campaigns)
 The collected **UDP-spawner variant** uses Caladan's UDP spawner, one user
 thread per datagram, and user-thread-specific request context. It is a separate
 execution-model experiment: LH and DPDK hot echo execute synchronously without
-per-request fiber creation. The primary base-echo comparison requires resident
-Caladan workers receiving, handling and replying synchronously; spawner results
-cannot substitute for that baseline. Schema, handler, XDR and synchronous
+per-request fiber creation. The primary base-echo build uses a fixed resident pool with one user thread per
+configured runtime kthread, receiving, handling and replying synchronously through
+one shared Caladan UDP socket. Its stacks are reused; the socket's receive copy,
+queue locking and TX accounting remain part of that path. Native hardware
+readiness, per-worker distribution and timestamp validation gate its measurements;
+spawner results cannot substitute for this baseline. Schema, handler, XDR and synchronous
 RPC code are shared with DPDK. The probe-free build removes timing hooks while
 preserving scheduling. Optional packet-stage tracing follows RX through UDP
 spawning and TX through deferred submission; `SIGRTMIN+4` exports the shared

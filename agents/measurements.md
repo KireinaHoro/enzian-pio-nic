@@ -1,13 +1,25 @@
 # Measurement continuation
 
+## Resident base echo preparation — October 22
+
+The current campaign remains the UDP-spawner experiment. Figure legends/axes say
+`CS-A64 spawner`; derived archives record `execution_model="udp-spawner"` while
+original system IDs, requests and raw evidence remain intact. The maintainer
+asked that collection finish. The base echo build now defaults to resident
+workers (microbenchmarks `84c68c0`, Caladan `8b7a063`); native acceptance and fresh
+measurements remain pending. See [Caladan continuation](caladan.md#resident-base-echo-preparation--october-22).
+Platform pins `84c68c0`. Validation and reviewed partial previews are in
+`out/caladan-resident-preparation/`; no resident image was deployed or launched.
+
 ## Timestamp accounting implementation — October 21
 
 Hot unloaded accounting version 3 separates allocation, codec decode/encode,
 TX-buffer reservation, backend lookup, reply preparation and named runtime
 handoffs for LH, DPDK and CS-A64. See the
 [exact timestamp/formula contract](../docs/development/rpc-breakdown.md).
-Platform pins microbenchmarks master `067d50d`; Caladan's existing packet probes
-supply its queue/network/thread-ready boundaries, with no runtime-tree change.
+The October 21 acquisition used microbenchmarks `067d50d`; Caladan's existing
+packet probes supplied its queue/network/thread-ready boundaries without a
+runtime-tree change for that acquisition.
 Historical paper datasets and temporary preview outputs retain their original
 accounting; version 3 cannot be mixed with legacy coarse RPC breakdown cohorts.
 

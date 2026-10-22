@@ -19,6 +19,31 @@ class CaladanImportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Unknown'):
             caladan_execution_model(dict(execution_model='unknown'))
 
+    def test_execution_model_changes_acquisition_identity_only_when_explicit(self):
+        from .test_campaign import controller
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            config=dict(generator_cpus=[16],flows=64)
+            for settings,system,expected in ((config,'CS-A64',None),
+                    (dict(config,caladan_execution_model='resident-workers'),'CS-A64','resident-workers'),
+                    (dict(config,caladan_execution_model='resident-workers'),'LH',None)):
+                c=controller.Campaign(Path(tmp),settings)
+                with patch.object(c,'stage',return_value=dict(trial={})) as stage:
+                    c.loaded(system,8,1,20000,'full')
+                request=stage.call_args.args[1]
+                self.assertEqual(request.get('execution_model'),expected)
+                if expected is None:self.assertNotIn('execution_model',request)
+
+    def test_binary_model_requires_matching_campaign_selection(self):
+        from .caladan_peer import require_execution_model
+        self.assertEqual(require_execution_model({},{}),'udp-spawner')
+        model=dict(executionModel='resident-workers')
+        with self.assertRaisesRegex(ValueError,'execution model'):
+            require_execution_model(model,{})
+        self.assertEqual(require_execution_model(model,dict(execution_model='resident-workers')),'resident-workers')
+        with self.assertRaisesRegex(ValueError,'execution model'):
+            require_execution_model(dict(executionModel='unknown'),dict(execution_model='unknown'))
+
     def test_process_exit_evidence(self):
         from unittest.mock import Mock
         import signal

@@ -72,6 +72,7 @@ class Acquisition:
             helper=Path(__file__).with_name('caladan_peer.py')
             isolation=ROOT/'tools/enzian/cpu_isolation.py'
             result.update(binary=variant['binary'],manifest=variant['manifest'],
+                execution_model=r.get('execution_model','udp-spawner'),
                 caladan_cpus=c['caladan_control_cpus']+result['cpus'],caladan_gateway=c['caladan_gateway'],
                 caladan_helper=dict(url=self.h.stage(helper,self.label+'-caladan.py'),sha256=digest(helper)),
                 isolation_helper=dict(url=self.h.stage(isolation,self.label+'-isolation.py'),sha256=digest(isolation)))
@@ -389,6 +390,7 @@ assert pathlib.Path('/sys/class/net/enP5p144s0np0/device/driver').resolve().name
                             raise ValueError('Capture/software XID or warmup mismatch')
                         row['switch_delta_raw']=raw['delta_raw']
                     result['files'].update({str(p):digest(p) for p in capture.output.iterdir() if p.is_file()})
+                if r['system']=='CS-A64':cohort['execution_model']=r.get('execution_model','udp-spawner')
                 cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
                 # Bounded integration trials remain outside paper inputs.
                 cohort['paper_inputs']=False

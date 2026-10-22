@@ -38,6 +38,13 @@ class Chunked(unittest.TestCase):
                     rows=observations,files={},count=count,warmup=warmup,raw_capture={'path':'fixture'},
                     paper_inputs=True,wire_available=True,methodology='tofino-wire-v1')
 
+    def test_caladan_chunk_models_must_match(self):
+        spawner=self.chunk(1,system='CS-A64')
+        resident=dict(self.chunk(1,system='CS-A64'),execution_model='resident-workers')
+        self.assertEqual(merge([resident])['execution_model'],'resident-workers')
+        with self.assertRaisesRegex(ValueError,'execution models'):
+            merge([spawner,resident])
+
     def test_requested_warmups_are_per_chunk(self):
         for count in (100,900,10000):
             c=merge([self.chunk(n) for n in plan(count)]) if count>896 else self.chunk(count)

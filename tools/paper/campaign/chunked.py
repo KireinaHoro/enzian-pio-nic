@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .acquire import ROOT, roles, validate_role
 from .import_loaded import digest
+from .policy import caladan_execution_model
 from .import_unloaded import dpdk, lauberhorn, rows
 from .tofino import Batch, wire_observations
 
@@ -33,6 +34,8 @@ def merge(cohorts):
     for index,cohort in enumerate(cohorts):
         if any(cohort[k]!=first[k] for k in ('system','payload_bytes','instrumentation','build_config_sha256')):
             raise ValueError('Incompatible capture chunks')
+        if first['system']=='CS-A64' and caladan_execution_model(cohort)!=caladan_execution_model(first):
+            raise ValueError('Incompatible Caladan execution models across chunks')
         if cohort.get('cpu_partition_version')!=first.get('cpu_partition_version'):
             raise ValueError('Incompatible CPU accounting versions across chunks')
         if cohort['warmup']!=warmup or not 0<cohort['count']<=1024-warmup or len(cohort['rows'])!=cohort['count']+warmup:
@@ -133,6 +136,7 @@ def run(a):
                 export_rows=sum(counts)+warmup*len(counts),**dict({'server_path':None},**options))
         else:cohort=dpdk(paths['client']/'samples.csv',**options)
         offset+=count+warmup
+        if r['system']=='CS-A64':cohort['execution_model']=r.get('execution_model','udp-spawner')
         cohort['build_config_sha256']=c['build_config_sha256'][r['system']][r['instrumentation']]
         cohort['raw_capture']=dict(path=str(capture.output/'pairs.json'),sha256=digest(capture.output/'pairs.json'))
         for row,raw in zip(cohort['rows'],child.paired['pairs']):

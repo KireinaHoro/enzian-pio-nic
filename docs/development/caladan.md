@@ -10,6 +10,14 @@ nix build --impure --file default.nix image
 nix develop --impure --file default.nix shell
 ```
 
+The base echo build uses resident workers. `echoServer` and `echoTrace` select
+that execution model; `echoSpawner` and `echoSpawnerTrace` preserve the UDP-spawner
+variant. The default `echoImage`/`echoTraceImage` package the resident server.
+The [microbenchmark README](../../../microbenchmarks/server/caladan/README.md)
+describes socket queue/copy semantics and fixed-pool startup. Both probe modes
+must pass native readiness, worker coverage and boundary validation before new
+paper acquisition; the running spawner campaign retains its frozen image.
+
 The ARMv8 runtime and scheduler modules build. Native CPU checks, module/API
 checks and one-/two-kthread runtime smoke tests pass on zuestoll07; broader
 scheduling and traffic acceptance remains separate. See the [baseline and evidence](../research/caladan-enzian.md).

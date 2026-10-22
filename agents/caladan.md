@@ -3,12 +3,43 @@
 Maintain all port documentation here in platform. The sibling Caladan repository
 keeps source and navigation only. **CS-A64 means Caladan Simple on AArch64**,
 using mlx5 directpath, not a Shenango simulation. Upstream x86 behavior remains
-preserved; no x86 calibration campaign is requested. Current source at collection
-was `d6a6be20f78ae0dac14c033cb427126f1f62159b` on `enzian-port`.
+preserved; no x86 calibration campaign is requested. An earlier collection used `d6a6be20f78ae0dac14c033cb427126f1f62159b` on `enzian-port`.
 
 Human references: [baseline](../docs/research/caladan-enzian.md),
 [ARM differences](../docs/research/caladan-enzian.md#arm-port-differences),
 [build/tests/tracing](../docs/development/caladan.md).
+
+## Resident base echo preparation — October 22
+
+The maintainer selected the ongoing dataset as the separate **UDP-spawner**
+variant and requested resident workers for base echo. Keep campaign r4 running
+on its immutable spawner image; do not deploy or collect resident data yet.
+
+Caladan `enzian-port` `8b7a063` propagates UDP socket RX boundaries through the
+trace-only `udp_read_from_traced` API and carries socket TX trace slots to the
+existing PMD doorbell/export markers. Microbenchmarks master `84c68c0` defaults
+to `executionModel="resident-workers"`; the explicit `"udp-spawner"` option and
+Caladan `echoSpawner`/`echoSpawnerTrace` targets preserve the other variant.
+The resident pool has `runtime_max_cores()` user threads, created before readiness,
+sharing one UDP socket. Request stacks are reused; socket RX copying, queue
+locking, wakeups and TX credit accounting remain measured costs. Watchdog and
+all three hot kthread settings are retained. Future campaign manifests must set
+`caladan_execution_model: "resident-workers"`; model mismatches and mixed archive
+series/chunks are rejected. Existing roots omit this key and retain spawner IDs.
+
+Validation in `out/caladan-resident-preparation/validation.json`: four AArch64
+builds (both models × probes off/on), shared RPC tests under QEMU, probe-free
+symbol gates, 112 campaign tests, Nix composition using the updated lock, and
+visual review of spawner-labelled unloaded/partial loaded previews. Both new
+server variants compile at O3 with target/LTO flags. Initial parallel compiler
+process crashed; bounded-parallelism rebuild succeeded. No native hardware run.
+
+Next: validate resident readiness and worker distribution with real traffic,
+confirm shared-socket buffering/loss/restoration, and validate RX/TX boundary
+coverage and exported request counts under probes. Explicitly review activity
+counter costs and the unchanged watchdog before drawing performance conclusions.
+Only then collect a fresh resident dataset; retain spawner data separately and
+never relabel those acquisitions as resident.
 
 ## Next checks and integration constraints
 

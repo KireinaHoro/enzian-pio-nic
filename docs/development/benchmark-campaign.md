@@ -50,7 +50,15 @@ provenance; changing them requires its compatibility/recovery review.
 The current Caladan acquisition is the **UDP-spawner variant**, labelled
 `CS-A64 spawner`; it is retained as a separate execution-model experiment and
 continues to completion. LH/DPDK hot echo execute inline. The base Caladan echo
-comparison requires a resident-worker implementation and fresh measurements.
+build uses the resident-worker implementation and requires fresh measurements.
+New resident manifests set `caladan_execution_model: "resident-workers"`; omit
+that key only for legacy spawner campaigns, or explicitly select `"udp-spawner"`.
+The field enters acquisition request identities, derived records and archives.
+The server package's `executionModel` must match; the runner rejects a mismatch
+before server startup. `mkCaladanCampaign` defaults to resident workers and accepts
+`executionModel = "udp-spawner"` for an explicit spawner image. Resident hardware
+acceptance (including worker distribution and socket-path timestamps) must pass
+before paper collection. Existing immutable spawner campaigns keep their images.
 Derived archives record `execution_model: "udp-spawner"` for legacy CS-A64
 cohorts without changing their original receipts or system identifiers.
 
