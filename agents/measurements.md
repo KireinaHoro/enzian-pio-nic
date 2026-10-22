@@ -40,9 +40,10 @@ progress uses observed system count and rehearsal/finalization pass their matrix
 count. 113 tests pass, including 1/2/3-system geometry acceptance and wrong-height
 rejection. Copies of all three preserved PDFs passed real geometry/font/PNG
 checks; preview was visually reviewed. Evidence is in
-`out/caladan-plot-recovery-20261022/`. Both EMG reservations were rechecked. Resume
-the same immutable spawner campaign, preserving all 873 acquisitions and the
-failed plot attempt; no reset or acquisition change is needed.
+`out/caladan-plot-recovery-20261022/`. Both EMG reservations were rechecked. The
+same immutable spawner campaign resumed as `echo-campaign-11a57abd167b`, preserving
+all 873 acquisitions and the failed plot attempt; no reset or acquisition change
+occurred. Submission receipt: recovery directory `resume.json`. Do not poll.
 
 ## Active full hot campaign — October 21
 
