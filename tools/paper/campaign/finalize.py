@@ -156,7 +156,7 @@ def finalize(config,h,request,campaign):
     for script,source in (('plot_echo.py','loaded.json'),('plot_echo_unloaded.py','unloaded.json')):
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',destination/source,'--output',output],script,timeout=86400)
     previews=pdf_checks(output,['echo-loaded-hot-latency-goodput','echo-loaded-hot-peak-throughput-workers','echo-overload-loss',
-                               'echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'])
+                               'echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'],loaded_system_count=len(systems))
     for name in ('echo-statistics.json','echo-trials.json','echo-unloaded-statistics.json','pdf-validation.json'):
         shutil.copyfile(output/name,destination/name)
     atomic(destination/'manifest.json',dict(status='complete',paper_inputs=True,

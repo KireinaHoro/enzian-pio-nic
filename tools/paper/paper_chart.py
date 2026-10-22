@@ -36,6 +36,11 @@ def dimensions():
                 for name in ("COLUMN", "TEXT")}
 
 
+def loaded_panel_height(system_count):
+    """Fixed canvas for one loaded-chart row per observed system."""
+    return 2 * system_count + .5
+
+
 def figure(*, columns=1, height=None):
     """One axes in one column by default; no title, caption or annotation."""
     if columns not in (1, 2):

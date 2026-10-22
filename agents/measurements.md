@@ -30,6 +30,20 @@ checks. Compiled-out symbol gates pass. Local build receipts and test logs are
 in ignored `out/rpc-breakdown-timestamps/`; these are software checks, not new
 acquisition evidence.
 
+## Plot-only recovery — October 22
+
+Campaign r4 reached 873 accepted acquisitions, then progress plot stage
+`adf5a4fa0ef72a82871b/attempt-1` rejected a valid 6.5-inch three-system PDF against
+the old fixed 4.5-inch canvas check. Data/rendering passed and hardware-state was
+safe. Plotting and PDF validation now share `paper_chart.loaded_panel_height`;
+progress uses observed system count and rehearsal/finalization pass their matrix
+count. 113 tests pass, including 1/2/3-system geometry acceptance and wrong-height
+rejection. Copies of all three preserved PDFs passed real geometry/font/PNG
+checks; preview was visually reviewed. Evidence is in
+`out/caladan-plot-recovery-20261022/`. Both EMG reservations were rechecked. Resume
+the same immutable spawner campaign, preserving all 873 acquisitions and the
+failed plot attempt; no reset or acquisition change is needed.
+
 ## Active full hot campaign — October 21
 
 The maintainer selected the current Caladan data as the **UDP-spawner variant**:

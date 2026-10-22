@@ -193,7 +193,7 @@ def publish_plots(output):
         temporary.replace(destination/source.name)
 
 
-def pdf_checks(directory, names):
+def pdf_checks(directory, names, *, loaded_system_count=2):
     import paper_chart
     dimensions=paper_chart.dimensions();previews=[];checks=[]
     for name in names:
@@ -207,7 +207,7 @@ def pdf_checks(directory, names):
         if name=='echo-unloaded-hot-latency-breakdown': expected_height=388.8
         if name=='echo-unloaded-hot-latency-cdf': expected_height=252
         if name=='echo-loaded-hot-peak-throughput-workers': expected_height=230.4
-        if name=='echo-loaded-hot-latency-goodput': expected_height=324
+        if wide: expected_height=paper_chart.loaded_panel_height(loaded_system_count)*72
         if abs(width-expected)>.02 or abs(height-expected_height)>.02: raise ValueError('PDF dimensions differ from paper canvas')
         font_output=subprocess.check_output(['pdffonts',str(path)],text=True,timeout=30)
         font_rows=font_output.splitlines()[2:]
@@ -278,7 +278,8 @@ def rehearsal(config,h,campaign):
     h.command([sys.executable,ROOT/'tools/paper/plot_echo.py','--input',path,'--output',output,'--rehearsal'],'plot-loaded',timeout=7200)
     h.command([sys.executable,ROOT/'tools/paper/plot_echo_unloaded.py','--input',campaign/'rehearsal-unloaded.json',
         '--output',output,'--rehearsal'],'plot-unloaded',timeout=600)
-    previews=pdf_checks(output,['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'])
+    previews=pdf_checks(output,['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'],
+        loaded_system_count=len(selected_systems(read(campaign/'config.json'))))
     if read(campaign/'config.json').get('scope','rehearsal')=='rehearsal':
         stop_transfer(config,h)
     return dict(passed=True,previews=previews,unloaded_modes=True,loaded_sizes=True,overload_retained=True,scheduling=True,
@@ -326,7 +327,9 @@ def main():
         h.command([sys.executable,ROOT/'tools/paper'/script,'--input',source,'--output',output]
                   + ([] if unloaded else ['--partial']),'plot-progress',timeout=600)
         names=['echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown'] if unloaded else ['echo-loaded-hot-latency-goodput','echo-overload-loss','echo-loaded-hot-peak-throughput-workers']
-        previews=pdf_checks(output,names)
+        from .policy import observed_systems
+        previews=pdf_checks(output,names,loaded_system_count=
+            len(observed_systems(request['loaded'])) if not unloaded else 2)
         if config.get('publish_plots',True): publish_plots(output)
         atomic(campaign/('unloaded-plots.json' if unloaded else 'loaded-plots.json'),dict(previews=previews))
         result=dict(passed=True,previews=previews)

@@ -36,6 +36,11 @@ once in the experimental setup using the [baseline description](../research/cala
 The ARM/MLX5 port has partial native mechanism acceptance; include its series
 only after the benchmark contract has been accepted.
 
+Loaded latency/goodput and loss panels have one row per observed system and a
+fixed height of `2 × systems + 0.5` inches (4.5 inches for two systems, 6.5 for
+three). Plotting and the PDF gate share this canvas rule; partial progress uses
+the systems actually present, while finalization requires the complete matrix.
+
 ## Active echo measurements
 
 Use the [canonical campaign workflow](benchmark-campaign.md)

@@ -43,7 +43,7 @@ def observations(trials, *, collect=True):
 
 
 def panels(columns=3, rows=2):
-    fig,ax=chart.figure(columns=2,height=(2*rows+.5) if columns==3 else 2.5)
+    fig,ax=chart.figure(columns=2,height=chart.loaded_panel_height(rows) if columns==3 else 2.5)
     ax.remove()
     axes=fig.subplots(rows if columns==3 else 1,columns,squeeze=False)
     fig.subplots_adjust(left=.085,right=.98,bottom=.13,top=.95,hspace=.55,wspace=.34)

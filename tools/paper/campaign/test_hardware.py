@@ -15,6 +15,24 @@ from .import_loaded import digest
 
 
 class Hardware(unittest.TestCase):
+    def test_pdf_gate_uses_observed_system_canvas_and_rejects_wrong_height(self):
+        from .adapter import pdf_checks
+        from types import SimpleNamespace
+        for count,height in ((1,180),(2,324),(3,468)):
+            canvas=Mock(return_value=height/72)
+            chart=SimpleNamespace(dimensions=lambda:dict(text=7,column=3),loaded_panel_height=canvas)
+            with self.subTest(systems=count),tempfile.TemporaryDirectory() as tmp:
+                def output(argv,**kwargs):
+                    if argv[0]=='pdfinfo':return f'Pages: 1\nPage size: 504 x {height} pts\n'
+                    return 'name type encoding emb sub uni object ID\n---\nFont Type1 Custom yes yes yes 7 0\n'
+                with patch.dict('sys.modules',{'paper_chart':chart}),patch('subprocess.check_output',side_effect=output),patch('subprocess.run'):
+                    result=pdf_checks(tmp,['echo-loaded-hot-latency-goodput'],loaded_system_count=count)
+                    self.assertEqual(len(result),1)
+                    canvas.assert_called_with(count)
+                with patch.dict('sys.modules',{'paper_chart':chart}),patch('subprocess.check_output',return_value=f'Pages: 1\nPage size: 504 x {height+10} pts\n'):
+                    with self.assertRaisesRegex(ValueError,'dimensions'):
+                        pdf_checks(tmp,['echo-loaded-hot-latency-goodput'],loaded_system_count=count)
+
     def test_nested_capture_identity_is_unique_across_parent_attempts(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);labels=[]
