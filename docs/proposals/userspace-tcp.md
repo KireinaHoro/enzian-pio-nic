@@ -94,18 +94,93 @@ new work, distinct from existing internal RPC deadline wakeups and
 
 ## Stack selection and acceptance
 
-Prefer a stack with concurrent shared connection state and callable packet/timer
-processing. Audit a FreeBSD userspace extraction (for example, F-Stack's stack
-and compatibility layer without DPDK) for preserved locking, thread context,
-allocator and timer semantics. mTCP's per-context thread model needs redesign
-for this contract; a globally serialized lwIP instance does not provide parallel
-transport processing. No source revision is selected yet.
+Use F-Stack's FreeBSD userspace extraction as the starting point, replacing its
+DPDK integration and compatibility-layer concurrency semantics. Retain the TCP
+implementation and provide real locking, shared process/socket and VNET state,
+per-worker thread context, safe reclamation, allocator semantics and shared
+callouts. F-Stack's isolated per-thread stacks and stubbed synchronization do
+not implement this contract. Use vanilla FreeBSD as the semantic reference;
+pin the source revision when establishing the port.
 
-Resolve the stack's concurrent-entry API, memcached readiness adapter and the
-timer arm/ack/cancel ABI before implementation. Acceptance must cover four
+Define the stack's concurrent-entry API and timer arm/ack/cancel ABI during VM
+development, then the memcached readiness adapter before application integration.
+Acceptance must cover four
 workers with same-connection packet spraying, concurrent connections, loss and
 reordering, close/timer races, buffer exhaustion, timer-only wake from a parked
 domain, and TCP progress while another worker runs a long handler. Confirm that
 DESCHED/yield never carries locks or transport borrows across handoff. Compare
 TCP memcached behavior with upstream and report CPU costs including any helper
 work; retain the existing application's maintenance/lifecycle scope limits.
+
+## Development phases
+
+These phases are planned work. The software-only backend is shared infrastructure
+for Lauberhorn applications, not a TCP-specific replacement runtime.
+
+### Phase 1: shared kernel module and runtime with VM emulation
+
+Start from the current kernel module and runtime, with a compile-time backend
+selection for real hardware or software-only VM execution. Share application
+and endpoint registration, worker-pool lifecycle, activation bookkeeping,
+runtime dispatch and buffer-ownership checks. Isolate hardware operations behind
+the backend boundary. Reuse ideas from Sven's mock, including mapped buffers and
+RX/TX ioctls that emulate 2F2F; do not carry forward its separate, older runtime
+or mmap-based worker registration and parking.
+
+Steal matching packets from the normal host network receive path and retain
+ordinary host handling for unmatched traffic. Emulate all hardware actions in a
+kernel thread: classification and delivery, queues, scheduling decisions,
+transport completion, notifications and device timer events. Network hooks
+enqueue work for that emulator. The kthread models the device; application
+workers execute handlers and, in phase 2, TCP processing and TCP timer callbacks.
+Emulation preserves explicit registration/bootstrap yield, RX DESCHED followed
+by yield, activation identity, RX borrow and TX reservation lifetimes, and
+bounded admission. Ordinary syscall blocking must retain the assignment.
+
+The goal is to support all Lauberhorn applications in a software-only VM through
+the shared runtime. Acceptance covers the supported application/transport
+matrix, including native UDP, ONC-RPC, nested RPC and bypass, plus multi-worker
+activation, handoff and buffer-exhaustion cases. Device emulation establishes
+functional behavior; it does not establish ECI coherence or hardware timing.
+
+### Phase 2: shared F-Stack library and TCP validation in the VM
+
+Develop the non-DPDK F-Stack library against the emulation backend. Implement
+the proposed native-TCP transport and domain timer interfaces in the emulator,
+and integrate callable packet/timer processing with the shared runtime. Use
+one stack per application with one to four workers and stack-owned RX/TX copies.
+
+Exercise TCP independently of memcached with a normal TCP link partner:
+connection establishment, bidirectional stream transfer, ACK-only traffic,
+flow control, loss/retransmission, reordering, FIN and RST. Inject concurrent
+same-connection arrivals across workers, independent connections, accept/close/
+timer races, allocation and TX exhaustion, earlier-deadline rearming, and expiry
+during sleep entry. Require timer-only activation with all workers parked and
+TCP progress while another worker runs a long handler. Validate stream contents,
+connection lifetime, readiness delivery and ownership at DESCHED/yield boundaries.
+
+### Phase 3: Lauberhorn integration and Enzian end-to-end validation
+
+Implement the native-TCP classification, descriptors, RX/TX transport, endpoint
+validation and domain timer/wakeup mechanisms in Lauberhorn hardware, kernel
+module and runtime. Connect the VM-developed stack through the real backend;
+this phase includes the missing Lauberhorn functionality, not just deployment
+of the library onto Enzian. Regenerate ABI collateral and deploy matching
+hardware/software artifacts.
+
+Build with the real runtime/kernel backend and repeat the stack-level functional
+and concurrency cases end to end on Enzian with a normal TCP link partner.
+Validate real buffer ownership, scheduling handoff, timer-only wakeups and
+transport progress, while preserving existing application transports. VM
+results do not substitute for these hardware integration checks.
+
+### Phase 4: TCP memcached integration and evaluation
+
+Integrate memcached's stream parser, response buffering and readiness handling
+with the validated shared stack. Keep application parsing separate from TCP
+critical sections and preserve readiness while a connection's parser is busy.
+Test against upstream memcached behavior with normal clients, including partial
+commands, pipelining, backpressure and concurrent connections. Evaluate on
+Lauberhorn after stack-level acceptance, reporting throughput, latency and total
+CPU costs, including any helper work, within the application's existing
+maintenance and lifecycle scope.
