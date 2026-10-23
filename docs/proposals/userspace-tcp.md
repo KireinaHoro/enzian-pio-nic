@@ -94,13 +94,22 @@ new work, distinct from existing internal RPC deadline wakeups and
 
 ## Stack selection and acceptance
 
-Use F-Stack's FreeBSD userspace extraction as the starting point, replacing its
-DPDK integration and compatibility-layer concurrency semantics. Retain the TCP
-implementation and provide real locking, shared process/socket and VNET state,
-per-worker thread context, safe reclamation, allocator semantics and shared
-callouts. F-Stack's isolated per-thread stacks and stubbed synchronization do
-not implement this contract. Use vanilla FreeBSD as the semantic reference;
-pin the source revision when establishing the port.
+Start from vanilla FreeBSD and build a Lauberhorn userspace port of its TCP
+stack. Preserve FreeBSD's connection/socket synchronization and lifetime
+contracts while adapting execution to Lauberhorn workers. Pin the FreeBSD
+source revision when establishing the port.
+
+Reuse suitable parts of F-Stack's build system, source-selection/import machinery,
+host interfaces, stubs and initialization scaffolding. Audit each reused stub:
+facilities outside the supported paths may be omitted, but locking, reclamation,
+allocation and timer cancellation require working semantics. Provide shared
+process/socket and VNET state, per-worker thread context, safe reclamation,
+allocator semantics and shared callouts. F-Stack's isolated per-thread stacks
+and stubbed synchronization do not implement this contract.
+
+Describe the result as a FreeBSD userspace TCP port for Lauberhorn, with selected
+scaffolding derived from F-Stack and its attribution retained. It does not use
+DPDK or F-Stack's execution model.
 
 Define the stack's concurrent-entry API and timer arm/ack/cancel ABI during VM
 development, then the memcached readiness adapter before application integration.
@@ -143,9 +152,10 @@ matrix, including native UDP, ONC-RPC, nested RPC and bypass, plus multi-worker
 activation, handoff and buffer-exhaustion cases. Device emulation establishes
 functional behavior; it does not establish ECI coherence or hardware timing.
 
-### Phase 2: shared F-Stack library and TCP validation in the VM
+### Phase 2: shared FreeBSD TCP library and validation in the VM
 
-Develop the non-DPDK F-Stack library against the emulation backend. Implement
+Develop the FreeBSD userspace TCP library against the emulation backend, reusing
+the selected F-Stack scaffolding described above. Implement
 the proposed native-TCP transport and domain timer interfaces in the emulator,
 and integrate callable packet/timer processing with the shared runtime. Use
 one stack per application with one to four workers and stack-owned RX/TX copies.
