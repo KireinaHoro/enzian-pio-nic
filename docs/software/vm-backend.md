@@ -23,6 +23,14 @@ can cause blocking RX to return DESCHED; the assignment changes only at the
 subsequent explicit yield. Ordinary syscall blocking retains the assignment.
 There is no asynchronous handler preemption.
 
+Scheduling policy is simplified: the emulator selects competing queued domains
+round-robin before serving the current domain's queued packet at an RX boundary.
+It does not model the hardware's packet-arrival watermark scaling, idle-only
+initial request below that watermark, or background discovery after local packet
+service. Hardware victim selection uses first-set-bit selection. The VM preserves
+the activation/handoff protocol, but its current tests do not establish matching
+allocation policy or fairness. Deadline donor-watermark protection is also absent.
+
 Each application maps private RX/TX storage for every device worker. Transport
 ioctls validate the calling registered thread's active assignment. RX borrow and
 TX reservation checks exist in the shared runtime and the device backend. RX

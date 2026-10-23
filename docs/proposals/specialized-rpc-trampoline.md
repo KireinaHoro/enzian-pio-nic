@@ -30,6 +30,21 @@ the specialization's savings. Coordinate any implementation with the
 and [cache-line interface](../architecture/hw-sw-interface.md), including ownership
 and progress rules and matched generated hardware/software collateral.
 
+## VM-first implementation
+
+Before implementing the FPGA changes, develop the software path and emulate
+the proposed hardware behavior in the shared [VM backend](../software/vm-backend.md).
+Exercise entry registration and lifetime, the proposed RX descriptor/entry ABI,
+RPC-envelope rejection, error and control responses, and DESCHED/yield ownership
+with the shared runtime. Keep build and emulator configuration in Nix. Port the
+validated behavior to RTL and the ECI backend with matched generated collateral,
+then validate coherence, timing and performance on hardware.
+
+The current VM scheduler uses a simplified round-robin policy, not the hardware
+allocation policy. Model the relevant hardware scheduling/reclaim rules before
+using VM results to validate scheduling-sensitive trampoline behavior. VM
+functional results do not establish hardware latency or dispatch savings.
+
 ## Measurement plan
 
 Separate Dispatch (service/codec selection, invocation, outcome routing and
