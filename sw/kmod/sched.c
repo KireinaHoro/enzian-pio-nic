@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 #include "common.h"
 #include "trace.h"
+#include "activation_backend.h"
 #include <linux/sched/signal.h>
 #include <linux/timekeeping.h>
 
@@ -49,7 +50,7 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u6
 {
     struct lh_activation_timing timing = { .enabled = trace_activation_enabled(),
         .cold = !outgoing, .worker = worker->index };
-    u64 info;
+    struct lh_device_activation info;
     if (timing.enabled) {
         timing.sequence = ++worker->activation_sequence;
         timing.outgoing_tid = outgoing ? outgoing->task->pid : 0;
@@ -58,10 +59,10 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u6
         timing.ns[LH_ACT_DISPATCH] = dispatch_ns;
         timing.ns[LH_ACT_READ_BEGIN] = ktime_get_raw_ns();
     }
-    info = lauberhorn_eci_desched_desched_info_rawrd(&worker->desched_dev);
+    info = lh_device_activate(worker);
     if (timing.enabled) timing.ns[LH_ACT_READ_END] = ktime_get_raw_ns();
-    u32 code = lauberhorn_eci_desched_desched_info_domain_code_extract(info);
-    u32 slot = lauberhorn_eci_desched_desched_info_domain_slot_extract(info);
+    u32 code = info.domain_code;
+    u32 slot = info.domain_slot;
     struct proc_def *proc = find_proc_slot(slot);
     struct thr_def *next = NULL;
     unsigned long flags;
@@ -110,8 +111,8 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u6
     if (proc->failed) { spin_unlock_irqrestore(&claim_lock, flags); return -ESHUTDOWN; }
     next->activation = (struct lh_activation) {
         .worker_index = worker->index,
-        .rx_next = lauberhorn_eci_desched_desched_info_rx_next_extract(info),
-        .tx_next = lauberhorn_eci_desched_desched_info_tx_next_extract(info),
+        .rx_next = info.rx_next,
+        .tx_next = info.tx_next,
     };
     worker->thr = next;
     if (timing.enabled) timing.ns[LH_ACT_WAKE] = ktime_get_raw_ns();
@@ -136,7 +137,7 @@ static int dispatch_thread(void *arg)
         mutex_lock(&worker->reader);
         atomic_set(&worker->kick, 0);
         if (!READ_ONCE(worker->thr) &&
-            lauberhorn_eci_desched_idle_notification_rd(&worker->desched_dev))
+            lh_device_idle_pending(worker))
             activate(worker, NULL, irq_ns, dispatch_ns, 0);
         mutex_unlock(&worker->reader);
     }
@@ -181,7 +182,7 @@ long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
         worker = worker_by_index(index);
         mutex_lock(&worker->reader);
         if (worker->thr != thr ||
-            !lauberhorn_eci_desched_yield_requested_rd(&worker->desched_dev)) {
+            !lh_device_yield_requested(worker)) {
             mutex_unlock(&worker->reader);
             fail_domain(proc);
             return -EPROTO;

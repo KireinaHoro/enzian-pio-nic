@@ -73,6 +73,7 @@ let
   };
   runtime = target.callPackage ./software/runtime.nix {
     inherit devHdrs genVerilog;
+    cpuFlags = [ "-march=armv8-a+crc+lse" "-mtune=thunderxt88" ];
     src = sources.c [
       "sw/rt"
       "sw/include"
@@ -82,6 +83,13 @@ let
     ];
   };
   runtimeUninstrumented = runtime.override { tracing = false; };
+  # Build the complete shared runtime for the host before adding VM transport.
+  # This remains an ECI runtime; native compilation alone does not emulate a NIC.
+  runtimeNative = pkgs.callPackage ./software/runtime.nix {
+    inherit devHdrs genVerilog;
+    inherit (runtime) src;
+    tracing = false;
+  };
   microbenchmarkSource = inputs.microbenchmarks;
   benchmarkRuntimeSource = (sources.c [
     "sw/include"
@@ -206,6 +214,7 @@ in
     applications
     runtime
     runtimeUninstrumented
+    runtimeNative
     microbenchmarksUninstrumented
     kmod
     genVerilog

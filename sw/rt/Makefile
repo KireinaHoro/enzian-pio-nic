@@ -9,7 +9,6 @@ ifndef MACKEREL_DEV_HDRS
 	$(error MACKEREL_DEV_HDRS is not set, build with Nix)
 endif
 
-ARCH ?= arm64
 LH_ENABLE_TRACING ?= 1
 override CFLAGS += -DLH_ENABLE_TRACING=$(LH_ENABLE_TRACING)
 
@@ -21,13 +20,7 @@ override CFLAGS += -O2 -g -pipe -fpic \
 override LDFLAGS += -g -shared -Wl,-z,defs
 
 
-# architecture specific flags 
-ifeq ($(ARCH),arm64)
-	override CFLAGS += -march=armv8-a+crc+lse -mtune=thunderxt88
-else ifeq ($(ARCH),x86_64)
-	override CFLAGS += -march=native
-	CROSS_COMPILE :=
-endif 
+# Target architecture and CPU tuning are supplied by the Nix derivation.
 
 ifdef LAUBERHORN_SIMULATION
 $(error This runtime targets the real ECI transport; the kernel mock is not imported)

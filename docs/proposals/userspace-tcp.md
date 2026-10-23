@@ -128,6 +128,11 @@ for Lauberhorn applications, not a TCP-specific replacement runtime.
 
 ### Phase 1: shared kernel module and runtime with VM emulation
 
+The preparatory build supports a host-native runtime, and kernel activation
+device reads are separated from thread registration and handoff. The VM
+transport, device emulator and acceptance matrix described below are not
+implemented.
+
 Start from the current kernel module and runtime, with a compile-time backend
 selection for real hardware or software-only VM execution. Share application
 and endpoint registration, worker-pool lifecycle, activation bookkeeping,

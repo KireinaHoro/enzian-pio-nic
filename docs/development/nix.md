@@ -39,6 +39,13 @@ The old flat `deployFs`/`*DeployFs` names are now `microbenchmarksImage`,
 `software.memcachedReferenceNative`. Other software retains its descriptive name.
 `runtimeTests` and `dummy-app-build-with-nix` are available only as
 `checks.SYSTEM.runtime-tests` and `checks.SYSTEM.runtime-interface`.
+
+`dev.SYSTEM.software.runtimeNative` builds the complete runtime for the Linux
+build host with tracing disabled. It still uses ECI transport and does not
+provide VM emulation. Runtime CPU tuning is supplied by
+`nix/software/runtime.nix` through `cpuFlags`; `nix/platform.nix` selects
+ThunderX tuning for the deployed AArch64 runtime and generic host compilation
+for the native build.
 Dated measurement records retain the commands supported by their pinned revision.
 
 ## Kernel and image ownership

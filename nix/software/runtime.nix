@@ -6,6 +6,7 @@
   devHdrs,
   genVerilog,
   tracing ? true,
+  cpuFlags ? [ ],
 }:
 stdenv.mkDerivation {
   pname = "lauberhorn-rt";
@@ -17,6 +18,7 @@ stdenv.mkDerivation {
   ];
   propagatedBuildInputs = [ libtirpc ];
   nativeBuildInputs = [ pkg-config ];
+  NIX_CFLAGS_COMPILE = builtins.concatStringsSep " " cpuFlags;
   buildPhase = ''
     runHook preBuild
     make -C sw/rt MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers} LH_ENABLE_TRACING=${if tracing then "1" else "0"}
@@ -54,5 +56,5 @@ stdenv.mkDerivation {
     PC
     runHook postInstall
   '';
-  passthru = { inherit genVerilog devHdrs tracing; };
+  passthru = { inherit genVerilog devHdrs tracing cpuFlags; };
 }
