@@ -19,11 +19,14 @@ this phase.
 
 ## VM execution prerequisite
 
-On October 23 this host has no `/dev/kvm`; Nix advertises
-`benchmark big-parallel nixos-test uid-range`, without `kvm`.
-The user has been asked to choose a KVM host or local QEMU TCG. TCG is a possible
-software-only alternative, not ruled out by the proposal. No VM acceptance has
-run. Do not present native compilation as VM execution.
+The host exposes Intel VT-x, has `kvm_intel`/`kvm` loaded, and provides
+`/dev/kvm` outside the agent sandbox. An unsandboxed open and KVM_GET_API_VERSION
+ioctl succeeded with API version 12 on October 23. The sandbox hides the device;
+the earlier inference that the host lacked KVM was incorrect. No alternate host
+or TCG choice is needed. Run VM validation with the appropriate sandbox
+escalation. Nix currently omits `kvm` from its advertised system features; check
+and configure the Nix VM test execution path without confusing that declaration
+with hardware availability. No VM acceptance has run.
 
 ## Validation
 
