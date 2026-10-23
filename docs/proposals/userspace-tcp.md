@@ -211,9 +211,9 @@ process/socket and VNET state, per-worker thread context, safe reclamation,
 allocator semantics and shared callouts. F-Stack's isolated per-thread stacks
 and stubbed synchronization do not implement this contract.
 
-Describe the result as a FreeBSD userspace TCP port for Lauberhorn, with selected
-scaffolding derived from F-Stack and its attribution retained. It does not use
-DPDK or F-Stack's execution model.
+The implementation is a FreeBSD userspace TCP port for Lauberhorn. F-Stack
+served as a source-selection and host-adaptation reference; no F-Stack source
+is imported. It does not use DPDK or F-Stack's execution model.
 
 Define the stack's concurrent-entry API and timer arm/ack/cancel ABI during VM
 development, then the memcached readiness adapter before application integration.
@@ -268,18 +268,19 @@ functional behavior; it does not establish ECI coherence or hardware timing.
 The source/build checkpoint lives in the separate `lauberhorn-tcp` repository.
 It imports only selected vanilla FreeBSD TCP sources and their transitive
 headers, with a pinned revision and per-file hashes. Its source-owned Nix recipe
-builds a development core archive, not a runnable userspace stack. The completed
+builds the shared TCP library and optional runtime adapter. The
 TCP library is an optional component alongside the runtime: application Nix
 recipes explicitly include both packages, and the runtime does not depend on
-TCP. Shared callouts, safe reclamation and the remaining host interfaces must
-be implemented before exposing that application library or running TCP VM
-acceptance.
+TCP. Shared callouts, safe reclamation and the host interfaces live in the
+TCP package; the emulator supplies raw packet transport and domain deadlines.
 
-Develop the FreeBSD userspace TCP library against the emulation backend, reusing
-the selected F-Stack scaffolding described above. Implement
+Develop the FreeBSD userspace TCP library against the emulation backend. Implement
 the proposed native-TCP transport and domain timer interfaces in the emulator,
 and integrate callable packet/timer processing with the shared runtime. Use
-one stack per application with one to four workers and stack-owned RX/TX copies.
+one stack per application with one to four workers. RX is copied once into
+stack-owned mbufs because reassembly and unread data can outlive the transport
+borrow. TX is filled directly in the current worker’s 2F2F reservation and
+committed synchronously; there is no shared packet staging queue.
 
 Exercise TCP independently of memcached with a normal TCP link partner:
 connection establishment, bidirectional stream transfer, ACK-only traffic,

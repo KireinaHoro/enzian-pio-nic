@@ -11,6 +11,8 @@
   policyArmMs ? 100,
   tcpConnections ? 64,
   tcpBuffer ? 4096,
+  tcpHoldMs ? 200,
+  tcpStateUs ? 1000,
 }:
 let
   fixture = pkgs.stdenv.mkDerivation {
@@ -20,7 +22,8 @@ let
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = [ runtimeVm tcpVm ];
     buildPhase = ''
-      $CC -O2 -g -pthread $(pkg-config --cflags lauberhorn-tcp-runtime) \
+      $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn-tcp-runtime) \
+        -DTEST_TCP_HOLD_MS=${toString tcpHoldMs} -DTEST_TCP_STATE_US=${toString tcpStateUs} \
         -DTEST_TCP_CONNECTIONS=${toString tcpConnections} -DTEST_TCP_BUFFER=${toString tcpBuffer} \
         sw/tests/vm/tcp.c $(pkg-config --libs lauberhorn-tcp-runtime) -o vm-tcp
       $CC -O2 -g -pthread $(pkg-config --cflags lauberhorn) sw/tests/vm/tcp_transport.c \
@@ -34,6 +37,7 @@ let
     '';
     installPhase = ''
       install -Dm755 vm-tcp $out/bin/vm-tcp
+      install -Dm644 sw/tests/vm/tcp_scheduling.py $out/share/tcp_scheduling.py
       install -Dm644 sw/tests/vm/tcp.py $out/share/tcp.py
       install -Dm755 vm-tcp-transport $out/bin/vm-tcp-transport
       install -Dm755 vm-udp $out/bin/vm-udp
@@ -65,6 +69,7 @@ pkgs.testers.runNixOSTest {
       nestedFixture
       memcachedVm
       pkgs.python3
+      pkgs.nftables
     ];
   };
   nodes.peer = { ... }: {
@@ -111,6 +116,14 @@ pkgs.testers.runNixOSTest {
         peer.succeed("python3 ${fixture}/share/tcp.py", timeout=60)
     except Exception:
         print(machine.execute("cat /tmp/tcp.log")[1])
+        raise
+    machine.succeed("LH_VM_STATE_PATH=/tmp/tcp-a.json taskset -c 0-1 vm-tcp 192.168.1.1 19502 > /tmp/tcp-a.log 2>&1 &")
+    machine.succeed("LH_VM_STATE_PATH=/tmp/tcp-b.json taskset -c 0-1 vm-tcp 192.168.1.1 19503 > /tmp/tcp-b.log 2>&1 &")
+    machine.wait_until_succeeds("test -s /tmp/tcp-a.json && test -s /tmp/tcp-b.json")
+    try:
+        machine.succeed("python3 ${fixture}/share/tcp_scheduling.py", timeout=60)
+    except Exception:
+        print(machine.execute("tail -40 /tmp/tcp-a.log; tail -40 /tmp/tcp-b.log; cat /tmp/tcp-a.json /tmp/tcp-b.json")[1])
         raise
     machine.fail("dmesg | grep -E 'BUG:|Oops:|general protection fault'")
   '';

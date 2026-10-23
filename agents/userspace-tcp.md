@@ -225,12 +225,32 @@ no-kernel-Oops gate. Failed-stage diagnostics remain in
 no test processes remain. The maintained probe now bounds marker waiting to 10 s
 and prints the fixture log on failure.
 
-Next finish explicit four-worker activity, independent-connection progress and
-all-parked timer/retransmission acceptance with actual Linux-peer connections. Account for host GSO/GRO packets in VM ingress: current
-transport accepts only MTU-sized packets, so large transfers may expose virtual
-network offload aggregation. Keep any configuration in Nix, or normalize packets
-in the emulated wire boundary. Do not treat the raw transport probe as phase-two
-completion.
+The bounded two-application TCP scheduling fixture now observes each domain through
+read-only VM scheduling ioctls. Its main thread never runs timers or protocol work.
+Each application uses four workers, and the test requires all four worker IDs to
+process events. Twenty-four persistent connections per application carry alternating
+bursts; each application is explicitly observed with zero assigned and reserved
+workers, then resumes on an original connection. A 200 ms busy application handler
+holds no TCP lock; another connection must reply while that handler remains busy.
+
+Timer-only acceptance drops incoming pure ACKs before the emulator's ingress hook.
+After the server's echo acknowledges the request, a competing TCP burst removes
+all its workers. The test requires a new DEADLINE activation and captures the same
+TCP sequence/payload retransmitted after that zero-worker observation, before any
+new application data. Removing the filter and exchanging another payload verifies
+continued connection progress. This is a bounded functional check, not stress.
+
+Full VM acceptance passed in 42.64 s with these checks and existing UDP/RPC/
+memcached, raw transport and both-guest TCP regressions:
+`out/userspace-vm-tcp-timer-run`, `/tmp/lh-tcp-timer-run.log`;
+Nix driver `out/userspace-vm-tcp-timer`, build log `/tmp/lh-tcp-timer-build.log`.
+The earlier scheduling-only increment passed in 37.22 s:
+`out/userspace-vm-tcp-concurrency-run`, `/tmp/lh-tcp-concurrency-run.log`.
+
+Next cover flow control, packet reordering, RST, exhaustion and actual PCB/socket
+close/timer concurrency. Account for host GSO/GRO packets in VM ingress: current
+transport accepts only MTU-sized packets; large transfers may expose aggregation.
+Keep configuration in Nix or normalize at the emulated wire boundary.
 
 ## Remaining phase-two work
 
@@ -242,11 +262,11 @@ two complete based on host TCP tests.
 1. Public API and Nix package are implemented. Continue exercising their socket
    lifetime and nonblocking semantics through the actual VM transport.
 2. The optional `tcpVm` Nix package pins the pushed TCP source beside runtime,
-   without a mandatory runtime TCP dependency. Add it to the TCP VM application
-   fixture recipe (now included in `nix/checks/vm.nix`). The package supports one to four workers; concurrency substrate tests run
+   without a mandatory runtime TCP dependency. The TCP VM application recipe
+   includes both in `nix/checks/vm.nix`. The package supports one to four workers; concurrency substrate tests run
    in the four-worker configuration.
-3. The stack adapter connects native TCP transport and DEADLINE. Finish its
-   publication/parking race and timer-only retransmission acceptance. No Linux TCP sockets may substitute for the stack.
+3. The stack adapter connects native TCP transport and DEADLINE. Timer-only retransmission after full preemption now passes; finish targeted
+   publication/parking race checks. No Linux TCP sockets may substitute for the stack.
    Preserve transport borrow release before DESCHED/yield. Timer expiry must be
    sticky/coalescible and activate a parked domain. Re-read the earliest deadline
    after bounded dispatch. Connection contention must resolve locally or fail
