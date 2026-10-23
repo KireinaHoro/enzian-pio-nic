@@ -103,6 +103,8 @@ class Campaign:
             self.latest = next((p for p in saved['hashes'] if Path(p).name=='result.json'), self.latest)
             self.last_stage_reused = True
             return saved['result']
+        if name=='loaded' and len(list(directory.glob('attempt-*/generator-timing-retry.json')))>=3:
+            raise RuntimeError('Generator timing retries exhausted (three attempts); '+str(directory))
         # Explicit resume preserves prior attempts, including incomplete hardware actions.
         attempt = directory/str(len(list(directory.glob('attempt-*')))+1)
         attempt = attempt.with_name('attempt-'+attempt.name)
@@ -124,6 +126,17 @@ class Campaign:
         if code:
             raise RuntimeError(f'{name} exited {code}; evidence: {attempt}')
         result = read(result_path)
+        if name=='loaded' and result.get('retryable')=='generator-timing':
+            if result.get('request')!=dict(request,stage=name) or result.get('health') is not True or result.get('restored') is not True:
+                raise ValueError('Invalid generator timing retry receipt')
+            files=result.get('files',{})
+            if not files or any(digest(p)!=sha for p,sha in files.items()):
+                raise ValueError('Generator timing failure evidence changed')
+            failures=list(directory.glob('attempt-*/generator-timing-retry.json'))
+            if len(failures)<3:
+                self.status(name,retry_reason='generator-timing',failed_attempt=str(attempt),retry=len(failures))
+                return self.stage(name,request)
+            raise RuntimeError(f'Generator timing retries exhausted (three attempts); evidence: {attempt}')
         if result.get('passed') is not True:
             raise ValueError(f'{name} gate failed: {result}')
         files = result.get('files', {})

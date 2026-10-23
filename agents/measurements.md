@@ -1,5 +1,16 @@
 # Measurement continuation
 
+## Same-seed generator timing recovery — October 23
+
+Maintainer authorizes two retries of TX sender-period failures with the identical
+request/seed; three attempts total, persisted across resumes. No retries for RX
+backlog, resource/admission errors or hardware failures. Failed evidence remains
+excluded from accepted cohorts. Targeted acquisition/hardware/controller tests:
+37 passed. Current DPDK 8B/2-worker/350k failure at 319 completed cohorts has
+verified preserved restoration and live NIC/CPU probes; recovery evidence is
+`out/hot-full-20261023-r2/generator-recovery-2/`. Original v4 artifacts remain
+unchanged. New timestamp work remains deferred.
+
 ## Authorized programming recovery — October 23
 
 Maintainer explicitly authorized retry after the `hot-full-20261023-r2` stage
