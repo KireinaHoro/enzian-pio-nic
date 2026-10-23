@@ -108,6 +108,14 @@ Ethernet trace before reset. Follow explicit campaign restrictions: the echo
 campaign treats a failed Ethernet dump as terminal, with no full JTAG fallback.
 Small integrity spot checks are separate from a full fallback dump.
 
+For Vivado `End of startup status: LOW` with the FPGA still unprogrammed
+(`DONE=0`), the maintainer authorizes retrying the same matched bitstream directly,
+without a cold reset. Preserve the failed programming log and use the boot
+helper's `--resume-held` path to verify BDK is still held, reprogram, and release
+boot only after programming succeeds. A missing trace VIO on this unprogrammed
+FPGA does not block that retry. This exception does not cover failures after
+successful programming or module/probe failures.
+
 ## Campaign handoff
 
 For unattended echo acquisition, use `benchmark-campaign` and its maintained

@@ -4,8 +4,9 @@
 
 Maintainer explicitly authorized retry after the `hot-full-20261023-r2` stage
 `fedc825f75a82d545753/attempt-1` FPGA programming failure: startup LOW, DONE=0,
-and unavailable diagnostic trace VIO. This permits the normal cold-boot harness
-retry with the original campaign artifacts despite that failed capture. It does
+and unavailable diagnostic trace VIO. The maintainer clarified: retry programming
+the same bitstream directly, without another cold reset; use the harness's held
+BDK resume path. The already-started cold-boot recovery may finish. This does
 not authorize ignoring a subsequent module/probe failure or failed capture from
 a programmed FPGA. Preserve the original failure and completed cohorts.
 The scoped authorization and hashed evidence are recorded under
