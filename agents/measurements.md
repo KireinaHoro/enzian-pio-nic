@@ -1,5 +1,18 @@
 # Measurement continuation
 
+## Authorized programming recovery — October 23
+
+Maintainer explicitly authorized retry after the `hot-full-20261023-r2` stage
+`fedc825f75a82d545753/attempt-1` FPGA programming failure: startup LOW, DONE=0,
+and unavailable diagnostic trace VIO. This permits the normal cold-boot harness
+retry with the original campaign artifacts despite that failed capture. It does
+not authorize ignoring a subsequent module/probe failure or failed capture from
+a programmed FPGA. Preserve the original failure and completed cohorts.
+The scoped authorization and hashed evidence are recorded under
+`out/hot-full-20261023-r2/programming-recovery-1/`; recovery must pass board/setup
+validation before resuming acquisition. Timestamp version 5 remains deferred
+until the trampoline/cache-line-layout work.
+
 ## Timestamp accounting version 5 — October 23
 
 The current source removes redundant hot probes, separates Dispatch from Misc
