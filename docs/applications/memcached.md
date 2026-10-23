@@ -1,5 +1,9 @@
 # Native UDP memcached
 
+[TCP memcached](../proposals/userspace-tcp.md) is proposed through a shared
+userspace stack, native listen-port dispatch and application timer wakeups.
+The implemented transport described here remains UDP.
+
 Comparing native Lauberhorn memcached against [Caladan memcached (CS-A64)](../research/caladan-enzian.md)
 is a [main paper goal](../research/paper-goals.md#planned-applications-and-baseline).
 Match application versions, operation mixes, concurrency, skew and core budgets.

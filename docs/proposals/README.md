@@ -11,6 +11,7 @@ implementation or establish acceptance; each proposal states its scope.
 - [Go runtime and goroutine scheduling](go-runtime.md): native demand, assignment, preemption and GC-safe waits.
 - [HOST_WORK](host-work.md): assigned RX completion, host-driven allocation and targeted maintenance.
 - [TCP/Protobuf integration toward gRPC](grpc.md): follow-on protocol scope.
+- [Shared userspace TCP](userspace-tcp.md): TCP memcached, port-based packet dispatch, concurrent workers and hardware timer wakeups.
 - [Specialized RPC entry trampoline](specialized-rpc-trampoline.md): RX-selected code entry to remove generic CPU dispatch; sketch only.
 - [RX-return response transmission](rx-return-responses.md): coupled response submission and receive.
 

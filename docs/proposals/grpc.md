@@ -6,6 +6,10 @@ them to limit drift, below active first-paper applications and the CS-A64/DPDK
 baseline evaluation. Fully offloaded gRPC is a potential later paper; it is not
 required for the [first systems paper](../research/paper-goals.md).
 
+The separate [userspace TCP proposal](userspace-tcp.md) targets TCP memcached
+with stateless hardware segment delivery and a shared software stack. It does
+not require the split TCP offload or the gRPC integration described here.
+
 ## Existing inputs
 
 | Component | Source and canonical description | Boundary |
