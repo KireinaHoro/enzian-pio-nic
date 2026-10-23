@@ -135,10 +135,12 @@ concurrent older minimum from replacing it. Serialize control publication
 outside connection locks. Exact register packing and clock conversion remain
 phase-2 ABI design work.
 
-Failure to acquire a connection lock leaves the original deadline overdue;
-it is not cancellation or successful service. Bounded dispatch rotates among
-due timers, retains the remaining work, and retries without needing a packet.
-It must also give packet processing and other domains service opportunities.
+Connection-lock contention is resolved locally in the timer dispatcher. Release
+timer-queue protection while waiting, then revalidate the timer before dispatch:
+its owner may have reset or cancelled it. Do not rearm DEADLINE as a contention
+fallback. Stack critical sections must be short; a Nix-configured watchdog
+fails fast on prolonged contention. Bounded callback batches rotate among due
+timers and give packet processing and other domains service opportunities.
 Release all stack/application locks, RX borrows and TX reservations before
 blocking RX or yielding. Timer-only activation permits ACK/retransmission TX
 without a packet or RPC context. This replaces internal RPC timeout polling

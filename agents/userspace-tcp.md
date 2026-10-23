@@ -52,7 +52,7 @@ Its CPU flags also come from the selected runtime package.
 
 ## Phase-two current state
 
-TCP repository commit: `ff8145e` on `userspace-tcp-phase-two` (unmerged).
+TCP public API commit: `51fdfb5` on `userspace-tcp-phase-two` (unmerged).
 FreeBSD 15.1-RELEASE-p6 is pinned at
 `95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 26 C files, 282 headers and COPYRIGHT.
 The manifest verifies all 309 pristine files. Helpers include PCB/socket,
@@ -81,8 +81,9 @@ host timer callback lifetime. UMA allocations retain cache-line alignment even
 when upstream asks only for pointer alignment: a sanitizer found that sockets
 require 64-byte alignment despite UMA_ALIGN_PTR. This is fixed in `alloc.c`.
 
-Callouts use one shared queue and associated connection locks. Contention keeps
-the original overdue deadline pending. The shared round-robin scan cursor avoids
+Callouts use one shared queue and associated connection locks. Per the user’s
+latest decision, contention must retry locally without a DEADLINE rearm fallback;
+a Nix-configured watchdog must fail fast on prolonged contention. The shared round-robin scan cursor avoids
 starvation across bounded batches when an early slot repeatedly rearms. Notify
 hooks must be nonblocking because reset/stop can invoke them under connection
 locks; actual emulator deadline publication must happen outside stack locks.
@@ -95,8 +96,10 @@ kernel formatting; native console functions are renamed and discarded. Function
 and data sections permit link GC of unsupported generic kernel facilities.
 `required-host-symbols.txt` reports undefined names before final link GC, so its
 optional unused names are not proof that the protocol executable cannot link.
-The package still has `passthru.runnable = false`: there is no installed public
-application API or VM/runtime integration yet.
+The package installs `lauberhorn/tcp.h`, the static archive and pkg-config
+metadata. One through four workers are selectable in Nix; the protocol fixture
+uses the public API/archive and races close across workers, rejecting stale
+handles. `passthru.runnable = false` still indicates absent VM/runtime integration.
 
 ## Current phase-two evidence
 
@@ -128,6 +131,13 @@ application API or VM/runtime integration yet.
   `out/tcp-import/protocol-disassembly.txt`.
 - Ptrace is disallowed even outside the sandbox. The ignored Nix sanitizer
   diagnostic recipe located the alignment issue; no external blocker remains.
+
+Local contention retry checks passed (normal and ASan/UBSan):
+`out/tcp-local-retry`, `out/tcp-local-retry-sanitized`,
+`/tmp/lh-tcp-local-retry-final.log`, `/tmp/lh-tcp-local-retry-sanitized.log`.
+The dispatcher releases queue protection, retries the same timer locally and
+revalidates after reset/cancel. A stuck-lock subprocess must SIGABRT with the
+watchdog diagnostic. `lockWaitMs` in Nix defaults to 100 ms; no rearm fallback.
 
 ## VM scheduler and DEADLINE integration
 
@@ -164,8 +174,10 @@ RPC exclusively owns the domain timer; multiplexing independent TCP/application
 timer providers in one domain needs a shared broker.
 
 Phase 4 supplies ECI DEADLINE/raw TCP steering and explicitly specifies/cleans up
-all scheduler reclaim rules. Public API edits in the TCP sibling remain
-uncommitted; preserve them. No TCP connection has yet run in the VM.
+all scheduler reclaim rules. Public API changes are committed and pushed. Normal
+four-worker, one-worker and ASan/UBSan public API checks passed:
+`out/tcp-api-public`, `out/tcp-api-single`, `out/tcp-api-sanitized`.
+No TCP connection has yet run in the VM.
 
 ## Remaining phase-two work
 
@@ -174,24 +186,18 @@ Lauberhorn VM emulator. No stress campaign is required. VM scheduler/deadline an
 existing application tests are separate from TCP acceptance; do not mark phase
 two complete based on host TCP tests.
 
-1. Expose a public nonblocking socket/connection API and lifetime contract,
-   plus installed headers/pkg-config metadata. Keep handler ownership separate
-   from PCB locks; accept/read/write/close must be safe across workers. A bounded
-   handle table with generations and per-handle application-entry locks is a
-   possible implementation, not a settled API. Core packet/timer work must keep
-   progressing while an application handler is busy. Translate FreeBSD errors
-   explicitly rather than exposing them as Linux errno values. Refresh worker
-   clock snapshots at all application entry points as well as packet/timer entry.
+1. Public API and Nix package are implemented. Continue exercising their socket
+   lifetime and nonblocking semantics through the actual VM transport.
 2. Make the component selectable in application Nix recipes beside runtime,
    with no mandatory runtime dependency on TCP. Pin the pushed TCP source in the
-   platform flow. The package currently insists on four workers for its fixtures;
-   the designed application configuration is one to four workers.
+   platform flow. The package supports one to four workers; concurrency substrate tests run
+   in the four-worker configuration.
 3. Add native TCP packet transport and connect stack timer publication to the
    implemented VM DEADLINE interface. No Linux TCP sockets may substitute for the stack.
    Preserve transport borrow release before DESCHED/yield. Timer expiry must be
    sticky/coalescible and activate a parked domain. Re-read the earliest deadline
-   even when dispatch ran zero callbacks; contention must not lose the retry or
-   let the domain sleep with overdue work. Earlier rearm and sleep-entry races
+   after bounded dispatch. Connection contention must resolve locally or fail
+   its watchdog, never return for a deadline-rearm fallback. Earlier rearm and sleep-entry races
    need generation-safe publication/acknowledgement outside stack locks.
 4. Run the phase-two VM functional matrix with normal TCP peers: four-worker
    packet spraying, independent connection progress while one handler is busy,
