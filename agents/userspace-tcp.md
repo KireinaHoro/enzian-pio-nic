@@ -50,7 +50,7 @@ Its CPU flags also come from the selected runtime package.
 
 ## Phase-two checkpoint and host-port work
 
-TCP repository commit: `e6b4dc2` on `userspace-tcp-phase-two` (unmerged).
+TCP repository commit: `1cc5cf2` on `userspace-tcp-phase-two` (unmerged).
 Imported FreeBSD 15.1-RELEASE-p6 at
 `95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 13 C files and 235 transitive headers,
 plus COPYRIGHT, 2,834,003 bytes total. Compiler dependency files determine the
@@ -58,15 +58,32 @@ minimal header closure. `upstream.json` pins each file hash; `maint/import.py`
 verifies/restores exactly that manifest. No F-Stack code or full FreeBSD tree
 was imported.
 
-`package.nix` builds an explicitly non-runnable TCP core archive and records
-207 unresolved kernel-interface symbols after combining its objects. The
-minimal import built successfully (`out/tcp-core-minimal`,
-`/tmp/lh-tcp-core-minimal.log`); the final source-filtered package also passed
-(`out/tcp-core-checkpoint`, `/tmp/lh-tcp-core-checkpoint.log`). Manifest
-verification passed. Native per-CPU
-accesses and unresolved kernel interfaces prevent userspace execution.
-No TCP emulator integration or TCP VM acceptance has run. Phase one remains
-the only VM functional acceptance evidence.
+`package.nix` builds a non-runnable TCP core plus a host substrate archive.
+`port/` implements actual mutex/RW/SX locks, TLS FreeBSD thread/CPU context,
+shared atomic counters, epoch/SMR deferred reclamation, and shared callouts.
+The queue lock is released before callbacks; associated connection locks
+serialize callbacks on the same connection. Contention retains the pending
+expiry and original deadline. Notification callbacks must be nonblocking;
+actual emulator deadline publication belongs outside stack locks.
+
+Nix validation passed (`out/tcp-host`, `/tmp/lh-tcp-host-build5.log`, derivation
+`7k6x8f8ffywg5r21l1pflibnm1z7bn53-lauberhorn-tcp-core-0.1.drv`). The installed
+`libexec/tcp-concurrency-test` also passed directly. Its four workers check
+shared locking, cross-worker reset/stop/dispatch, overlapping callbacks on
+independent connections, close during an unlocked callback, and grace-period
+reclamation. Added negative cases explicitly reject concurrent read/write
+acquisition of a held connection and concurrent callbacks on that connection.
+They check that contention preserves the overdue deadline, then retry delivers
+exactly once without a packet or timer reset. A missing test-stage barrier was
+fixed after an assertion raced next-stage timer setup. Core disassembly after
+the TLS overlays had no GS/CR-register/CLI/STI/INVLPG accesses.
+
+These tests cover host primitives, not TCP connections or VM wakeup. No TCP
+emulator integration or TCP VM acceptance has run. Phase one remains the only
+VM functional acceptance evidence. The user requires a reasonably working
+four-worker shared TCP implementation before stopping; no stress campaign is
+required. In particular, verify a contended overdue timer wakes/runs after lock
+release even with no new packets; pending metadata alone cannot prove liveness.
 
 The available F-Stack scaffolding cannot
 safely support timer reset/stop from arbitrary workers on shared connections.
@@ -81,15 +98,17 @@ feasibility of the overall design. The initial stop overstated this as a major
 blocker: it is planned host-port implementation work, with no external
 dependency or design decision currently preventing progress.
 
-Resume by implementing shared, associated-lock-aware callouts and real
-SMR/epoch reclamation with concurrent reset/stop/close tests. Preserve vanilla
-`tcp_timer_enter()`'s lock ownership and callback-return-unlocked contract;
-replace native per-CPU accesses with per-worker userspace context. Add shared
-process/VNET state, allocation and socket initialization, then close the link
-without dummy success stubs. Integrate native TCP and domain timer arm/ack/
-cancel into the emulator, package the runnable library as the optional runtime
-companion, and run the phase-two VM matrix. Do not substitute per-worker stacks,
-a global stack lock, or Linux TCP sockets for the requested userspace stack.
+Next implement shared process/VNET state, allocation, PCB/socket initialization
+and packet I/O, then close the link without dummy success stubs. Import only
+needed vanilla helper sources and their dependency closure. Resolve host-libc
+symbol collisions when introducing kernel malloc/free/printf (localize the
+combined kernel-side relocatable or prefix symbols). Preserve vanilla timer
+lock/return-unlocked contracts and audit SMR wait callers against held locks.
+Integrate native TCP and domain timer arm/ack/cancel into the emulator, package
+the runnable library as the optional runtime companion, and run the phase-two
+VM matrix. Timer parking must retain overdue work and avoid lost wakeups;
+re-read the deadline after dispatch even when zero callbacks ran. Do not
+substitute per-worker stacks, a global stack lock, or Linux TCP sockets.
 
 Whole-domain recovery remains unsupported: failed domains retain resources
 until guest restart, and existing nested deadlines do not activate a parked
