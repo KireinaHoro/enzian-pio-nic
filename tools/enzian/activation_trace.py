@@ -36,6 +36,7 @@ def loss_free(stats):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--system', choices=('lauberhorn','caladan'), default='lauberhorn')
     p.add_argument('--tracefs', type=Path, default=Path('/sys/kernel/tracing'))
     p.add_argument('--ipg-cpus', help='enable kernel IPG events on comma-separated Linux CPUs, e.g. 44,45,46,47')
     p.add_argument('--buffer-kb', type=int, default=4096)
@@ -45,14 +46,14 @@ def main():
     if not command or a.buffer_kb <= 0:
         p.error('positive buffer size and a command after -- are required')
     a.output.mkdir(parents=True, exist_ok=False)
-    instance = a.tracefs / 'instances' / ('lh-activation-' + str(time.time_ns()))
+    instance = a.tracefs / 'instances' / (a.system+'-activation-' + str(time.time_ns()))
     instance.mkdir()
     metadata = {'command': command, 'clock': 'embedded CLOCK_MONOTONIC_RAW ns',
-                'events': ['lauberhorn:activation'], 'buffer_kb_per_cpu': a.buffer_kb}
+                'events': [a.system+':activation'], 'buffer_kb_per_cpu': a.buffer_kb}
     enabled = []
     try:
         (instance/'tracing_on').write_text('0')
-        events = ['lauberhorn:activation']
+        events = [a.system+':activation']
         if a.ipg_cpus:
             mask, cpus = cpu_mask(a.ipg_cpus)
             (instance/'tracing_cpumask').write_text(mask)
@@ -83,7 +84,7 @@ def main():
             (directory/'enable').write_text('1')
             enabled.append(directory/'enable')
         calibration = Path('/sys/module/lauberhorn/parameters/activation_clock_cost_ns')
-        metadata['clock_cost_before'] = calibration.read_text().strip()
+        if a.system=='lauberhorn': metadata['clock_cost_before'] = calibration.read_text().strip()
         (instance/'tracing_on').write_text('1')
         try:
             result = subprocess.run(command)
@@ -97,7 +98,7 @@ def main():
                      for f in sorted((instance/'per_cpu').glob('cpu*/stats'))
                      if not a.ipg_cpus or int(f.parent.name[3:]) in cpus}
             metadata['per_cpu_stats'] = stats
-            metadata['clock_cost_after'] = calibration.read_text().strip()
+            if a.system=='lauberhorn': metadata['clock_cost_after'] = calibration.read_text().strip()
             metadata['loss_free'] = loss_free(stats)
     finally:
         (instance/'tracing_on').write_text('0')

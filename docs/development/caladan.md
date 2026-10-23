@@ -165,3 +165,16 @@ NIC runner required by unattended roles.
 server variants. Export with `SIGRTMIN+5` after traffic drains. Counts include
 warmups and establish placement/activity, not CPU utilization. This counter
 path has no clock reads; timing probes remain compiled out of the loaded server.
+
+## Cold activation evidence
+
+The traced runtime and IOKernel enable bounded, prefaulted activation recording
+when `CALADAN_ACTIVATION_TRACE_DIR` names an existing output directory. The
+`runtimeTrace` package (image alias `/nix/store/caladan-activation`) supplies
+the traced IOKernel; the normal hot campaign IOKernel remains probe-free.
+Use `tools/enzian/activation_trace.py --system caladan` for kernel events and
+`tools/enzian/caladan_activation.py` to decode and join quiesced captures.
+The [RPC timestamp contract](rpc-breakdown.md) specifies the parked and
+preempted paths, generation identities, collection commands and join requirements.
+`activationChecks` exercises concurrent/signal recording, overflow rejection and
+compiled-out hooks without hardware.

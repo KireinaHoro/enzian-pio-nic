@@ -99,3 +99,13 @@ class ActivationBreakdownTests(unittest.TestCase):
         self.assertFalse(capture.loss_free({'cpu44':good.replace('events: 0','events: 1')}))
 
 if __name__ == '__main__': unittest.main()
+
+
+class CooperativeEntryTests(unittest.TestCase):
+    def test_outgoing_tid_and_activation_index(self):
+        record=dict(cold=0,outgoing_tid=31,yield_enter=130,read_begin=160,worker=2)
+        events=[dict(tid='31',event='20',arg0='2',arg1='7',timestamp_ns='100'),
+                dict(tid='31',event='21',arg0='2',arg1='7',timestamp_ns='120')]
+        self.assertEqual(sum(b.cooperative_entry(record,events).values()),60)
+        events[0]['arg1']='6'
+        with self.assertRaises(ValueError): b.cooperative_entry(record,events)

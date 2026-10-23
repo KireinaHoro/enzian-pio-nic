@@ -99,3 +99,63 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(accounting.version([fixture('LH')]),3)
         self.assertEqual(accounting.version([{'server_unmarshal_enter_ns':1}]),2)
         with self.assertRaises(ValueError): accounting.version([fixture('LH'),{}])
+
+
+def current_fixture(system):
+    row=fixture(system)
+    row['accounting_version']=4
+    for key in list(row):
+        if key.removeprefix('server_').removesuffix('_ns') in (
+                'unmarshal_enter','unmarshal_exit','marshal_enter','marshal_exit',
+                'entry_enter','entry_exit','rpc_rx_end','rpc_tx_end','handler_end',
+                'rx_poll_enter','tx_doorbell','tx_doorbell_return','tx_return','tx_exit','submit_return'):
+            del row[key]
+    row['tx_publish_ns' if system=='DPDK' else 'server_tx_publish_ns']=450 if system=='LH' else 480
+    return row
+
+
+class PublicationAccountingTests(unittest.TestCase):
+    def test_only_current_columns_and_conservation(self):
+        for system in ('LH','DPDK','CS-A64'):
+            row=current_fixture(system)
+            result=accounting.partition(row,system)
+            self.assertEqual(result['accounting']['version'],4)
+            self.assertEqual(sum(result['components_ns'].values()),350 if system=='LH' else 380)
+            self.assertNotIn('transport_return', result['accounting']['runtime_details_ns'])
+            self.assertEqual(result['components_ns']['tx_submission'],43+{'LH':10,'DPDK':20,'CS-A64':23}[system])
+
+    def test_gather_cqe_fallback_starts_at_observation(self):
+        row=current_fixture('CS-A64');row['server_rx_observed_ns']=107
+        result=accounting.partition(row,'CS-A64')
+        self.assertEqual(result['components_ns']['rx_queue'],3)
+        self.assertEqual(result['accounting']['runtime_details_ns']['rx_service_wait'],0)
+        self.assertEqual(sum(result['components_ns'].values()),373)
+
+    def test_missing_publication_is_not_reconstructed(self):
+        for system in ('LH','DPDK','CS-A64'):
+            row=current_fixture(system)
+            del row['tx_publish_ns' if system=='DPDK' else 'server_tx_publish_ns']
+            with self.assertRaises(KeyError): accounting.partition(row,system)
+
+    def test_current_imports_without_any_historical_columns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            def write(name,row):
+                path=root/name
+                with path.open('w') as f:
+                    w=csv.DictWriter(f,fieldnames=row);w.writeheader();w.writerow(row)
+                return path
+            client=write('client.csv',dict(request_id=1,benchmark='echo8',ok=1,rpc_status=0,
+                         warmup=0,client_call_enter_ns=1,client_rx_burst_ns=1000))
+            status=root/'status.json';status.write_text(json.dumps(dict(rows=1,dropped=0,loss_free=True)))
+            for system in ('LH','DPDK','CS-A64'):
+                row=current_fixture(system)
+                row.update(request_id=1,request_context=1,request_id_valid=1,ok=1,
+                           reply_status=0,transport_status=0,request_bytes=8,response_bytes=8,
+                           status=1,warmup=0,profile=1)
+                server=write('server.csv',row)
+                options=dict(count=1,warmup=0,payload_bytes=8,instrumentation='breakdown')
+                if system=='LH': result=lauberhorn(client,server_path=server,setup_count=0,**options)
+                elif system=='DPDK': result=dpdk(client,server,**options)
+                else: result=caladan(client,server,status,**options)
+                self.assertEqual(result['cpu_partition_version'],4)

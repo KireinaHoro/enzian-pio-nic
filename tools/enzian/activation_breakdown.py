@@ -115,6 +115,26 @@ def join(server_rows, records, audit, condition, margin_ns=1000):
     return result
 
 
+def cooperative_entry(record, events):
+    """Join outgoing raw-clock events to the incoming activation record."""
+    tid=record.get('outgoing_tid',0); kernel=record.get('yield_enter',0)
+    if record['cold'] or not tid or not kernel:
+        raise ValueError('cooperative entry needs outgoing identity and kernel entry probe')
+    candidates=[e for e in events if int(e['tid'])==tid and int(e['event'])==21
+                and int(e['arg0'])==record['worker'] and int(e['timestamp_ns'])<=kernel]
+    if not candidates: raise ValueError('missing outgoing userspace yield')
+    entry=max(candidates,key=lambda e:int(e['timestamp_ns']))
+    candidates=[e for e in events if int(e['tid'])==tid and int(e['event'])==20
+                and int(e['arg0'])==record['worker'] and e['arg1']==entry['arg1']
+                and int(e['timestamp_ns'])<=int(entry['timestamp_ns'])]
+    if len(candidates)!=1: raise ValueError('missing/ambiguous outgoing DESCHED')
+    desched=int(candidates[0]['timestamp_ns']); user=int(entry['timestamp_ns'])
+    if not 0<desched<=user<=kernel<=record['read_begin']:
+        raise ValueError('invalid cooperative entry order')
+    return dict(desched_to_yield=user-desched, syscall_entry=kernel-user,
+                kernel_admission=record['read_begin']-kernel)
+
+
 def summarize(rows):
     groups = defaultdict(list)
     for row in rows:
@@ -134,6 +154,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--capture', type=Path, required=True)
     p.add_argument('--server', type=Path, required=True)
+    p.add_argument('--events', type=Path, help='outgoing domain buffered event CSV for cooperative entry')
     p.add_argument('--audit', type=Path, required=True)
     p.add_argument('--condition', choices=['hot','cold'], required=True)
     p.add_argument('--margin-ns', type=int, default=1000)
@@ -158,6 +179,14 @@ def main():
     records = parse_trace((a.capture/'trace.txt').read_text())
     with a.server.open() as f:
         rows = join(list(csv.DictReader(f)),records,audit,a.condition,a.margin_ns)
+    if a.events:
+        with a.events.open() as f: events=list(csv.DictReader(f))
+        by_key={(r['worker'],r['sequence']):r for r in records}
+        for row in rows:
+            if row.get('activation_path')=='cooperative':
+                parts=cooperative_entry(by_key[(row['worker'],row['activation_sequence'])],events)
+                row['activation_components_ns'].update(parts)
+                row['activation_total_ns']+=sum(parts.values())
     counts = {w:sum(r['worker']==w for r in rows) for w in sorted(set(r['worker'] for r in rows))}
     if a.expected_total is not None:
         if a.expected_total <= 0 or len(rows) != a.expected_total:

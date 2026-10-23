@@ -48,7 +48,7 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, bool inline
 #define core_eci_tx_cancel core_eci_tx_finish
 #define core_eci_tx_get_buffer test_tx_get
 #define core_eci_tx_commit test_tx
-#define core_eci_tx_commit_traced_full(base, state, desc, stamp, after, clock) test_tx(base, state, desc)
+#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
 #define ioctl test_ioctl
 #include "../rt/rpc.c"
 #undef ioctl
@@ -309,7 +309,8 @@ int main(void) {
             .tid=900, .worker=1, .index=7, .ioctl_exit_ns=100, .ready_ns=110
         };
         input = 100 + mode; memcpy(rx, &input, 4);
-        server_trace_rx_begin(&worker.rx_trace, 2);
+        server_trace_rx_init(&worker.rx_trace, 2);
+        worker.rx_trace.rx_enter_ns = server_trace_stamp(&worker.rx_trace);
         worker.rx_trace.rx_unblock_ns = server_trace_stamp(&worker.rx_trace);
         worker.rx_trace.rx_exit_ns = server_trace_stamp(&worker.rx_trace);
         worker.worker_id = 2;

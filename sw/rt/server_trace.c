@@ -192,7 +192,7 @@ uint64_t server_trace_stamp(struct server_trace_row *row) {
 uint64_t server_trace_stage(struct server_trace_row *row, enum lh_pmu_stage stage) {
     if (row && row->enabled && row->pmu_mode &&
         (row->pmu_mode == 2 || stage == LH_PMU_rx_enter ||
-         stage == LH_PMU_rx_exit || stage == LH_PMU_tx_exit)) {
+         stage == LH_PMU_rx_exit || stage == LH_PMU_tx_enter)) {
         lh_pmu_read(&row->pmu[stage]);
         row->pmu_mask |= 1u << stage;
     }
@@ -257,7 +257,7 @@ static void write_header(void) {
           "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
           "activation_worker,server_activation_ioctl_exit_ns,server_activation_ready_ns", output);
     fputs(",pmu_mode,pmu_mask",output);
-    fputs(",server_entry_enter_ns,server_entry_exit_ns,server_tx_doorbell_ns,server_tx_doorbell_return_ns",output);
+    fputs(",server_tx_publish_ns,accounting_version",output);
 #define PMU_HEADER(name) for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",pmu_" #name "_%u",i);
     SERVER_TRACE_TIMES(PMU_HEADER)
 #undef PMU_HEADER
@@ -281,13 +281,12 @@ void server_trace_fini(void) {
     free(event_path); event_path=NULL;
     free(output_path); output_path=NULL;
 }
-void server_trace_rx_begin(struct server_trace_row *r, int worker_id) {
+void server_trace_rx_init(struct server_trace_row *r, int worker_id) {
     *r = (struct server_trace_row){.enabled=server_trace_enabled, .ok=true,
         .request_id=UINT64_MAX, .worker_id=worker_id, .tx_worker_id=-1,
         .activation=server_activation};
     if (pmu_enabled && local_buffer && local_buffer->count >= pmu_skip_rows)
         r->pmu_mode = local_buffer->count - pmu_skip_rows < pmu_whole_rows ? 1 : 2;
-    r->rx_enter_ns = server_trace_stage(r, LH_PMU_rx_enter);
 }
 static struct server_trace_row *current_trace(void) {
 #ifdef SERVER_TRACE_CUSTOM_CONTEXT
@@ -328,6 +327,11 @@ void lauberhorn_trace_request_id(uint64_t id) {
 void lauberhorn_trace_result(bool ok) {
     struct server_trace_row *r = current_trace();
     if (r && r->enabled) r->ok &= ok;
+}
+void server_trace_activation_event(unsigned event, int worker) {
+    if (!event_path) return;
+    struct server_trace_row row = {.enabled=server_trace_enabled, .request_id=UINT64_MAX};
+    server_trace_event(&row,event,worker,server_activation.index);
 }
 void server_trace_run_begin(struct server_trace_row *r) {
     server_trace_event(r,LH_TRACE_FIBER_RESUME,0,0);
@@ -376,8 +380,7 @@ static void write_row(const struct server_trace_row *r) {
             active, wait, r->activation.tid, r->activation.index,
             r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
     fprintf(output,",%u,%u",r->pmu_mode,r->pmu_mask);
-    fprintf(output,",%" PRIu64 ",%" PRIu64,r->entry_enter_ns,r->entry_exit_ns);
-    fprintf(output,",%" PRIu64 ",%" PRIu64,r->tx_doorbell_ns,r->tx_doorbell_return_ns);
+    fprintf(output,",%" PRIu64 ",4",r->tx_publish_ns);
     for (unsigned j=0;j<LH_PMU_STAGES;j++)
         for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",%"PRIu64,r->pmu[j].value[i]);
     fputc('\n',output);

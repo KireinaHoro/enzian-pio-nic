@@ -33,25 +33,28 @@ def caladan(client_path, server_path, status_path, *, count, warmup,
                 or int(sw['response_bytes']) != payload_bytes):
             raise ValueError('Invalid Caladan reply metadata')
         t = lambda k: int(sw['server_' + k + '_ns'])
-        stages = ('rx_observed', 'rx_queue_enter', 'rx_queue_exit',
-                  'network_rx_enter', 'network_rx_exit', 'dispatch_ready',
-                  'dispatch_enter', 'unmarshal_enter', 'unmarshal_exit',
-                  'handler_enter', 'handler_exit', 'marshal_enter', 'marshal_exit',
-                  'network_tx_enter', 'network_tx_exit', 'driver_enter',
-                  'tx_doorbell', 'submit_return')
-        times = [t(k) for k in stages]
-        if not times[0] or times != sorted(times):
-            raise ValueError('Invalid Caladan queue/software stage order')
-        part = cpu_partition(t('rx_observed'), t('submit_return'), {
-            'rx_queue': (t('rx_queue_enter'), t('rx_queue_exit')),
-            'rx_network': (t('network_rx_enter'), t('network_rx_exit')),
-            'rpc_receive': (t('dispatch_enter'), t('handler_enter')),
-            'handler': (t('handler_enter'), t('handler_exit')),
-            'rpc_transmit': (t('handler_exit'), t('marshal_exit')),
-            'tx_network': (t('network_tx_enter'), t('network_tx_exit')),
-            'tx_submission': (t('network_tx_exit'), t('submit_return')),
-        })
-        if partition_version == 3: part = accounting.partition(sw, 'CS-A64')
+        if partition_version == 4:
+            part = accounting.partition(sw, 'CS-A64')
+        else:
+            stages = ('rx_observed', 'rx_queue_enter', 'rx_queue_exit',
+                      'network_rx_enter', 'network_rx_exit', 'dispatch_ready',
+                      'dispatch_enter', 'unmarshal_enter', 'unmarshal_exit',
+                      'handler_enter', 'handler_exit', 'marshal_enter', 'marshal_exit',
+                      'network_tx_enter', 'network_tx_exit', 'driver_enter',
+                      'tx_doorbell', 'submit_return')
+            times = [t(k) for k in stages]
+            if not times[0] or times != sorted(times):
+                raise ValueError('Invalid Caladan queue/software stage order')
+            part = cpu_partition(t('rx_observed'), t('submit_return'), {
+                'rx_queue': (t('rx_queue_enter'), t('rx_queue_exit')),
+                'rx_network': (t('network_rx_enter'), t('network_rx_exit')),
+                'rpc_receive': (t('dispatch_enter'), t('handler_enter')),
+                'handler': (t('handler_enter'), t('handler_exit')),
+                'rpc_transmit': (t('handler_exit'), t('marshal_exit')),
+                'tx_network': (t('network_tx_enter'), t('network_tx_exit')),
+                'tx_submission': (t('network_tx_exit'), t('submit_return')),
+            })
+            if partition_version == 3: part = accounting.partition(sw, 'CS-A64')
         part.update(flow_id=0, request_id=int(cl['request_id']))
         software.append(part)
     result = finish(client_path, client, software, system='CS-A64', count=count,

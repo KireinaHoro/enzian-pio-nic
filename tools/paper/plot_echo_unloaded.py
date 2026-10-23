@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot validated unloaded echo cohorts; instrumented totals remain separate."""
+"""Plot validated unloaded echo cohorts; publication accounting conserves the instrumented wire total."""
 import argparse
 import json
 from pathlib import Path
@@ -86,8 +86,11 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
     fig.subplots_adjust(left=.25,right=.975,bottom=.19 if len(sizes)==1 else .09,top=.78 if len(sizes)==1 else .88,hspace=.30)
     categories=(('handler',),('rpc_receive','rpc_transmit'),('cpu_other',),
                 ('rx_network','tx_network'),('rx_queue','tx_submission'))
-    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','CPU--NIC')
+    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','NIC handling')
     colors=(chart.COLORS[0],chart.COLORS[1],'#E6AB02',chart.COLORS[2],chart.COLORS[3])
+    publication=all(c.get('cpu_partition_version')==4 for c in cohorts if c['instrumentation']=='breakdown')
+    if publication:
+        categories+=(('cpu_wire',),);labels+=('NIC--wire',);colors+=('#999999',)
     for ax,size in zip(axes,sizes):
         panel_max=max(float(np.median([r['wire_ns'] for r in c['rows'] if not r['warmup']]))/1000
                       for c in cohorts if c['payload_bytes']==size and c['instrumentation']=='breakdown')
@@ -116,16 +119,17 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
                                 xytext=(0,-3 if below else 3),textcoords='offset points',ha='center',
                                 va='top' if below else 'bottom',fontsize=6.5,color=colors[j])
                 bottom+=mean
+            cpu_total=float(np.mean([sum(v for k,v in r['components_ns'].items() if k!='cpu_wire') for r in selected]))/1000
             wire_median=float(np.mean([r['wire_ns'] for r in selected]))/1000
             ax.plot(wire_median,len(systems)-1-i,marker='|',markersize=15,
                     markeredgewidth=1.3,color='black',linestyle='none',
                     label='Wire total' if not i else None)
             statistics[str(size)][system]['instrumented_median_us']=wire_median
-            statistics[str(size)][system]['cpu_duration_at_wire_median_us']=bottom
-            statistics[str(size)][system]['wire_minus_cpu_at_wire_median_us']=wire_median-bottom
+            statistics[str(size)][system]['cpu_duration_at_wire_median_us']=cpu_total
+            statistics[str(size)][system]['wire_minus_cpu_at_wire_median_us']=wire_median-cpu_total
             statistics[str(size)][system]['breakdown_us']=combined
             expected_cpu=float(np.mean([sum(r['components_ns'][k] for k in r['components_ns'] if k!='cpu_wire') for r in selected]))/1000
-            if not np.isclose(bottom,expected_cpu):
+            if not np.isclose(bottom,wire_median if publication else expected_cpu):
                 raise ValueError('Components do not conserve measured CPU duration')
         ax.set_yticks(list(reversed(range(len(systems)))),[system_label(s,cohorts,multiline=True) for s in systems])
         ax.set_ylim(-.55,len(systems)-.45)

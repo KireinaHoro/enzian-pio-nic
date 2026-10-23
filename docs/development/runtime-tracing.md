@@ -21,7 +21,7 @@ unless enabled by environment; compiled probe support is a separate choice.
 
 ## Probe boundaries
 
-`core_eci_tx_commit_traced` optionally records `server_tx_doorbell_ns` after
+`core_eci_tx_commit_traced` optionally records `server_tx_publish_ns` after
 control descriptor writes, placement, ordering barriers and parity update,
 immediately before loading the opposite control CL. The timestamp is held
 locally and stored to the trace row after the load; there is no PMU sampling at
@@ -91,10 +91,11 @@ fiber spans, while wall time includes waits. Killed requests without a terminal
 reply have no terminal row; export completeness must reflect the intended scope.
 
 RX-enter can include pre-arrival blocking; RX-unblock follows the ordered control
-read, and RX-exit marks descriptor/view acquisition. Decode, handler and marshal
-pairs describe their runtime stages. TX-enter, pre-doorbell, doorbell-return and
-TX-exit separate preparation, the blocking control read and cleanup when present.
-Legacy schemas lack some boundaries and must retain their original interpretation.
+read, and RX-exit marks descriptor/view acquisition. Decode, handler and encode
+pairs describe their runtime stages. Version 4 ends at `tx_publish` before the
+blocking control read. Broad codec spans, duplicate entry aliases and TX-return
+probes are removed from current acquisition; archived schemas keep their original
+interpretation.
 `request_bytes` is the deployed runtime's recorded buffer extent, not a universal
 wire payload size; historical rows included a 48-byte inline extent.
 
@@ -105,7 +106,7 @@ are not hardware datapath IDs. See [hardware correlation](../hardware/tracing.md
 ## Activation and inter-packet gaps
 
 The [RPC instrumentation inventory](rpc-breakdown.md#cold-activation-paths-and-timestamps)
-defines the exact activation stamps, cooperative cross-domain path, missing
+defines the exact activation stamps, cooperative cross-domain path, outgoing
 entry probes, Caladan parked/preempted paths, and their placement in a cold RTT
 partition. This section describes the existing LH collection and analysis tools.
 
@@ -115,8 +116,12 @@ disabled by default. Idle activation takes nine `ktime_get_raw_ns()` samples;
 ordinary cooperative activation omits the IRQ and dispatcher samples; the runtime adds two `CLOCK_MONOTONIC_RAW` samples when server CSV
 tracing is enabled. Kernel samples are stored in private per-thread state and
 emitted just before the yield handler returns. No hardware or public activation
-ABI fields change. The legacy `worker_switch` event still only emits phase 2;
-its old phase 0/1 comment was not evidence of those probes existing.
+ABI fields change. The redundant legacy `worker_switch` event is removed; the activation record
+carries target and outgoing identity.
+Cooperative activation also records outgoing TID and kernel `yield_enter`.
+The optional runtime event CSV records DESCHED observation (20) and userspace
+yield entry (21); `activation_breakdown.py --events` joins them to that outgoing
+identity and adds their disjoint entry spans.
 
 | Partition | Exact boundaries / included work |
 | --- | --- |
@@ -237,3 +242,13 @@ Require unique joins, loss-free capture, temporal order and audit hashes.
 Generic syscall timestamps have microsecond quantization; the outgoing interval
 includes userspace and exception entry and does not isolate the exception
 instruction. Keep these nested diagnostics within their instrumented cohort.
+
+## PMU and archived diagnostics
+
+Version 4 PMU coarse mode samples RX entry, RX exit and TX entry; detailed
+mode additionally samples handler entry/exit. Counts end at TX preparation
+entry, before the publication timestamp. The PMU importer retains the original
+stage map for archived captures. The archived post-return IPG analysis and
+Dandelion TX-return clock fitting require their original return probes and
+reject version 4 rows. Dandelion CPU waterfalls use the publication endpoint
+and application/entry-return events in version 4.

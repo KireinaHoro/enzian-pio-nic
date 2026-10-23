@@ -107,7 +107,8 @@ static void *lauberhorn_worker_loop(void *arg) {
         bool received;
 #if LH_ENABLE_TRACING
         if (server_trace_enabled) {
-            server_trace_rx_begin(&w->rx_trace, w->worker_id);
+            server_trace_rx_init(&w->rx_trace, w->worker_id);
+            w->rx_trace.rx_enter_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_enter);
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &w->rx_trace.rx_unblock_ns, server_trace_clock);
             w->rx_trace.timestamp_calls++; /* RX-unblock probe */
@@ -119,6 +120,9 @@ static void *lauberhorn_worker_loop(void *arg) {
             received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (received && desc.type == TY_DESCHED) {
+#if LH_ENABLE_TRACING
+            server_trace_activation_event(LH_TRACE_DESCHED, w->worker_id);
+#endif
             if (lh_yield(&activation)) worker_fail(w);
             continue;
         }

@@ -85,7 +85,8 @@
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "udp-spawner"
-      }
+      },
+      "measurement": "NIC handling includes RX acquisition and TX preparation through pre-publication. Version 4 stacks NIC-wire; archived version 3 retains CPU-only bars and an independent wire marker."
     },
     {
       "id": "echo-unloaded-8b-cdf",

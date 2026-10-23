@@ -22,6 +22,9 @@ def rows(path):
         return [{k:int(v) if v and v.lstrip('-').isdigit() else v for k,v in r.items()}
                 for r in csv.DictReader(f)]
 
+def tx_endpoint(row):
+    return row['server_tx_publish_ns' if int(row.get('accounting_version',3))==4 else 'server_tx_exit_ns']
+
 def distribution(values):
     s=sorted(values)
     if not s: return {'n':0}
@@ -74,6 +77,9 @@ def load(server,events):
 
 def spans(row,ev):
     result=[]
+    current = int(row.get('accounting_version',3)) == 4
+    entry = next((e['timestamp_ns'] for e in ev if e['event']==100),0) if current else row.get('server_entry_enter_ns',0)
+    returned = next((e['timestamp_ns'] for e in ev if e['event']==1),0) if current else row.get('server_entry_exit_ns',0)
     def add(name,a,b):
         if not a or not b: return
         if b<a: raise ValueError(f'reversed {name}')
@@ -81,18 +87,18 @@ def spans(row,ev):
     def field(name,a,b): add(name,row.get('server_'+a+'_ns',0),row.get('server_'+b+'_ns',0))
     field('RX blocked','rx_enter','rx_unblock')
     field('RX return','rx_unblock','rx_exit')
-    field('decode','unmarshal_enter','unmarshal_exit')
+    field('decode', 'decode_enter' if current else 'unmarshal_enter', 'decode_exit' if current else 'unmarshal_exit')
     resolved=next((e['timestamp_ns'] for e in ev if e['event']==101),0)
-    add('entry / classify',row.get('server_entry_enter_ns',0),resolved)
+    add('entry / classify',entry,resolved)
     if row['execution_kind'] & 1:
-        add('return to runtime',resolved,row.get('server_entry_exit_ns',0))
-        add('fiber admission',row.get('server_entry_exit_ns',0),row['server_defer_enqueue_ns'])
+        add('return to runtime',resolved,returned)
+        add('fiber admission',returned,row['server_defer_enqueue_ns'])
         resume=next((e['timestamp_ns'] for e in ev if e['event']==2),0)
         add('defer queue',row['server_defer_enqueue_ns'],resume)
         first_child=next((e['timestamp_ns'] for e in ev if e['event']==105),0)
         add('fiber preparation',resume,first_child)
-    field('encode','marshal_enter','marshal_exit')
-    field('final TX','tx_enter','tx_exit')
+    field('encode','encode_enter' if current else 'marshal_enter','encode_exit' if current else 'marshal_exit')
+    field('final TX preparation' if current else 'final TX','tx_enter','tx_publish' if current else 'tx_exit')
     active={}
     pairs={103:(102,'function setup'),104:(103,'process execution'),
            106:(105,'child submission'),108:(107,'await result'),109:(108,'collect result'),
@@ -123,7 +129,7 @@ def plot(path,root,client,requests,events,children,hardware=None,worker_lanes=Fa
     ids=tree(root,children); origin=requests[root]['server_rx_unblock_ns']
     hw=hardware['requests'][str(root)] if hardware else None
     if hw: origin=hw['rx_mac_ns']
-    end=requests[root]['server_tx_exit_ns']; duration=(end-origin)/1000
+    end=tx_endpoint(requests[root]); duration=(end-origin)/1000
     prelude=min(50,max(5,duration*.025))
     rightmost=max(duration,(hw['tx_mac_ns']-origin)/1000) if hw else duration
     colors={'RX blocked':'#c3cbd4','RX return':'#78a6c8','decode':'#58a5a1',
@@ -146,7 +152,7 @@ def plot(path,root,client,requests,events,children,hardware=None,worker_lanes=Fa
         r=requests[key]; ev=events[key]
         cpu=next((e['cpu'] for e in ev if e['event']==103),r['rx_cpu_id'])
         if not worker_lanes:labels.append(('parent' if key==root else 'child')+f' {key}\nCPU {cpu}')
-        a=(r['server_rx_unblock_ns']-origin)/1000; b=(r['server_tx_exit_ns']-origin)/1000
+        a=(r['server_rx_unblock_ns']-origin)/1000; b=(tx_endpoint(r)-origin)/1000
         ax.broken_barh([(a,b-a)],(lane-.32,.64),facecolors='#f1f2f4',edgecolor='#a4a4a4',linewidth=.5)
         for name,start,stop in spans(r,ev):
             if name=='fiber active':

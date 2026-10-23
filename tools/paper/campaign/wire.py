@@ -76,8 +76,10 @@ def join_durations(client, wire, software=None):
             elapsed = cpu['cpu_duration_ns']
             if type(elapsed) is not int or elapsed <= 0 or sum(values.values()) != elapsed:
                 raise ValueError('CPU components do not conserve CPU duration')
-            # The CPU return path and NIC transmission proceed concurrently
-            # after submission. This signed difference is not a transport stage.
+            # Schema 4 ends before MMIO/ECI publication; older schemas include
+            # concurrent CPU return work and retain a signed diagnostic.
+            if cpu.get("accounting",{}).get("version")==4 and total<elapsed:
+                raise ValueError("Negative pre-publication NIC-wire remainder")
             row['cpu_duration_ns'] = elapsed
             row['components_ns'] = dict(values, cpu_wire=total-elapsed)
         output.append(row)

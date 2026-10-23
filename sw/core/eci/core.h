@@ -348,9 +348,9 @@ static inline void core_eci_tx_finish(lauberhorn_core_state_t *ctx) {
  * and ordering. Save its value only after the read, avoiding a trace-buffer
  * store between the timestamp and doorbell. The callback must order its clock
  * read; its return overhead remains part of the measured arrival interval. */
-static inline __attribute__((always_inline)) int core_eci_tx_commit_traced_full(void *base, lauberhorn_core_state_t *ctx,
+static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void *base, lauberhorn_core_state_t *ctx,
                                lauberhorn_pkt_desc_t *desc,
-                               uint64_t *doorbell_ns, uint64_t *doorbell_return_ns,
+                               uint64_t *doorbell_ns,
                                lauberhorn_trace_now_fn_t trace_now) {
   int tx_result = CORE_TX_ERROR;
   if (!ctx->tx_reserved || ctx->tx_reservation_base != base) return CORE_TX_ERROR;
@@ -495,12 +495,6 @@ static inline __attribute__((always_inline)) int core_eci_tx_commit_traced_full(
   asm volatile("" ::: "memory");
   tx_result = *tx_next_ctrl;
   asm volatile("" ::: "memory");
-  uint64_t after_read = 0;
-  if (doorbell_return_ns && trace_now) {
-    BARRIER; // Order the completed coherent read before the CPU clock probe.
-    after_read = trace_now();
-  }
-  if (doorbell_return_ns) *doorbell_return_ns = after_read;
   if (doorbell_ns) *doorbell_ns = before_read;
 
   pr_debug("eci_tx: finished tx\n");
@@ -512,12 +506,6 @@ out:
 
   core_eci_tx_finish(ctx);
   return tx_result;
-}
-
-static inline int core_eci_tx_commit_traced(void *base, lauberhorn_core_state_t *ctx,
-                                     lauberhorn_pkt_desc_t *desc, uint64_t *before,
-                                     lauberhorn_trace_now_fn_t clock) {
-  return core_eci_tx_commit_traced_full(base, ctx, desc, before, NULL, clock);
 }
 
 static inline int core_eci_tx_commit(void *base, lauberhorn_core_state_t *ctx,

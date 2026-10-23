@@ -21,6 +21,14 @@ class Wire(unittest.TestCase):
         self.assertEqual(row['components_ns']['cpu_wire'], -30)
         self.assertEqual(sum(row['components_ns'][k] for k in COMPONENTS), 80)
 
+    def test_publication_residual_conserves_and_rejects_negative(self):
+        self.cpu[0]['accounting'] = {'version': 4}
+        row = join_durations(self.client, self.wire, self.cpu)[0]
+        self.assertEqual(sum(row['components_ns'].values()), row['wire_ns'])
+        self.assertEqual(row['components_ns']['cpu_wire'], 20)
+        with self.assertRaisesRegex(ValueError, 'Negative pre-publication'):
+            join_durations(self.client, [dict(self.wire[0], wire_ns=50)], self.cpu)
+
     def test_incomplete_duplicate_and_invalid(self):
         for wire in ([], self.wire*2, [dict(self.wire[0], flow_id=4)],
                      [dict(self.wire[0], wire_ns=0)], [dict(self.wire[0], wire_ns=1001)]):

@@ -1,15 +1,31 @@
 # Measurement continuation
 
-## Pending instrumentation/accounting contract
+## Timestamp accounting version 4
 
-The agreed pre-publication split and complete hot/cold probe inventory are in
-[RPC breakdown accounting](../docs/development/rpc-breakdown.md). Documentation
-only: importer remains version 3. Next implementation needs pre-publication
-DPDK/Caladan probes, a new accounting version, and separate post-publication
-return diagnostics. LH already has the required endpoint. Cold collection needs
-outgoing LH cooperative-entry probes and Caladan demand/park/cede/activation
-correlation; existing packet probes do not cover core activation. Do not launch
-collection while the campaign stop remains in force.
+The [RPC breakdown contract](../docs/development/rpc-breakdown.md) describes
+implemented pre-publication endpoints across LH, DPDK and Caladan, reduced
+software probes, and the cold activation evidence/join tools. Historical
+archives retain their recorded accounting version. New acquisition uses v4.
+The campaign remains stopped; no hardware validation or new measurement has
+been performed for this change. Before fresh acquisition, build matched images
+and validate capture ordering and conservation on the real RX/TX paths.
+Cold paper acquisition still needs controlled eviction/single-outstanding
+workloads and the hardware/request-to-activation correlation described in the
+contract; recording activation events alone does not establish that causality.
+
+Software validation: runtime unit tests and AArch64 kernel module; native and
+AArch64 DPDK responders (including native trace/off PMD checks); Caladan traced
+runtime, responder/QEMU codec checks, ksched and activation buffer tests passed.
+Campaign accounting tests: 124; activation joins/capture tests: 11; trace-buffer
+tests: 2; PMU tests: 4; Dandelion analysis tests: 10; IPG tests: 4. The Nix
+workflow-tools check passed. Build logs: `out/rpc-probes-*-final.log`,
+`out/rpc-probes-workflow-tests.log`; final pinned build:
+`out/rpc-probes-pinned-build.log`. The archived chart preview at
+`out/rpc-probes-chart-preview/` was visually reviewed; its PDF is one column
+(240.247 pt) with embedded Libertine fonts. NIC handling is the new label;
+NIC–wire stacking requires version-4 captures. Existing dirty paper files were
+left untouched. Microbenchmarks `e3b702d` and Caladan `e166a1e` are integrated
+and pushed with CI skipped.
 
 ## Stopped full hot campaign — October 22
 

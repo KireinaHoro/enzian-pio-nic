@@ -63,4 +63,18 @@ class CorrelationTests(unittest.TestCase):
         self.assertIn(('fiber admission',35,40),spans)
         self.assertIn(('defer queue',40,50),spans)
 
+    def test_publication_schema_uses_events_and_codec_boundaries(self):
+        row=dict(accounting_version=4,execution_kind=1,server_decode_enter_ns=2,
+                 server_decode_exit_ns=5,server_defer_enqueue_ns=40,
+                 server_tx_enter_ns=80,server_tx_publish_ns=90)
+        spans=w.spans(row,[{'event':100,'timestamp_ns':10},
+                          {'event':101,'timestamp_ns':20},
+                          {'event':1,'timestamp_ns':35},
+                          {'event':2,'timestamp_ns':50}])
+        self.assertIn(('decode',2,5),spans)
+        self.assertIn(('entry / classify',10,20),spans)
+        self.assertIn(('fiber admission',35,40),spans)
+        self.assertIn(('final TX preparation',80,90),spans)
+        self.assertEqual(w.tx_endpoint(row),90)
+
 if __name__=='__main__': unittest.main()

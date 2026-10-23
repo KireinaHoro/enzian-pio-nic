@@ -15,40 +15,22 @@ TRACE_EVENT(activation,
     TP_ARGS(t, domain, tid),
     TP_STRUCT__entry(
         __field(int, worker) __field(u64, sequence) __field(u32, domain)
-        __field(int, tid) __field(bool, cold)
+        __field(int, tid) __field(bool, cold) __field(int, outgoing_tid)
         __array(u64, ns, LH_ACT_STAMPS)
     ),
     TP_fast_assign(
         __entry->worker = t->worker; __entry->sequence = t->sequence;
         __entry->domain = domain; __entry->tid = tid; __entry->cold = t->cold;
+        __entry->outgoing_tid = t->outgoing_tid;
         memcpy(__entry->ns, t->ns, sizeof(__entry->ns));
     ),
-    TP_printk("worker=%d sequence=%llu domain=%u tid=%d cold=%d irq=%llu dispatch=%llu read_begin=%llu read_end=%llu claim=%llu affinity=%llu wake=%llu resume=%llu return=%llu",
+    TP_printk("worker=%d sequence=%llu domain=%u tid=%d cold=%d irq=%llu dispatch=%llu read_begin=%llu read_end=%llu claim=%llu affinity=%llu wake=%llu resume=%llu return=%llu outgoing_tid=%d yield_enter=%llu",
         __entry->worker, __entry->sequence, __entry->domain, __entry->tid, __entry->cold,
         __entry->ns[0], __entry->ns[1], __entry->ns[2], __entry->ns[3],
-        __entry->ns[4], __entry->ns[5], __entry->ns[6], __entry->ns[7], __entry->ns[8])
+        __entry->ns[4], __entry->ns[5], __entry->ns[6], __entry->ns[7], __entry->ns[8],
+        __entry->outgoing_tid, __entry->ns[9])
 );
 
-/* Legacy event: only phase 2 (activation published, before wake_up) is emitted. */
-TRACE_EVENT(worker_switch,
-    TP_PROTO(int cpu, u64 old_lifetime, int old_pid, int old_tid,
-             u64 next_lifetime, int next_pid, int next_tid, int phase, bool killed),
-    TP_ARGS(cpu, old_lifetime, old_pid, old_tid, next_lifetime, next_pid, next_tid, phase, killed),
-    TP_STRUCT__entry(
-        __field(int, cpu) __field(u64, old_lifetime) __field(int, old_pid) __field(int, old_tid)
-        __field(u64, next_lifetime) __field(int, next_pid) __field(int, next_tid)
-        __field(int, phase) __field(bool, killed)
-    ),
-    TP_fast_assign(
-        __entry->cpu = cpu; __entry->old_lifetime = old_lifetime;
-        __entry->old_pid = old_pid; __entry->old_tid = old_tid;
-        __entry->next_lifetime = next_lifetime; __entry->next_pid = next_pid;
-        __entry->next_tid = next_tid; __entry->phase = phase; __entry->killed = killed;
-    ),
-    TP_printk("cpu=%d old=%llu:%d/%d next=%llu:%d/%d phase=%d killed=%d",
-        __entry->cpu, __entry->old_lifetime, __entry->old_pid, __entry->old_tid,
-        __entry->next_lifetime, __entry->next_pid, __entry->next_tid, __entry->phase, __entry->killed)
-);
 /* phase: 0 stopping, 1 workers/queues drained, 2 all ownership retired.
  * reason: 0 close, 1 explicit/unmap, 2 hardware kill, 3 fatal signal. */
 TRACE_EVENT(process_recovery,

@@ -16,6 +16,7 @@ static int ioctl_error, calls;
 bool server_trace_enabled;
 __thread struct server_activation_trace server_activation;
 static uint64_t tick;
+void server_trace_activation_event(unsigned event, int worker) { (void)event; (void)worker; }
 uint64_t server_trace_clock(void) { return ++tick; }
 #endif
 lauberhorn_worker_t worker_get_current(void) { return &worker; }

@@ -36,7 +36,8 @@ static int udp_wait(void) {
         bool received;
 #if LH_ENABLE_TRACING
         if (server_trace_enabled) {
-            server_trace_rx_begin(&w->rx_trace, w->worker_id);
+            server_trace_rx_init(&w->rx_trace, w->worker_id);
+            w->rx_trace.rx_enter_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_enter);
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &w->rx_trace.rx_unblock_ns, server_trace_clock);
             w->rx_trace.timestamp_calls++;
@@ -119,10 +120,9 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
         : core_eci_tx_commit(w->dp_base, &w->dp, desc);
     if (server_trace_inline) {
         struct server_trace_row *row = server_trace_inline;
-        row->tx_exit_ns = server_trace_stamp(row);
-        row->tx_doorbell_ns = doorbell;
+        row->tx_publish_ns = doorbell;
         row->timestamp_calls++;
-        server_trace_event(row, LH_TRACE_UDP_TX_DOORBELL, doorbell, row->tx_exit_ns);
+        server_trace_event(row, LH_TRACE_UDP_TX_DOORBELL, doorbell, 0);
         row->transport_status = result;
         if (result == CORE_TX_ACCEPTED) row->response_bytes += length;
         row->ok &= result == CORE_TX_ACCEPTED;

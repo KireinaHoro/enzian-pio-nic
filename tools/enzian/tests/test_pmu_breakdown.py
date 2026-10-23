@@ -11,25 +11,25 @@ class CounterAttribution(unittest.TestCase):
     def test_partition_conserves_counts(self):
         row = {f'pmu_{stage}_{i}': str(1000*(j+1)*(i+1))
                for j,stage in enumerate(pmu.STAGES) for i in range(4)}
-        total = pmu.delta(row,'rx_exit','tx_exit')
+        total = pmu.delta(row,'rx_exit','tx_enter')
         parts = [pmu.delta(row,a,b) for a,b in zip(pmu.STAGES[1:],pmu.STAGES[2:])]
         for event in pmu.EVENTS:
             self.assertEqual(total[event],sum(x[event] for x in parts))
 
     def test_invalid_counter_rejected(self):
-        row = {f'pmu_{stage}_{i}': str(value) for stage,value in [('rx_exit',100),('tx_exit',90)] for i in range(4)}
+        row = {f'pmu_{stage}_{i}': str(value) for stage,value in [('rx_exit',100),('tx_enter',90)] for i in range(4)}
         with self.assertRaises(ValueError):
-            pmu.delta(row,'rx_exit','tx_exit')
+            pmu.delta(row,'rx_exit','tx_enter')
 
     def test_excluding_bad_instructions_keeps_other_events(self):
-        row = {f'pmu_{stage}_{i}': str(value) for stage,value in [('rx_exit',100),('tx_exit',110)] for i in range(4)}
-        row['pmu_tx_exit_0']='90'
-        result=pmu.delta(row,'rx_exit','tx_exit',True)
+        row = {f'pmu_{stage}_{i}': str(value) for stage,value in [('rx_exit',100),('tx_enter',110)] for i in range(4)}
+        row['pmu_tx_enter_0']='90'
+        result=pmu.delta(row,'rx_exit','tx_enter',True)
         self.assertNotIn('instructions',result)
         self.assertEqual(result['l1d_refill'],10)
-        row['pmu_tx_exit_2']='90'
+        row['pmu_tx_enter_2']='90'
         with self.assertRaises(ValueError):
-            pmu.delta(row,'rx_exit','tx_exit',True)
+            pmu.delta(row,'rx_exit','tx_enter',True)
 
     def test_percentiles(self):
         self.assertEqual(pmu.percentiles([3,1,2])['p50'],2)

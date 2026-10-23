@@ -101,20 +101,23 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_by
             raise ValueError('Invalid DPDK status/instrumentation')
         if instrumentation=='breakdown':
             t=lambda k:int(sw[k+'_ns'])
-            stages=['rx_poll_enter','rx_cqe','rx_return','network_rx_begin','network_rx_end',
-                    'rpc_rx_end','handler_end','rpc_tx_end','network_tx_begin','network_tx_end',
-                    'tx_submit_begin','tx_pmd_enter','tx_doorbell','tx_return']
-            times=[t(k) for k in stages]
-            if not times[0] or times!=sorted(times): raise ValueError('Invalid queue/software stages')
-            part=cpu_partition(t('rx_cqe'),t('tx_return'),{
-                'rx_queue':(t('rx_cqe'),t('rx_return')),
-                'rx_network':(t('network_rx_begin'),t('network_rx_end')),
-                'rpc_receive':(t('network_rx_end'),t('rpc_rx_end')),
-                'handler':(t('rpc_rx_end'),t('handler_end')),
-                'rpc_transmit':(t('handler_end'),t('rpc_tx_end')),
-                'tx_network':(t('network_tx_begin'),t('network_tx_end')),
-                'tx_submission':(t('network_tx_end'),t('tx_return'))})
-            if partition_version==3: part=accounting.partition(sw,'DPDK')
+            if partition_version == 4:
+                part=accounting.partition(sw,'DPDK')
+            else:
+                stages=['rx_poll_enter','rx_cqe','rx_return','network_rx_begin','network_rx_end',
+                        'rpc_rx_end','handler_end','rpc_tx_end','network_tx_begin','network_tx_end',
+                        'tx_submit_begin','tx_pmd_enter','tx_doorbell','tx_return']
+                times=[t(k) for k in stages]
+                if not times[0] or times!=sorted(times): raise ValueError('Invalid queue/software stages')
+                part=cpu_partition(t('rx_cqe'),t('tx_return'),{
+                    'rx_queue':(t('rx_cqe'),t('rx_return')),
+                    'rx_network':(t('network_rx_begin'),t('network_rx_end')),
+                    'rpc_receive':(t('network_rx_end'),t('rpc_rx_end')),
+                    'handler':(t('rpc_rx_end'),t('handler_end')),
+                    'rpc_transmit':(t('handler_end'),t('rpc_tx_end')),
+                    'tx_network':(t('network_tx_begin'),t('network_tx_end')),
+                    'tx_submission':(t('network_tx_end'),t('tx_return'))})
+                if partition_version==3: part=accounting.partition(sw,'DPDK')
             part.update(flow_id=0,request_id=int(cl['request_id']))
             software.append(part)
     result=finish(client_path,client,software if instrumentation=='breakdown' else None,
@@ -122,6 +125,7 @@ def dpdk(client_path, server_path, *, count, warmup, instrumentation, payload_by
         payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path)
     if software:
         result['cpu_partition_version']=partition_version
+    if software and partition_version < 4:
         result['rx_preparation_ns']=[int(by_id[int(c['request_id'])]['rx_cqe_ns'])-int(by_id[int(c['request_id'])]['rx_poll_enter_ns']) for c in client]
         result['rx_preparation_scope']='Successful poll before CQE observation; outside CPU critical interval'
     return result
@@ -161,15 +165,19 @@ def lauberhorn(client_path, *, count, warmup, setup_count, instrumentation,
         for cl,sw in zip(client,server[setup_count:]):
             t=lambda k:int(sw['server_'+k+'_ns'])
             if sw['ok']!='1' or t('rx_exit')<previous: raise ValueError('Invalid runtime reply/order')
-            previous=t('tx_exit')
-            part=cpu_partition(t('rx_exit'),t('tx_exit'),{
-                'rpc_receive':(t('unmarshal_enter'),t('handler_enter')),
-                'handler':(t('handler_enter'),t('handler_exit')),
-                'rpc_transmit':(t('marshal_enter'),t('marshal_exit')),
-                'tx_submission':(t('tx_enter'),t('tx_doorbell_return'))})
-            if partition_version==3: part=accounting.partition(sw,'LH')
+            if partition_version == 4:
+                previous=t('tx_publish')
+                part=accounting.partition(sw,'LH')
+            else:
+                previous=t('tx_exit')
+                part=cpu_partition(t('rx_exit'),t('tx_exit'),{
+                    'rpc_receive':(t('unmarshal_enter'),t('handler_enter')),
+                    'handler':(t('handler_enter'),t('handler_exit')),
+                    'rpc_transmit':(t('marshal_enter'),t('marshal_exit')),
+                    'tx_submission':(t('tx_enter'),t('tx_doorbell_return'))})
+                if partition_version==3: part=accounting.partition(sw,'LH')
             part.update(flow_id=0,request_id=int(cl['request_id']));software.append(part)
-            bounds.append((t('rx_unblock') if partition_version==3 else t('rx_exit'),t('tx_exit'),int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])))
+            bounds.append((t('rx_unblock') if partition_version>=3 else t('rx_exit'),t('tx_publish' if partition_version==4 else 'tx_exit'),int(cl['client_call_enter_ns']),int(cl['client_rx_burst_ns'])))
     result=finish(client_path,client,software if instrumentation=='breakdown' else None,
         system='LH',count=count,warmup=warmup,instrumentation=instrumentation,
         payload_bytes=payload_bytes,wire_path=wire_path,server_path=server_path,
@@ -187,8 +195,8 @@ def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS, sizes=SIZES):
     if len(cohorts)!=len(expected) or {(c['system'],c['payload_bytes'],c['instrumentation']) for c in cohorts}!=expected:
         raise ValueError('Incomplete unloaded cohort matrix')
     versions={c.get('cpu_partition_version',1) for c in cohorts if c['instrumentation']=='breakdown'}
-    if 3 in versions and versions!={3}:
-        raise ValueError('Cannot compare schema-3 codec accounting with legacy coarse RPC accounting')
+    if (3 in versions or 4 in versions) and len(versions)!=1:
+        raise ValueError('Cannot compare different CPU accounting versions')
     for system in systems:
         builds={m:{c['build_config_sha256'] for c in cohorts if c['system']==system and c['instrumentation']==m} for m in ('off','breakdown')}
         if any(len(v)!=1 for v in builds.values()) or builds['off']==builds['breakdown']:
@@ -220,6 +228,7 @@ def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS, sizes=SIZES):
                 if (set(parts)!=set(COMPONENTS)|{'cpu_wire'}
                         or any(type(v) is not int for v in parts.values())
                         or any(parts[k]<0 for k in COMPONENTS)
+                        or (c.get('cpu_partition_version')==4 and parts['cpu_wire']<0)
                         or sum(parts.values())!=row['wire_ns']
                         or row.get('cpu_duration_ns',sum(parts[k] for k in COMPONENTS))
                            !=sum(parts[k] for k in COMPONENTS)):

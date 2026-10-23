@@ -76,7 +76,7 @@ class Chunked(unittest.TestCase):
         for c in matrix:
             if c['instrumentation']=='breakdown': c['cpu_partition_version']=2
         matrix[1]['cpu_partition_version']=3
-        with self.assertRaisesRegex(ValueError,'legacy coarse'): validate_matched(matrix)
+        with self.assertRaisesRegex(ValueError,'different CPU accounting versions'): validate_matched(matrix)
 
     def test_matrix_checks_chunk_identity_and_counts(self):
         matrix=[merge([self.chunk(896,s,n,m),self.chunk(4,s,n,m)])

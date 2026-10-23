@@ -12,12 +12,15 @@ import json
 from pathlib import Path
 
 EVENTS = ('instructions', 'cycles', 'l1d_refill', 'l2d_refill')
-STAGES = ('rx_enter', 'rx_exit', 'unmarshal_enter', 'unmarshal_exit',
+LEGACY_STAGES = ('rx_enter', 'rx_exit', 'unmarshal_enter', 'unmarshal_exit',
           'handler_enter', 'handler_exit', 'marshal_enter', 'marshal_exit',
           'tx_enter', 'tx_exit')
-SEGMENTS = ('rx_call_including_wait', 'runtime_dispatch', 'unmarshal',
+LEGACY_SEGMENTS = ('rx_call_including_wait', 'runtime_dispatch', 'unmarshal',
             'before_handler', 'handler', 'before_marshal', 'marshal', 'before_tx', 'tx')
 
+
+STAGES = ('rx_enter','rx_exit','handler_enter','handler_exit','tx_enter')
+SEGMENTS = ('rx_call_including_wait','before_handler','handler','after_handler')
 
 def percentiles(values):
     values = sorted(values)
@@ -64,7 +67,10 @@ def main():
             assert r['ok']==c['ok']=='1' and r['request_id_valid']=='1'
             assert r['execution_kind']=='0' and r['reply_status']=='0' and r['transport_status']=='1'
             assert r['rx_cpu_id']==r['tx_cpu_id'] and r['worker_id']==r['tx_worker_id']
-            assert int(r['pmu_mode'])==mode and int(r['pmu_mask'])==(0,1029,2045)[mode]
+            current = int(r.get('accounting_version',3)) == 4
+            stages,segments = (STAGES,SEGMENTS) if current else (LEGACY_STAGES,LEGACY_SEGMENTS)
+            endpoint = 'tx_enter' if current else 'tx_exit'
+            assert int(r['pmu_mode'])==mode and int(r['pmu_mask'])==((0,37,61) if current else (0,1029,2045))[mode]
             assert int(c['warmup'])==int(index<args.warmup)
             if index < args.warmup:
                 continue
@@ -72,13 +78,13 @@ def main():
             records = {}
             if mode:
                 records['rx_call_including_wait'] = delta(r,'rx_enter','rx_exit',args.exclude_instructions)
-                records['service_after_rx'] = delta(r,'rx_exit','tx_exit',args.exclude_instructions)
-                records['rx_enter_to_tx_exit'] = delta(r,'rx_enter','tx_exit',args.exclude_instructions)
+                records['service_after_rx'] = delta(r,'rx_exit',endpoint,args.exclude_instructions)
+                records['rx_enter_to_'+endpoint] = delta(r,'rx_enter',endpoint,args.exclude_instructions)
             if mode==2:
                 records.update({name:delta(r,start,end,args.exclude_instructions)
-                                for name,start,end in zip(SEGMENTS,STAGES,STAGES[1:])})
+                                for name,start,end in zip(segments,stages,stages[1:])})
                 for event in events:
-                    assert sum(records[name][event] for name in SEGMENTS[1:]) == records['service_after_rx'][event]
+                    assert sum(records[name][event] for name in segments[1:]) == records['service_after_rx'][event]
             for component,counts in records.items():
                 exported.append(dict(phase=phase,request_id=r['request_id'],
                     cpu=r['rx_cpu_id'],worker=r['worker_id'],component=component,**counts))

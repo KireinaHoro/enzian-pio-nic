@@ -66,10 +66,11 @@ Default output is `../paper/plots/`, independent of working directory. Use
 supplies Python, NumPy and Matplotlib; TeX Live supplies `pdflatex`, `acmart`,
 `libertine` and `newtxmath`. Missing fonts or classes fail explicitly.
 
-Unloaded breakdown bars partition the recorded CPU interval for the central
-wire-latency observation(s). A black marker shows their independent wire total.
-CPU return work can overlap transmission; keep the signed wire-minus-CPU
-difference in statistics, without plotting it as a sequential NIC–wire stage.
+Unloaded breakdowns use the same central wire-latency observations for every
+component. Version 4 stacks the pre-publication CPU components and the remaining
+NIC–wire duration, conserving the switch total. Archived version 3 retains
+CPU-only bars and an independent wire marker, with signed differences in its
+statistics. Never mix accounting versions in a comparison.
 
 The paper's requested filenames are:
 
@@ -126,12 +127,12 @@ This standalone review retains historical LH/DPDK and fresh Caladan provenance;
 it does not replace the full-payload paper figures while collection continues.
 
 The unloaded breakdown displays `rpc_receive + rpc_transmit` as **RPC (un)marshal**
-and `cpu_other` as **Runtime/dispatch**. New accounting version 3 measures the
+and `cpu_other` as **Runtime/dispatch**. Current accounting version 4 measures the
 codec calls separately from allocation and TX-buffer reservation, and retains
 runtime subintervals including Caladan dispatch wait. See the
 [exact timestamp and segment contract](rpc-breakdown.md). Historical versions
 1/2 use broader RPC spans containing wrapper/dispatch work. Comparisons using
-version 3 require version 3 for every breakdown cohort. The split preserves the
+version 4 require version 4 for every breakdown cohort. The split preserves the
 same central observations and total instrumented median.
 
 ### Campaign storage

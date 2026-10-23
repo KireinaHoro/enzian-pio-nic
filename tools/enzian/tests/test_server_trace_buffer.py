@@ -26,7 +26,7 @@ static void *produce(void *arg) {
     server_trace_thread_init();
     for (int i=0;i<3;i++) {
         struct server_trace_row row;
-        server_trace_rx_begin(&row,(int)(long)arg);
+        server_trace_rx_init(&row,(int)(long)arg);
         row.request_id=i; row.id_valid=true;
         for (int j=0;j<40;j++) server_trace_event(&row,LH_TRACE_APP_ENTRY,i,j);
         server_trace_write(&row);

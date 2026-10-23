@@ -59,28 +59,24 @@ of timestamps from different clocks is part of this method.
 ## Software probes
 
 `queue-probes.patch` instruments the actual scalar mlx5 RX path, with a
-thread-local bounded scratch record. It records entry to the productive poll,
-valid CQE observation, and return after mbuf preparation, CQ/RQ pointer updates
-and doorbells. Empty polls contribute no request observation. Preparation before
-CQE observation is retained separately; it is not part of the CQE-to-packet
-interval or silently added to the CPU–wire residual. Compressed/vector/MPRQ RX
-is outside this measured path and fails the responder's probe coverage check.
+thread-local bounded scratch record. It records successful valid-CQE
+observation and RX return after queue bookkeeping/refill. Empty polls supply no
+request observation. Compressed/vector/MPRQ RX remains outside this selected
+measurement path.
 
-TX submission starts when the constructed network packet is ready, including
-mbuf trimming/metadata preparation before entering the PMD. The PMD records
-entry, return from the SQ doorbell operation, and return after
-post-doorbell software bookkeeping. SQ construction, ordering, CQ reclamation
-and mbuf ownership work on that invocation remain included. The application
-records network parsing/construction, RPC receive/transmit and echo-handler
-boundaries. The importer partitions CQE observation through TX PMD return,
-with post-doorbell and other uncovered CPU work in `cpu_other`. It conserves
-that duration before any external wire join. No timestamps from different clocks
-are subtracted, and no mlx5 hardware completion timestamps are used.
+The TX probes record adapter submission entry, PMD entry and the point immediately
+before the UAR MMIO write inside `mlx5_doorbell_ring_traced`. Descriptor/WQE
+construction, reclamation, doorbell-record store and ordering barriers precede
+that endpoint. The MMIO write, optional flush and return follow it. The maintained
+Nix patch is applied to both instrumented and off variants; the helper's optional
+hook is NULL in the off variant. Caladan uses its own directpath source, with
+the equivalent endpoint before `mmio_write64_be`.
 
-Lauberhorn records both sides of the TX doorbell read directly; the return
-probe includes a memory-ordering fence before sampling the CPU clock. Transport
-cleanup after its return remains other CPU time. The uninstrumented compile
-path passes null probes and eliminates these clock calls.
+The application records network processing and shared RPC/handler boundaries.
+Version 4 partitions valid RX observation through pre-MMIO notification, then
+joins the switch MAC duration to obtain the combined NIC–wire remainder.
+LH uses its pre-ECI-read endpoint. No clock is taken on TX return for the current
+breakdown. See the [complete instrumentation contract](../development/rpc-breakdown.md).
 
 ## Reproduction and acceptance
 

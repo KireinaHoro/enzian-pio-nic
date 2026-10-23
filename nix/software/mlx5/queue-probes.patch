@@ -7,7 +7,7 @@
 +#include <stdint.h>
 +#include <rte_compat.h>
 +struct rte_pmd_mlx5_lh_sample {
-+ uint64_t rx_enter, rx_cqe, rx_return, tx_enter, tx_doorbell, tx_return;
++ uint64_t rx_cqe, rx_return, tx_enter, tx_publish;
 + uint32_t rx_packets, tx_packets;
 +};
 +__rte_experimental
@@ -15,7 +15,7 @@
 +#endif
 --- /dev/null
 +++ b/drivers/net/mlx5/mlx5_lh.h
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,24 @@
 +#ifndef MLX5_LH_INTERNAL_H
 +#define MLX5_LH_INTERNAL_H
 +#include "rte_pmd_mlx5_lh.h"
@@ -31,9 +31,13 @@
 +}
 +#define LH_STAMP(field) (lh_mlx5_sample.field = lh_mlx5_stamp())
 +#define LH_COUNT(field, value) (lh_mlx5_sample.field = (value))
++#define LH_PUBLISH_CLOCK lh_mlx5_stamp
++#define LH_PUBLISH_SLOT (&lh_mlx5_sample.tx_publish)
 +#else
 +#define LH_STAMP(field) ((void)0)
 +#define LH_COUNT(field, value) ((void)0)
++#define LH_PUBLISH_CLOCK NULL
++#define LH_PUBLISH_SLOT NULL
 +#endif
 +#endif
 --- /dev/null
@@ -82,11 +86,10 @@
  			/*
  			 * Introduce the local variable to have queue cq_ci
  			 * index in queue structure always consistent with
-@@ -1050,6 +1052,8 @@
+@@ -1050,6 +1052,7 @@
  	unsigned int rq_ci = rxq->rq_ci << sges_n;
  	int len = 0; /* keep its value across iterations. */
  
-+	LH_STAMP(rx_enter);
 +	LH_COUNT(rx_packets, 0);
  	while (pkts_n) {
  		uint16_t skip_cnt;
@@ -116,20 +119,44 @@
  	struct mlx5_txq_local loc;
  	enum mlx5_txcmp_code ret;
  	unsigned int part;
-@@ -3774,6 +3777,7 @@
+@@ -3773,5 +3773,6 @@
+-	mlx5_doorbell_ring(mlx5_tx_bfreg(txq),
++	mlx5_doorbell_ring_traced(mlx5_tx_bfreg(txq),
  			   *(volatile uint64_t *)loc.wqe_last, txq->wqe_ci,
  			   txq->qp_db, !txq->db_nc &&
- 			   (!txq->db_heu || pkts_n % MLX5_TX_DEFAULT_BURST));
-+	LH_STAMP(tx_doorbell);
+-			   (!txq->db_heu || pkts_n % MLX5_TX_DEFAULT_BURST));
++			   (!txq->db_heu || pkts_n % MLX5_TX_DEFAULT_BURST),
++			   LH_PUBLISH_CLOCK, LH_PUBLISH_SLOT);
  	/* Not all of the mbufs may be stored into elts yet. */
- 	part = MLX5_TXOFF_CONFIG(INLINE) ? 0 : loc.pkts_sent - loc.pkts_copy;
- 	if (!MLX5_TXOFF_CONFIG(INLINE) && part) {
-@@ -3809,6 +3813,8 @@
+@@ -3809,6 +3813,7 @@
  	if (__rte_trace_point_fp_is_enabled() && loc.pkts_sent)
  		rte_pmd_mlx5_trace_tx_exit(mlx5_read_pcibar_clock_from_txq(txq),
  					   loc.pkts_sent, pkts_n);
 +	LH_COUNT(tx_packets, loc.pkts_sent);
-+	LH_STAMP(tx_return);
  	return loc.pkts_sent;
  }
  
+--- a/drivers/common/mlx5/mlx5_common.h
++++ b/drivers/common/mlx5/mlx5_common.h
+@@ -433,2 +433,3 @@
+-mlx5_doorbell_ring(struct mlx5_uar_data *uar, uint64_t val, uint32_t index,
+-		   volatile uint32_t *db_rec, bool flash)
++mlx5_doorbell_ring_traced(struct mlx5_uar_data *uar, uint64_t val, uint32_t index,
++		   volatile uint32_t *db_rec, bool flash,
++                   uint64_t (*before_mmio)(void), uint64_t *stamp)
+@@ -437,0 +439,1 @@
++	uint64_t before = 0;
+@@ -440,0 +443,1 @@
++	if (before_mmio) before = before_mmio();
+@@ -443,0 +447,1 @@
++	if (before_mmio) before = before_mmio();
+@@ -450,0 +455,9 @@
++	/* Save after notification; no trace-buffer store before the MMIO. */
++	if (stamp) *stamp = before;
++}
++
++static __rte_always_inline void
++mlx5_doorbell_ring(struct mlx5_uar_data *uar, uint64_t val, uint32_t index,
++                   volatile uint32_t *db_rec, bool flash)
++{
++ mlx5_doorbell_ring_traced(uar,val,index,db_rec,flash,NULL,NULL);

@@ -59,6 +59,8 @@ def main():
     p.add_argument('--decoded',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
     args=p.parse_args()
     requests,ev,children=sw.load(args.server,args.events)
+    if any(int(r.get('accounting_version',3))>=4 for r in requests.values()):
+        raise ValueError('This archived clock-fit method requires post-publication TX return bounds; version 4 has no such probe')
     roots=[r['request_id'] for path in args.clients for r in sw.rows(path)]
     if len(set(roots))!=len(roots):raise ValueError('duplicate client request IDs')
     selected={key for root in roots for key in sw.tree(root,children)}

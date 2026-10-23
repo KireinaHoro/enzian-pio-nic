@@ -79,6 +79,8 @@ def partition(start,end,tid,spans):
 def breakdown(rows,spans):
     by_tid={}; output=[]
     for row in rows:
+        if int(row.get('accounting_version',3))>=4:
+            raise ValueError('Post-TX-return IPG analysis requires archived return timestamps; version 4 ends at publication')
         if int(row.get('execution_kind',0)):
             raise ValueError('IPG analysis requires inline serial RPCs')
         by_tid.setdefault(int(row['server_tid']),[]).append(row)

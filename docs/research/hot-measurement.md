@@ -21,49 +21,31 @@ claim analyzer-calibrated physical wire boundaries.
 Do not substitute an egress-pipeline timestamp or collector observation time.
 
 Unloaded breakdowns use separate instrumented acquisitions and their own
-wire-to-wire totals. CPU clocks are not synchronized to the switch. Compare
-CPU **durations**, never timestamps from different clocks. Retain the signed
-wire-minus-CPU difference; the CPU return path can overlap transmission. The
-CPU breakdown and wire-total marker are separate measured intervals. No mlx5 hardware
-RX/TX timestamping or completion timestamp extension is required.
+wire-to-wire totals. Version 4 ends CPU accounting immediately before the TX
+notification: LH's ECI control-line read, or DPDK/Caladan's mlx5 MMIO store.
+Descriptor preparation, doorbell-record stores and ordering barriers are inside
+the CPU interval. Post-notification flush and return work are outside it.
+CPU clocks are not synchronized to the switch: subtract durations, never
+absolute timestamps across those clocks. The new NIC–wire segment is switch
+MAC duration minus the CPU interval, combining both RX and TX/link portions.
 
-The [instrumentation and accounting contract](../development/rpc-breakdown.md)
-lists the software/hardware inventory, probe purposes, cold activation paths
-and missing probes, exact per-system outer intervals, component formulas and
-runtime subintervals. The CPU interval starts at CQ observation for DPDK/Caladan and just
-after the RX control-line read for LH. It ends after reply submission. The
-plotted segments are Handler, codec-only RPC (un)marshal, Runtime/dispatch,
-Network stack and CPU–NIC. A separate marker shows the wire total for the same
-central wire-latency observations. Allocation and
-Caladan's request dispatch wait belong to Runtime/dispatch; TX-buffer reservation
-belongs to CPU–NIC. Historical accounting versions retain their broader RPC
-intervals and LH receive-return boundary.
+The [instrumentation contract](../development/rpc-breakdown.md) defines every
+probe, purpose, segment formula and cold activation path. The CPU start is valid
+CQ observation for DPDK/Caladan and the ordered valid RX control-line read for LH.
+Components are Handler, codec-only RPC (un)marshal, Runtime/dispatch, Network stack,
+NIC handling and NIC–wire. Allocation and Caladan dispatch waits belong to
+Runtime/dispatch; TX-buffer reservation belongs to NIC handling. Components describe
+the same central instrumented wire-latency observations, not separate medians.
 
-RX instrumentation belongs inside the selected mlx5/Caladan receive path;
-wrapping rx_burst includes empty polling and misses the required CQE boundary.
-The implemented version-3 interval ends after submission. The agreed next
-partition ends immediately before doorbell publication, after WQE preparation;
-DPDK/Caladan require that additional probe. See the
-[pre-publication contract](../development/rpc-breakdown.md#pre-publication-breakdown-contract-implementation-pending).
-Record the exact selected PMD fast path, compiler configuration,
-clock conversion and probe overhead. Cover CQ pointer updates, replenishment,
-mbuf construction and TX reclamation wherever actually executed. Attribute
-batched/deferred work explicitly; do not omit it or claim a per-packet duration
-by dividing a batch without identifying that convention. The unloaded queue
-path must be exercised by acceptance tests before collection. See the
-[DPDK baseline instrumentation](dpdk-baseline.md#software-probes) and
-[board readiness](../development/validation.md#dpdk-baseline-readiness).
-
-For Lauberhorn use RX control-line read completion through transport return as the outer
-interval; retain RPC/handler boundaries and the exact doorbell read/return interval.
-Post-doorbell transport cleanup is other CPU work.
-Any unclassified CPU gap must be explicit, not silently assigned to the wire.
-For each instrumented request, signed difference = wire duration − CPU duration.
-Keep negative differences without clipping or sample rejection. This difference
-is not a disjoint NIC/wire stage: TX submission completion and CPU return can
-proceed concurrently with the remaining transmission path. CPU segments sum to
-the CPU interval, independently of the wire total. Report clock-rate and
-probe uncertainty. These elapsed components are not CPU utilization estimates.
+RX instrumentation belongs inside the selected receive path. Cover CQ pointer
+updates, refill, packet construction and TX reclamation wherever actually
+executed. Record exact driver path, compiler settings, clock conversion and
+probe effects. Batches are elapsed contexts, not per-packet CPU costs divided
+by an arbitrary batch size. The unloaded single-outstanding path must pass
+acceptance before collection. Negative version-4 NIC–wire values stop import
+with preserved evidence. Archived versions retain their original interpretation;
+version 3 included overlapping TX-return work and retains its signed difference
+and independent wire marker. No new acquisition emits those historical probes.
 
 Loaded cases use compiled-out probes and client RTT, without switch capture,
 FPGA readout or NIC PTP. Use configurable aggregate slotted-Poisson arrivals over 32 generator cores; retain the deadline,
@@ -101,7 +83,7 @@ cleanup and plots. Old MAC/RTT acquisitions cannot satisfy wire-to-wire gates.
 Full collection remains gated on that rehearsal. Caladan is not marked complete
 until its port and instrumentation pass the same checks.
 
-The plotted CPU–NIC category combines RX metadata/queue processing, TX-buffer
+The plotted NIC handling category combines RX metadata/queue processing, TX-buffer
 reservation and TX submission. Runtime/dispatch contains all remaining CPU gaps,
 including dispatch waits and instrumentation. Probe costs also occur inside
 named intervals. Payload-dependent pre-doorbell time includes ordering barriers;

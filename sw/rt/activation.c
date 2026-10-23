@@ -16,6 +16,9 @@ int lh_yield(struct lh_activation *result) {
     if (server_trace_enabled && !server_activation.tid)
         server_activation.tid = (int)syscall(SYS_gettid);
 #endif
+#if LH_ENABLE_TRACING
+    server_trace_activation_event(LH_TRACE_YIELD_ENTER, w->worker_id);
+#endif
     if (ioctl(w->ctx->fd, LAUBERHORN_IOCTL_YIELD, &activation)) return -1;
 #if LH_ENABLE_TRACING
     if (server_trace_enabled) server_activation.ioctl_exit_ns = server_trace_clock();

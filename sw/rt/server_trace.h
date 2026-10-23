@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "lauberhorn/trace.h"
-/* Accounting schema 3: exported timestamps, separate from the PMU stage ABI. */
+/* Accounting schema 4: exported timestamps, separate from the PMU stage ABI. */
 #define SERVER_TRACE_ACCOUNTING_TIMES(X) \
     X(backend_enter) X(lookup_enter) X(lookup_exit) X(rpc_enter) \
     X(alloc_enter) X(alloc_exit) X(decode_enter) X(decode_exit) \
@@ -21,8 +21,7 @@
 #endif
 #define SERVER_TRACE_TIMES(X) \
     X(rx_enter) X(rx_unblock) X(rx_exit) \
-    X(unmarshal_enter) X(unmarshal_exit) X(handler_enter) X(handler_exit) \
-    X(marshal_enter) X(marshal_exit) X(tx_enter) X(tx_exit)
+    X(handler_enter) X(handler_exit) X(tx_enter)
 #define PMU_ENUM(name) LH_PMU_##name,
 enum lh_pmu_stage { SERVER_TRACE_TIMES(PMU_ENUM) LH_PMU_STAGES };
 #undef PMU_ENUM
@@ -46,9 +45,7 @@ struct server_trace_row {
     SERVER_TRACE_ACCOUNTING_TIMES(TRACE_FIELD)
 #undef TRACE_FIELD
     uint64_t defer_enqueue_ns, forward_submit_ns, forward_complete_ns;
-    uint64_t entry_enter_ns, entry_exit_ns;
-    uint64_t tx_doorbell_return_ns; /* immediately after commit CL read */
-    uint64_t tx_doorbell_ns; /* immediately before the commit CL read */
+    uint64_t tx_publish_ns; /* immediately before the commit CL read */
     uint64_t handler_active_ns, run_start_ns;
 };
 extern bool server_trace_enabled;
@@ -65,8 +62,9 @@ void server_trace_fini(void);
 uint64_t server_trace_clock(void);
 uint64_t server_trace_stamp(struct server_trace_row *row);
 uint64_t server_trace_stage(struct server_trace_row *row, enum lh_pmu_stage stage);
-void server_trace_rx_begin(struct server_trace_row *row, int worker_id);
+void server_trace_rx_init(struct server_trace_row *row, int worker_id);
 void server_trace_write(struct server_trace_row *row);
+void server_trace_activation_event(unsigned event, int worker);
 void server_trace_run_begin(struct server_trace_row *row);
 void server_trace_run_end(struct server_trace_row *row);
 void server_trace_event(struct server_trace_row *row, unsigned event,

@@ -22,6 +22,7 @@ void lauberhorn_trace_result(bool ok);
 enum lauberhorn_trace_event {
     LH_TRACE_ENTRY_RETURN = 1, LH_TRACE_FIBER_RESUME, LH_TRACE_FIBER_SUSPEND,
     LH_TRACE_CALL_SUBMIT, LH_TRACE_CALL_SUBMITTED, LH_TRACE_RX_PACKET,
+    LH_TRACE_DESCHED = 20, LH_TRACE_YIELD_ENTER,
     LH_TRACE_APP_ENTRY = 100, LH_TRACE_APP_RESOLVED,
     LH_TRACE_FUNCTION_PREPARE, LH_TRACE_FUNCTION_EXECUTE, LH_TRACE_FUNCTION_DONE,
     LH_TRACE_CHILD_BEGIN, LH_TRACE_CHILD_SENT,
@@ -29,7 +30,7 @@ enum lauberhorn_trace_event {
     LH_TRACE_COMPOSITION_DONE,
     LH_TRACE_CHILD_RETRY,
     LH_TRACE_UDP_TX_BEGIN = 200, LH_TRACE_UDP_TX_END,
-    LH_TRACE_UDP_TX_DOORBELL, /* arg0: CPU timestamp before commit read; arg1: immediate return timestamp */
+    LH_TRACE_UDP_TX_DOORBELL, /* arg0: CPU timestamp before commit read; arg1: reserved (zero) */
     LH_TRACE_UDP_TX_PREPARE, /* application: length and protocol framing before reservation/copy */
 };
 #if LH_ENABLE_TRACING

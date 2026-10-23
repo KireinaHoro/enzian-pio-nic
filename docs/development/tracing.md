@@ -423,10 +423,10 @@ decode logic in the Lua dissector.
 The current ECI preemption ports emit `YieldAccepted`, `ActivationCommitted`
 and `ActivationDelivered`, with physical core, PA domain code and scheduler
 slot; committed activation also records RX/TX parity. Idle dispatch is identified
-at acceptance. Use the matching generated trace map. Kernel `worker_switch`
-records outgoing and incoming task/lifetime identities at phase 2, when activation
-is published before waking the incoming task. Current code does not emit the
-legacy phase 0/1 switch or `process_recovery` sequence described below.
+at acceptance. Use the matching generated trace map. The kernel
+`lauberhorn:activation` event records outgoing TID, cooperative kernel entry,
+and incoming activation stages. Userspace DESCHED observation and yield entry
+complete the cooperative handoff; see the [timestamp contract](rpc-breakdown.md).
 
 ## Historical B4 scheduling and recovery events
 

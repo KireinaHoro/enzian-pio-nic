@@ -45,13 +45,15 @@ static bool waiting_thread(struct proc_def *proc)
 
 /* Called with only this worker's reader mutex held. No claim/lifetime lock
  * crosses blocking MMIO, affinity installation or thread wait. */
-static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u64 irq_ns, u64 dispatch_ns)
+static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u64 irq_ns, u64 dispatch_ns, u64 yield_ns)
 {
     struct lh_activation_timing timing = { .enabled = trace_activation_enabled(),
         .cold = !outgoing, .worker = worker->index };
     u64 info;
     if (timing.enabled) {
         timing.sequence = ++worker->activation_sequence;
+        timing.outgoing_tid = outgoing ? outgoing->task->pid : 0;
+        timing.ns[LH_ACT_YIELD_ENTER] = yield_ns;
         timing.ns[LH_ACT_IRQ] = irq_ns;
         timing.ns[LH_ACT_DISPATCH] = dispatch_ns;
         timing.ns[LH_ACT_READ_BEGIN] = ktime_get_raw_ns();
@@ -116,10 +118,6 @@ static int activate(struct worker_fpi_data *worker, struct thr_def *outgoing, u6
     next->timing = timing;
     next->activation_ready = true;
     spin_unlock_irqrestore(&claim_lock, flags);
-    trace_worker_switch(worker->cpu, outgoing ? outgoing->parent->lifetime : 0,
-        outgoing ? outgoing->parent->tgid : 0, outgoing ? outgoing->task->pid : 0,
-        proc->lifetime, proc->tgid,
-        next->task->pid, 2, false);
     wake_up(&next->wait);
     return 0;
 }
@@ -139,7 +137,7 @@ static int dispatch_thread(void *arg)
         atomic_set(&worker->kick, 0);
         if (!READ_ONCE(worker->thr) &&
             lauberhorn_eci_desched_idle_notification_rd(&worker->desched_dev))
-            activate(worker, NULL, irq_ns, dispatch_ns);
+            activate(worker, NULL, irq_ns, dispatch_ns, 0);
         mutex_unlock(&worker->reader);
     }
     return 0;
@@ -163,6 +161,7 @@ void stop_worker_dispatch(struct worker_fpi_data *worker)
 
 long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
 {
+    u64 yield_ns = trace_activation_enabled() ? ktime_get_raw_ns() : 0;
     struct thr_def *thr = NULL;
     struct worker_fpi_data *worker;
     struct lh_activation activation;
@@ -188,7 +187,7 @@ long worker_yield(struct proc_def *proc, struct lh_activation __user *result)
             return -EPROTO;
         }
         // The calling task is fenced inside this syscall before read acceptance.
-        ret = activate(worker, thr, 0, 0);
+        ret = activate(worker, thr, 0, 0, yield_ns);
         mutex_unlock(&worker->reader);
         if (ret) { fail_domain(proc); return ret; }
     }

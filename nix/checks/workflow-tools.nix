@@ -24,6 +24,8 @@ let
       ../../tools/enzian/analyze_rx_holds.py
       ../../tools/enzian/assess_tad.py
       ../../tools/enzian/tests/test_tad.py
+      ../../tools/enzian/caladan_activation.py
+      ../../tools/enzian/tests/test_caladan_activation.py
       ../../tools/enzian/activation_trace.py
       ../../tools/enzian/activation_breakdown.py
       ../../tools/enzian/tests/test_activation_breakdown.py
@@ -54,5 +56,6 @@ runCommand "lauberhorn-workflow-tools-tests"
     python3 -m unittest discover -s tools/enzian/tests -p test_campaign.py -v
     python3 -m unittest discover -s tools/enzian/tests -p test_tad.py -v
     python3 -m unittest discover -s tools/enzian/tests -p test_activation_breakdown.py -v
+    python3 -m unittest discover -s tools/enzian/tests -p test_caladan_activation.py -v
     touch $out
   ''
