@@ -1,14 +1,50 @@
 # Measurement continuation
 
+## Active fresh full hot campaign — October 23
+
+Maintainer authorized `start the campaign` after timestamp integration.
+`out/hot-full-20261023` was submitted as detached user service
+`echo-campaign-0916cbaf1c5f.service`; launch/preflight/build receipts and the
+GC-rooted images/development environment are in
+`out/hot-full-20261023-preparation/`. No old cohorts are inherited. All 18
+unloaded cohorts precede the 36 loaded payload/worker configurations and their
+sustained confirmations. The controller will deliver terminal callbacks; do not
+poll unless requested or a terminal result arrives.
+
+Configuration retains 1 µs slotted Poisson, prepared-TX-release RTT, 2 s loaded
+warmup, 10 s measurement, 60 s sustained confirmation, one trial each. Grid steps
+are LH 20k/20k/5k and DPDK/CS-A64 50k/50k/20k RPC/s for 8/128/1432 B.
+Caladan uses resident workers with all three kthread counts equal to workers.
+New unloaded accounting is version 4. `publish_plots: false` preserves the
+already modified paper checkout until final previews are reviewed. Current
+accepted-data archive packaging is enabled through the maintained finalizer.
+
+Live EMG ownership, both idle hosts, artifact hashes, 32 generator isolated CPUs,
+RAM/storage budgets and reused callback delivery passed before submission.
+The stopped attempt's boot logs are preserved: its second ECI bring-up passed,
+but it never reached module loading; live checks found no workload or runtime
+modules. Fresh deployment uses the normal verified cold-boot harness. Switch
+clock qualification passed; CX-5 port 60 was up and FPGA port 32 down before
+that boot. The old FPGA hardware/device sources and build.mill match the current
+source; images refresh software against the same pipeline 519555 bitstream.
+
+Acquisition images were built from platform `26c5dec9`, microbenchmarks
+`e3b702d`, Caladan `e166a1e`. The refreshed generator has identical executable
+code/data and dynamic symbols/relocations to the qualified generator; only
+`.dynstr` library store paths differ. Generator/runner source hashes match the
+retained distribution acceptance. `transition-review.json` binds this review,
+old stopped state and live restoration evidence. No new preliminary rehearsal
+was run. The full unloaded gate remains mandatory before loaded acquisition.
+
 ## Timestamp accounting version 4
 
 The [RPC breakdown contract](../docs/development/rpc-breakdown.md) describes
 implemented pre-publication endpoints across LH, DPDK and Caladan, reduced
 software probes, and the cold activation evidence/join tools. Historical
 archives retain their recorded accounting version. New acquisition uses v4.
-The campaign remains stopped; no hardware validation or new measurement has
-been performed for this change. Before fresh acquisition, build matched images
-and validate capture ordering and conservation on the real RX/TX paths.
+The fresh October 23 campaign below is authorized and launched. Its full
+unloaded gate validates capture ordering and conservation before loaded
+collection; software checks alone do not establish hardware timing acceptance.
 Cold paper acquisition still needs controlled eviction/single-outstanding
 workloads and the hardware/request-to-activation correlation described in the
 contract; recording activation events alone does not establish that causality.
