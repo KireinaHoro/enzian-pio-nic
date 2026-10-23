@@ -1,8 +1,10 @@
-# Native UDP memcached
+# Native memcached
 
-[TCP memcached](../proposals/userspace-tcp.md) is proposed through a shared
-userspace stack, native listen-port dispatch and application timer wakeups.
-The implemented transport described here remains UDP.
+The same application tree supports native UDP and optional userspace TCP.
+TCP uses the shared FreeBSD component and DEADLINE wakeups in the VM emulator;
+ECI raw TCP steering and hardware DEADLINE belong to
+[phase four](../proposals/userspace-tcp.md#phase-4-lauberhorn-integration-and-tcpmemcached-validation-on-enzian).
+Each instance selects one transport. The UDP ownership contract below is unchanged.
 
 Comparing native Lauberhorn memcached against [Caladan memcached (CS-A64)](../research/caladan-enzian.md)
 is a [main paper goal](../research/paper-goals.md#planned-applications-and-baseline).
@@ -11,7 +13,7 @@ The finite integration and scheduling results below establish bounded native
 operation; they do not establish the controlled Caladan comparison. The
 Linux-over-FPGA-bypass experiment is a separate control.
 
-The application is pinned at `b376490d303da13ba15ed0295190893c64d1d324` and
+The application is pinned at `46e8339` and
 based on upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, before the
 legacy PIONIC changes. Platform Nix calls its source-owned `package.nix` with
 the matched runtime and builds `memcachedImage`. The deployment manifest
@@ -66,9 +68,10 @@ connection, logger and LRU-bump initialization before registration and bootstrap
 parking. DESCHED immediately follows the existing yield path. RX NACK only
 returns control to an assigned worker; it cannot activate a parked worker.
 
-A `HAVE_LAUBERHORN` build always
-uses native UDP: disable TCP with `-p 0`, set `-U PORT`, and use `-t N`. There is
-no environment switch or socket UDP fallback. Proxy/extstore are excluded.
+A `HAVE_LAUBERHORN` build uses native transports: select UDP with `-p 0 -U PORT`
+and use `-t N`. Adding `lauberhornTcp` in the application's Nix recipe also
+builds TCP; select it with `-l IPv4 -p PORT -U 0`. There is no environment switch
+or socket UDP fallback. Proxy/extstore are excluded.
 Socket UDP controls use a separate build without Lauberhorn support; the pinned
 upstream reference remains available through `memcachedReference`.
 
@@ -95,6 +98,32 @@ to consume a notification. Requests reach blocking RX only after finishing the
 state machine's runnable work and responses, with item locks released. Crawler
 client dump/watch paths call `redispatch_conn` and remain excluded, as do shutdown
 and administrative pause paths. These dependencies define the supported maintenance scope.
+
+## TCP connection execution
+
+The optional TCP package owns one shared stack per process. Any assigned worker
+may accept or service a connection. A per-connection parser lock protects the
+upstream command state machine; packet input and timer callbacks use stack
+locks and never take the parser lock. All parser locks are released before RX
+can park the worker. Read/write readiness is level-triggered and remains in the
+stack while another worker is parsing. Parser continuations and writable
+responses drain before the next receive boundary. Input/timer dispatch publishes
+a readiness generation; scans recheck it after releasing parser locks so a
+concurrent dispatch cannot leave readable data stranded behind a busy parser.
+
+TCP parser buffers and response objects can survive a worker change. They use
+connection-owned allocations instead of worker-local caches; response accounting
+retains the allocating worker's stats owner. These allocations are outside the
+worker read-buffer-cache memory limit. Stable, unbound identity descriptors
+index upstream connection objects and remain allocated per slot until process
+exit; they carry no network traffic.
+
+The parser reads stream bytes from the stack and writes existing response iovecs
+without an intermediate application staging buffer. TCP retains retransmission
+bytes independently of memcached item references. The stack fills actual
+per-worker TX reservations, and DEADLINE drives its timers without a helper
+thread. The VM checks run normal Linux clients against both this port and the
+upstream reference; UDP checks use the same native binary.
 
 ## Proposed maintenance support
 

@@ -1,15 +1,52 @@
 # Userspace TCP
 
-Branches: `userspace-tcp-phase-two` in platform and `../lauberhorn-tcp`.
-Platform phase two starts from `b9e0ab05` on `userspace-tcp-phase-one`.
-Scope: [phase two](../docs/proposals/userspace-tcp.md#phase-2-shared-freebsd-tcp-library-and-validation-in-the-vm).
+Active branches: `userspace-tcp-phase-three` in platform and `../memcached`;
+TCP remains pinned to completed phase-two `d80d5f8` on its phase-two branch.
+The user authorized phase 3: one memcached source tree with TCP alongside UDP,
+four instances with four threads each sharing four workers, separate bursts,
+load below saturation and persistent connections.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
-Do not merge this branch until the hardware DEADLINE path is implemented;
-the user explicitly requires removal of RPC polling without an ECI fallback.
-Stop at major blockers. TCP source import is authorized in `../lauberhorn-tcp`;
-no hardware deployment or memcached port belongs to this phase. Keep the TCP
-component optional in application Nix recipes and preserve the UDP path.
+Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+
+## Phase-three working state
+
+Memcached `46e8339` adds optional `lauberhornTcp` to its source-owned recipe.
+Native TCP selects `-l IPv4 -p PORT -U 0`; UDP remains `-p 0 -U PORT`.
+Shared connection parser locks permit migration across active workers. TCP
+read buffers/response objects are independent of worker-local allocation pools;
+response accounting retains its allocator's stats owner. Identity fds belong to
+connection slots for the process lifetime, preventing cross-slot fd reuse races.
+There is no TCP helper thread or application packet staging queue.
+
+Readiness publication uses a shared atomic generation after input/timer dispatch.
+Each parser scan snapshots it before taking locks and rechecks after releasing
+all locks. A dispatch that skips a busy parser forces its owner to rescan; a
+later dispatch can acquire that already-unlocked parser itself. Releasing a
+closed slot also forces an accept-backlog pass before parking.
+
+First full VM passed in 48.64 s: `out/userspace-vm-memcached-tcp-first-run`,
+`/tmp/lh-memcached-tcp-vm-run.log`; driver `out/userspace-vm-memcached-tcp-first`.
+It covers 16 TCP memcached streams from both Linux guests, partial commands/body,
+pipelining, arithmetic, noreply, large responses, FIN/reset, existing UDP
+memcached and the complete TCP/RPC/scheduler suite. This run predates the added
+backpressure/upstream comparison and four-instance checks.
+
+The expanded pre-fix suite failed on a 64-KiB store with a connection reset:
+`/tmp/lh-memcached-colocation-run.log`,
+`out/userspace-vm-memcached-colocation-run`. Fresh-VM single-store and complete
+stream/backpressure reproductions passed (13.91 s and 18.08 s) in
+`/tmp/lh-memcached-diagnose.log` and `/tmp/lh-memcached-diagnose-full.log`.
+Root cause is not established; do not call this resolved based on those passes.
+Current follow-up runs the complete suite against readiness fix `46e8339`:
+`out/userspace-vm-memcached-readiness`, `/tmp/lh-memcached-readiness-run.log`.
+
+Next checks: build/run expanded VM with upstream comparison, unread-response
+backpressure, four domains/128 original streams, alternating bursts, observed
+zero-core intervals and four-worker use, fixed 20 requests/s/domain low-load
+phase. Test-only preload observes domain state and packet-worker IDs; its
+ordinary thread never runs TCP or publishes timers. Add application-level
+parked retransmission coverage and review allocation bounds/readiness races.
 
 ## Phase-one implementation
 

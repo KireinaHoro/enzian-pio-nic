@@ -19,7 +19,7 @@
       flake = false;
     };
     memcached = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=lauberhorn";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=userspace-tcp-phase-three";
       flake = false;
     };
     memcachedUpstream = {

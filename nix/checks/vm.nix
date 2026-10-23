@@ -5,6 +5,7 @@
   tcpVm,
   nestedFixture,
   memcachedVm,
+  memcachedReference,
   source,
   policyTimeoutMs ? 10000,
   policySettleMs ? 30,
@@ -13,6 +14,7 @@
   tcpBuffer ? 4096,
   tcpHoldMs ? 200,
   tcpStateUs ? 1000,
+  memcachedObserverUs ? 1000,
 }:
 let
   fixture = pkgs.stdenv.mkDerivation {
@@ -22,6 +24,9 @@ let
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = [ runtimeVm tcpVm ];
     buildPhase = ''
+      $CC -O2 -g -shared -fPIC -pthread -I${runtimeVm.src}/sw/core \
+        -DTEST_MC_OBSERVER_US=${toString memcachedObserverUs} $(pkg-config --cflags lauberhorn) \
+        sw/tests/vm/memcached_observer.c -ldl -o memcached-observer.so
       $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn-tcp-runtime) \
         -DTEST_TCP_HOLD_MS=${toString tcpHoldMs} -DTEST_TCP_STATE_US=${toString tcpStateUs} \
         -DTEST_TCP_SOCKET_LIMIT=${toString tcpVm.sockets} -DTEST_TCP_CONNECTIONS=${toString tcpConnections} -DTEST_TCP_BUFFER=${toString tcpBuffer} \
@@ -36,6 +41,7 @@ let
         $(pkg-config --libs lauberhorn) -o vm-scheduling
     '';
     installPhase = ''
+      install -Dm755 memcached-observer.so $out/lib/memcached-observer.so
       install -Dm755 vm-tcp $out/bin/vm-tcp
       install -Dm644 sw/tests/vm/tcp_reorder.py $out/share/tcp_reorder.py
       install -Dm644 sw/tests/vm/tcp_scheduling.py $out/share/tcp_scheduling.py
@@ -46,6 +52,8 @@ let
       install -Dm644 sw/tests/vm/client.py $out/share/client.py
       install -Dm644 sw/tests/vm/rpc.py $out/share/rpc.py
       install -Dm644 sw/tests/vm/memcached.py $out/share/memcached.py
+      install -Dm644 sw/tests/vm/memcached_tcp.py $out/share/memcached_tcp.py
+      install -Dm644 sw/tests/vm/memcached_colocation.py $out/share/memcached_colocation.py
     '';
   };
 in
@@ -80,6 +88,9 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     start_all()
     peer.wait_for_unit("multi-user.target")
+    peer.succeed("${memcachedReference}/bin/memcached -l 127.0.0.1 -p 11212 -U 0 -t 4 -c 256 -m 32 -o hashpower=16 -u root > /tmp/memcached-reference.log 2>&1 &")
+    peer.wait_for_open_port(11212)
+    print(peer.succeed("LH_VM_HOST=127.0.0.1 python3 ${fixture}/share/memcached_tcp.py", timeout=60))
     machine.wait_for_unit("multi-user.target")
     machine.succeed("modprobe lauberhorn")
     machine.wait_until_succeeds("test -e /dev/lauberhorn")
@@ -109,6 +120,14 @@ pkgs.testers.runNixOSTest {
     machine.succeed("taskset -c 0-1 memcached -p 0 -U 11211 -t 4 -m 32 -o hashpower=16 -u root > /tmp/memcached.log 2>&1 &")
     machine.wait_until_succeeds("python3 ${fixture}/share/memcached.py", timeout=30)
     peer.succeed("LH_VM_HOST=192.168.1.1 python3 ${fixture}/share/memcached.py")
+    machine.succeed("taskset -c 0-1 memcached -l 192.168.1.1 -p 11212 -U 0 -t 4 -c 256 -m 32 -o hashpower=16 -u root > /tmp/memcached-tcp.log 2>&1 &")
+    try:
+        machine.wait_until_succeeds("grep 'LAUBERHORN_READY TCP' /tmp/memcached-tcp.log", timeout=30)
+        machine.succeed("python3 ${fixture}/share/memcached_tcp.py", timeout=60)
+        peer.succeed("python3 ${fixture}/share/memcached_tcp.py", timeout=60)
+    except Exception:
+        print(machine.execute("tail -40 /tmp/memcached-tcp.log")[1])
+        raise
     peer.succeed("LH_VM_HOST=192.168.1.1 python3 ${fixture}/share/client.py")
     machine.succeed("LH_VM_TCP_RESOURCE_CHECK=1 taskset -c 0-1 vm-tcp 192.168.1.1 19501 > /tmp/tcp.log 2>&1 &")
     machine.wait_until_succeeds("grep TCP_READY /tmp/tcp.log", timeout=30)
@@ -127,6 +146,16 @@ pkgs.testers.runNixOSTest {
         machine.succeed("python3 ${fixture}/share/tcp_scheduling.py", timeout=60)
     except Exception:
         print(machine.execute("tail -40 /tmp/tcp-a.log; tail -40 /tmp/tcp-b.log; cat /tmp/tcp-a.json /tmp/tcp-b.json")[1])
+        raise
+    machine.fail("dmesg | grep -E 'BUG:|Oops:|general protection fault'")
+    for port in range(11220, 11224):
+        machine.succeed(f"LH_VM_STATE_PATH=/tmp/mc-{port}.json LD_PRELOAD=${fixture}/lib/memcached-observer.so taskset -c 0-1 memcached -l 192.168.1.1 -p {port} -U 0 -t 4 -c 128 -m 32 -o hashpower=16 -u root > /tmp/mc-{port}.log 2>&1 &")
+        machine.wait_until_succeeds(f"grep 'LAUBERHORN_READY TCP' /tmp/mc-{port}.log && test -s /tmp/mc-{port}.json", timeout=30)
+    try:
+        print(machine.succeed("python3 ${fixture}/share/memcached_colocation.py", timeout=120))
+    except Exception:
+        for port in range(11220, 11224):
+            print(machine.execute(f"tail -20 /tmp/mc-{port}.log; cat /tmp/mc-{port}.json")[1])
         raise
     machine.fail("dmesg | grep -E 'BUG:|Oops:|general protection fault'")
   '';

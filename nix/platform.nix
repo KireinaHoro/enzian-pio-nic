@@ -101,10 +101,11 @@ let
     inherit (kmod) src;
   };
   vmTest = pkgs.callPackage ./checks/vm.nix {
-    inherit vmModule runtimeVm tcpVm;
+    inherit vmModule runtimeVm tcpVm memcachedReference;
     memcachedVm = pkgs.callPackage (inputs.memcached + "/package.nix") {
       source = inputs.memcached;
       lauberhornRuntime = runtimeVm;
+      lauberhornTcp = tcpVm;
     };
     nestedFixture = pkgs.callPackage (source + "/sw/apps/nested-validation/package.nix") {
       lauberhornRuntime = runtimeVm;
