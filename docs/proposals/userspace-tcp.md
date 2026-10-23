@@ -161,6 +161,16 @@ functional behavior; it does not establish ECI coherence or hardware timing.
 
 ### Phase 2: shared FreeBSD TCP library and validation in the VM
 
+The source/build checkpoint lives in the separate `lauberhorn-tcp` repository.
+It imports only selected vanilla FreeBSD TCP sources and their transitive
+headers, with a pinned revision and per-file hashes. Its source-owned Nix recipe
+builds a development core archive, not a runnable userspace stack. The completed
+TCP library is an optional component alongside the runtime: application Nix
+recipes explicitly include both packages, and the runtime does not depend on
+TCP. Shared callouts, safe reclamation and the remaining host interfaces must
+be implemented before exposing that application library or running TCP VM
+acceptance.
+
 Develop the FreeBSD userspace TCP library against the emulation backend, reusing
 the selected F-Stack scaffolding described above. Implement
 the proposed native-TCP transport and domain timer interfaces in the emulator,
