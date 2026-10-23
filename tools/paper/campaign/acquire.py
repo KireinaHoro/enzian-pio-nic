@@ -31,7 +31,7 @@ def cpu_set(text):
     return result
 
 
-def validate_role(root, request, binary_sha):
+def validate_role(root, request, binary_sha, *, timing_failure=False):
     if request.get('crash_dumps',False):raise ValueError('Diagnostic core runs are excluded from accepted measurements')
     root=Path(root)
     read=lambda name:json.loads((root/name).read_text())
@@ -41,8 +41,11 @@ def validate_role(root, request, binary_sha):
             raise ValueError('Uploaded role evidence hash mismatch')
     if read('request.json')!=request: raise ValueError('Role request provenance differs')
     outcome=read('result.json');wrapper=read('runner/summary.json');before=read('runner/before.json')
-    if outcome['returncode']!=0 or outcome['error'] or wrapper['status']!='pass' or wrapper['restored'] is not True:
+    expected_code, expected_status = (1, 'failed') if timing_failure else (0, 'pass')
+    if outcome['returncode']!=expected_code or outcome['error'] or wrapper['returncode']!=expected_code or wrapper['status']!=expected_status or wrapper['restored'] is not True:
         raise ValueError('Role execution or NIC restoration failed')
+    if timing_failure:
+        validate_timing_failure(root, request)
     if before['binary_sha256']!=binary_sha or before['lcores']!=request['cpus']:
         raise ValueError('Role binary or CPU placement differs')
     if not set(request['cpus'])<=cpu_set(before['isolated_cpus']):
@@ -162,3 +165,25 @@ def roles(directory, configs, *, gateway, transfer_root, image, image_sha):
         (directory/'summary.json').write_text(json.dumps(dict(passed=not errors,errors=errors,evidence=evidence),indent=2)+'\n')
     if errors: raise RuntimeError('; '.join(errors)+f'; preserved at {directory}')
     return evidence
+
+
+def validate_timing_failure(root, request):
+    """Only a preserved TX deadline failure is eligible; resource/RX failures stop."""
+    if request['role'] != 'client' or request['mode'] != 'loaded':
+        raise ValueError('Timing retry requires a loaded client')
+    summary=json.loads((root/'samples.csv.open.json').read_text())
+    errors=[line for line in (root/'runner/client.log').read_text().splitlines() if line.startswith('load_error=')]
+    if errors != ['load_error=TX slot exceeded sender period; no catch-up']:
+        raise ValueError('Failure is not exclusively TX schedule timing')
+    if summary['valid'] is not False or summary['generator_misses'] <= 0:
+        raise ValueError('Missing generator timing failure evidence')
+    for key in ('tx_admission_failures','malformed','nic_rx_no_buffer','nic_rx_missed','nic_rx_errors','nic_tx_errors','post_observation_nic_rx_missed'):
+        if summary[key] != 0: raise ValueError('Generator retry blocked by '+key)
+    if any(q['max_busy_ns']>summary['sender_period_ns'] or q['delayed_poll_packets'] for q in summary['rx_observation']):
+        raise ValueError('Generator retry blocked by RX backlog')
+    if summary['arrival_model'] != 'slotted-poisson':
+        raise ValueError('Timing retry requires a reproducible Poisson schedule')
+    for key,expected in (('seed',request['seed']),('slot_ns',request['slot_ns']),
+                         ('rate',request['rate']),('duration_ns',request['duration_ms']*1000000),
+                         ('warmup_ns',request['warmup_ms']*1000000)):
+        if summary[key]!=expected: raise ValueError('Timing retry schedule differs: '+key)

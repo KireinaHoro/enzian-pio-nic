@@ -130,7 +130,10 @@ Record well-formed ONC-RPC `SYSTEM_ERR` rejections separately and include reques
 without an on-time successful reply in the 1% loss condition. Retain per-trial rejection counts for later plots (and per-request counts in
 detailed diagnostic mode); do not count duplicate rejection
 replies as additional lost requests. Generator misses, admission failure, corruption and resource exhaustion invalidate
-a point. IRQ affinity limitations or observed interrupts alone are diagnostic,
+a point. A verified TX sender-period timing failure permits two retries of the
+identical request and seed, retaining every failed attempt. Restoration, cleanup
+and hardware health must pass first; other failures remain terminal. The retry
+budget persists across resumes; never resample the Poisson schedule. IRQ affinity limitations or observed interrupts alone are diagnostic,
 not invalidation conditions; enforce the requested absolute send schedule in
 both warmup and measurement. Loaded generation uses slotted Poisson batches: configurable aggregate
 `slot_ns` (default 1000 ns) and reproducible `arrival_seed`. The 32-core pool

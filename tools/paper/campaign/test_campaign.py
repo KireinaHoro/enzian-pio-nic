@@ -19,6 +19,30 @@ def trial(on_time=100, transmitted=100):
 
 
 class Policy(unittest.TestCase):
+    def test_timing_retries_keep_request_and_stop_at_three(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            request=dict(seed=17,rate=350000,slot_ns=1000)
+            requests=[]
+            class Process:
+                def __init__(self,argv,**kwargs):
+                    req=Path(argv[-2]);result=Path(argv[-1])
+                    requests.append(controller.read(req))
+                    data=dict(passed=False,retryable='generator-timing',health=True,restored=True,
+                              request=controller.read(req),files={str(req):controller.digest(req)})
+                    controller.atomic(result,data)
+                    controller.atomic(result.parent/'generator-timing-retry.json',data)
+                def wait(self,**kwargs): return 0
+            campaign=controller.Campaign(root,dict(adapter=['fixture'],deadlines={'loaded':1}))
+            with patch.object(controller.subprocess,'Popen',Process):
+                with self.assertRaisesRegex(RuntimeError,'retries exhausted'):
+                    campaign.stage('loaded',request)
+            with patch.object(controller.subprocess,'Popen',side_effect=AssertionError('Budget reset')):
+                with self.assertRaisesRegex(RuntimeError,'retries exhausted'):
+                    campaign.stage('loaded',request)
+            self.assertEqual(requests,[dict(request,stage='loaded')]*3)
+            self.assertEqual(len(list(root.glob('stages/*/attempt-*'))),3)
+
     def test_source_edit_does_not_invalidate_saved_stage(self):
         import hashlib
         with tempfile.TemporaryDirectory() as directory:

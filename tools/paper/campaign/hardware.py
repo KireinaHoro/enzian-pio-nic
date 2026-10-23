@@ -94,7 +94,15 @@ class Acquisition:
         common=dict(gateway=self.config['gateway'], transfer_root=self.config['transfer_root'],
                     image=self.config['client_image_remote'], image_sha=self.config['client_image_sha256'])
         if capture is None:
-            paths=self.timed('roles',roles,self.directory/'roles',configs,**common)
+            try:
+                paths=self.timed('roles',roles,self.directory/'roles',configs,**common)
+            except RuntimeError:
+                summary_path=self.directory/'roles/summary.json'
+                if self.request['stage']!='loaded' or not summary_path.exists(): raise
+                summary=json.loads(summary_path.read_text())
+                if summary['errors']!=['client harness exit 1']: raise
+                paths=summary['evidence']
+                self.generator_timing_failure=True
         else:
             # Start the ordinary responder first; only the client belongs inside
             # the switch session's readiness/finish window.
@@ -127,7 +135,8 @@ class Acquisition:
                 if server is not None: paths.update(server.result())
         evidence={}
         for role,(_,request) in configs.items():
-            evidence[role]=validate_role(paths[role],request,self.server_sha() if role=='server' else self.config['client_sha256'])
+            evidence[role]=validate_role(paths[role],request,self.server_sha() if role=='server' else self.config['client_sha256'],
+                timing_failure=role=='client' and getattr(self,'generator_timing_failure',False))
         # Separate hosts and harness directories; wait for every cleanup, including failures.
         with ThreadPoolExecutor(max_workers=len(configs)) as pool:
             futures=[pool.submit(self.cleanup_role,item) for item in configs.items()]
@@ -136,7 +145,7 @@ class Acquisition:
                 try: future.result()
                 except Exception as error: errors.append(error)
             if errors: raise RuntimeError('Role cleanup failed: '+ '; '.join(map(str,errors)))
-        if self.request['stage']=='loaded':
+        if self.request['stage']=='loaded' and not getattr(self,'generator_timing_failure',False):
             raw=Path(paths['client'])/'samples.csv';compressed=raw.with_suffix('.csv.gz')
             with raw.open('rb') as source, compressed.open('xb') as destination:
                 with gzip.GzipFile(filename='',mode='wb',fileobj=destination,mtime=0,compresslevel=1) as stream:
@@ -363,6 +372,10 @@ assert pathlib.Path('/sys/class/net/enP5p144s0np0/device/driver').resolve().name
                         raise ValueError('Resident worker placement differs')
                     activity=[y['calls']-x['calls'] for x,y in zip(a,b)]
                 else: activity=evidence['server']['worker_activity']
+                if getattr(self,'generator_timing_failure',False):
+                    result.update(passed=False,retryable='generator-timing',request=r)
+                    atomic(self.directory/'generator-timing-retry.json',result)
+                    return result
                 result.update(csv=str(paths['client']/'samples.csv.gz'),summary=str(paths['client']/'samples.csv.open.json'),
                     generator_cpus=c['generator_cpus'],flows=c['flows'],worker_activity=activity,
                     worker_activity_scope='warmup-through-drain',
@@ -408,7 +421,7 @@ assert pathlib.Path('/sys/class/net/enP5p144s0np0/device/driver').resolve().name
                               trace_readouts=0,fpga_recording=False,nic_timestamping=False)
             return result
         finally:
-            if 'result' in locals() and result.get('passed'):
+            if 'result' in locals() and (result.get('passed') or result.get('retryable')=='generator-timing'):
                 # Result creation alone is not success: retain unsafe state if
                 # any later validation raised before the return above.
                 if sys.exc_info()[0] is None:

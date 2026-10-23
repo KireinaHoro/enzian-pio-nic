@@ -900,3 +900,20 @@ forwarding exhaustion and NIC drops also invalidate. These observations detect
 receiver pressure; software burst timestamps still cannot prove exact wire
 arrival times. Distribution diagnostics must distinguish scheduled Poisson draws,
 software release timing and independently captured wire timing.
+
+### Bounded generator timing retries
+
+A loaded client TX-slot deadline violation permits two automatic retries (three
+attempts total per point). Each attempt uses the identical request, seed, schedule
+version, rate, slot length, durations, placement and acquisition artifacts. The
+schedule is never resampled. All failed attempts remain preserved and excluded
+from accepted measurements; `generator-timing-retry.json` records their evidence.
+The budget persists across controller resumes. Exhaustion stops the campaign.
+
+Only the explicit TX sender-period error is eligible, with matching schedule
+metadata, intact role evidence, successful runner restoration and cleanup, normal
+server validation and the usual LH hardware-health and worker-identity checks.
+RX overload, admission/resource failures, malformed traffic, NIC errors, boot
+failures and other failures do not qualify. This policy avoids selecting a new
+Poisson draw, but still conditions acceptance on successful schedule execution;
+retained retry evidence must accompany interpretation of generator limitations.
