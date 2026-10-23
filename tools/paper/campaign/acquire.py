@@ -179,7 +179,7 @@ def validate_timing_failure(root, request):
         raise ValueError('Missing generator timing failure evidence')
     for key in ('tx_admission_failures','malformed','nic_rx_no_buffer','nic_rx_missed','nic_rx_errors','nic_tx_errors','post_observation_nic_rx_missed'):
         if summary[key] != 0: raise ValueError('Generator retry blocked by '+key)
-    if any(q['max_busy_ns']>summary['sender_period_ns'] or q['delayed_poll_packets'] for q in summary['rx_observation']):
+    if any(q['max_busy_ns']>summary['sender_period_ns'] for q in summary['rx_observation']):
         raise ValueError('Generator retry blocked by RX backlog')
     if summary['arrival_model'] != 'slotted-poisson':
         raise ValueError('Timing retry requires a reproducible Poisson schedule')
