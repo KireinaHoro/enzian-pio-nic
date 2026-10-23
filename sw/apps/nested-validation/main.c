@@ -2,6 +2,7 @@
 #include "lauberhorn.h"
 #include "lauberhorn/trace.h"
 #include "worker.h"
+#include "rpc.h"
 #include "pending_call_table.h"
 #include "fiber/scheduler.h"
 #include <arpa/inet.h>
@@ -9,6 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#if LH_BACKEND_VM
+#include "vm/abi.h"
+#include "lauberhorn/deadline.h"
+#endif
 
 #define PROGRAM 0x10234567u
 #define VERSION 0x12345678u
@@ -69,8 +74,10 @@ static lauberhorn_outcome_t nested(void *p, void *arg, lauberhorn_request_contex
             if(errno!=EAGAIN) return bad();
             rejected++; continue;
         }
-        if (op==KILL_PENDING)
+        if (op==KILL_PENDING) {
             pending_call_start_timeout(futures[accepted].c,futures[accepted].xid,60000);
+            rpc_deadline_refresh();
+        }
         set[accepted]=&futures[accepted]; accepted++;
     }
     if(!accepted) return bad();
@@ -91,7 +98,7 @@ static lauberhorn_outcome_t nested(void *p, void *arg, lauberhorn_request_contex
         }
         lauberhorn_free_result(&futures[i].result);
     }
-    if((op==CANCEL || op==CAPACITY) && ep->_transport.unresolved) ok=false;
+    if((op==CANCEL || op==CAPACITY || op==TIMEOUT) && ep->_transport.unresolved) ok=false;
     if(op==CAPACITY) { put(m,2,accepted); put(m,3,rejected); }
     lauberhorn_trace_result(ok);
     return ok?lauberhorn_reply(m,sizeof(*m),NULL):bad();
@@ -155,6 +162,30 @@ int main(int argc,char **argv) {
     if(!w) { perror("worker"); return 1; }
     printf("VALIDATION_READY remote_port=%u local_port=%u pid=%u\n",
         remote._transport.sport,local._transport.sport,remote._transport.pid); fflush(stdout);
+#if LH_BACKEND_VM
+    /* Optional read-only evidence for the VM's full-preemption acceptance.
+     * This main thread never processes timers, retires calls or wakes fibers. */
+    const char *state_path = getenv("LH_VM_STATE_PATH");
+    if (state_path) {
+        char *temporary = malloc(strlen(state_path) + 5);
+        if (!temporary) return 1;
+        sprintf(temporary, "%s.tmp", state_path);
+        for (;;) {
+            struct lh_vm_schedule_state s;
+            struct lauberhorn_deadline_state d;
+            if (ioctl(ctx.fd, LH_VM_SCHEDULE_STATE, &s) ||
+                ioctl(ctx.fd, LAUBERHORN_IOCTL_GET_DEADLINE, &d)) return 1;
+            FILE *f = fopen(temporary, "w");
+            if (!f) return 1;
+            fprintf(f, "{\"assigned\":%u,\"reserved\":%u,\"deadline_activations\":%llu,"
+                "\"generation\":%llu,\"next_deadline_ns\":%llu}\n",
+                s.assigned, s.reserved, (unsigned long long)s.deadline,
+                (unsigned long long)d.generation, (unsigned long long)d.next_deadline_ns);
+            if (fclose(f) || rename(temporary, state_path)) return 1;
+            usleep(LH_VM_STATE_POLL_US);
+        }
+    }
+#endif
     lauberhorn_join_worker(&ctx,w);
     return 0;
 }

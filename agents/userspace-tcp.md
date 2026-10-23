@@ -5,6 +5,8 @@ Platform phase two starts from `b9e0ab05` on `userspace-tcp-phase-one`.
 Scope: [phase two](../docs/proposals/userspace-tcp.md#phase-2-shared-freebsd-tcp-library-and-validation-in-the-vm).
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
+Do not merge this branch until the hardware DEADLINE path is implemented;
+the user explicitly requires removal of RPC polling without an ECI fallback.
 Stop at major blockers. TCP source import is authorized in `../lauberhorn-tcp`;
 no hardware deployment or memcached port belongs to this phase. Keep the TCP
 component optional in application Nix recipes and preserve the UDP path.
@@ -127,25 +129,50 @@ application API or VM/runtime integration yet.
 - Ptrace is disallowed even outside the sandbox. The ignored Nix sanitizer
   diagnostic recipe located the alignment issue; no external blocker remains.
 
-## DEADLINE design checkpoint
+## VM scheduler and DEADLINE integration
 
-The agreed DEADLINE policy uses one reserved notification, delivered once to one
-worker. Allocation is zero-to-one only (including reservations), idle-first,
-otherwise from RX-ready donors at or below the watermark. Retain pending expiry
-when no donor qualifies; overload delay is acceptable. Long handlers and an
-unbounded ready-fiber drain retain the cooperative limitation; no new drain
-bound or asynchronous preemption is required. Replace per-RX RPC clock reads and
-sweep-election CAS with deadline-driven processing. Phase 4 removes KICK_PROCESS
-and legacy wake scaffolding, implements SET_DEADLINE and raw TCP steering, and
-cleans up/explicitly specifies every scheduler reclaim rule. Emulate the policy
-in phase 2 first. Public API edits in the TCP sibling remain uncommitted; do not
-discard them or claim API/VM acceptance.
+Platform commit `b50e064f` implements hardware-style packet allocation at event
+boundaries: pre-enqueue half-capacity scaling, idle-first/first-ready victims,
+and first-match zero-core discovery after local drain. Per-domain capacity comes
+from generated headers; the VM no longer round-robins competing packet domains.
+RTL pipeline timing is not modeled. DEADLINE is one reserved notification with
+generation-checked SET/GET, lead-time rejection and atomic acknowledgement/rearm.
+Allocation is zero-to-one only, otherwise RX-ready donors at or below the watermark.
+Overload delay and long cooperative execution remain accepted limitations.
+
+The final device-level Nix VM suite passed in 31.39 s:
+`out/userspace-vm-deadline-final-run/driver.log`,
+`/tmp/lh-vm-deadline-final-run.log`. Tests cover watermark scaling/background
+selection, donor protection, single delivery across four workers/full queues,
+stale and too-soon operations, cancellation, earlier rearm and timer-only TX.
+UDP/RPC/memcached and the peer-guest regressions passed. Runtime/interface checks
+and ECI kernel compilation passed (`/tmp/lh-vm-deadline-runtime-checks.log`,
+`/tmp/lh-vm-deadline-eci-check.log`).
+
+The subsequent RPC migration removes timeout polling on every backend. Publishing
+occurs on call-state changes; DEADLINE drives sweeps and rearm. ECI nested calls
+fail before TX until the hardware interface exists. The full-parked RPC fixture
+passed: a UDP burst takes every core, then a no-reply timeout reactivates RPC,
+retires its outgoing call and resumes the waiter; a late reply is ignored.
+Final VM suite: 29.96 s, `out/userspace-vm-rpc-deadline-run/driver.log` and
+`/tmp/lh-rpc-deadline-vm-run.log`; driver build is `out/userspace-vm-rpc-deadline`.
+Final runtime/interface checks passed in `/tmp/lh-rpc-deadline-final-checks.log`,
+including injected ETIME retries and stale-notification rejection. No polling
+fallback remains on either backend. Timer publication currently scans the bounded
+pending table on state changes; it does not scan or read the clock on ordinary RX.
+RPC exclusively owns the domain timer; multiplexing independent TCP/application
+timer providers in one domain needs a shared broker.
+
+Phase 4 supplies ECI DEADLINE/raw TCP steering and explicitly specifies/cleans up
+all scheduler reclaim rules. Public API edits in the TCP sibling remain
+uncommitted; preserve them. No TCP connection has yet run in the VM.
 
 ## Remaining phase-two work
 
 The objective remains a reasonably working shared four-worker TCP stack in the
-Lauberhorn VM emulator. No stress campaign is required. Phase-one tests remain
-the only VM evidence. Do not mark phase two complete based on these host tests.
+Lauberhorn VM emulator. No stress campaign is required. VM scheduler/deadline and
+existing application tests are separate from TCP acceptance; do not mark phase
+two complete based on host TCP tests.
 
 1. Expose a public nonblocking socket/connection API and lifetime contract,
    plus installed headers/pkg-config metadata. Keep handler ownership separate
@@ -159,8 +186,8 @@ the only VM evidence. Do not mark phase two complete based on these host tests.
    with no mandatory runtime dependency on TCP. Pin the pushed TCP source in the
    platform flow. The package currently insists on four workers for its fixtures;
    the designed application configuration is one to four workers.
-3. Add native TCP packet transport and domain timer arm/ack/cancel to the VM
-   emulator and runtime. No Linux TCP sockets may substitute for the stack.
+3. Add native TCP packet transport and connect stack timer publication to the
+   implemented VM DEADLINE interface. No Linux TCP sockets may substitute for the stack.
    Preserve transport borrow release before DESCHED/yield. Timer expiry must be
    sticky/coalescible and activate a parked domain. Re-read the earliest deadline
    even when dispatch ran zero callbacks; contention must not lose the retry or
@@ -176,10 +203,10 @@ the only VM evidence. Do not mark phase two complete based on these host tests.
    Alternate bursts between two applications with established connections,
    prove each reaches zero assigned workers, then verify both resume on the same
    connections. Include timer expiry without incoming traffic while fully
-   preempted, and bounded service under the competing application's load.
-   Current `sw/kmod/vm.c::select_domain` considers only queued packets:
-   timer-only domain eligibility and wakeup are missing, not established by the
-   host callout tests. Preserve pending expiry across handoff and acknowledgement.
+   preempted, and service under competing load when an eligible donor exists.
+   The VM now provides timer-only eligibility and wakeup; exercise the actual
+   stack callbacks, not just the transport fixture. Preserve pending expiry
+   across handoff and acknowledgement.
    Preserve phase-one UDP/RPC/memcached regressions. Stop after this demonstrated
    four-worker implementation; memcached TCP port and hardware remain later phases.
 

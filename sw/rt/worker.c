@@ -12,7 +12,6 @@
 #include "oncrpc.h"
 #include "worker.h"
 #include "rpc.h"
-#include "utils/clock.h"
 
 static __thread lauberhorn_worker_t current_worker;
 
@@ -41,23 +40,6 @@ int init_worker(lauberhorn_worker_t w) {
 static void worker_fail(lauberhorn_worker_t w) {
     lauberhorn_stop(w->ctx);
     abort();
-}
-
-// run every 1 seconds
-//  when perf measurements were done, this was still set to run once every 100 iterations
-#define SWEEP_PERIOD_MS 1000
-static _Atomic int64_t last_sweep_ms = 0;
-
-static void rpc_timeout_tick(lauberhorn_worker_t w) {
-    struct timespec t = now();
-    int64_t t_ms = t.tv_sec * 1000 + t.tv_nsec / 1000000;
-    int64_t last = atomic_load(&last_sweep_ms);
-
-    // first worker to pass the CAS sweeps, the others skip
-    if (t_ms - last >= SWEEP_PERIOD_MS &&
-        atomic_compare_exchange_strong(&last_sweep_ms, &last, t_ms)) {
-        rpc_call_process_timeout();
-    }
 }
 
 static void execution_flush(void) {
@@ -99,8 +81,6 @@ static void *lauberhorn_worker_loop(void *arg) {
     lauberhorn_pkt_desc_t desc;
 
     while (lauberhorn_is_running) {
-        // Sweep before draining: timeout wakeups run before another RX poll.
-        rpc_timeout_tick(w);
         fiber_sched_run_ready();
 
         // wait for data
@@ -112,7 +92,7 @@ static void *lauberhorn_worker_loop(void *arg) {
             received = core_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &observed, server_trace_clock);
             w->rx_trace = NULL;
-            if (received && desc.type != TY_DESCHED) {
+            if (received && desc.type != TY_DESCHED && desc.type != TY_DEADLINE) {
                 w->rx_trace = server_trace_reserve(w->worker_id);
                 w->rx_trace->rx_enter_ns = enter;
                 w->rx_trace->rx_unblock_ns = observed;
@@ -123,6 +103,13 @@ static void *lauberhorn_worker_loop(void *arg) {
 #endif
         {
             received = core_rx_acquire(w->dp_base, &w->dp, &desc);
+        }
+        if (received && desc.type == TY_DEADLINE) {
+#if LH_ENABLE_TRACING
+            server_trace_discard(w->rx_trace);
+#endif
+            rpc_deadline_expired(desc.deadline.generation);
+            continue;
         }
         if (received && desc.type == TY_DESCHED) {
 #if LH_ENABLE_TRACING

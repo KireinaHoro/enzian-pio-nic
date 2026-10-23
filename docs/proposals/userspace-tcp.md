@@ -329,8 +329,10 @@ collateral and deploy matching hardware/software artifacts.
 Implement the agreed [DEADLINE policy](#deadline-execution-and-scheduling-proposed):
 `SET_DEADLINE`, minimum-lead-time rejection, reserved payload-free RX notification,
 single-worker delivery and generation-safe acknowledgement/rearm. Remove the
-obsolete `KICK_PROCESS` ioctl and legacy wake scaffolding. Replace per-RX RPC
-clock polling and sweep-election CAS with DEADLINE-driven timeout processing.
+legacy hardware wake scaffolding. The runtime already removes `KICK_PROCESS`
+and replaces per-RX RPC clock polling and sweep-election CAS with DEADLINE-driven
+timeout processing; implement the required ECI device path before merging this
+branch. There is no polling fallback.
 Deadline-only allocation is strictly zero-to-one, using idle cores first and
 otherwise RX-ready donors at or below the watermark. Retain overdue work when
 no donor qualifies; overload delay and long cooperative execution are accepted

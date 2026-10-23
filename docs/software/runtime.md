@@ -129,10 +129,24 @@ hardware incoming context generations wrap and are not an authentication
 mechanism. Whole-process shutdown and abnormal exit fail closed and require
 reset; complete reclamation is deferred.
 
-Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX
-NACK timing lets an assigned worker regain control. Parked-domain deadline
-activation and execution-watchdog integration are deferred; the former deadline
-housekeeping thread is removed. HOST_WORK (formerly proposed as HOST_WAKE) and
+Workers drain ready fibers before RX. RPC timeout sweeps run only on a delivered
+DEADLINE; ordinary RX iterations perform no timeout clock read or sweep-election
+CAS. Submission, reply completion and cancellation publish the earliest pending
+call deadline with generation-checked acknowledgement/rearm. Near or overdue
+software deadlines retain their original due time and get a legal future device
+retry when the minimum lead time prevents immediate arming. The RPC runtime owns
+the domain timer; independent TCP/application publishers require a shared timer
+broker before mixing them in one domain.
+
+The [VM backend](vm-backend.md#deadline-control-and-delivery) implements this
+interface and zero-to-one activation subject to donor protection. ECI does not
+yet implement DEADLINE: nested submission returns `EOPNOTSUPP` before transmitting
+when the device lacks the interface. There is no timeout-polling fallback.
+Hardware DEADLINE support is required before this branch can merge. Long handlers
+and unbounded ready-fiber draining retain the cooperative progress limitation.
+The former deadline housekeeping thread remains removed. Execution-watchdog
+integration is deferred.
+HOST_WORK (formerly proposed as HOST_WAKE) and
 its interface are not implemented. The [failure policy](scheduler.md#failure-and-reset-boundary)
 retains unresolved resources. The [Go toward etcd design](../proposals/go-runtime.md)
 records the next runtime/HOST_WORK direction, currently documentation only.

@@ -78,7 +78,7 @@ pkgs.testers.runNixOSTest {
     machine.wait_until_succeeds("grep READY /tmp/udp-a.log && grep READY /tmp/udp-b.log")
     machine.succeed("python3 ${fixture}/share/client.py")
     machine.succeed("test $(awk '/^RX/ {print $2}' /tmp/udp-a.log | sort -u | wc -l) -eq 4")
-    machine.succeed("nested-validation 127.0.0.1 127.0.0.1 > /tmp/rpc.log 2>&1 &")
+    machine.succeed("LH_VM_STATE_PATH=/tmp/rpc-state.json nested-validation 127.0.0.1 127.0.0.1 > /tmp/rpc.log 2>&1 &")
     machine.wait_until_succeeds("grep VALIDATION_READY /tmp/rpc.log", timeout=30)
     machine.succeed("python3 ${fixture}/share/rpc.py")
     machine.succeed("taskset -c 0-1 memcached -p 0 -U 11211 -t 4 -m 32 -o hashpower=16 -u root > /tmp/memcached.log 2>&1 &")

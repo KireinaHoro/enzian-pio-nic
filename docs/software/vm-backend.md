@@ -5,8 +5,8 @@ Linux. `LH_BACKEND_VM` selects it at compile time; Nix owns this selection and
 all CPU, queue and guest settings. Runtime initialization checks the module's
 backend ID before mapping buffers. Public application APIs are unchanged.
 Native TCP transport is not implemented. Domain-scoped DEADLINE activation is
-available through the low-level VM transport; TCP and RPC timer publication
-remain runtime integration work.
+available through the VM transport and drives RPC timeout processing. TCP timer
+publication remains stack integration work.
 
 ## Execution and ownership
 
@@ -83,11 +83,13 @@ handlers, expiry remains pending. Long handlers, syscall sleep and unbounded
 fiber draining retain the cooperative limitation. Detection uses the emulator's
 bounded event-loop wait; no punctual callback guarantee is implied.
 
-Low-level adapters consume the DEADLINE status and service/rearm their shared
-timer state. The existing RPC worker still uses its periodic timeout sweep, and
-the native UDP receive API is not a deadline consumer. Migration to automatic
-TCP/RPC timer publication is separate from this device interface. The VM fixture
-uses the low-level RX interface to test timer-only activation and TX. Read-only
+The RPC runtime consumes DEADLINE and services/rearms its pending-call timers.
+Submission, completion and cancellation update the published minimum; ordinary
+RX performs no timeout clock read or sweep-election CAS. RPC owns the domain
+timer while using this path: independent timer providers must be multiplexed
+before sharing a domain. The native UDP receive API is not a deadline consumer.
+TCP timer publication remains integration work. The VM policy fixture uses the
+low-level RX interface to test timer-only activation and TX. Read-only
 `LH_VM_SCHEDULE_STATE` reports this domain's queue capacity/fill, actual and
 reserved assignments, RX-ready workers and allocation counts by reason.
 
@@ -107,8 +109,8 @@ Service deregistration is restricted to before worker registration in the VM;
 it purges queued calls before releasing the handler. Whole-domain failure
 retains domain slots, mappings and endpoint reservations as in the existing
 prototype. Restart the guest for a fresh domain lifecycle. Killing a handler is
-not a supported recovery mechanism. Existing nested-RPC deadlines are polled by
-active workers; they do not activate an entirely parked domain.
+not a supported recovery mechanism. RPC deadlines can activate a completely
+parked domain when an idle core or unprotected RX-ready donor is available.
 
 ## Validation
 
@@ -145,3 +147,9 @@ discovery, protected-donor deadline deferral, reclaim at the watermark, full-que
 notification admission, single delivery across four workers, zero-to-one
 activation, stale/too-soon rejection, cancellation, earlier rearm and timer-only
 TX. It reboots the guest afterward because whole-domain teardown is unsupported.
+
+The nested-RPC fixture also records its own assignments through read-only
+diagnostics. A competing UDP burst takes every core while a nested reply is
+withheld; DEADLINE must reactivate the parked domain, retire the call, resume its
+waiter and reject a late reply. The observing main thread performs no timeout
+processing or publication. RPC regression cases then verify continued progress.

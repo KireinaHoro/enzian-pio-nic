@@ -83,7 +83,8 @@ of HOST_WAKE and does not change recovery. See the [control contract](scheduling
 
 `lauberhorn_stop()` requests failure fencing, not a successful drain/reclaim
 operation. `STOP_PROCESS` and the legacy `WAKE_ALL_WORKERS` ioctl call
-`fail_domain` and return `ESHUTDOWN`. `KICK_PROCESS` has been removed. `WATCHDOG` returns `EOPNOTSUPP`; even a zero
+`fail_domain` and return `ESHUTDOWN`. `KICK_PROCESS` has been removed.
+`WATCHDOG` returns `EOPNOTSUPP`; even a zero
 watchdog limit is rejected by the current kernel. `SET_DEADLINE`/`GET_DEADLINE`
 are implemented only in the [VM backend](vm-backend.md) and return `EOPNOTSUPP`
 on ECI.

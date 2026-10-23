@@ -18,8 +18,11 @@ before blocking in RX/yield. Self-sustaining batch work is outside this
 cooperative execution contract. Ordinary syscall sleep retains the assignment.
 
 At idle RX the NIC supplies a packet, stalls, returns a finite NACK or returns
-DESCHED. The runtime drains ready fibers and sweeps RPC timeouts before RX;
-DESCHED causes immediate yield without further transport access.
+DESCHED. The runtime drains ready fibers before RX; DESCHED causes immediate
+yield without further transport access. RPC timeout polling has been replaced
+by DEADLINE-driven sweeps. The VM implements that notification, but ECI support
+is pending; nested submission fails before TX when DEADLINE control is unavailable.
+See the [runtime contract](runtime.md#limits-and-lifecycle).
 
 ## Activation and handoff
 

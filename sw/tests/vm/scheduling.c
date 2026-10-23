@@ -78,7 +78,9 @@ static void child(int fd, unsigned id) {
     for (unsigned i = 0; i < 4; ++i) assert(!pthread_create(&threads[i], NULL, worker, (void *)(unsigned long)i));
     for (;;) {
         struct command c;
-        assert(recv(fd, &c, sizeof(c), MSG_WAITALL) == sizeof(c));
+        ssize_t received = recv(fd, &c, sizeof(c), MSG_WAITALL);
+        if (!received) for (;;) pause(); /* Parent finished; retain domain until reboot. */
+        assert(received == sizeof(c));
         int r;
         if (c.op == STATS) r = ioctl(app.fd, LH_VM_SCHEDULE_STATE, &c.schedule);
         else if (c.op == SET) r = ioctl(app.fd, LAUBERHORN_IOCTL_SET_DEADLINE, &c.set);
