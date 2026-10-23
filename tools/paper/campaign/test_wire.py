@@ -15,9 +15,15 @@ class Wire(unittest.TestCase):
         self.assertEqual(sum(row['components_ns'].values()), 100)
         self.assertNotIn('components_ns', join_durations(self.client, self.wire)[0])
 
-    def test_incomplete_duplicate_and_negative(self):
+    def test_overlapping_cpu_and_wire_intervals(self):
+        row = join_durations(self.client, [dict(self.wire[0], wire_ns=50)], self.cpu)[0]
+        self.assertEqual(row['cpu_duration_ns'], 80)
+        self.assertEqual(row['components_ns']['cpu_wire'], -30)
+        self.assertEqual(sum(row['components_ns'][k] for k in COMPONENTS), 80)
+
+    def test_incomplete_duplicate_and_invalid(self):
         for wire in ([], self.wire*2, [dict(self.wire[0], flow_id=4)],
-                     [dict(self.wire[0], wire_ns=50)], [dict(self.wire[0], wire_ns=1001)]):
+                     [dict(self.wire[0], wire_ns=0)], [dict(self.wire[0], wire_ns=1001)]):
             with self.assertRaises(ValueError):
                 join_durations(self.client, wire, self.cpu)
         self.cpu[0]['components_ns']['rx_queue'] = 0

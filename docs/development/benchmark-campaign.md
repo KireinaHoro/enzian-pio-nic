@@ -206,8 +206,9 @@ See [hot measurement methodology](../research/hot-measurement.md) for the
 boundary definitions and queue instrumentation requirements. The
 [RPC timestamp contract](rpc-breakdown.md) specifies version-3 codec, allocation,
 reservation and runtime/dispatch accounting for all three responders. Unloaded CDF and
-breakdown totals are Tofino wire-to-wire; breakdowns subtract CPU durations to
-obtain one combined CPU–wire residual. No mlx5 hardware timestamping is used.
+breakdown wire totals are Tofino wire-to-wire. Breakdown bars partition the
+measured CPU interval; a separate marker shows the wire total. Their signed
+duration difference is retained without assuming sequential CPU/NIC execution. No mlx5 hardware timestamping is used.
 Loaded cases retain uninstrumented client RTT with no packet trace capture.
 
 Normal acquisition keeps FPGA recording frozen and collects no FPGA MAC or
@@ -295,7 +296,8 @@ client order, complete capture/export/cleanup, matching artifact/controller
 identity and journal digest. The adapter accepts schema-3 pairs with
 `latency_accepted: true`, `units: "ns"` and `ns_per_tick: 1`, and retains raw
 observations and calibration metadata. It imports `wire_ns` through the normal
-flow/XID join and computes the combined CPU–wire residual for instrumented runs.
+flow/XID join and retains the signed wire-minus-CPU difference for instrumented
+runs. Negative differences are valid: CPU return and transmission can overlap.
 `hardware_timing_validated: false` and `absolute_wire_calibrated: false` describe
 external calibration status; they do not reject the accepted switch interval.
 Bounded integration trials remain `paper_inputs: false`. On capture or cleanup

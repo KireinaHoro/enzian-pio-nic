@@ -135,7 +135,7 @@ used timestamps and `runtime_details_ns`. Raw CSV files remain hashed evidence.
 | Network stack | DPDK: `D(network_rx_begin, network_rx_end) + D(network_tx_begin, network_tx_end)`; Caladan: `D(network_rx_enter, network_rx_exit) + D(network_tx_enter, network_tx_exit)`; LH: zero CPU network interval |
 | CPU–NIC | RX processing + `D(reserve_enter, reserve_exit)` + TX submission, using the per-system intervals below |
 | Runtime/dispatch | CPU outer duration minus Handler, RPC (un)marshal, Network stack and CPU–NIC |
-| NIC–wire | Tofino wire duration minus CPU outer duration |
+| Wire-total marker | Independently measured Tofino MAC interval for the same selected observation(s) |
 
 | System | CPU outer interval | RX processing | TX submission |
 | --- | --- | --- | --- |
@@ -182,11 +182,74 @@ wire latency. They do not individually time every pointer read or switch
 instruction; the [specialized trampoline](../proposals/specialized-rpc-trampoline.md)
 remains a proposal, whose savings require a separate experiment.
 
+## RX/TX ordering and overlapping intervals
+
+The switch captures request TX with `capture_tstamp_on_tx` and reply RX from
+`ingress_mac_tstamp`; the pairer subtracts those MAC timestamps on the same
+server-facing port. CPU probes use `CLOCK_MONOTONIC_RAW`. These clocks do not
+provide a shared epoch, so measured durations alone cannot locate CPU events
+inside the switch interval.
+
+For LH, the receive path is CMAC → complete-frame RX CDC FIFO → Ethernet/IP/UDP/
+ONC-RPC decode → payload DMA into the packet buffer (when nonempty) → scheduler process/worker
+selection → ECI RX descriptor/control-line response. The RX DMA must complete
+before the scheduler receives the descriptor. `rx_unblock` is sampled after the
+CPU's valid-field load and ordering barrier; descriptor decode and return follow,
+ending at `rx_exit`. The CPU interval excludes that preceding receive path and
+blocked read. Overflow payload cache-line loads occur later in the codec/handler
+and are inside the CPU interval. `rx_enter` precedes the blocking read and can
+include idle time before the request was sent; it is not the CPU partition start.
+
+LH TX stores the reply descriptor and orders stores before `tx_doorbell`, then
+reads the opposite control line. The FPGA collects the dirty control and overflow
+cache lines, issues the TX descriptor and starts packet-buffer read DMA. Payload
+streams through ONC-RPC, UDP, IP and Ethernet encoders, alignment/padding and a
+complete-frame TX CDC FIFO to CMAC and the switch. In `DmaControlPlugin`, success
+is returned after read-DMA completion (or descriptor acceptance for a zero-DMA
+packet). `DcsTxAxiRouter.waitResult` then releases the pending ECI read response.
+This response and the remaining encoder/FIFO/CMAC/link path are separate branches;
+there is no wire-completion dependency on the CPU response. `tx_doorbell_return`
+is after the CPU read and barrier; `tx_exit` follows probe stores, helper return
+and transport cleanup. Neither timestamps wire completion.
+
+For DPDK, CX-5 receives the frame and makes its RX buffer/CQE available before
+`rx_cqe`, sampled in the successful scalar PMD receive path. CQ/RQ updates,
+replenishment and mbuf work run through `rx_return`; network parsing, RPC lookup,
+shared codecs and handler follow. TX constructs the reply frame, enters the PMD,
+prepares WQEs and publishes the doorbell. `tx_doorbell` is after the PMD doorbell
+helper; `tx_return` follows mbuf tracking/counters, before PMD return. NIC DMA and
+transmission proceed independently after publication. The CPU end is submission
+return, not a CQE indicating physical TX completion.
+
+For resident Caladan, the CQ-readiness poll records `rx_observed` before waking
+the RX polling thread. `rx_queue_enter/exit` bracket gather/refill work. If no
+readiness timestamp exists, `rx_observed` falls back to gather entry, before its
+CQE checks; that fallback is not an exact CQE-observation timestamp. Network
+processing reaches `network_rx_exit` after UDP-header extraction. Socket queue
+locking/publication reaches `dispatch_ready`; reader wakeup, queue wait/dequeue
+and payload copy precede `dispatch_enter`. Shared RPC processing then produces
+the reply. `network_tx_enter` precedes socket admission, allocation/copy and
+UDP/IP/Ethernet construction; `network_tx_exit` is entry to `net_tx_raw`.
+`driver_enter` precedes mlx5 WQE preparation. `tx_doorbell` follows the BlueFlame
+write/flush; `submit_return` follows doorbell bookkeeping and `putk`, before
+trace export. NIC transmission is independent after the doorbell. Outer
+`net_tx_raw`/UDP return work after this probe is outside the recorded CPU interval.
+
+Consequently the CPU partition is a partition of its recorded elapsed interval,
+not of wire RTT or the complete request lifetime. Keep all its nonnegative
+components and the independent wire duration. The signed duration difference
+combines unmeasured receive/transmit prefixes with overlap; its sign alone does
+not identify the overlapping stage or its duration. Do not infer directional
+transport costs or actual overlap from unsynchronized endpoint timestamps.
+
 ## Validation and scope
 
 Import rejects missing, zero, reversed, overlapping or out-of-CPU boundaries;
-runtime details must fit entirely within the runtime complement. It rejects
-negative wire residuals and conserves the complete per-request wire duration.
+runtime details must fit entirely within the runtime complement. CPU components
+conserve the CPU outer duration. The legacy `components_ns.cpu_wire` key stores
+the signed difference `wire_ns − cpu_duration_ns`, including negative values; it
+is not plotted as a sequential NIC/wire segment. New joined rows also retain
+`cpu_duration_ns` explicitly. Historical rows derive it by summing CPU components.
 Chunks must agree on accounting version. A chart comparison containing version
 3 must use version 3 throughout its breakdown cohorts; the legacy version-1/2
 import/correction path remains available for historical figures. Version 2 used

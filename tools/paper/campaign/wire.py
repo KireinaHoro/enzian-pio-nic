@@ -76,8 +76,9 @@ def join_durations(client, wire, software=None):
             elapsed = cpu['cpu_duration_ns']
             if type(elapsed) is not int or elapsed <= 0 or sum(values.values()) != elapsed:
                 raise ValueError('CPU components do not conserve CPU duration')
-            if elapsed > total:
-                raise ValueError('Negative CPU-wire residual')
+            # The CPU return path and NIC transmission proceed concurrently
+            # after submission. This signed difference is not a transport stage.
+            row['cpu_duration_ns'] = elapsed
             row['components_ns'] = dict(values, cpu_wire=total-elapsed)
         output.append(row)
     return output

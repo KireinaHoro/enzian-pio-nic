@@ -85,9 +85,9 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
     axes=fig.subplots(len(sizes),1,sharex=True,squeeze=False)[:,0]
     fig.subplots_adjust(left=.25,right=.975,bottom=.19 if len(sizes)==1 else .09,top=.78 if len(sizes)==1 else .88,hspace=.30)
     categories=(('handler',),('rpc_receive','rpc_transmit'),('cpu_other',),
-                ('rx_network','tx_network'),('rx_queue','tx_submission'),('cpu_wire',))
-    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','CPU--NIC','NIC--wire')
-    colors=(chart.COLORS[0],chart.COLORS[1],'#E6AB02',chart.COLORS[2],chart.COLORS[3],'#888888')
+                ('rx_network','tx_network'),('rx_queue','tx_submission'))
+    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','CPU--NIC')
+    colors=(chart.COLORS[0],chart.COLORS[1],'#E6AB02',chart.COLORS[2],chart.COLORS[3])
     for ax,size in zip(axes,sizes):
         panel_max=max(float(np.median([r['wire_ns'] for r in c['rows'] if not r['warmup']]))/1000
                       for c in cohorts if c['payload_bytes']==size and c['instrumentation']=='breakdown')
@@ -95,7 +95,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
             c=next(c for c in cohorts if c['system']==system and c['payload_bytes']==size and c['instrumentation']=='breakdown')
             measured=[r for r in c['rows'] if not r['warmup']]
             # As in the original chart, use the central wire-latency observation(s),
-            # retaining a conserved decomposition of the median total.
+            # retaining their full CPU intervals and separate wire total.
             measured.sort(key=lambda r:(r['wire_ns'],r['request_id']))
             n=len(measured);selected=measured[(n-1)//2:n//2+1]
             bottom=0
@@ -116,17 +116,26 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
                                 xytext=(0,-3 if below else 3),textcoords='offset points',ha='center',
                                 va='top' if below else 'bottom',fontsize=6.5,color=colors[j])
                 bottom+=mean
-            statistics[str(size)][system]['instrumented_median_us']=bottom
+            wire_median=float(np.mean([r['wire_ns'] for r in selected]))/1000
+            ax.plot(wire_median,len(systems)-1-i,marker='|',markersize=15,
+                    markeredgewidth=1.3,color='black',linestyle='none',
+                    label='Wire total' if not i else None)
+            statistics[str(size)][system]['instrumented_median_us']=wire_median
+            statistics[str(size)][system]['cpu_duration_at_wire_median_us']=bottom
+            statistics[str(size)][system]['wire_minus_cpu_at_wire_median_us']=wire_median-bottom
             statistics[str(size)][system]['breakdown_us']=combined
-            if not np.isclose(bottom,np.median([r['wire_ns'] for r in measured])/1000):
-                raise ValueError('Combined components do not conserve median wire latency')
+            expected_cpu=float(np.mean([sum(r['components_ns'][k] for k in r['components_ns'] if k!='cpu_wire') for r in selected]))/1000
+            if not np.isclose(bottom,expected_cpu):
+                raise ValueError('Components do not conserve measured CPU duration')
         ax.set_yticks(list(reversed(range(len(systems)))),[system_label(s,cohorts,multiline=True) for s in systems])
         ax.set_ylim(-.55,len(systems)-.45)
         ax.grid(False)
         ax.text(.97,.03,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)
 
-    axes[-1].set_xlim(0,max(statistics[str(size)][system]['instrumented_median_us'] for size in sizes for system in systems)*1.05)
-    axes[-1].set_xlabel('Wire-to-wire latency ($\\mu$s)')
+    axes[-1].set_xlim(0,max(max(statistics[str(size)][system]['instrumented_median_us'],
+                              statistics[str(size)][system]['cpu_duration_at_wire_median_us'])
+                          for size in sizes for system in systems)*1.05)
+    axes[-1].set_xlabel('Elapsed time ($\\mu$s)')
     fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=2,fontsize=7,columnspacing=1.1,handlelength=1.3)
     chart.save(fig,output/'echo-unloaded-hot-latency-breakdown.pdf')
     (output/'echo-unloaded-statistics.json').write_text(json.dumps(statistics,indent=2)+'\n')

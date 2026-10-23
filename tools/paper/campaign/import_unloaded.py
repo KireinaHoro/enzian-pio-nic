@@ -217,8 +217,13 @@ def validate_matched(cohorts, *, rehearsal=False, systems=SYSTEMS, sizes=SIZES):
                 raise ValueError('Invalid unloaded identity, warmup or wire duration')
             if c['instrumentation']=='breakdown':
                 parts=row['components_ns']
-                if set(parts)!=set(COMPONENTS)|{'cpu_wire'} or any(v<0 for v in parts.values()) or sum(parts.values())!=row['wire_ns']:
-                    raise ValueError('Invalid conserved wire/CPU partition')
+                if (set(parts)!=set(COMPONENTS)|{'cpu_wire'}
+                        or any(type(v) is not int for v in parts.values())
+                        or any(parts[k]<0 for k in COMPONENTS)
+                        or sum(parts.values())!=row['wire_ns']
+                        or row.get('cpu_duration_ns',sum(parts[k] for k in COMPONENTS))
+                           !=sum(parts[k] for k in COMPONENTS)):
+                    raise ValueError('Invalid CPU partition or signed wire-minus-CPU difference')
             elif 'components_ns' in row: raise ValueError('Components attached to uninstrumented cohort')
 
 

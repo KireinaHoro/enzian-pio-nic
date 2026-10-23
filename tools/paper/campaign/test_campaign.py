@@ -185,6 +185,12 @@ Path(result).write_text(json.dumps(dict(passed=True,files={str(p):hashlib.sha256
         with self.assertRaises(ValueError): validate_matched(bad)
         bad=copy.deepcopy(cohorts);bad[1]['rows'][0]['wire_ns']=200
         with self.assertRaises(ValueError): validate_matched(bad)
+        overlap=copy.deepcopy(cohorts)
+        overlap[1]['rows'][0].update(wire_ns=50,cpu_duration_ns=80)
+        overlap[1]['rows'][0]['components_ns']['cpu_wire']=-30
+        validate_matched(overlap)
+        overlap[1]['rows'][0]['components_ns']['handler']=-1
+        with self.assertRaises(ValueError): validate_matched(overlap)
         bad=copy.deepcopy(cohorts);bad[2]['build_config_sha256']='different'
         with self.assertRaises(ValueError): validate_matched(bad)
 

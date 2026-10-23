@@ -66,6 +66,11 @@ Default output is `../paper/plots/`, independent of working directory. Use
 supplies Python, NumPy and Matplotlib; TeX Live supplies `pdflatex`, `acmart`,
 `libertine` and `newtxmath`. Missing fonts or classes fail explicitly.
 
+Unloaded breakdown bars partition the recorded CPU interval for the central
+wire-latency observation(s). A black marker shows their independent wire total.
+CPU return work can overlap transmission; keep the signed wire-minus-CPU
+difference in statistics, without plotting it as a sequential NIC–wire stage.
+
 The paper's requested filenames are:
 
 - `echo-unloaded-hot-latency-cdf.pdf`

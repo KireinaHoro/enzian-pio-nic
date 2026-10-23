@@ -21,9 +21,10 @@ claim analyzer-calibrated physical wire boundaries.
 Do not substitute an egress-pipeline timestamp or collector observation time.
 
 Unloaded breakdowns use separate instrumented acquisitions and their own
-wire-to-wire totals. CPU clocks are not synchronized to the switch. Subtract
-CPU **durations**, never timestamps from different clocks. Report one combined
-CPU–wire residual, not separate RX/TX transport intervals. No mlx5 hardware
+wire-to-wire totals. CPU clocks are not synchronized to the switch. Compare
+CPU **durations**, never timestamps from different clocks. Retain the signed
+wire-minus-CPU difference; the CPU return path can overlap transmission. The
+CPU breakdown and wire-total marker are separate measured intervals. No mlx5 hardware
 RX/TX timestamping or completion timestamp extension is required.
 
 The [version-3 timestamp contract](../development/rpc-breakdown.md) lists every
@@ -31,7 +32,8 @@ capture point, exact per-system outer interval, component formula and runtime
 subinterval. The CPU interval starts at CQ observation for DPDK/Caladan and just
 after the RX control-line read for LH. It ends after reply submission. The
 plotted segments are Handler, codec-only RPC (un)marshal, Runtime/dispatch,
-Network stack, CPU–NIC and the combined NIC–wire residual. Allocation and
+Network stack and CPU–NIC. A separate marker shows the wire total for the same
+central wire-latency observations. Allocation and
 Caladan's request dispatch wait belong to Runtime/dispatch; TX-buffer reservation
 belongs to CPU–NIC. Historical accounting versions retain their broader RPC
 intervals and LH receive-return boundary.
@@ -52,8 +54,11 @@ For Lauberhorn use RX control-line read completion through transport return as t
 interval; retain RPC/handler boundaries and the exact doorbell read/return interval.
 Post-doorbell transport cleanup is other CPU work.
 Any unclassified CPU gap must be explicit, not silently assigned to the wire.
-For each instrumented request, residual = wire duration − CPU duration.
-Reject unexplained negative residuals; do not clamp. Report clock-rate and
+For each instrumented request, signed difference = wire duration − CPU duration.
+Keep negative differences without clipping or sample rejection. This difference
+is not a disjoint NIC/wire stage: TX submission completion and CPU return can
+proceed concurrently with the remaining transmission path. CPU segments sum to
+the CPU interval, independently of the wire total. Report clock-rate and
 probe uncertainty. These elapsed components are not CPU utilization estimates.
 
 Loaded cases use compiled-out probes and client RTT, without switch capture,
