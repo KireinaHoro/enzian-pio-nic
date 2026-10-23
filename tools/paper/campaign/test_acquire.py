@@ -15,7 +15,7 @@ class Acquisition(unittest.TestCase):
         request=dict(role='client',mode='loaded',seed=1,slot_ns=1000,rate=350000,duration_ms=10000,warmup_ms=2000)
         summary=dict(valid=False,generator_misses=2,tx_admission_failures=0,malformed=0,
                      nic_rx_no_buffer=0,nic_rx_missed=0,nic_rx_errors=0,nic_tx_errors=0,
-                     post_observation_nic_rx_missed=0,rx_observation=[],sender_period_ns=8000,
+                     post_observation_nic_rx_missed=0,rx_observation=[dict(max_busy_ns=0,delayed_poll_packets=1)],sender_period_ns=8000,
                      arrival_model='slotted-poisson',seed=1,slot_ns=1000,rate=350000,
                      duration_ns=10000000000,warmup_ns=2000000000)
         with tempfile.TemporaryDirectory() as directory:
@@ -24,7 +24,7 @@ class Acquisition(unittest.TestCase):
             log.write_text('load_error=TX slot exceeded sender period; no catch-up\n')
             path=root/'samples.csv.open.json';path.write_text(json.dumps(summary))
             validate_timing_failure(root,request)
-            for key,value in [('seed',2),('nic_rx_errors',1),('tx_admission_failures',1),('valid',True)]:
+            for key,value in [('seed',2),('nic_rx_errors',1),('tx_admission_failures',1),('valid',True),('rx_observation',[dict(max_busy_ns=8001,delayed_poll_packets=0)])]:
                 with self.subTest(key=key):
                     path.write_text(json.dumps(dict(summary,**{key:value})))
                     with self.assertRaises(ValueError): validate_timing_failure(root,request)
