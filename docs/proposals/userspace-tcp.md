@@ -186,6 +186,17 @@ during sleep entry. Require timer-only activation with all workers parked and
 TCP progress while another worker runs a long handler. Validate stream contents,
 connection lifetime, readiness delivery and ownership at DESCHED/yield boundaries.
 
+Keep established connections open in two applications while alternating bursts
+force each application to lose all worker assignments. Verify the zero-worker
+intervals explicitly, then require both applications to resume stream progress
+on the same connections. Include an outstanding retransmission whose deadline
+expires while its application has no workers and receives no new packets.
+Expiry must remain pending and make the domain eligible for activation; after
+the scheduler grants a worker, dispatch must service the overdue timer. This
+requires eventual worker service, not execution at the exact deadline while
+the application has no workers. Bound the test's preemption intervals below
+the configured connection timeout and check for starvation under competing load.
+
 ### Phase 3: TCP memcached port and validation in the VM
 
 Port our existing memcached tree to the shared Lauberhorn TCP stack. Implement

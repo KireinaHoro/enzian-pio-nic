@@ -159,6 +159,13 @@ the only VM evidence. Do not mark phase two complete based on these host tests.
    at the actual PCB/socket integration level, beyond the existing lock fixture.
    Specifically prove delayed expiry runs after lock release without new packets
    and that all-parked timer-only activation can transmit ACK/retransmission.
+   Alternate bursts between two applications with established connections,
+   prove each reaches zero assigned workers, then verify both resume on the same
+   connections. Include timer expiry without incoming traffic while fully
+   preempted, and bounded service under the competing application's load.
+   Current `sw/kmod/vm.c::select_domain` considers only queued packets:
+   timer-only domain eligibility and wakeup are missing, not established by the
+   host callout tests. Preserve pending expiry across handoff and acknowledgement.
    Preserve phase-one UDP/RPC/memcached regressions. Stop after this demonstrated
    four-worker implementation; memcached TCP port and hardware remain later phases.
 
