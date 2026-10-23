@@ -1,5 +1,16 @@
 # Measurement continuation
 
+## Pending instrumentation/accounting contract
+
+The agreed pre-publication split and complete hot/cold probe inventory are in
+[RPC breakdown accounting](../docs/development/rpc-breakdown.md). Documentation
+only: importer remains version 3. Next implementation needs pre-publication
+DPDK/Caladan probes, a new accounting version, and separate post-publication
+return diagnostics. LH already has the required endpoint. Cold collection needs
+outgoing LH cooperative-entry probes and Caladan demand/park/cede/activation
+correlation; existing packet probes do not cover core activation. Do not launch
+collection while the campaign stop remains in force.
+
 ## Stopped full hot campaign — October 22
 
 The maintainer explicitly stopped this campaign on October 23. The user service

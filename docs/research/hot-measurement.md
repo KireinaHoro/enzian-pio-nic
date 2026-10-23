@@ -27,9 +27,10 @@ wire-minus-CPU difference; the CPU return path can overlap transmission. The
 CPU breakdown and wire-total marker are separate measured intervals. No mlx5 hardware
 RX/TX timestamping or completion timestamp extension is required.
 
-The [version-3 timestamp contract](../development/rpc-breakdown.md) lists every
-capture point, exact per-system outer interval, component formula and runtime
-subinterval. The CPU interval starts at CQ observation for DPDK/Caladan and just
+The [instrumentation and accounting contract](../development/rpc-breakdown.md)
+lists the software/hardware inventory, probe purposes, cold activation paths
+and missing probes, exact per-system outer intervals, component formulas and
+runtime subintervals. The CPU interval starts at CQ observation for DPDK/Caladan and just
 after the RX control-line read for LH. It ends after reply submission. The
 plotted segments are Handler, codec-only RPC (un)marshal, Runtime/dispatch,
 Network stack and CPU–NIC. A separate marker shows the wire total for the same
@@ -40,8 +41,11 @@ intervals and LH receive-return boundary.
 
 RX instrumentation belongs inside the selected mlx5/Caladan receive path;
 wrapping rx_burst includes empty polling and misses the required CQE boundary.
-TX instrumentation must end after submission, not before tx_burst or at later
-TX completion. Record the exact selected PMD fast path, compiler configuration,
+The implemented version-3 interval ends after submission. The agreed next
+partition ends immediately before doorbell publication, after WQE preparation;
+DPDK/Caladan require that additional probe. See the
+[pre-publication contract](../development/rpc-breakdown.md#pre-publication-breakdown-contract-implementation-pending).
+Record the exact selected PMD fast path, compiler configuration,
 clock conversion and probe overhead. Cover CQ pointer updates, replenishment,
 mbuf construction and TX reclamation wherever actually executed. Attribute
 batched/deferred work explicitly; do not omit it or claim a per-packet duration

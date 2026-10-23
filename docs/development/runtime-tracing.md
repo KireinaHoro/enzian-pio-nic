@@ -104,6 +104,11 @@ are not hardware datapath IDs. See [hardware correlation](../hardware/tracing.md
 
 ## Activation and inter-packet gaps
 
+The [RPC instrumentation inventory](rpc-breakdown.md#cold-activation-paths-and-timestamps)
+defines the exact activation stamps, cooperative cross-domain path, missing
+entry probes, Caladan parked/preempted paths, and their placement in a cold RTT
+partition. This section describes the existing LH collection and analysis tools.
+
 The `lauberhorn:activation` kernel event contains **one buffered record per
 successful traced activation**, rather than one event at every boundary. It is
 disabled by default. Idle activation takes nine `ktime_get_raw_ns()` samples;
