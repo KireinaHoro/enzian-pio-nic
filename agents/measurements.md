@@ -1,8 +1,14 @@
 # Measurement continuation
 
-## Active full hot campaign — October 22
+## Stopped full hot campaign — October 22
 
-The maintainer authorized fresh unloaded and loaded collection with `go`.
+The maintainer explicitly stopped this campaign on October 23. The user service
+is verified inactive/dead. Do not resume without a new instruction.
+`out/hot-full-20261022/maintainer-stop.json` records the stop. The interrupted
+LH boot attempt remains unsafe; preserve its evidence and inspect live state
+before any later hardware operation.
+
+The maintainer initially authorized fresh unloaded and loaded collection with `go`.
 `out/hot-full-20261022/` was launched as user service
 `echo-campaign-7cd6f693f03c`; preparation and launch receipts are in
 `out/hot-full-20261022-preparation/`. The terminal failure callback arrived
