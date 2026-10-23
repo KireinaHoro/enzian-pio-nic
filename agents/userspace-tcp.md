@@ -4,6 +4,7 @@ Branches: `userspace-tcp-phase-two` in platform and `../lauberhorn-tcp`.
 Platform phase two starts from `b9e0ab05` on `userspace-tcp-phase-one`.
 Scope: [phase two](../docs/proposals/userspace-tcp.md#phase-2-shared-freebsd-tcp-library-and-validation-in-the-vm).
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
+Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Stop at major blockers. TCP source import is authorized in `../lauberhorn-tcp`;
 no hardware deployment or memcached port belongs to this phase. Keep the TCP
 component optional in application Nix recipes and preserve the UDP path.
@@ -47,9 +48,9 @@ Its CPU flags also come from the selected runtime package.
   The maintained fixture now uses the established append/single-get
   segmentation case. No memcached source modification was needed.
 
-## Phase-two checkpoint and blocker
+## Phase-two checkpoint and host-port work
 
-TCP repository commit: `e6b4dc2` on `userspace-tcp-phase-two` (local, unmerged).
+TCP repository commit: `e6b4dc2` on `userspace-tcp-phase-two` (unmerged).
 Imported FreeBSD 15.1-RELEASE-p6 at
 `95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 13 C files and 235 transitive headers,
 plus COPYRIGHT, 2,834,003 bytes total. Compiler dependency files determine the
@@ -67,7 +68,7 @@ accesses and unresolved kernel interfaces prevent userspace execution.
 No TCP emulator integration or TCP VM acceptance has run. Phase one remains
 the only VM functional acceptance evidence.
 
-Stopped at a major host-port blocker: the available F-Stack scaffolding cannot
+The available F-Stack scaffolding cannot
 safely support timer reset/stop from arbitrary workers on shared connections.
 At F-Stack revision `813b82016c5cebfcc545cb44fbbc19dd8d00e99d`,
 `lib/ff_kern_timeout.c:191-193` puts `cc_cpu` in TLS and defines `CC_CPU(cpu)` as
@@ -76,7 +77,9 @@ Its mutex/RW-lock overrides are no-ops, and `ff_subr_epoch.c` immediately calls
 reclamation callbacks. Merely replacing lock macros would leave timer-wheel
 ownership and reader lifetime unsafe. The proposal already requires working
 replacements; this finding blocks reuse of those implementations, not the
-feasibility of the overall design.
+feasibility of the overall design. The initial stop overstated this as a major
+blocker: it is planned host-port implementation work, with no external
+dependency or design decision currently preventing progress.
 
 Resume by implementing shared, associated-lock-aware callouts and real
 SMR/epoch reclamation with concurrent reset/stop/close tests. Preserve vanilla
