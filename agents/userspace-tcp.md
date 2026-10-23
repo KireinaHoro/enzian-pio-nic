@@ -127,6 +127,15 @@ application API or VM/runtime integration yet.
 - Ptrace is disallowed even outside the sandbox. The ignored Nix sanitizer
   diagnostic recipe located the alignment issue; no external blocker remains.
 
+## DEADLINE design checkpoint
+
+The user paused implementation to design DEADLINE scheduling first. Review the
+reserved domain slot, bounded local priority and cooperative zero-core reclaim
+proposal in the TCP document before VM implementation. Keep hardware DEADLINE
+and raw TCP steering together in phase 4. `softwarePending` is inactive legacy
+ECI scaffolding, not a completed timer mechanism. Public API edits in the TCP
+sibling remain uncommitted; do not discard them or claim API/VM acceptance.
+
 ## Remaining phase-two work
 
 The objective remains a reasonably working shared four-worker TCP stack in the
