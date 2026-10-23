@@ -45,6 +45,12 @@ class ActivationTests(unittest.TestCase):
         e,k,r=fixture(True);e=[x for x in e if x['event']!='preempt_received']
         with self.assertRaisesRegex(ValueError,'delivery'): a.join(e,k,r,'preempt')
 
+    def test_v5_observation_joins_same_activation(self):
+        e,k,r=fixture()
+        expected=a.join(e,k,r,'parked')
+        r=[dict(request_id=1,accounting_version=5,server_rx_unblock_ns=100)]
+        self.assertEqual(a.join(e,k,r,'parked'),expected)
+
     def test_decoder_rejects_loss_and_inflight_records(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'capture'

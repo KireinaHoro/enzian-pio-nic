@@ -38,6 +38,7 @@ int lh_yield(struct lh_activation *result) {
         server_activation.worker = activation.worker_index;
         ++server_activation.index;
         server_activation.ready_ns = server_trace_clock();
+        server_activation_pending = true;
     }
 #endif
     return 0;

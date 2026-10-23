@@ -183,6 +183,9 @@ root.with_suffix('.tar.gz').unlink()
             tracing_compiled=r.get('instrumentation')=='breakdown',payload_bytes=r['payload_bytes'],
             workers=r['workers'],mode='loaded' if r['stage']=='loaded' else 'unloaded',
             instrumentation=r.get('instrumentation','off'))
+        if r.get('instrumentation') == 'breakdown':
+            from .chunked import plan
+            service['trace_capacity'] = 17 + r['count'] + r['warmup'] * len(plan(r['count'],r['warmup']))
         helper=Path(__file__).with_name('dut.py');url=self.h.stage(helper,self.label+'-dut.py')
         case=json.loads(Path(c['boot_case']).read_text())[0]
         case['name']=self.label

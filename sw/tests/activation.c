@@ -15,6 +15,7 @@ static int ioctl_error, calls;
 #if LH_ENABLE_TRACING
 bool server_trace_enabled;
 __thread struct server_activation_trace server_activation;
+__thread bool server_activation_pending;
 static uint64_t tick;
 void server_trace_activation_event(unsigned event, int worker) { (void)event; (void)worker; }
 uint64_t server_trace_clock(void) { return ++tick; }

@@ -159,3 +159,70 @@ class PublicationAccountingTests(unittest.TestCase):
                 elif system=='DPDK': result=dpdk(client,server,**options)
                 else: result=caladan(client,server,status,**options)
                 self.assertEqual(result['cpu_partition_version'],4)
+
+
+def v5_fixture(system):
+    stamps = dict(rx_unblock=100, rx_gather_enter=110, rx_exit=140,
+                  network_rx_end=170, backend_enter=210,
+                  select_enter=230, select_exit=260, decode_enter=300,
+                  decode_exit=350, handler_enter=370, handler_exit=410,
+                  reserve_enter=440, encode_enter=470, encode_exit=520,
+                  reply_ready=560, packet_ready=610, tx_publish=700)
+    if system == 'LH': stamps['select_enter'] = stamps['rx_exit']
+    return dict(accounting_version=5, **{'server_'+k+'_ns':v for k,v in stamps.items()})
+
+
+class WorkBoundaryTests(unittest.TestCase):
+    def test_seven_segments_conserve_and_distinguish_dispatch(self):
+        for system, dispatch, runtime in [('LH',170,80),('DPDK',80,140),('CS-A64',130,100)]:
+            with self.subTest(system=system):
+                result=accounting.partition(v5_fixture(system),system)
+                p=result['components_ns']
+                self.assertEqual(sum(p.values()),600)
+                self.assertEqual(p['rpc_receive']+p['rpc_transmit'],100)
+                self.assertEqual(p['handler'],40)
+                self.assertEqual(p['cpu_dispatch'],dispatch)
+                self.assertEqual(p['cpu_other'],runtime)
+                self.assertEqual(sum(result['accounting']['dispatch_details_ns'].values()),dispatch)
+
+    def test_service_wait_and_fallback_are_disjoint(self):
+        r=v5_fixture('CS-A64');r['server_rx_gather_enter_ns']=90
+        p=accounting.partition(r,'CS-A64')
+        self.assertEqual(p['accounting']['dispatch_details_ns']['rx_service_wait'],0)
+        self.assertEqual(p['components_ns']['rx_queue'],40)
+        self.assertEqual(sum(p['components_ns'].values()),600)
+
+    def test_required_boundary_and_mixed_versions_fail(self):
+        r=v5_fixture('DPDK');r['server_network_rx_end_ns']=270
+        with self.assertRaises(ValueError):accounting.partition(r,'DPDK')
+        with self.assertRaises(ValueError):accounting.version([r,current_fixture('DPDK')])
+        del r['server_packet_ready_ns']
+        with self.assertRaises(KeyError):accounting.partition(r,'DPDK')
+
+    def test_wire_join_accepts_dispatch_and_rejects_negative_residual(self):
+        # Exercise the same join contract through the importer, with real-shaped CSV rows.
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            def write(name,row):
+                p=root/name
+                with p.open('w') as f:
+                    w=csv.DictWriter(f,fieldnames=list(row));w.writeheader();w.writerow(row)
+                return p
+            client=write('client.csv',dict(request_id=1,benchmark='echo8',ok=1,rpc_status=0,
+                                         warmup=0,client_call_enter_ns=1,client_rx_burst_ns=2000))
+            wire=root/'wire.json'
+            wire.write_text(json.dumps(dict(methodology=METHOD,fixture=False,
+                                            rows=[dict(flow_id=0,request_id=1,wire_ns=800)])))
+            status=root/'status.json';status.write_text(json.dumps(dict(rows=1,dropped=0,loss_free=True)))
+            for system in ('LH','DPDK','CS-A64'):
+                row=v5_fixture(system)
+                row.update(request_id=1,request_context=1,request_id_valid=1,ok=1,
+                           reply_status=0,transport_status=0,request_bytes=8,response_bytes=8,
+                           status=1,warmup=0,profile=1)
+                server=write('server.csv',row)
+                opts=dict(count=1,warmup=0,payload_bytes=8,instrumentation='breakdown',wire_path=wire)
+                if system=='LH':result=lauberhorn(client,server_path=server,setup_count=0,**opts)
+                elif system=='DPDK':result=dpdk(client,server,**opts)
+                else:result=caladan(client,server,status,**opts)
+                self.assertEqual(result['cpu_partition_version'],5)
+                self.assertEqual(result['rows'][0]['components_ns']['cpu_wire'],200)

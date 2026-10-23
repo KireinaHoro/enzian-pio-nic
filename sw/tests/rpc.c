@@ -294,8 +294,8 @@ int main(void) {
     ctx._watchdog_enabled = false;
 
 #if LH_ENABLE_TRACING
-    /* Trace ownership survives deferred scheduling and forwarded completions.
-     * Reusing the worker RX scratch must not overwrite either parent's row. */
+    /* Stable slots survive deferred scheduling and forwarded completions.
+     * Reserving a later RX slot must not overwrite either parent's row. */
     char path[] = "/tmp/lauberhorn-trace-XXXXXX";
     int fd = mkstemp(path); assert(fd >= 0); close(fd); unlink(path);
     assert(!setenv("LAUBERHORN_SERVER_TRACE_CSV", path, 1));
@@ -309,13 +309,13 @@ int main(void) {
             .tid=900, .worker=1, .index=7, .ioctl_exit_ns=100, .ready_ns=110
         };
         input = 100 + mode; memcpy(rx, &input, 4);
-        server_trace_rx_init(&worker.rx_trace, 2);
-        worker.rx_trace.rx_enter_ns = server_trace_stamp(&worker.rx_trace);
-        worker.rx_trace.rx_unblock_ns = server_trace_stamp(&worker.rx_trace);
-        worker.rx_trace.rx_exit_ns = server_trace_stamp(&worker.rx_trace);
+        worker.rx_trace = server_trace_reserve(2);
+        worker.rx_trace->rx_enter_ns = server_trace_stamp(worker.rx_trace);
+        worker.rx_trace->rx_unblock_ns = server_trace_stamp(worker.rx_trace);
+        worker.rx_trace->rx_exit_ns = server_trace_stamp(worker.rx_trace);
         worker.worker_id = 2;
         rpc_handle_packet(&worker, &req);
-        memset(&worker.rx_trace, 0, sizeof(worker.rx_trace));
+        worker.rx_trace = server_trace_reserve(2);
         memset(&server_activation, 0, sizeof(server_activation));
         worker.worker_id = 3;
         if (mode == 1) fiber_sched_run_ready();
@@ -325,6 +325,7 @@ int main(void) {
             rpc_handle_packet(&worker, &completion);
             rpc_handle_packet(&worker, &completion); /* one terminal CSV row */
         }
+        server_trace_discard(worker.rx_trace);
     }
     server_trace_fini();
     FILE *csv = fopen(path, "r"); assert(csv);

@@ -73,7 +73,7 @@ hook is NULL in the off variant. Caladan uses its own directpath source, with
 the equivalent endpoint before `mmio_write64_be`.
 
 The application records network processing and shared RPC/handler boundaries.
-Version 4 partitions valid RX observation through pre-MMIO notification, then
+Versions 4 and 5 partition valid RX observation through pre-MMIO notification, then
 joins the switch MAC duration to obtain the combined NIC–wire remainder.
 LH uses its pre-ECI-read endpoint. No clock is taken on TX return for the current
 breakdown. See the [complete instrumentation contract](../development/rpc-breakdown.md).

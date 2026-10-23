@@ -71,14 +71,15 @@ def join_durations(client, wire, software=None):
         if cpus is not None:
             cpu = cpus[key]
             values = cpu['components_ns']
-            if set(values) != set(COMPONENTS) or any(type(v) is not int or v < 0 for v in values.values()):
+            components = set(COMPONENTS) | ({'cpu_dispatch'} if cpu.get('accounting',{}).get('version') == 5 else set())
+            if set(values) != components or any(type(v) is not int or v < 0 for v in values.values()):
                 raise ValueError('Incomplete or invalid CPU partition')
             elapsed = cpu['cpu_duration_ns']
             if type(elapsed) is not int or elapsed <= 0 or sum(values.values()) != elapsed:
                 raise ValueError('CPU components do not conserve CPU duration')
             # Schema 4 ends before MMIO/ECI publication; older schemas include
             # concurrent CPU return work and retain a signed diagnostic.
-            if cpu.get("accounting",{}).get("version")==4 and total<elapsed:
+            if cpu.get("accounting",{}).get("version",0)>=4 and total<elapsed:
                 raise ValueError("Negative pre-publication NIC-wire remainder")
             row['cpu_duration_ns'] = elapsed
             row['components_ns'] = dict(values, cpu_wire=total-elapsed)

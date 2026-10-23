@@ -21,7 +21,7 @@ claim analyzer-calibrated physical wire boundaries.
 Do not substitute an egress-pipeline timestamp or collector observation time.
 
 Unloaded breakdowns use separate instrumented acquisitions and their own
-wire-to-wire totals. Version 4 ends CPU accounting immediately before the TX
+wire-to-wire totals. Versions 4 and 5 end CPU accounting immediately before the TX
 notification: LH's ECI control-line read, or DPDK/Caladan's mlx5 MMIO store.
 Descriptor preparation, doorbell-record stores and ordering barriers are inside
 the CPU interval. Post-notification flush and return work are outside it.
@@ -32,9 +32,11 @@ MAC duration minus the CPU interval, combining both RX and TX/link portions.
 The [instrumentation contract](../development/rpc-breakdown.md) defines every
 probe, purpose, segment formula and cold activation path. The CPU start is valid
 CQ observation for DPDK/Caladan and the ordered valid RX control-line read for LH.
-Components are Handler, codec-only RPC (un)marshal, Runtime/dispatch, Network stack,
-NIC handling and NIC–wire. Allocation and Caladan dispatch waits belong to
-Runtime/dispatch; TX-buffer reservation belongs to NIC handling. Components describe
+Version-5 components are Handler, codec-only RPC (un)marshal, Misc runtime,
+Dispatch, Network stack, NIC message passing and NIC–wire. Allocation belongs
+to Misc runtime; service selection and Caladan RX scheduling/delivery waits
+belong to Dispatch. TX-buffer reservation belongs to NIC message passing.
+Archived version-4 data retains its combined Runtime/dispatch category. Components describe
 the same central instrumented wire-latency observations, not separate medians.
 
 RX instrumentation belongs inside the selected receive path. Cover CQ pointer

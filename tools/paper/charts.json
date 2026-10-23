@@ -86,7 +86,7 @@
       "execution_model": {
         "CS-A64": "resident-workers"
       },
-      "measurement": "NIC handling includes RX acquisition and TX preparation through pre-publication. Version 4 stacks NIC-wire; archived version 3 retains CPU-only bars and an independent wire marker."
+      "measurement": "Version 4 stacks pre-publication CPU components and NIC-wire, conserving the switch total; no separate wire-total marker. Resident baseline displayed as CS-A64; execution model retained in provenance."
     },
     {
       "id": "echo-unloaded-8b-cdf",

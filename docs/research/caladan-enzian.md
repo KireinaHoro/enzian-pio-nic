@@ -160,8 +160,10 @@ preserving scheduling. Optional packet-stage tracing follows RX through UDP
 spawning and TX through deferred submission; `SIGRTMIN+4` exports the shared
 collector without consuming preemption signals. The
 [RPC timestamp contract](../development/rpc-breakdown.md) maps these packet
-markers and shared probes to codec, allocation, reservation and dispatch-delay
-intervals; dispatch delay is included in Runtime/dispatch.
+markers and shared probes to codec, reservation and dispatch intervals.
+Version 5 separates Dispatch from Misc runtime; acquired version-4 data retains
+combined Runtime/dispatch. Records are written into fixed collector slots, with
+pointers retained across dispatch and TX completion.
 
 Distinguish client RTT, switch NIC-to-NIC timing and CPU intervals; preserve
 request correlation, raw evidence and tracing-off controls. `no_hw_qdel` controls

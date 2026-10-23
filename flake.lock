@@ -132,11 +132,11 @@
     "microbenchmarks": {
       "flake": false,
       "locked": {
-        "lastModified": 1792739157,
-        "narHash": "sha256-n8T5RKW4t39Sn/5zrFidE+g+36JLSjdDeVxylLVLooE=",
+        "lastModified": 1792763942,
+        "narHash": "sha256-B31NOKr17aeD7e8Cxg/EE0OIN749N96cWmI5THtRY24=",
         "ref": "master",
-        "rev": "e3b702d5c42ee07a6272d5450ba22dddc3000218",
-        "revCount": 20,
+        "rev": "abb0957d3e3034e527929fa096bf1ddd44ef19a3",
+        "revCount": 21,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git"
       },

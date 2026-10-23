@@ -7,7 +7,7 @@
 +#include <stdint.h>
 +#include <rte_compat.h>
 +struct rte_pmd_mlx5_lh_sample {
-+ uint64_t rx_cqe, rx_return, tx_enter, tx_publish;
++ uint64_t rx_cqe, rx_return, tx_publish;
 + uint32_t rx_packets, tx_packets;
 +};
 +__rte_experimental
@@ -99,7 +99,7 @@
  	rxq->stats.ipackets += i;
  #endif
 +	LH_COUNT(rx_packets, i);
-+	LH_STAMP(rx_return);
++	if (i) LH_STAMP(rx_return);
  	return i;
  }
  
@@ -110,11 +110,10 @@
  /* SPDX-License-Identifier: BSD-3-Clause
   * Copyright 2021 6WIND S.A.
   * Copyright 2021 Mellanox Technologies, Ltd
-@@ -3531,6 +3532,8 @@
+@@ -3531,6 +3532,7 @@
  		   uint16_t pkts_n,
  		   unsigned int olx)
  {
-+	LH_STAMP(tx_enter);
 +	LH_COUNT(tx_packets, 0);
  	struct mlx5_txq_local loc;
  	enum mlx5_txcmp_code ret;

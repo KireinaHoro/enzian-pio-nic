@@ -1,195 +1,136 @@
 # RPC instrumentation and hot/cold breakdown accounting
 
-Current software exports **accounting version 4**. The hot CPU interval ends
-immediately before the ECI read or mlx5 MMIO notification that hands the reply
-to hardware. TX-return clocks, broad marshal/unmarshal spans and duplicate entry
-aliases have been removed from acquisition. Archived data retains its declared
-version; its import support does not add historical probes to current binaries.
+Current source exports **accounting version 5** for successful synchronous inline
+echo. Acquisition versions 2–4 retain their original import formulas; version-4
+paper data still combines Runtime/dispatch. New data is required for the separate
+**Misc runtime** and **Dispatch** segments. No historical observations are
+relabeled or mixed across accounting versions.
 
-This contract covers successful synchronous inline echo replies. CPU durations
-use `CLOCK_MONOTONIC_RAW`; kernel activation fields use `ktime_get_raw_ns()`.
-Tofino measures a separate same-switch-clock MAC interval. Cold activation probes
-are opt-in and have a separate record stream. Their implementation does not
-establish a hardware-validated cold experiment or authorize starting a campaign.
+CPU clocks use `CLOCK_MONOTONIC_RAW`. The CPU interval starts at NIC observation
+and ends immediately before ECI/MMIO publication. Tofino measures a separate
+same-switch-clock MAC interval. There is no TX-return timestamp. Cold activation
+probes are separate, opt-in streams; the hot changes do not establish a validated
+cold campaign.
 
-## Shared RPC boundaries
+## Work intervals and shared boundaries
 
-Shared CSV fields have `server_` prefix and `_ns` suffix. DPDK's primary CSV
-copies the shared fields it needs alongside its driver/network fields. The
-schema is [server_trace.h](../../sw/rt/server_trace.h); `accounting_version=4`
-is explicit in every current server CSV. Field justification is below.
+Names below omit the CSV `server_` prefix and `_ns` suffix. A boundary is sampled
+once and shared by adjacent intervals. LH `select_enter` reuses `rx_exit` without
+another clock read. DPDK and CS-A64 export the same version-5 timestamp namespace.
 
-| Timestamp | Exact capture point | Source |
-| --- | --- | --- |
-| `backend_enter` | LH: entry to `rpc_handle_packet`, before event identity extraction and packet-type switch. DPDK: after network parsing, before RPC header validation. Caladan: first timestamp in the UDP `receive` callback, before request-context initialization and RPC validation. | [LH rpc.c](../../sw/rt/rpc.c); sibling `microbenchmarks/server/{dpdk,caladan}/echo_server.c` |
-| `lookup_enter`, `lookup_exit` | Immediately around the software program/version/procedure `lookup`, including argument extraction inside the call expression. DPDK and Caladan only; LH exports zero because the hardware descriptor already supplies the registration pointer. | Sibling backend `echo_server.c` files |
-| `rpc_enter` | Entry to `rpc_handle_call`, before watchdog state, descriptor-to-registration/codec pointer access and request/trace initialization. | [rpc_call.h](../../sw/rt/rpc_call.h) |
-| `alloc_enter`, `alloc_exit` | Immediately before and after `codec->ops->alloc`. | [rpc_request.h](../../sw/rt/rpc_request.h), `decode` |
-| `decode_enter`, `decode_exit` | Immediately before and after the conditional call to `codec->ops->unmarshal_call` / `unmarshal_resp`; hot echo uses `unmarshal_call`. | `rpc_request.h`, `decode` |
-| `handler_enter`, `handler_exit` | Before the registered handler call; after its return and the optional entry-return event hook. Includes the existing entry-timestamp bookkeeping before the call. | `rpc_call.h` |
-| `outcome_enter` | After handler-result trace bookkeeping and restoration of the enclosing trace pointer, immediately before `consume_outcome`. | `rpc_call.h` |
-| `reserve_enter`, `reserve_exit` | Immediately around `rpc_tx_reserve`, after capacity selection. LH reserves an ECI TX buffer and updates its placement/control state; DPDK and Caladan return their prepared body-buffer pointer. | `rpc_reply.h`; LH `rpc.c` and sibling `server/rpc_backend.h` |
-| `encode_enter`, `encode_exit` | Immediately around `codec->ops->marshal_resp`, after the reservation-success check. | `rpc_reply.h` |
-| `reply_enter` | Entry to backend `send_reply`, before worker lookup and reply metadata/header preparation. | Backend `send_reply` implementations |
-| `reply_ready` | LH: after reply descriptor preparation, reserve fallback check and CPU-ID read, before TX entry. DPDK: after the ONC-RPC reply envelope, before Ethernet/IP/UDP construction. Caladan: after the reply envelope and reply-length assignment, before copying the final trace into its export slot. | Backend `send_reply` implementations |
+| Work between timestamps | LH | DPDK | CS-A64 | Segment |
+| --- | --- | --- | --- | --- |
+| `rx_unblock → max(rx_unblock,rx_gather_enter)` | — | — | RX service scheduling after CQ readiness | Dispatch |
+| RX processing start → `rx_exit` | ECI descriptor/ownership acquisition | CQ/RQ processing/refill | Gather/refill after the preceding scheduling interval | NIC message passing |
+| `rx_exit → network_rx_end` | Hardware path | Ethernet/IP/UDP processing and handoff from PMD | Network processing and handoff from gather | Network stack |
+| `network_rx_end → backend_enter` | — | — | Socket publication, wakeup, scheduling, dequeue/copy; spawner delivery in that variant | Dispatch |
+| RPC availability → `select_enter` | — | RPC envelope validation | RPC envelope validation after `backend_enter` | Misc runtime |
+| `select_enter → select_exit` | Packet-type dispatch and descriptor-to-registration/codec/handler selection | Service lookup and shared handler/codec selection | Service lookup and shared handler/codec selection | Dispatch |
+| `select_exit → decode_enter` | Request initialization and argument allocation | Same | Same | Misc runtime |
+| `decode_enter → decode_exit` | Request codec | Same | Same | RPC (un)marshal |
+| `decode_exit → handler_enter` | Decode-result check and invocation setup | Same | Same | Dispatch |
+| `handler_enter → handler_exit` | Handler call | Same | Same | Handler |
+| `handler_exit → reserve_enter` | Return bookkeeping, outcome switch and reply selection | Same | Same | Dispatch |
+| `reserve_enter → encode_enter` | TX reservation, ownership and success check | Response-buffer reservation and success check | Same | NIC message passing |
+| `encode_enter → encode_exit` | Response codec | Same | Same | RPC (un)marshal |
+| `encode_exit → reply_ready` | Encode-result check and reply-descriptor preparation | Encode-result check and RPC reply-envelope preparation | Reply-envelope preparation and handoff to UDP transmit | Misc runtime |
+| `reply_ready → packet_ready` | Hardware path | Ethernet/IP/UDP header construction | UDP admission/allocation/copy and header construction | Network stack |
+| Packet ready → `tx_publish` | From `reply_ready`: ECI descriptor stores and ordering | From `packet_ready`: mbuf preparation, PMD/WQE/doorbell-record work and ordering | From `packet_ready`: kthread/deferred handoff, driver/WQE/doorbell-record work and ordering | NIC message passing |
 
-The codec intervals include indirect-call/XDR adapter overhead and memory
-accesses made inside the codec. The allocation interval includes allocator work.
-The reply reservation interval includes LH's buffer/control-line accesses and
-barrier. Each is measured directly; the shared source alone does not imply equal
-elapsed cost across transports, buffers or compiler contexts.
+There is no separate NIC-submission-start or driver-entry probe. In particular,
+CS-A64 deferred TX handoff remains inside NIC message passing under this boundary
+choice. Dispatch is not a count of instructions removable by specialization:
+its elapsed spans include checks/bookkeeping at the specified boundaries, and
+codec/handler intervals include their indirect calls. Compare matched generic
+and specialized implementations to quantify the trampoline's savings.
 
-## Transport boundaries
+Let `R=rx_unblock`, `P=tx_publish`, `C=P−R`, and `W` be the paired switch duration.
+Dispatch, NIC message passing, Network stack, RPC (un)marshal and Handler
+are accumulated from their disjoint intervals.
+Misc runtime is the remaining CPU interval, including allocation, header validation
+and reply preparation. NIC–wire is `W−C`, the combined pre-observation RX and
+post-publication TX/link remainder. CPU categories sum to `C`, and all seven
+segments sum to `W`. Negative remainders, missing/reversed timestamps and mixed
+accounting versions are rejected, never clipped. No synchronized CPU/switch
+clock is assumed; relative clock-rate error still matters.
 
-### Lauberhorn
+## Physical sampling points
 
-| Timestamp | Capture point and purpose |
-| --- | --- |
-| `rx_enter` | Before receive acquisition in [worker.c](../../sw/rt/worker.c); cold activation-to-RX/idle diagnostic, outside the hot CPU interval |
-| `rx_unblock` | Immediately after valid RX control-line read and ordering barrier in [core.h](../../sw/core/eci/core.h); start of request CPU accounting |
-| `rx_exit` | After acquisition returns; end of CPU descriptor/ownership processing |
-| `tx_enter` | Before commit helper; starts TX descriptor preparation |
-| `tx_publish` | Immediately before the opposite control-line read; ends CPU accounting after descriptor stores, barriers and parity preparation |
+The shared schema and collector are [server_trace.h](../../sw/rt/server_trace.h)
+and [server_trace.c](../../sw/rt/server_trace.c). Shared RPC sites are
+[rpc_call.h](../../sw/rt/rpc_call.h), [rpc_request.h](../../sw/rt/rpc_request.h),
+[rpc_reply.h](../../sw/rt/rpc_reply.h) and [rpc.c](../../sw/rt/rpc.c).
 
-The doorbell read can block while hardware sends the reply. No clock is taken
-at its return or after TX cleanup for this breakdown. Payload cache-line loads
-inside the codec remain inside codec time; these probes do not separately
-measure those memory stalls.
+- LH `rx_unblock` follows the valid control-line read and barrier; `rx_exit`
+  follows acquisition and trace-slot selection. `select_exit` follows loading
+  the codec and handler selection, before request initialization. `reply_ready`
+  follows reply-descriptor preparation. `tx_publish` precedes the blocking
+  opposite-control-line read, after stores, barriers and parity preparation.
+- DPDK `rx_unblock` copies the scalar PMD's valid-CQE timestamp; `rx_exit` copies
+  its end-of-RX timestamp. Empty polls take neither timestamp. `network_rx_end`
+  follows parsing. `select_enter` precedes service lookup. `reply_ready` follows
+  RPC envelope construction; `packet_ready` follows network-header construction,
+  before mbuf trim/offload preparation. The maintained
+  [mlx5 patch](../../nix/software/mlx5/queue-probes.patch) samples `tx_publish`
+  after WQE/doorbell-record stores and ordering, immediately before UAR MMIO.
+- CS-A64 `rx_unblock`, `rx_gather_enter`, `rx_exit`, `network_rx_end`,
+  `reply_ready`, `packet_ready`, `tx_publish` map respectively to Caladan
+  `PT_OBSERVED`, `PT_RX_ENTER`, `PT_RX_EXIT`, `PT_NET_RX_EXIT`, `PT_NET_TX`,
+  `PT_SUBMIT`, `PT_PUBLISH`. `backend_enter` is sampled after socket receive/copy,
+  before RPC validation. `select_enter` precedes service lookup. CQ readiness
+  precedes RX-service activation; the fallback samples the first valid CQE
+  inside gather. Thus gather entry can precede observation, requiring the `max`
+  above. Publication is after `udma_to_device_barrier`, doorbell-record store and
+  `mmio_wc_start`, before `mmio_write64_be`; flush/return are excluded.
 
-### DPDK mlx5
+The shared codec, handler and reservation boundaries directly surround the work
+listed in the table. `select_exit` is after shared descriptor-based selection.
+Removed acquisition probes include allocation begin/end, shared RPC entry,
+lookup exit, outcome entry, reply entry, reservation exit, separate network begin,
+LH TX entry, DPDK submission/PMD entry, and Caladan ready/driver-entry markers.
+Source does not retain them to support historical imports.
 
-Primary CSV transport fields have `_ns` suffix and no `server_` prefix.
-Source: sibling `microbenchmarks/server/dpdk/echo_server.c` and the maintained
-[mlx5 patch](../../nix/software/mlx5/queue-probes.patch).
+## Fixed trace storage and collection
 
-| Timestamp | Capture point and purpose |
-| --- | --- |
-| `rx_cqe` | Successful scalar CQE observation; CPU interval start, excludes empty polling |
-| `rx_return` | After CQ/RQ bookkeeping, refill and statistics, before PMD return; closes RX queue preparation |
-| `network_rx_begin/end` | Around endpoint extraction and Ethernet/IP/UDP parsing; isolate software RX stack |
-| `network_tx_begin/end` | Around Ethernet/IP/UDP header construction; isolate software TX stack |
-| `tx_submit_begin` | After mbuf trim/offload preparation, before burst/retry; starts TX submission |
-| `tx_pmd_enter` | TX burst entry; separates adapter/retry work from PMD work |
-| `tx_publish` | Inside `mlx5_doorbell_ring_traced`, after `rte_io_wmb`, doorbell-record store and `rte_wmb`, immediately before UAR MMIO store; CPU interval end |
+Each worker's collector array is allocated with `calloc` and every page is
+prefaulted before activation. Reserving a request means advancing an index into
+that fixed array. Only metadata is set on acquisition; unused fields were already
+zeroed at startup. The worker, RPC request, deferred fiber and forwarded parent
+retain the same slot pointer. Completion marks that slot with a release store;
+it does not copy a whole trace record. Export uses acquire loads and supports
+out-of-order completion on another thread. Pending records fail completeness;
+discarded non-request records are skipped. Exhaustion aborts rather than growing,
+overwriting or silently losing the buffer.
 
-The optional inline helper hook is NULL in uninstrumented builds. The 32-bit
-helper path takes the hook after acquiring its UAR lock and before the first
-MMIO half-write; the AArch64 experiment uses the 64-bit store. The conditional
-post-MMIO flush and PMD return are outside the CPU interval. One RX and one TX
-packet are required in an unloaded profiled burst.
+The campaign configures capacity from actual request counts: LH includes its 17
+priming/setup requests, all measured requests and every capture chunk's warmups.
+DPDK and Caladan use their configured total including repeated chunk warmups.
+For 10,000 measurements and 128 warmups per 896-measurement capture chunk, this
+is 11,553 LH slots and 11,536 DPDK/Caladan slots. Arrays are per worker; the hot
+unloaded experiment uses one worker.
 
-### CS-A64 (Caladan Simple)
+DPDK's lightweight sample ledger points to the same collector rows; it no longer
+copies RPC timestamps into another sample structure. Its transport PMD scratch
+values are copied to the request row. CSV serialization occurs after collection.
+Caladan retains fixed packet-context slots for deferred TX completion, holding a
+pointer to the collector row rather than a second copy of it. RX packet metadata
+still crosses the network/socket boundary; it is not a copy of the full RPC row.
 
-Fields have `server_..._ns`. Sibling Caladan `inc/runtime/packet_trace.h`
-defines markers; `microbenchmarks/server/caladan/echo_server.c` exports them.
+Successful hot requests take 12 LH, 15 DPDK and 17 CS-A64 breakdown clock reads.
+LH takes an additional pre-acquisition `rx_enter` only for the first received
+record after activation, for the cold path; ordinary hot requests do not take
+that clock. Caladan readiness/gather clocks belong to batches, so empty/repeated
+service attempts can add observations outside a successful request. Optional
+application events and cold activation streams add their own clocks when enabled.
+Per-read timestamp counters have been removed. Startup adjacent-clock calibration
+is retained as `timestamp_overhead_ns`, without subtracting it from observations.
 
-| Timestamp | Capture point and purpose |
-| --- | --- |
-| `rx_observed` (`PT_OBSERVED`) | CQ readiness observation before waking RX service in `mlx5_init_common.c`; fallback is now the first valid CQE observation inside gather, never gather entry before checking CQ readiness |
-| `rx_queue_enter/exit` (`PT_RX_ENTER/EXIT`) | RX gather entry through refill/delivery in `mlx5_rxtx.c` / `mlx5_rx_stride.c`; bounds queue processing |
-| `network_rx_enter` (`PT_NET_RX`) | Before network ingress in `runtime/net/core.c` |
-| `network_rx_exit` (`PT_NET_RX_EXIT`) | After UDP header extraction in `runtime/net/udp.c`; before spawner creation or resident socket locking |
-| `dispatch_ready` (`PT_READY`) | Spawner argument ready before `thread_ready`, or resident socket publication before reader wakeup; starts dispatch delay |
-| `dispatch_enter` (`PT_DISPATCH`) | First handler timestamp after resident socket read/copy; also `backend_enter`, one clock read |
-| `network_tx_enter` (`PT_NET_TX`) | Before UDP admission/allocation/copy and header construction |
-| `network_tx_exit` (`PT_SUBMIT`) | Entry to `net_tx_raw`, before kthread acquisition / deferred TX; closes network preparation |
-| `driver_enter` (`PT_DRIVER`) | Entry to mlx5 transmit; separates deferred handoff from driver work |
-| `tx_publish` (`PT_PUBLISH`) | After `udma_to_device_barrier`, doorbell-record store and `mmio_wc_start`, immediately before `mmio_write64_be`; CPU interval end |
-
-`mmio_flush_writes`, bookkeeping, `putk` and trace export follow publication and
-carry no further packet-stage clock reads. The completion callback here exports
-software evidence; it is not a NIC TX completion acknowledgement.
-
-For residents, `dispatch_ready→dispatch_enter` includes queue wait, reader
-wakeup/scheduling, dequeue and copy. For spawners it includes runnable-thread
-dispatch; thread creation is `network_rx_exit→dispatch_ready`. RX service wait
-before gather is runtime delay. On the genuine-CQE fallback, gather entry can
-precede observation: start charged RX work at `max(rx_observed,rx_queue_enter)`.
-Cold event records distinguish readiness observation (`peer=1`) from gather
-fallback (`peer=2`). Batch timestamps describe elapsed batch context; unloaded
-single-outstanding acquisition supplies the per-request interpretation.
-
-## Breakdown formulas
-
-Let `D(a,b)=b−a`, `R` be RX observation, `P` be `tx_publish`, and `W` the
-paired switch MAC duration. The CPU outer interval is `C=P−R`.
-
-| System | `R` | RX preparation | TX preparation |
-| --- | --- | --- | --- |
-| LH | `rx_unblock` | `rx_unblock→rx_exit` | `tx_enter→tx_publish` |
-| DPDK | `rx_cqe` | `rx_cqe→rx_return` | `tx_submit_begin→tx_publish` |
-| CS-A64 | `rx_observed` | `max(rx_observed,rx_queue_enter)→rx_queue_exit` | `network_tx_exit→tx_publish` |
-
-| Plotted segment | Formula |
-| --- | --- |
-| Handler | `D(handler_enter,handler_exit)` |
-| RPC (un)marshal | `D(decode_enter,decode_exit)+D(encode_enter,encode_exit)` |
-| Network stack | DPDK: `D(network_rx_begin,network_rx_end)+D(network_tx_begin,network_tx_end)`; CS-A64: `D(network_rx_enter,network_rx_exit)+D(network_tx_enter,network_tx_exit)`; LH: zero |
-| NIC handling | RX preparation + TX preparation + `D(reserve_enter,reserve_exit)` |
-| Runtime/dispatch | `C` minus the four preceding CPU categories |
-| NIC–wire | `W−C`; combined pre-observation RX and post-publication TX/link paths |
-
-All CPU components are disjoint and sum to `C`; the complete stack sums to `W`.
-Clock offsets cancel, but relative clock-rate error and boundary precision
-still matter. A negative version-4 NIC–wire remainder is an accounting failure
-requiring preserved evidence, never clipping. Version-3 archived plots retain
-their independent wire marker and signed difference because they included CPU
-return work overlapping transmission. No version mixing or inferred missing
-publication endpoint is permitted in a current comparison.
-
-The runtime complement is refined using these existing endpoints (not extra
-clock reads):
-
-| Detail | Interval |
-| --- | --- |
-| Backend dispatch, LH | `backend_enter→rpc_enter` |
-| RPC envelope / lookup / setup, DPDK and CS-A64 | `backend_enter→lookup_enter→lookup_exit→rpc_enter` |
-| Request setup / allocation / decode setup | `rpc_enter→alloc_enter→alloc_exit→decode_enter` |
-| Handler setup / return | `decode_exit→handler_enter`; `handler_exit→outcome_enter` |
-| Outcome dispatch / encode setup | `outcome_enter→reserve_enter`; `reserve_exit→encode_enter` |
-| Reply dispatch / preparation | `encode_exit→reply_enter→reply_ready` |
-| RX dispatch, LH | `rx_exit→backend_enter` |
-| RX handoff, DPDK / CS-A64 | `rx_return→network_rx_begin` / `rx_queue_exit→network_rx_enter` |
-| RPC handoff, DPDK | `network_rx_end→backend_enter` |
-| Mbuf preparation, DPDK | `network_tx_end→tx_submit_begin` |
-| RX service wait, CS-A64 | `rx_observed→max(rx_observed,rx_queue_enter)` |
-| Thread/socket setup and dispatch, CS-A64 | `network_rx_exit→dispatch_ready→dispatch_enter` |
-| TX handoff | `reply_ready→tx_enter` (LH), `reply_ready→network_tx_begin` (DPDK), `reply_ready→network_tx_enter` (CS-A64) |
-| Other runtime | Remaining complement, explicitly retained and required nonnegative |
-
-Driver entry refines TX preparation and must not also be added to Runtime/dispatch.
-These are elapsed times, including stalls and scheduling delays. They are not
-CPU-utilization measurements or isolated instruction costs.
-
-## Purpose of the shared software probes
-
-| Probe(s) | Why needed |
-| --- | --- |
-| `backend_enter` | Start software RPC validation/dispatch after transport handoff |
-| `lookup_enter/exit` | Identify software procedure-table lookup separately from envelope parsing |
-| `rpc_enter` | Separate backend dispatch from shared request initialization |
-| `alloc_enter/exit` | Identify allocation overhead independently of decoding |
-| `decode_enter/exit`, `encode_enter/exit` | Bound actual codec calls, including their buffer accesses |
-| `handler_enter/exit` | Separate application execution from dispatch and codecs |
-| `outcome_enter` | Separate handler-return bookkeeping from outcome selection |
-| `reserve_enter/exit` | Charge transport reservation separately from response encoding |
-| `reply_enter`, `reply_ready` | Identify reply-envelope/descriptor preparation and transport handoff |
-
-All probes compile out in off builds. Clock-call costs remain in measured spans;
-matched off/on acquisitions assess perturbation. `timestamp_overhead_ns` records
-adjacent-clock calibration without subtraction. `timestamp_call_count` counts
-shared helpers plus explicitly counted LH probes, not every PMD/packet clock.
-PMU snapshots are optional counters, not additional timestamps or substitutes
-for elapsed intervals. Their stage names follow the current shared probe enum.
-
-Optional deferred/forwarded application tracing is separate from echo breakdown:
-`defer_enqueue` marks fiber submission, `forward_submit/complete` bracket nested
-forwarding, and internal `run_start`/run-end reads accumulate handler active/wait
-durations. Optional event CSV `timestamp_ns` records fiber, native UDP and
-application events only when the event stream is enabled. These are supported
-non-inline execution diagnostics, excluded from the hot importer; see
-[runtime tracing](runtime-tracing.md). No legacy broad codec or duplicate
-entry timestamp fields are emitted.
+PMU snapshots remain opt-in and use their own stable stage enum. Version-5 hot
+PMU attribution starts at RX exit and ends at reply-ready (`pmu_tx_enter`); it no
+longer claims a pre-arrival RX counter interval. Coarse/detailed masks are 36/60.
+Deferred/forwarded application tracing retains enqueue, nested completion and
+fiber-active clocks when those paths execute; hot accounting rejects such rows.
+All software instrumentation compiles out in the off variants.
 
 ## Cold activation paths and timestamps
 
@@ -254,7 +195,7 @@ worker and outgoing activation index, then add the disjoint intervals
 `DESCHED→userspace yield→kernel yield_enter→read_begin` to the activation
 refinement. No event is matched using a request XID from the outgoing domain.
 The existing FPGA-audit path remains for its archived schemas; current request
-accounting uses version 4. Hardware packet/activation correlation is still needed
+accounting uses version 5. Hardware packet/activation correlation is still needed
 to prove which request caused activation and to construct a full cold RTT stack.
 
 ### Caladan: voluntarily parked core

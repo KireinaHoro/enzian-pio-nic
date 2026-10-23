@@ -296,7 +296,7 @@ client order, complete capture/export/cleanup, matching artifact/controller
 identity and journal digest. The adapter accepts schema-3 pairs with
 `latency_accepted: true`, `units: "ns"` and `ns_per_tick: 1`, and retains raw
 observations and calibration metadata. It imports `wire_ns` through the normal
-flow/XID join. Version 4 rejects a negative pre-publication NIC–wire remainder;
+flow/XID join. Versions 4 and 5 reject a negative pre-publication NIC–wire remainder;
 archived version 3 retains signed differences from overlapping CPU return work.
 `hardware_timing_validated: false` and `absolute_wire_calibrated: false` describe
 external calibration status; they do not reject the accepted switch interval.

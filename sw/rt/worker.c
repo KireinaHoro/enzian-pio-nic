@@ -107,13 +107,18 @@ static void *lauberhorn_worker_loop(void *arg) {
         bool received;
 #if LH_ENABLE_TRACING
         if (server_trace_enabled) {
-            server_trace_rx_init(&w->rx_trace, w->worker_id);
-            w->rx_trace.rx_enter_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_enter);
+            uint64_t enter = server_activation_pending ? server_trace_clock() : 0;
+            uint64_t observed = 0;
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
-                &w->rx_trace.rx_unblock_ns, server_trace_clock);
-            w->rx_trace.timestamp_calls++; /* RX-unblock probe */
-            w->rx_trace.rx_exit_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_exit);
-            w->rx_trace.rx_cpu_id = sched_getcpu();
+                &observed, server_trace_clock);
+            w->rx_trace = NULL;
+            if (received && desc.type != TY_DESCHED) {
+                w->rx_trace = server_trace_reserve(w->worker_id);
+                w->rx_trace->rx_enter_ns = enter;
+                w->rx_trace->rx_unblock_ns = observed;
+                w->rx_trace->rx_exit_ns = server_trace_stage(w->rx_trace, LH_PMU_rx_exit);
+                w->rx_trace->rx_cpu_id = sched_getcpu();
+            }
         } else
 #endif
         {
@@ -122,12 +127,16 @@ static void *lauberhorn_worker_loop(void *arg) {
         if (received && desc.type == TY_DESCHED) {
 #if LH_ENABLE_TRACING
             server_trace_activation_event(LH_TRACE_DESCHED, w->worker_id);
+            server_trace_discard(w->rx_trace);
 #endif
             if (lh_yield(&activation)) worker_fail(w);
             continue;
         }
         if (received) {
             rpc_handle_packet(w, &desc);
+#if LH_ENABLE_TRACING
+            if (desc.type != TY_ONCRPC_CALL_RX) server_trace_discard(w->rx_trace);
+#endif
             core_eci_rx_release(&w->dp);
         }
     }

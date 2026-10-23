@@ -58,7 +58,7 @@ class Hardware(unittest.TestCase):
                             client_image_sha256='image-sha',boot_case=str(root/'case.json'))
                 (root/'case.json').write_text('[{"program":[]}]')
                 request=dict(stage='unloaded',system='LH',payload_bytes=8,workers=1,
-                             instrumentation=mode)
+                             instrumentation=mode,count=10000,warmup=128)
                 acquisition=Acquisition(config,request,root,root)
                 acquisition.h=Mock()
                 acquisition.h.stage.side_effect=RuntimeError('staging reached')

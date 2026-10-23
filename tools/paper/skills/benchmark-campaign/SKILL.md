@@ -84,7 +84,7 @@ mlx5 hardware timestamps. Partition CPU time into queue processing, network
 processing, RPC receive/transmit and handler time, plus explicit remaining CPU
 work. The combined CPU–wire residual is the wire duration minus the CPU duration;
 never infer directional RX/TX residuals without synchronized clocks. RX probes
-must start at valid CQE observation inside the selected receive path; Version-4 TX ends immediately before the NIC notification (mlx5 MMIO or LH
+must start at valid CQE observation inside the selected receive path; Version-4/5 TX ends immediately before the NIC notification (mlx5 MMIO or LH
 ECI control-line read), after descriptor/doorbell-record preparation and ordering.
 Notification, flush and return are excluded from the CPU interval. Application
 burst-call boundaries alone do not validate this coverage.

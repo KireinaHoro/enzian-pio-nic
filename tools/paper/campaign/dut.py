@@ -36,6 +36,8 @@ exec "$2" "$3" "$4"
     env={k:v for k,v in os.environ.items() if not k.startswith(('LAUBERHORN_','ADDER_SERVER_TRACE','LH_BENCH_'))}
     if config['mode']=='loaded': env['LH_BENCH_ACTIVITY_FILE']=str(root/'activity.bin')
     elif config['instrumentation']=='breakdown': env['LAUBERHORN_SERVER_TRACE_CSV']=str(root/'server.csv')
+    if config.get('trace_capacity'):
+        env['LAUBERHORN_TRACE_CAPACITY']=str(config['trace_capacity'])
     with (root/'server.log').open('w') as log:
         process=subprocess.Popen(['unshare','--mount','bash','-c',launch,'echo-service',config['image'],
             str(binary),'echo'+str(config['payload_bytes']),str(config['workers'])],
@@ -60,6 +62,8 @@ def snapshot(config, output, *, export=False):
     env=dict(s.split('=',1) for s in (proc/'environ').read_bytes().decode().split('\0') if '=' in s)
     traces={k:v for k,v in env.items() if 'TRACE' in k or 'PMU' in k}
     expected={'LAUBERHORN_SERVER_TRACE_CSV':str(root/'server.csv')} if config.get('instrumentation')=='breakdown' else {}
+    if config.get('trace_capacity'):
+        expected['LAUBERHORN_TRACE_CAPACITY']=str(config['trace_capacity'])
     if traces!=expected: raise ValueError('Unexpected software instrumentation')
     if Path('/sys/kernel/tracing/tracing_on').read_text().strip()!='0':
         raise ValueError('Kernel tracing enabled')

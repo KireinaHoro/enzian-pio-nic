@@ -30,9 +30,6 @@ struct deferred_request {
 
 static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t len,
                        struct server_trace_row *trace) {
-#if LH_ENABLE_TRACING
-    trace->reply_enter_ns = server_trace_stamp(trace);
-#endif
     lauberhorn_worker_t w = worker_get_current();
     lauberhorn_pkt_desc_t desc = {
         .type = TY_ONCRPC_REPLY_TX, .payload_len = len,
@@ -45,12 +42,10 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
     }
 #if LH_ENABLE_TRACING
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
-    trace->reply_ready_ns = server_trace_stamp(trace);
-    trace->tx_enter_ns = server_trace_stage(trace, LH_PMU_tx_enter);
+    trace->reply_ready_ns = server_trace_stage(trace, LH_PMU_tx_enter);
     int result = core_eci_tx_commit_traced(w->dp_base, &w->dp, &desc,
         trace->enabled ? &trace->tx_publish_ns : NULL,
         trace->enabled ? server_trace_clock : NULL);
-    if (trace->enabled && trace->tx_publish_ns) trace->timestamp_calls++;
     trace->tx_worker_id = w->worker_id;
     trace->response_bytes = len;
     trace->status = status;
@@ -160,12 +155,12 @@ static bool consume_outcome(struct request *, lauberhorn_outcome_t, bool);
 static void deferred_start(void *arg) {
     struct deferred_request *d = arg;
 #if LH_ENABLE_TRACING
-    d->request.trace.handler_enter_ns = server_trace_stage(&d->request.trace, LH_PMU_handler_enter);
+    d->request.trace->handler_enter_ns = server_trace_stage(d->request.trace, LH_PMU_handler_enter);
 #endif
     d->result = d->defer.run(d->defer.data, d->request.args,
                             d->request.desc.oncrpc_call_rx.request_token);
 #if LH_ENABLE_TRACING
-    d->request.trace.handler_exit_ns = server_trace_stage(&d->request.trace, LH_PMU_handler_exit);
+    d->request.trace->handler_exit_ns = server_trace_stage(d->request.trace, LH_PMU_handler_exit);
 #endif
 }
 static void deferred_done(void *arg) {
@@ -180,21 +175,21 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
     switch (o.kind) {
 #include "rpc_reply.h"
     case LAUBERHORN_FAIL:
-        fail_request(&r->desc, o.error, LH_TRACE_PTR(&r->trace));
+        fail_request(&r->desc, o.error, LH_TRACE_PTR(r->trace));
         break;
     case LAUBERHORN_DEFER: {
         struct deferred_request *d = may_defer && o.run ? malloc(sizeof(*d)) : NULL;
         struct fiber *f = d ? fiber_sched_acquire() : NULL;
-        if (!f) { free(d); fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&r->trace)); break; }
+        if (!f) { free(d); fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(r->trace)); break; }
 #if LH_ENABLE_TRACING
-        r->trace.kind |= 1;
-        r->trace.defer_enqueue_ns = server_trace_stamp(&r->trace);
-        r->trace.handler_active_ns = 0;
+        r->trace->kind |= 1;
+        r->trace->defer_enqueue_ns = server_trace_stamp(r->trace);
+        r->trace->handler_active_ns = 0;
 #endif
         *d = (struct deferred_request){.request = *r, .defer = o};
         fiber_prepare(f, deferred_start, deferred_done, d);
 #if LH_ENABLE_TRACING
-        f->trace = &d->request.trace;
+        f->trace = d->request.trace;
 #endif
         fiber_sched_submit(f);
         return true; /* request and context have moved into d */
@@ -205,23 +200,23 @@ static bool consume_outcome(struct request *r, lauberhorn_outcome_t o, bool may_
         if (!o.endpoint || !o.endpoint->rpc_codec || !o.endpoint->rpc_codec->ops ||
             o.endpoint->rpc_codec->ops->marshal_resp != r->codec->ops->marshal_resp ||
             o.endpoint->rpc_codec->priv != r->codec->priv) {
-            fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&r->trace)); break;
+            fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(r->trace)); break;
         }
         int encoded;
         struct pending_call *pc = prepare_call(o.endpoint, o.data, o.len, &encoded);
-        if (!pc) { fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&r->trace)); break; }
+        if (!pc) { fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(r->trace)); break; }
         pc->kind = COMPLETION_FORWARD;
         pc->completion.parent = r->desc;
 #if LH_ENABLE_TRACING
-        r->trace.kind |= 2;
-        r->trace.forward_submit_ns = server_trace_stamp(&r->trace);
+        r->trace->kind |= 2;
+        r->trace->forward_submit_ns = server_trace_stamp(r->trace);
         pc->parent_trace = r->trace;
 #endif
-        if (submit_call(pc, encoded)) fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&r->trace));
+        if (submit_call(pc, encoded)) fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(r->trace));
         break;
     }
     default:
-        fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&r->trace));
+        fail_request(&r->desc, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(r->trace));
     }
     destroy_outcome(&o);
     return false;
@@ -232,9 +227,9 @@ static void pending_call_settle(struct pending_call *c, rpc_result_t *reply) {
     if (c->kind == COMPLETION_FORWARD) {
         /* Only timeout/error settlement uses this path. Success is raw relay. */
 #if LH_ENABLE_TRACING
-        c->parent_trace.forward_complete_ns = server_trace_stamp(&c->parent_trace);
+        c->parent_trace->forward_complete_ns = server_trace_stamp(c->parent_trace);
 #endif
-        fail_request(&c->completion.parent, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&c->parent_trace));
+        fail_request(&c->completion.parent, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(c->parent_trace));
         pending_call_release(&pending_call_table, c);
     } else {
         struct fiber_handle waiter = c->completion.fiber_handle;
@@ -249,15 +244,15 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
                                              desc->oncrpc_reply_rx.xid)) return;
     if (c->kind == COMPLETION_FORWARD) {
 #if LH_ENABLE_TRACING
-        c->parent_trace.forward_complete_ns = server_trace_stamp(&c->parent_trace);
+        c->parent_trace->forward_complete_ns = server_trace_stamp(c->parent_trace);
 #endif
-        if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status, LH_TRACE_PTR(&c->parent_trace));
-        else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(&c->parent_trace));
+        if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status, LH_TRACE_PTR(c->parent_trace));
+        else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(c->parent_trace));
         else {
             w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, desc->payload_len <= 64);
             if (!w->dp.tx_buf) { pending_call_release(&pending_call_table, c); return; }
             memcpy(w->dp.tx_buf, w->dp.rx_view.data, desc->payload_len);
-            send_reply(&c->completion.parent, 0, desc->payload_len, LH_TRACE_PTR(&c->parent_trace));
+            send_reply(&c->completion.parent, 0, desc->payload_len, LH_TRACE_PTR(c->parent_trace));
         }
         pending_call_release(&pending_call_table, c);
         return;
@@ -274,10 +269,12 @@ void rpc_handle_packet(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
     /* Record every delivered call/completion, so FPGA dispatch order can be
      * joined without confusing a nested completion with a new incoming call. */
 #if LH_ENABLE_TRACING
-    w->rx_trace.backend_enter_ns = server_trace_stamp(&w->rx_trace);
+    if (!server_trace_enabled) w->rx_trace = server_trace_reserve(w->worker_id);
+    if (desc->type == TY_ONCRPC_CALL_RX)
+        w->rx_trace->select_enter_ns = w->rx_trace->rx_exit_ns;
     uint32_t identity = desc->type == TY_ONCRPC_CALL_RX ?
         desc->oncrpc_call_rx.request_token : desc->oncrpc_reply_rx.xid;
-    server_trace_event(&w->rx_trace, LH_TRACE_RX_PACKET, desc->type, identity);
+    server_trace_event(w->rx_trace, LH_TRACE_RX_PACKET, desc->type, identity);
 #endif
     switch (desc->type) {
     case TY_ONCRPC_CALL_RX: rpc_handle_call(w, desc); break;

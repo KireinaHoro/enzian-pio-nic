@@ -33,7 +33,7 @@ def caladan(client_path, server_path, status_path, *, count, warmup,
                 or int(sw['response_bytes']) != payload_bytes):
             raise ValueError('Invalid Caladan reply metadata')
         t = lambda k: int(sw['server_' + k + '_ns'])
-        if partition_version == 4:
+        if partition_version >= 4:
             part = accounting.partition(sw, 'CS-A64')
         else:
             stages = ('rx_observed', 'rx_queue_enter', 'rx_queue_exit',

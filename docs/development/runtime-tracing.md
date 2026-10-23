@@ -37,7 +37,9 @@ without this probe retain the combined preparation/arrival attribution.
 
 Tracing uses preallocated, prefaulted per-thread append-only buffers;
 `LAUBERHORN_TRACE_CAPACITY` sets rows per thread (default 16384). The request
-path copies a fixed-size record and publishes its count; it does no CSV
+path takes the next slot and writes directly into it; completion publishes the
+slot without copying it, including after migration or deferred execution. Unused
+fields are zeroed once at startup. Exhaustion aborts the capture. It does no CSV
 formatting, locking, allocation, or file I/O. Timestamp probes still have cost.
 With borrowed RX, receive exit marks descriptor/view acquisition; payload cache
 misses occur during decoding or application access. Compare these stages with
@@ -90,7 +92,8 @@ deferred (1) and forwarded (2) execution. Deferred active time sums scheduled
 fiber spans, while wall time includes waits. Killed requests without a terminal
 reply have no terminal row; export completeness must reflect the intended scope.
 
-RX-enter can include pre-arrival blocking; RX-unblock follows the ordered control
+Version-5 RX-enter is taken only on the first received record after activation
+and can include pre-arrival blocking; RX-unblock follows the ordered control
 read, and RX-exit marks descriptor/view acquisition. Decode, handler and encode
 pairs describe their runtime stages. Version 4 ends at `tx_publish` before the
 blocking control read. Broad codec spans, duplicate entry aliases and TX-return
@@ -245,10 +248,10 @@ instruction. Keep these nested diagnostics within their instrumented cohort.
 
 ## PMU and archived diagnostics
 
-Version 4 PMU coarse mode samples RX entry, RX exit and TX entry; detailed
-mode additionally samples handler entry/exit. Counts end at TX preparation
-entry, before the publication timestamp. The PMU importer retains the original
-stage map for archived captures. The archived post-return IPG analysis and
-Dandelion TX-return clock fitting require their original return probes and
-reject version 4 rows. Dandelion CPU waterfalls use the publication endpoint
-and application/entry-return events in version 4.
+Version-5 PMU coarse mode samples RX exit and reply-ready (`pmu_tx_enter`);
+detailed mode adds handler entry/exit, with masks 36/60. It measures service
+counts after RX, not pre-arrival blocked time. Version-4 captures retain their
+original RX-entry start and masks 37/61. The importer selects the version's
+stage map. The archived post-return IPG analysis and Dandelion TX-return clock
+fitting require return probes and reject versions 4 and 5. Dandelion CPU
+waterfalls use publication and application/entry-return events for both versions.

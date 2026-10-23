@@ -36,6 +36,7 @@ bool server_trace_enabled;
 __thread struct server_trace_row *server_trace_inline;
 #endif
 __thread struct server_activation_trace server_activation;
+__thread bool server_activation_pending;
 /* Append-only, single-producer buffers. Registration and export happen off path. */
 #define TRACE_MAX_THREADS 64
 struct trace_event {
@@ -85,8 +86,12 @@ static void dump_records(void) {
     write_header();
     size_t total = 0;
     for (size_t i=0;i<registered;i++) {
-        for (size_t j=0;j<counts[i];j++) write_row(&buffers[i].rows[j]);
-        total += counts[i];
+        for (size_t j=0;j<counts[i];j++) {
+            struct server_trace_row *r = &buffers[i].rows[j];
+            unsigned state = atomic_load_explicit(&r->committed, memory_order_acquire);
+            if (state == 1) { write_row(r); total++; }
+            else if (state != 2) drops++;
+        }
     }
     int failed = ferror(output);
     if (fclose(output)) failed = 1;
@@ -186,7 +191,6 @@ uint64_t server_trace_clock(void) {
 }
 uint64_t server_trace_stamp(struct server_trace_row *row) {
     if (!row || !row->enabled) return 0;
-    row->timestamp_calls++;
     return server_trace_clock();
 }
 uint64_t server_trace_stage(struct server_trace_row *row, enum lh_pmu_stage stage) {
@@ -251,7 +255,7 @@ static void write_header(void) {
     SERVER_TRACE_EXTRA_TIMES(TRACE_HEADER)
     SERVER_TRACE_ACCOUNTING_TIMES(TRACE_HEADER)
 #undef TRACE_HEADER
-    fputs("timestamp_overhead_ns,timestamp_call_count,request_id_valid,request_context,"
+    fputs("timestamp_overhead_ns,request_id_valid,request_context,"
           "tx_worker_id,execution_kind,reply_status,transport_status,rx_cpu_id,tx_cpu_id,"
           "server_defer_enqueue_ns,server_forward_submit_ns,server_forward_complete_ns,"
           "server_handler_active_ns,server_handler_wait_ns,server_tid,activation_index,"
@@ -260,6 +264,7 @@ static void write_header(void) {
     fputs(",server_tx_publish_ns,accounting_version",output);
 #define PMU_HEADER(name) for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",pmu_" #name "_%u",i);
     SERVER_TRACE_TIMES(PMU_HEADER)
+    PMU_HEADER(tx_enter)
 #undef PMU_HEADER
     fputc('\n',output);
 }
@@ -281,12 +286,32 @@ void server_trace_fini(void) {
     free(event_path); event_path=NULL;
     free(output_path); output_path=NULL;
 }
-void server_trace_rx_init(struct server_trace_row *r, int worker_id) {
-    *r = (struct server_trace_row){.enabled=server_trace_enabled, .ok=true,
-        .request_id=UINT64_MAX, .worker_id=worker_id, .tx_worker_id=-1,
-        .activation=server_activation};
-    if (pmu_enabled && local_buffer && local_buffer->count >= pmu_skip_rows)
-        r->pmu_mode = local_buffer->count - pmu_skip_rows < pmu_whole_rows ? 1 : 2;
+static __thread struct server_trace_row disabled_row;
+static TRACE_IMPL_ATTR struct server_trace_row *trace_reserve_impl(int worker_id) {
+    struct trace_buffer *b = local_buffer;
+    if (!server_trace_enabled) return &disabled_row;
+    if (!b || b->count == capacity) abort(); /* Never overwrite a live slot. */
+    struct server_trace_row *r = &b->rows[b->count];
+    /* Unused fields were zeroed and prefaulted once at startup. */
+    r->enabled = r->ok = true;
+    r->request_id = UINT64_MAX; r->worker_id = worker_id; r->tx_worker_id = -1;
+    r->activation = server_activation;
+    server_activation_pending = false;
+    if (pmu_enabled && b->count >= pmu_skip_rows)
+        r->pmu_mode = b->count - pmu_skip_rows < pmu_whole_rows ? 1 : 2;
+    atomic_store_explicit(&b->published, ++b->count, memory_order_release);
+    return r;
+}
+struct server_trace_row *server_trace_reserve(int worker_id) {
+    SERVER_TRACE_GUARD_BEGIN();
+    struct server_trace_row *r = trace_reserve_impl(worker_id);
+    SERVER_TRACE_GUARD_END();
+    return r;
+}
+void server_trace_discard(struct server_trace_row *r) {
+    if (!r || !r->enabled) return;
+    r->enabled = false;
+    atomic_store_explicit(&r->committed, 2, memory_order_release);
 }
 static struct server_trace_row *current_trace(void) {
 #ifdef SERVER_TRACE_CUSTOM_CONTEXT
@@ -344,22 +369,14 @@ void server_trace_run_end(struct server_trace_row *r) {
         r->run_start_ns = 0;
     }
 }
-static TRACE_IMPL_ATTR void trace_write_impl(struct server_trace_row *r) {
+static void trace_write_impl(struct server_trace_row *r) {
     if (!r || !r->enabled) return;
     r->enabled = false; /* terminal event: never write this ownership twice */
-    struct trace_buffer *b = local_buffer;
-    if (!b) { atomic_fetch_add_explicit(&unregistered_drops,1,memory_order_relaxed); return; }
-    if (b->count == capacity) {
-        atomic_store_explicit(&b->dropped,++b->dropped_count,memory_order_release);
-        return;
-    }
-    b->rows[b->count] = *r;
-    atomic_store_explicit(&b->published,++b->count,memory_order_release);
+    atomic_store_explicit(&r->committed, 1, memory_order_release);
 }
 void server_trace_write(struct server_trace_row *r) {
-    SERVER_TRACE_GUARD_BEGIN();
+    /* The slot belongs to the request, even after migration; no TLS or lock. */
     trace_write_impl(r);
-    SERVER_TRACE_GUARD_END();
 }
 static void write_row(const struct server_trace_row *r) {
     uint64_t elapsed = r->handler_exit_ns - r->handler_enter_ns;
@@ -373,14 +390,14 @@ static void write_row(const struct server_trace_row *r) {
     SERVER_TRACE_EXTRA_TIMES(TRACE_VALUE)
     SERVER_TRACE_ACCOUNTING_TIMES(TRACE_VALUE)
 #undef TRACE_VALUE
-    fprintf(output, "%" PRIu64 ",%u,%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64,
-            overhead_ns, r->timestamp_calls, r->id_valid, r->request_context,
+    fprintf(output, "%" PRIu64 ",%u,%u,%d,%u,%d,%d,%d,%d,%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%d,%" PRIu64 ",%d,%" PRIu64 ",%" PRIu64,
+            overhead_ns, r->id_valid, r->request_context,
             r->tx_worker_id, r->kind, r->status, r->transport_status, r->rx_cpu_id, r->tx_cpu_id,
             r->defer_enqueue_ns, r->forward_submit_ns, r->forward_complete_ns,
             active, wait, r->activation.tid, r->activation.index,
             r->activation.worker, r->activation.ioctl_exit_ns, r->activation.ready_ns);
     fprintf(output,",%u,%u",r->pmu_mode,r->pmu_mask);
-    fprintf(output,",%" PRIu64 ",4",r->tx_publish_ns);
+    fprintf(output,",%" PRIu64 ",5",r->tx_publish_ns);
     for (unsigned j=0;j<LH_PMU_STAGES;j++)
         for (unsigned i=0;i<LH_PMU_COUNT;i++) fprintf(output,",%"PRIu64,r->pmu[j].value[i]);
     fputc('\n',output);

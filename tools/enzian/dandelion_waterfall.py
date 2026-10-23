@@ -23,7 +23,7 @@ def rows(path):
                 for r in csv.DictReader(f)]
 
 def tx_endpoint(row):
-    return row['server_tx_publish_ns' if int(row.get('accounting_version',3))==4 else 'server_tx_exit_ns']
+    return row['server_tx_publish_ns' if int(row.get('accounting_version',3))>=4 else 'server_tx_exit_ns']
 
 def distribution(values):
     s=sorted(values)
@@ -77,7 +77,7 @@ def load(server,events):
 
 def spans(row,ev):
     result=[]
-    current = int(row.get('accounting_version',3)) == 4
+    current = int(row.get('accounting_version',3)) >= 4
     entry = next((e['timestamp_ns'] for e in ev if e['event']==100),0) if current else row.get('server_entry_enter_ns',0)
     returned = next((e['timestamp_ns'] for e in ev if e['event']==1),0) if current else row.get('server_entry_exit_ns',0)
     def add(name,a,b):
@@ -98,7 +98,7 @@ def spans(row,ev):
         first_child=next((e['timestamp_ns'] for e in ev if e['event']==105),0)
         add('fiber preparation',resume,first_child)
     field('encode','encode_enter' if current else 'marshal_enter','encode_exit' if current else 'marshal_exit')
-    field('final TX preparation' if current else 'final TX','tx_enter','tx_publish' if current else 'tx_exit')
+    field('final TX preparation' if current else 'final TX','reply_ready' if int(row.get('accounting_version',3))>=5 else 'tx_enter','tx_publish' if current else 'tx_exit')
     active={}
     pairs={103:(102,'function setup'),104:(103,'process execution'),
            106:(105,'child submission'),108:(107,'await result'),109:(108,'collect result'),

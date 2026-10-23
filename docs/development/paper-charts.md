@@ -69,7 +69,7 @@ supplies Python, NumPy and Matplotlib; TeX Live supplies `pdflatex`, `acmart`,
 Unloaded breakdowns use the same central wire-latency observations for every
 component. Version 4 stacks the pre-publication CPU components and the remaining
 NIC–wire duration, conserving the switch total. Archived version 3 retains
-CPU-only bars and an independent wire marker, with signed differences in its
+CPU-only bars, with signed differences in its
 statistics. Never mix accounting versions in a comparison.
 
 The paper's requested filenames are:
@@ -125,7 +125,7 @@ This standalone review retains historical LH/DPDK and fresh Caladan provenance;
 it does not replace the full-payload paper figures while collection continues.
 
 The unloaded breakdown displays `rpc_receive + rpc_transmit` as **RPC (un)marshal**
-and `cpu_other` as **Runtime/dispatch**. Current accounting version 4 measures the
+and `cpu_other` as **Runtime/dispatch**. Accounting version 4 measures the
 codec calls separately from allocation and TX-buffer reservation, and retains
 runtime subintervals including Caladan dispatch wait. See the
 [exact timestamp and segment contract](rpc-breakdown.md). Historical versions
@@ -164,3 +164,11 @@ The packer preserves file bytes, records all member hashes and produces
 reproducible archives without replacing an existing dataset. Update the owning
 plotter to use `campaign.experiment.input_file` for archive input. Do not commit
 extracted staging directories or add blanket LFS rules for individual logs.
+
+Unloaded resident-worker charts label the baseline **CS-A64**; the execution
+model remains explicit in dataset provenance. The breakdown omits the separate
+wire-total marker; version-4 stacked segments already conserve that total.
+
+Version-5 acquisitions split **Misc runtime** from **Dispatch**, using the work
+intervals in the timestamp contract. The plotter retains combined Runtime/dispatch
+for archived versions; the active version-4 paper dataset cannot supply this split.

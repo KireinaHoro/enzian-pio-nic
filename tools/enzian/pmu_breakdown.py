@@ -67,24 +67,26 @@ def main():
             assert r['ok']==c['ok']=='1' and r['request_id_valid']=='1'
             assert r['execution_kind']=='0' and r['reply_status']=='0' and r['transport_status']=='1'
             assert r['rx_cpu_id']==r['tx_cpu_id'] and r['worker_id']==r['tx_worker_id']
-            current = int(r.get('accounting_version',3)) == 4
+            v5 = int(r.get('accounting_version',3)) >= 5
+            current = int(r.get('accounting_version',3)) >= 4
             stages,segments = (STAGES,SEGMENTS) if current else (LEGACY_STAGES,LEGACY_SEGMENTS)
+            if v5: stages,segments = STAGES[1:],SEGMENTS[1:]
             endpoint = 'tx_enter' if current else 'tx_exit'
-            assert int(r['pmu_mode'])==mode and int(r['pmu_mask'])==((0,37,61) if current else (0,1029,2045))[mode]
+            assert int(r['pmu_mode'])==mode and int(r['pmu_mask'])==((0,36,60) if v5 else (0,37,61) if current else (0,1029,2045))[mode]
             assert int(c['warmup'])==int(index<args.warmup)
             if index < args.warmup:
                 continue
             m = {'rtt_ns': int(c['client_call_exit_ns'])-int(c['client_call_enter_ns'])}
             records = {}
             if mode:
-                records['rx_call_including_wait'] = delta(r,'rx_enter','rx_exit',args.exclude_instructions)
+                if not v5: records['rx_call_including_wait'] = delta(r,'rx_enter','rx_exit',args.exclude_instructions)
                 records['service_after_rx'] = delta(r,'rx_exit',endpoint,args.exclude_instructions)
-                records['rx_enter_to_'+endpoint] = delta(r,'rx_enter',endpoint,args.exclude_instructions)
+                if not v5: records['rx_enter_to_'+endpoint] = delta(r,'rx_enter',endpoint,args.exclude_instructions)
             if mode==2:
                 records.update({name:delta(r,start,end,args.exclude_instructions)
                                 for name,start,end in zip(segments,stages,stages[1:])})
                 for event in events:
-                    assert sum(records[name][event] for name in segments[1:]) == records['service_after_rx'][event]
+                    assert sum(records[name][event] for name in (segments if v5 else segments[1:])) == records['service_after_rx'][event]
             for component,counts in records.items():
                 exported.append(dict(phase=phase,request_id=r['request_id'],
                     cpu=r['rx_cpu_id'],worker=r['worker_id'],component=component,**counts))

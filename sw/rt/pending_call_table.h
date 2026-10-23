@@ -74,7 +74,7 @@ struct pending_call {
     } completion;
 
 #if LH_ENABLE_TRACING
-    struct server_trace_row parent_trace;
+    struct server_trace_row *parent_trace;
 #endif
     rpc_codec_t *codec;
 

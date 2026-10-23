@@ -25,9 +25,9 @@ static int udp_wait(void) {
     /* A new wait must not retire a packet or reservation still in use. */
     if (w->dp.rx_view.pending || w->dp.tx_reserved) { errno = EBUSY; return -1; }
 #if LH_ENABLE_TRACING
-    if (server_trace_inline == &w->rx_trace) {
-        w->rx_trace.handler_exit_ns = server_trace_stamp(&w->rx_trace);
-        server_trace_write(&w->rx_trace);
+    if (server_trace_inline && server_trace_inline == w->rx_trace) {
+        w->rx_trace->handler_exit_ns = server_trace_stamp(w->rx_trace);
+        server_trace_write(w->rx_trace);
         server_trace_inline = NULL;
     }
 #endif
@@ -36,12 +36,17 @@ static int udp_wait(void) {
         bool received;
 #if LH_ENABLE_TRACING
         if (server_trace_enabled) {
-            server_trace_rx_init(&w->rx_trace, w->worker_id);
-            w->rx_trace.rx_enter_ns = server_trace_stage(&w->rx_trace, LH_PMU_rx_enter);
+            uint64_t enter = server_activation_pending ? server_trace_clock() : 0;
+            uint64_t observed = 0;
             received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
-                &w->rx_trace.rx_unblock_ns, server_trace_clock);
-            w->rx_trace.timestamp_calls++;
-            w->rx_trace.rx_exit_ns = server_trace_stamp(&w->rx_trace);
+                &observed, server_trace_clock);
+            w->rx_trace = NULL;
+            if (received && desc.type != TY_DESCHED) {
+                w->rx_trace = server_trace_reserve(w->worker_id);
+                w->rx_trace->rx_enter_ns = enter;
+                w->rx_trace->rx_unblock_ns = observed;
+                w->rx_trace->rx_exit_ns = server_trace_stamp(w->rx_trace);
+            }
         } else
 #endif
         {
@@ -49,6 +54,9 @@ static int udp_wait(void) {
         }
         if (!received) return 0;
         if (desc.type == TY_DESCHED) {
+#if LH_ENABLE_TRACING
+            server_trace_discard(w->rx_trace);
+#endif
             /* A control-only response never leaves a borrowed packet. */
             if (w->dp.rx_view.pending) { errno = EPROTO; return -1; }
             struct lh_activation activation;
@@ -56,6 +64,9 @@ static int udp_wait(void) {
             continue;
         }
         if (desc.type != TY_NATIVE_UDP_RX || desc.payload_len > LAUBERHORN_UDP_MAX_PAYLOAD) {
+#if LH_ENABLE_TRACING
+            server_trace_discard(w->rx_trace);
+#endif
             core_eci_rx_release(&w->dp);
             errno = EPROTO; return -1;
         }
@@ -67,11 +78,11 @@ static int udp_wait(void) {
         };
 #if LH_ENABLE_TRACING
         if (server_trace_enabled) {
-            server_trace_inline = &w->rx_trace;
-            w->rx_trace.request_context = desc.udp.trace_ref;
-            w->rx_trace.request_bytes = desc.payload_len;
-            w->rx_trace.rx_cpu_id = sched_getcpu();
-            server_trace_event(&w->rx_trace, LH_TRACE_RX_PACKET,
+            server_trace_inline = w->rx_trace;
+            w->rx_trace->request_context = desc.udp.trace_ref;
+            w->rx_trace->request_bytes = desc.payload_len;
+            w->rx_trace->rx_cpu_id = sched_getcpu();
+            server_trace_event(w->rx_trace, LH_TRACE_RX_PACKET,
                 ((uint64_t)desc.udp.saddr << 32) | ((uint64_t)desc.udp.sport << 16) | desc.udp.dport,
                 desc.payload_len);
         }
@@ -87,8 +98,8 @@ int lauberhorn_udp_receive_view(const lauberhorn_udp_datagram_t **packet) {
     if (result <= 0) return result;
     *packet = &w->udp_rx_view;
 #if LH_ENABLE_TRACING
-    if (server_trace_inline == &w->rx_trace)
-        w->rx_trace.handler_enter_ns = server_trace_stamp(&w->rx_trace);
+    if (server_trace_inline && server_trace_inline == w->rx_trace)
+        w->rx_trace->handler_enter_ns = server_trace_stamp(w->rx_trace);
 #endif
     return 1;
 }
@@ -110,7 +121,7 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
         struct server_trace_row *row = server_trace_inline;
         row->tx_worker_id = w->worker_id;
         row->tx_cpu_id = sched_getcpu();
-        row->tx_enter_ns = server_trace_stamp(row);
+        row->reply_ready_ns = server_trace_stamp(row);
         server_trace_event(row, LH_TRACE_UDP_TX_BEGIN, length,
             ((uint64_t)desc->udp.trace_ref << 16) | dport);
     }
@@ -121,7 +132,6 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
     if (server_trace_inline) {
         struct server_trace_row *row = server_trace_inline;
         row->tx_publish_ns = doorbell;
-        row->timestamp_calls++;
         server_trace_event(row, LH_TRACE_UDP_TX_DOORBELL, doorbell, 0);
         row->transport_status = result;
         if (result == CORE_TX_ACCEPTED) row->response_bytes += length;

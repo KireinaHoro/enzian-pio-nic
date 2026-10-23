@@ -43,7 +43,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
             c=next(c for c in cohorts if c['system']==system and c['payload_bytes']==size and c['instrumentation']=='off')
             values=np.sort([r['wire_ns']/1000 for r in c['rows'] if not r['warmup']])
             if len(values)!=count or np.any(values<=0): raise ValueError('Invalid CDF observations')
-            ax.step(values,np.arange(1,len(values)+1)/len(values),where='post',label=system_label(system,cohorts),color=chart.COLORS[i])
+            ax.step(values,np.arange(1,len(values)+1)/len(values),where='post',label=system_label(system,cohorts).replace(' resident',''),color=chart.COLORS[i])
             statistics[str(size)][system]=dict(p50_us=float(np.percentile(values,50)),p99_us=float(np.percentile(values,99)),max_us=float(values[-1]))
             median,p99=np.percentile(values,[50,99])
             ax.plot(median,.5,'o',color=chart.COLORS[i],markersize=3)
@@ -86,9 +86,14 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
     fig.subplots_adjust(left=.25,right=.975,bottom=.19 if len(sizes)==1 else .09,top=.78 if len(sizes)==1 else .88,hspace=.30)
     categories=(('handler',),('rpc_receive','rpc_transmit'),('cpu_other',),
                 ('rx_network','tx_network'),('rx_queue','tx_submission'))
-    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','NIC handling')
+    labels=('Handler','RPC (un)marshal','Runtime/dispatch','Network stack','NIC message passing')
     colors=(chart.COLORS[0],chart.COLORS[1],'#E6AB02',chart.COLORS[2],chart.COLORS[3])
-    publication=all(c.get('cpu_partition_version')==4 for c in cohorts if c['instrumentation']=='breakdown')
+    split_dispatch=all(c.get('cpu_partition_version')==5 for c in cohorts if c['instrumentation']=='breakdown')
+    if split_dispatch:
+        categories=categories[:3]+(('cpu_dispatch',),)+categories[3:]
+        labels=('Handler','RPC (un)marshal','Misc runtime','Dispatch','Network stack','NIC message passing')
+        colors=colors[:3]+('#7570B3',)+colors[3:]
+    publication=all(c.get('cpu_partition_version',0)>=4 for c in cohorts if c['instrumentation']=='breakdown')
     if publication:
         categories+=(('cpu_wire',),);labels+=('NIC--wire',);colors+=('#999999',)
     for ax,size in zip(axes,sizes):
@@ -121,9 +126,6 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
                 bottom+=mean
             cpu_total=float(np.mean([sum(v for k,v in r['components_ns'].items() if k!='cpu_wire') for r in selected]))/1000
             wire_median=float(np.mean([r['wire_ns'] for r in selected]))/1000
-            ax.plot(wire_median,len(systems)-1-i,marker='|',markersize=15,
-                    markeredgewidth=1.3,color='black',linestyle='none',
-                    label='Wire total' if not i else None)
             statistics[str(size)][system]['instrumented_median_us']=wire_median
             statistics[str(size)][system]['cpu_duration_at_wire_median_us']=cpu_total
             statistics[str(size)][system]['wire_minus_cpu_at_wire_median_us']=wire_median-cpu_total
@@ -131,7 +133,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
             expected_cpu=float(np.mean([sum(r['components_ns'][k] for k in r['components_ns'] if k!='cpu_wire') for r in selected]))/1000
             if not np.isclose(bottom,wire_median if publication else expected_cpu):
                 raise ValueError('Components do not conserve measured CPU duration')
-        ax.set_yticks(list(reversed(range(len(systems)))),[system_label(s,cohorts,multiline=True) for s in systems])
+        ax.set_yticks(list(reversed(range(len(systems)))),[system_label(s,cohorts).replace(' resident','') for s in systems])
         ax.set_ylim(-.55,len(systems)-.45)
         ax.grid(False)
         ax.text(.97,.03,str(size)+' B',transform=ax.transAxes,ha='right',fontsize=8)

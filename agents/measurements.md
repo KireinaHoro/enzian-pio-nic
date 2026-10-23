@@ -1,5 +1,23 @@
 # Measurement continuation
 
+## Timestamp accounting version 5 — October 23
+
+The current source removes redundant hot probes, separates Dispatch from Misc
+runtime, and writes directly into fixed, prefaulted request slots. Capacity is
+derived from acquisition requests and warmups (plus LH setup requests); it
+never grows or overwrites. Slots survive deferred/migrated completion. See the
+[interval and storage contract](../docs/development/rpc-breakdown.md).
+Successful hot paths use 12/15/17 breakdown clock reads for LH/DPDK/CS-A64;
+cold activation and optional event instrumentation are additional.
+
+This is a software change, not newly acquired evidence. The running
+`out/hot-full-20261023-r2` campaign and current unloaded paper data remain v4;
+do not restart, deploy into it, or relabel its combined runtime/dispatch data.
+New v5 acquisition needs fresh hardware acceptance. Unit tests cover exact
+interval conservation, archived accounting compatibility, stable-slot ownership,
+out-of-order completion, incomplete export and exhaustion. Validation logs are
+`out/rpc-v5-*-final.log` and `out/rpc-v5-final-build.log`.
+
 ## Active fresh full hot campaign — October 23
 
 Maintainer authorized `start the campaign` after timestamp integration.
@@ -41,7 +59,7 @@ was run. The full unloaded gate remains mandatory before loaded acquisition.
 The [RPC breakdown contract](../docs/development/rpc-breakdown.md) describes
 implemented pre-publication endpoints across LH, DPDK and Caladan, reduced
 software probes, and the cold activation evidence/join tools. Historical
-archives retain their recorded accounting version. New acquisition uses v4.
+archives retain their recorded accounting version. This campaign uses v4.
 The fresh October 23 campaign below is authorized and launched. Its full
 unloaded gate validates capture ordering and conservation before loaded
 collection; software checks alone do not establish hardware timing acceptance.

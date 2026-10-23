@@ -63,7 +63,7 @@ def join(events,kernel,server,mode):
     """
     result=[];used=set()
     for row in server:
-        observed=int(row['server_rx_observed_ns'])
+        observed=int(row['server_rx_unblock_ns'] if int(row.get('accounting_version',4))>=5 else row['server_rx_observed_ns'])
         rx=only([e for e in events if e['event']=='rx_observed' and e['ns']==observed],'RX observation')
         resume=latest([e for e in events if e['event']=='park_resume' and e['tid']==rx['tid'] and e['pid']==rx['pid'] and e['ns']<=observed],'runtime reactivation')
         run=latest([e for e in events if e['event']=='run_request' and e['subject']==rx['tid'] and e['core']==resume['core'] and e['ns']<=resume['ns']],'KSCHED request')
