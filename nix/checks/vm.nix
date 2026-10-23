@@ -37,6 +37,7 @@ let
     '';
     installPhase = ''
       install -Dm755 vm-tcp $out/bin/vm-tcp
+      install -Dm644 sw/tests/vm/tcp_reorder.py $out/share/tcp_reorder.py
       install -Dm644 sw/tests/vm/tcp_scheduling.py $out/share/tcp_scheduling.py
       install -Dm644 sw/tests/vm/tcp.py $out/share/tcp.py
       install -Dm755 vm-tcp-transport $out/bin/vm-tcp-transport
@@ -114,6 +115,7 @@ pkgs.testers.runNixOSTest {
     try:
         machine.succeed("python3 ${fixture}/share/tcp.py", timeout=60)
         peer.succeed("python3 ${fixture}/share/tcp.py", timeout=60)
+        machine.succeed("python3 ${fixture}/share/tcp_reorder.py", timeout=30)
     except Exception:
         print(machine.execute("cat /tmp/tcp.log")[1])
         raise

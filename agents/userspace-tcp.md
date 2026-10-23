@@ -247,10 +247,28 @@ Nix driver `out/userspace-vm-tcp-timer`, build log `/tmp/lh-tcp-timer-build.log`
 The earlier scheduling-only increment passed in 37.22 s:
 `out/userspace-vm-tcp-concurrency-run`, `/tmp/lh-tcp-concurrency-run.log`.
 
-Next cover flow control, packet reordering, RST, exhaustion and actual PCB/socket
-close/timer concurrency. Account for host GSO/GRO packets in VM ingress: current
-transport accepts only MTU-sized packets; large transfers may expose aggregation.
-Keep configuration in Nix or normalize at the emulated wire boundary.
+The subsequent protocol VM suite passed in 43.63 s:
+`out/userspace-vm-tcp-protocol-acceptance-run`,
+`/tmp/lh-tcp-protocol-acceptance-run.log`; driver
+`out/userspace-vm-tcp-protocol-acceptance`, build log
+`/tmp/lh-tcp-protocol-acceptance-build.log`. Both local and peer Linux clients
+advertise an observed zero receive window, leave another connection progressing,
+then reopen and verify all 257024 echoed bytes plus FIN. Four abortive closes with
+unread data each precede a successful replacement connection. A deterministic
+raw peer sends a gap and duplicate segment, requires ACKs without application
+bytes until the hole closes, verifies the exact ordered echo and exchanges FIN.
+The complete scheduler/preemption/DEADLINE and UDP/RPC/memcached regressions pass
+in the same run. This adds functional coverage, not a stress campaign.
+
+Two fixture errors were corrected: blocking sendall prevented the backpressure
+client from reaching its drain (now a sender thread), and ETH_P_IP capture missed
+outgoing Ethernet ACKs (now ETH_P_ALL with explicit IPv4 filtering). Failure logs:
+`/tmp/lh-tcp-flow-run.log`, `/tmp/lh-tcp-protocol-fixed-run.log`. No stack or emulator
+change was needed. The successful 257024-byte cases do not prove arbitrary
+GSO/GRO handling; the ingress still accepts only MTU-sized packets.
+
+Next cover resource exhaustion and actual PCB/socket close/timer concurrency,
+plus targeted earlier-publication and parking races. Keep configuration in Nix.
 
 ## Remaining phase-two work
 
