@@ -35,15 +35,29 @@ all capture chunks but import rejected two negative CPU–wire residuals.
 Measured chunk 3 XIDs 914/957 have wire 11,128/12,576 ns and CPU
 11,620/13,170 ns. CPU transport return after the doorbell read returns costs
 600/690 ns; truncating only for diagnosis gives positive 108/96 ns residuals.
-The full CPU interval can extend beyond transmission, so requiring a
-nonnegative additive wire partition is unsafe. No samples were clipped,
-dropped or retried. Health passed; hardware-state remains unsafe after the
-import failure. No manual board access or reset occurred during diagnosis.
-An asynchronous question asks the maintainer whether to retain the full CPU
-breakdown with an independent wire-total marker. Wait for that methodology
-decision before changing accounting or resuming; preserve all three passing
-cohorts and the failed attempt. Restoration and current reservation checks
-are still required before resume.
+The TX RTL confirms concurrent encoder/MAC and ECI-response branches after
+packet-buffer DMA completion. A signed wire-minus-CPU duration difference is
+valid; its sign does not identify the timing or magnitude of actual overlap.
+No samples were clipped, dropped or retry-selected. Health and pairing passed.
+
+The maintainer authorized correcting accounting. Platform `eecf1c23` retains
+CPU segments, explicitly stores CPU duration, permits signed `cpu_wire`, and
+plots full CPU bars with an independent wire-total marker. The full RX/TX walk
+is in `docs/development/rpc-breakdown.md`. Caladan's gather-entry fallback is
+explicitly distinguished from CQ readiness. All 119 campaign tests passed.
+`reimport-validation.json` under diagnosis reimports all 11,536 observations,
+retains both negative differences and verifies all three accepted cohorts.
+An existing 8 B archive rendered into `diagnosis/plot-preview/`; PDF fonts and
+visual preview passed. Active paper PDFs were not replaced.
+
+`out/hot-full-20261022-accounting-recovery/` preserves the former unsafe state,
+checks current EMG ownership, peer restoration, matched resident service health,
+all failed-cohort capture/client restoration evidence and unchanged frozen VIO.
+Restoration passed without reset. The same campaign/service resumed with the
+frozen configuration and unchanged acquisition binaries, retaining the three
+accepted cohorts. The failed cohort is retried through the maintained controller;
+its earlier attempt is preserved. `resume.log` records detached submission.
+Do not poll after launch; wait for a terminal callback or status request.
 
 ## Prepared dedicated generator — October 22
 
