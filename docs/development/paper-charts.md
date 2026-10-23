@@ -30,7 +30,7 @@ resolve cold-workload semantics before collecting a dependent curve.
 Comparison charts use **DPDK**, **CS-A64**, and **LH** for the DPDK control,
 Caladan Simple AArch64 setup, and Lauberhorn, respectively. Caladan series carry
 an execution-model suffix: **CS-A64 spawner** for the collected UDP-spawner
-variant, **CS-A64 resident** for a future validated resident-worker dataset.
+variant, **CS-A64 resident** for the resident-worker dataset.
 Legacy CS-A64 cohorts used the spawner; plotting rejects a series mixing models. Define CS-A64
 once in the experimental setup using the [baseline description](../research/caladan-enzian.md#selected-setup).
 The ARM/MLX5 port has partial native mechanism acceptance; include its series
@@ -98,14 +98,12 @@ failures invalidate a trial rather than entering this server-loss population.
 Trial statistics encode infinite quantiles as JSON `null` with an explicit
 `p99_infinite`/`median_infinite` flag. Statistics retain the first excluded rate,
 loss and all excluded points' goodput/loss; zero-reply trials have infinite P99.
-The completed full hot comparison uses the tracked
-[mode archives](../../data/paper/echo/README.md):
-`hot-unloaded-spawner-20261022.tar.gz` (18 cohorts, accounting version 3) and
-`hot-loaded-spawner-20261022.tar.gz` (36 cases). Both cover LH, DPDK and
-CS-A64 spawner at 8/128/1432 B; loaded covers one through four workers.
-All five final previews were visually reviewed and their PDFs are included by
-the paper. Regenerate using the inventory commands without `--partial`.
-Resident-worker Caladan needs a separate validated acquisition.
+The current unloaded paper comparison uses
+`hot-unloaded-resident-20261023.tar.gz`: all 18 LH/DPDK/CS-A64 resident cohorts,
+8/128/1432 B, with version-4 accounting. The loaded figures retain
+`hot-loaded-spawner-20261022.tar.gz` (36 cases, one through four workers)
+while the resident-worker loaded campaign runs. These are separate acquisitions;
+see the [mode archives](../../data/paper/echo/README.md).
 The inventory is [charts.json](../../tools/paper/charts.json). Do not replace active PDFs with
 rehearsal or synthetic inputs. Existing measurement archives retain their
 original workload and provenance; use the echo campaign for new acquisition.

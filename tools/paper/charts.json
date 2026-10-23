@@ -55,8 +55,8 @@
       "id": "echo-unloaded-hot-latency-cdf",
       "output": "../paper/plots/echo-unloaded-hot-latency-cdf.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/hot-unloaded-spawner-20261022.tar.gz",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-spawner-20261022.tar.gz",
+      "manifest": "data/paper/echo/hot-unloaded-resident-20261023.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-resident-20261023.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
@@ -66,15 +66,15 @@
       ],
       "manifest_member": "manifest.json",
       "execution_model": {
-        "CS-A64": "udp-spawner"
+        "CS-A64": "resident-workers"
       }
     },
     {
       "id": "echo-unloaded-hot-latency-breakdown",
       "output": "../paper/plots/echo-unloaded-hot-latency-breakdown.pdf",
       "script": "tools/paper/plot_echo_unloaded.py",
-      "manifest": "data/paper/echo/hot-unloaded-spawner-20261022.tar.gz",
-      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-spawner-20261022.tar.gz",
+      "manifest": "data/paper/echo/hot-unloaded-resident-20261023.tar.gz",
+      "command": "nix develop -c python3 tools/paper/plot_echo_unloaded.py --input data/paper/echo/hot-unloaded-resident-20261023.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
       "series": [
@@ -84,7 +84,7 @@
       ],
       "manifest_member": "manifest.json",
       "execution_model": {
-        "CS-A64": "udp-spawner"
+        "CS-A64": "resident-workers"
       },
       "measurement": "NIC handling includes RX acquisition and TX preparation through pre-publication. Version 4 stacks NIC-wire; archived version 3 retains CPU-only bars and an independent wire marker."
     },
@@ -116,7 +116,7 @@
       "command": "nix develop -c python3 tools/paper/plot_echo.py --input data/paper/echo/hot-loaded-spawner-20261022.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
-      "measurement_scope": "Completed 36-case LH/DPDK/CS-A64 spawner dataset; 8/128/1432 B and 1–4 workers",
+      "measurement_scope": "Completed 36-case LH/DPDK/CS-A64 spawner dataset; 8/128/1432 B and 1\u20134 workers",
       "latency_population": "All transmitted requests; deadline failures at infinity; nearest-rank inverse CDF",
       "stop_marker": "Upward infinity ray at last contiguous point meeting 1% loss in every trial",
       "manifest_member": "manifest.json",
@@ -132,7 +132,7 @@
       "command": "nix develop -c python3 tools/paper/plot_echo.py --input data/paper/echo/hot-loaded-spawner-20261022.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
-      "measurement_scope": "Completed 36-case LH/DPDK/CS-A64 spawner dataset; 8/128/1432 B and 1–4 workers",
+      "measurement_scope": "Completed 36-case LH/DPDK/CS-A64 spawner dataset; 8/128/1432 B and 1\u20134 workers",
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "udp-spawner"
@@ -146,7 +146,7 @@
       "command": "nix develop -c python3 tools/paper/plot_echo.py --input data/paper/echo/hot-loaded-spawner-20261022.tar.gz",
       "status": "included",
       "tex": "evaluation.tex",
-      "measurement_scope": "Completed 36-case LH/DPDK/CS-A64 spawner dataset; 8/128/1432 B and 1–4 workers",
+      "measurement_scope": "Completed 36-case LH/DPDK/CS-A64 spawner dataset; 8/128/1432 B and 1\u20134 workers",
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "udp-spawner"
