@@ -57,7 +57,12 @@ def main():
         if not re.fullmatch(r'[A-Za-z0-9_-]+', case['name']):
             p.error('case name must be safe for paths')
         if not re.fullmatch(r'[0-9a-f]{40}', case['revision']):
-            p.error('each case requires a full software/hardware revision')
+            p.error('each case requires a full software revision')
+        hardware_revision = case.get('hardware_revision', case['revision'])
+        if not re.fullmatch(r'[0-9a-f]{40}', hardware_revision):
+            p.error('hardware_revision must be a full revision')
+        if hardware_revision != case['revision'] and not case.get('compatibility_reason', '').strip():
+            p.error('different hardware/software revisions require compatibility_reason')
         if not isinstance(case['program'], list) or not case['program']:
             p.error('program must be a nonempty argv list')
     args.logs.mkdir(parents=True, exist_ok=False)
@@ -73,7 +78,9 @@ def main():
             root = args.logs / name
             root.mkdir()
             result = {'case': case['name'], 'round': round_no,
-                      'revision': case['revision'], 'status': 'running'}
+                      'revision': case['revision'],
+                      'hardware_revision': case.get('hardware_revision', case['revision']),
+                      'compatibility_reason': case.get('compatibility_reason'), 'status': 'running'}
             results.append(result); save()
             print(json.dumps({'case': name, 'stage': 'boot'}), flush=True)
             started = time.monotonic()
@@ -99,7 +106,8 @@ def main():
                 script += 'cpu mount ' + shlex.quote(case['image']) + '\n'
                 script += 'test "$(/nix/store/lauberhorn/bin/jq -er .platform.revision /nix/store/lauberhorn/manifest.json)" = ' + shlex.quote(case['revision']) + '\n'
                 script += "/nix/store/lauberhorn/bin/lh-test info --json\n"
-                script += "echo TEST_STAGE:mount\ndmesg -n 8\ncpu load\necho TEST_STAGE:load\ncpu verify\necho TEST_STAGE:verify\n"
+                script += "echo TEST_STAGE:mount\ndmesg -n 8\ncpu load\necho TEST_STAGE:load\n"
+                script += "cpu verify " + shlex.quote(case.get('hardware_revision', case['revision'])) + "\necho TEST_STAGE:verify\n"
                 script += case.get('cpu', '').replace('{run}', name) + '\n'
                 script += 'echo TEST_STAGE:ready\n'
                 script_path = root/'cpu-test.sh'; script_path.write_text(script)

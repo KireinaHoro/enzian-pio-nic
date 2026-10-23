@@ -34,8 +34,8 @@ load)
     "$LH/bin/lh-test" load
 ;;
 verify)
-    [[ $# == 1 ]] || exit 2
-    revision=$(jq -er .platform.revision "$LH/manifest.json")
+    [[ $# == 1 || $# == 2 ]] || exit 2
+    revision=${2:-$(jq -er .platform.revision "$LH/manifest.json")}
     [[ $revision =~ ^[0-9a-f]{40}$ ]] || exit 1
     expected_hw=$(printf '%08x' "0x${revision:0:16}")
     actual_hw=$(dmesg | awk '/Lauberhorn NIC version:/ {v=$NF} END {print v}')

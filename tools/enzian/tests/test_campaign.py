@@ -13,17 +13,25 @@ spec.loader.exec_module(campaign)
 
 
 class CampaignTests(unittest.TestCase):
-    def run_cases(self, failed_stage, cold_start=False):
+    def run_cases(self, failed_stage, cold_start=False, hardware_revision=None):
         calls = []
         boot_flags = []
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest = root/'cases.json'
-            manifest.write_text(json.dumps([dict(name=name, revision='a'*40, image='/image', program=['program'], client='client') for name in ['first', 'second']]))
+            cases = [dict(name=name, revision='a'*40, image='/image', program=['program'], client='client') for name in ['first', 'second']]
+            if hardware_revision:
+                for case in cases:
+                    case.update(hardware_revision=hardware_revision, compatibility_reason='Reviewed unchanged RTL and HW/SW ABI')
+            manifest.write_text(json.dumps(cases))
             def step(command, log, timeout):
                 stage = 'boot' if 'boot-output' in log.name else 'cpu' if 'cpu-output' in log.name else 'client'
                 calls.append(stage)
                 if stage == 'boot': boot_flags.append('--cold-start' in command)
+                if stage == 'cpu':
+                    script = (log.parent/'cpu-test.sh').read_text()
+                    self.assertIn('cpu verify ' + (hardware_revision or 'a'*40), script)
+                    self.assertIn("= " + 'a'*40, script)
                 log.write_text('')
                 return 1 if stage == failed_stage else 0
             with patch('sys.argv', ['test.py', str(manifest), '--logs', str(root/'logs'), '--repeats', '2'] + (['--cold-start-first'] if cold_start else [])), patch.object(campaign, 'run_step', step), contextlib.redirect_stdout(io.StringIO()):
@@ -31,6 +39,11 @@ class CampaignTests(unittest.TestCase):
             summary = json.loads((root/'logs/summary.json').read_text())
         self.assertEqual(boot_flags, [cold_start] + [False]*(len(boot_flags)-1))
         return result, calls, summary
+
+    def test_distinct_hardware_revision(self):
+        result, calls, summary = self.run_cases(None, hardware_revision='b'*40)
+        self.assertEqual(result, 0)
+        self.assertTrue(all(x['hardware_revision'] == 'b'*40 and x['revision'] == 'a'*40 for x in summary))
 
     def test_cpu_failure_stops_before_any_next_reset(self):
         result, calls, summary = self.run_cases('cpu')

@@ -160,7 +160,7 @@ it is reapplied by the routine after every cold reset and recorded in
 `summary.json` as `rt_bandwidth`. It does not change the matched deployment image
 or ordinary scheduler/worker synchronization locks.
 
-The manifest is a list of cases: `name`, full `revision`, CPU-visible `image`,
+The manifest is a list of cases: `name`, full software `revision`, CPU-visible `image`,
 programmer argv `program`, post-verification shell commands `cpu`, and
 shell command `client` (gateway by default). Set `client_machine` (for example `zuestoll12`) to
 execute that command as root through the reserved peer CPU console instead of
@@ -168,6 +168,13 @@ on the gateway. Peer logs are retained in `client-cpu/console.log`. The `cpu` fu
 expands to round/case name in CPU/client commands. Cases alternate each round;
 the gateway client must exit nonzero on incorrect replies. The example checks
 100 add calls per trial, including arithmetic and echoed request IDs.
+
+For software updates using an existing compatible bitstream, set the full
+`hardware_revision` separately and record `compatibility_reason` describing the
+review of RTL, generated configuration and the HW/SW ABI. The harness checks the
+image against `revision` and the live NIC against `hardware_revision`, recording
+both in the summary. Omission retains the same-revision default. This does not
+waive artifact hashes or compatibility review.
 
 Launch once, wait for compact stage/results output, then read `summary.json`.
 For standalone `boot.py`, read its compact output and `--logs/summary.json`.
