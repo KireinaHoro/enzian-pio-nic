@@ -83,12 +83,33 @@ let
     ];
   };
   runtimeUninstrumented = runtime.override { tracing = false; };
-  # Build the complete shared runtime for the host before adding VM transport.
+  # Host builds share runtime sources and select transport at compile time.
   # This remains an ECI runtime; native compilation alone does not emulate a NIC.
   runtimeNative = pkgs.callPackage ./software/runtime.nix {
     inherit devHdrs genVerilog;
     inherit (runtime) src;
     tracing = false;
+  };
+  runtimeVm = runtimeNative.override { backend = "vm"; };
+  vmKernel = pkgs.linuxPackages.kernel;
+  vmModule = pkgs.callPackage ./software/vm-module.nix {
+    kernel = vmKernel;
+    inherit devHdrs genVerilog;
+    inherit (kmod) src;
+  };
+  vmTest = pkgs.callPackage ./checks/vm.nix {
+    inherit vmModule runtimeVm;
+    memcachedVm = pkgs.callPackage (inputs.memcached + "/package.nix") {
+      source = inputs.memcached;
+      lauberhornRuntime = runtimeVm;
+    };
+    nestedFixture = pkgs.callPackage (source + "/sw/apps/nested-validation/package.nix") {
+      lauberhornRuntime = runtimeVm;
+    };
+    source = pkgs.lib.fileset.toSource {
+      root = source;
+      fileset = source + "/sw/tests/vm";
+    };
   };
   microbenchmarkSource = inputs.microbenchmarks;
   benchmarkRuntimeSource = (sources.c [
@@ -215,6 +236,9 @@ in
     runtime
     runtimeUninstrumented
     runtimeNative
+    runtimeVm
+    vmModule
+    vmTest
     microbenchmarksUninstrumented
     kmod
     genVerilog

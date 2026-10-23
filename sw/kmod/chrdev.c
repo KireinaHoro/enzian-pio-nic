@@ -2,6 +2,10 @@
 // Copyright (c) 2025 Pengcheng Xu, Zikai Liu
 
 #include "common.h"
+#if LH_BACKEND_VM
+#include <linux/vmalloc.h>
+#include "vm.h"
+#endif
 #define CREATE_TRACE_POINTS
 #include "trace.h"
 #include <linux/net.h>
@@ -9,16 +13,20 @@
 #include <linux/nsproxy.h>
 #include <net/net_namespace.h>
 #include <net/inet_sock.h>
+#if !LH_BACKEND_VM
 #include "lauberhorn_eci_OncRpcReplyDecoder_dev.h"
+#endif
 #include "ioctl.h"
 #include "eci_address_map.h"
 
+#if !LH_BACKEND_VM
 #include "lauberhorn_eci_sched_dev.h"
 #include "lauberhorn_eci_OncRpcCallDecoder_dev.h"
 #include "lauberhorn_eci_UdpDecoder_dev.h"
 #include "lauberhorn_eci_OncRpcReplyEncoder_dev.h"
 #include "lauberhorn_eci_dev.h"
 #include "regblock_bases.h"
+#endif
 
 static dev_t devt = 0;
 static struct class *dev_class;
@@ -32,10 +40,12 @@ static unsigned int listen_users[LAUBERHORN_NUM_LISTEN_PORTS];
 struct worker_dev {
 	struct cdev cdev;
 
+#if !LH_BACKEND_VM
 	lauberhorn_eci_OncRpcCallDecoder_t OncRpcCallDecoder_dev;
 	lauberhorn_eci_UdpDecoder_t UdpDecoder_dev;
 	lauberhorn_eci_OncRpcReplyEncoder_t OncRpcReplyEncoder_dev;
 	lauberhorn_eci_sched_t sched_dev;
+#endif
 };
 
 struct endpoint_reservation;
@@ -49,7 +59,9 @@ struct file_priv {
 
 static struct file_priv *app_files[LAUBERHORN_NUM_PROCS + 1];
 
+#if !LH_BACKEND_VM
 #include "stats/worker.h"
+#endif
 #include "endpoints.h"
 #include <linux/iopoll.h>
 #include "retire_call.h"
@@ -129,6 +141,16 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 	}
 	BUG_ON(i == LAUBERHORN_NUM_SERVICES);
 
+#if LH_BACKEND_VM
+    {
+        int err = lh_vm_service(srv, true);
+        if (err) {
+            proc->srvs[proc_srv_idx] = NULL;
+            if (!--listen_users[listen_idx]) listen_occupied[listen_idx] = false;
+            return err;
+        }
+    }
+#else
 	// Program into HW
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(
 		&dev->OncRpcCallDecoder_dev, 1);
@@ -155,6 +177,8 @@ static int register_service(struct worker_dev *dev, u16 port, u32 prog_num,
 	lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(&dev->UdpDecoder_dev,
 						     listen_idx);
 
+#endif
+
 	srv->enabled = true;
 	pr_info("Registered service #%d under TGID %d\n", srv->idx, proc->tgid);
 	return proc_srv_idx;
@@ -170,18 +194,25 @@ static void deregister_service(struct worker_dev *dev, struct srv_def *srv)
 
 	tgid = srv->proc->tgid;
 
+#if LH_BACKEND_VM
+    lh_vm_service(srv, false);
+#else
 	// Program into HW
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_enabled_wr(
 		&dev->OncRpcCallDecoder_dev, 0);
 	lauberhorn_eci_OncRpcCallDecoder_ctrl_service_idx_wr(
 		&dev->OncRpcCallDecoder_dev, srv->idx);
 
+#endif
+
 	// Keep shared call listeners enabled until their final service leaves.
     if (--listen_users[srv->listen_idx] == 0) {
+#if !LH_BACKEND_VM
         lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(
             &dev->UdpDecoder_dev, lauberhorn_eci_listen_disabled);
         lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(
             &dev->UdpDecoder_dev, srv->listen_idx);
+#endif
         listen_occupied[srv->listen_idx] = false;
     }
 	srv->enabled = false;
@@ -191,6 +222,9 @@ static void deregister_service(struct worker_dev *dev, struct srv_def *srv)
 
 static void update_proc_hw(struct worker_dev *dev, struct proc_def *proc)
 {
+#if LH_BACKEND_VM
+    lh_vm_notify();
+#else
 	lauberhorn_eci_sched_ctrl_proc_enabled_wr(&dev->sched_dev,
 						  proc->enabled && !proc->failed && proc->declared_workers &&
                           proc->num_rdy_thrs == proc->declared_workers);
@@ -200,6 +234,7 @@ static void update_proc_hw(struct worker_dev *dev, struct proc_def *proc)
 
 	BUG_ON(proc->idx == 0);
 	lauberhorn_eci_sched_ctrl_proc_idx_wr(&dev->sched_dev, proc->idx);
+#endif
 }
 
 static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
@@ -226,9 +261,19 @@ static struct proc_def *register_app(struct worker_dev *dev, pid_t tgid)
 		return ERR_PTR(-ENOMEM);
 	}
 
+#if LH_BACKEND_VM
+    proc->vm_buffers = vmalloc_user(LAUBERHORN_NUM_WORKER_CORES * LAUBERHORN_ECI_CORE_OFFSET);
+    if (!proc->vm_buffers) return ERR_PTR(-ENOMEM);
+#endif
 	proc->tgid = tgid;
 	proc->domain_code = allocate_domain_code(proc->idx);
-    if (proc->domain_code == U32_MAX) return ERR_PTR(-ENOSPC);
+    if (proc->domain_code == U32_MAX) {
+#if LH_BACKEND_VM
+        vfree(proc->vm_buffers);
+        proc->vm_buffers = NULL;
+#endif
+        return ERR_PTR(-ENOSPC);
+    }
     proc->lifetime = (u64)proc->domain_code + 1;
     proc->leader = current->group_leader;
     get_task_struct(proc->leader);
@@ -308,6 +353,10 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
 	if (proc->failed) return -ESHUTDOWN;
 
 	switch (cmd) {
+    case LAUBERHORN_IOCTL_BACKEND: {
+        u32 backend = LH_BACKEND_VM ? LAUBERHORN_BACKEND_VM : LAUBERHORN_BACKEND_ECI;
+        return copy_to_user((void __user *)arg, &backend, sizeof(backend)) ? -EFAULT : 0;
+    }
     case LAUBERHORN_IOCTL_SET_WORKER_COUNT: {
         u32 count;
         if (copy_from_user(&count, (void __user *)arg, sizeof(count))) return -EFAULT;
@@ -357,6 +406,9 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
 		break;
 
 	case LAUBERHORN_IOCTL_DEREG_SRV:
+#if LH_BACKEND_VM
+        if (proc->num_rdy_thrs) return -EBUSY;
+#endif
 		if (copy_from_user(&dereg_cmd, dereg_cmd_usr,
 				   sizeof(dereg_cmd))) {
 			return -EFAULT;
@@ -393,6 +445,11 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
     struct file_priv *fp = f->private_data;
     if (current->tgid != fp->pd->tgid) return -EPERM;
     // Yield must never hold the control/lifetime mutex across blocking MMIO.
+#if LH_BACKEND_VM
+    if (cmd == LH_VM_RX || cmd == LH_VM_RX_RELEASE || cmd == LH_VM_TX_RESERVE ||
+        cmd == LH_VM_TX_CANCEL || cmd == LH_VM_TX)
+        return lh_vm_ioctl(fp->pd, cmd, arg);
+#endif
     if (cmd == LAUBERHORN_IOCTL_YIELD)
         return worker_yield(fp->pd, (struct lh_activation __user *)arg);
     mutex_lock(&control_lock);
@@ -460,9 +517,11 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
     unsigned long size = vma->vm_end - vma->vm_start;
     unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
     unsigned long first = offset / LH_MAP_BLOCK_BYTES, count = size / LH_MAP_BLOCK_BYTES;
-    unsigned int w;
     int ret;
+#if !LH_BACKEND_VM
+    unsigned int w;
     u64 address;
+#endif
     if (current->tgid != proc->tgid) return -EPERM;
     if (proc->failed) return -ESHUTDOWN;
     if (PAGE_SIZE > LH_MAP_BLOCK_BYTES || !(vma->vm_flags & VM_SHARED) ||
@@ -470,6 +529,12 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
         !size || size % LH_MAP_BLOCK_BYTES || offset % LH_MAP_BLOCK_BYTES ||
         first >= LAUBERHORN_NUM_WORKER_CORES || count > LAUBERHORN_NUM_WORKER_CORES - first)
         return -EINVAL;
+#if LH_BACKEND_VM
+    vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP | VM_DONTCOPY);
+    vm_flags_clear(vma, VM_MAYEXEC | VM_EXEC);
+    ret = remap_vmalloc_range(vma, proc->vm_buffers, vma->vm_pgoff);
+    if (ret) return ret;
+#else
     vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP | VM_DONTCOPY | VM_PFNMAP);
     vm_flags_clear(vma, VM_MAYEXEC | VM_EXEC);
     vma->vm_page_prot = pgprot_nx(vma->vm_page_prot);
@@ -479,6 +544,7 @@ static int app_dev_mmap_locked(struct file *f, struct vm_area_struct *vma)
             mem_node1_off_to_phys(address) >> PAGE_SHIFT, LH_MAP_BLOCK_BYTES, vma->vm_page_prot);
         if (ret) return ret;
     }
+#endif
     vma->vm_ops = &vm_ops;
     vma->vm_private_data = proc;
     return 0;
@@ -527,6 +593,7 @@ int create_devices(void)
         unregister_chrdev_region(devt, 1);
         return -ENOMEM;
     }
+#if !LH_BACKEND_VM
 	// Initialize Mackerel devices
 	lauberhorn_eci_OncRpcCallDecoder_initialize(
 		&dev->OncRpcCallDecoder_dev,
@@ -538,6 +605,8 @@ int create_devices(void)
 		LAUBERHORN_ECI__ONC_RPC_REPLY_ENCODER_BASE);
 	lauberhorn_eci_sched_initialize(&dev->sched_dev,
 					LAUBERHORN_ECI_SCHED_BASE);
+
+#endif
 
 	cdev_init(&dev->cdev, &fops);
     dev->cdev.owner = THIS_MODULE;
@@ -560,7 +629,11 @@ int create_devices(void)
 
 	// allocate our private data
 	if (IS_ERR(device_create_with_groups(dev_class, NULL, devt, dev,
-					     worker_attr_groups,
+#if LH_BACKEND_VM
+                                         NULL,
+#else
+                                         worker_attr_groups,
+#endif
 					     "lauberhorn"))) {
 		pr_err("device_create failed\n");
         class_destroy(dev_class);

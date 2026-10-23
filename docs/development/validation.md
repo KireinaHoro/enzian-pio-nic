@@ -6,6 +6,14 @@ matching FPGA inputs with the [development workflow](workflow.md); application
 package recipes and local overrides are documented there. Run host commands
 from the repository root in the Nix development environment.
 
+## Software-only VM validation
+
+The [VM backend acceptance test](../software/vm-backend.md#validation) exercises
+the shared kernel/runtime lifecycle, native UDP, ONC-RPC, nested RPC and UDP
+memcached using Nixpkgs NixOS VMs. It requires KVM and supplies functional
+transport coverage without an Enzian board. It does not validate ECI coherence
+or hardware timing.
+
 ## Board validation
 
 A successful build supplies an artifact, not board acceptance. A passing RPC

@@ -26,7 +26,7 @@ struct message { size_t len; unsigned char data[MAX_BYTES]; };
 static rpc_codec_t codec;
 static lauberhorn_rpc_endpoint_t remote, local;
 extern struct pending_call_table pending_call_table;
-static struct pending_call *held[PENDING_CALL_TABLE_SIZE];
+static struct pending_call *held[PENDING_CALL_LIMIT];
 static unsigned get(struct message *m, unsigned i) {
     uint32_t v; memcpy(&v, m->data+4*i, 4); return ntohl(v);
 }
@@ -48,7 +48,7 @@ static int unmarshal(void *in, void *out, size_t len, void *priv) {
 static lauberhorn_outcome_t bad(void) { return lauberhorn_fail(LAUBERHORN_RPC_SYSTEM_ERR); }
 static void noop(void *p) {}
 static void release_held(void *p) {
-    for(unsigned i=0;i<PENDING_CALL_TABLE_SIZE;i++)
+    for(unsigned i=0;i<PENDING_CALL_LIMIT;i++)
         pending_call_release(&pending_call_table,held[i]);
     free(p);
 }
@@ -123,7 +123,7 @@ static lauberhorn_outcome_t handle(void *p, void *arg, lauberhorn_request_contex
         return lauberhorn_defer(nested,NULL,NULL); /* rejection; queued noops release pool next turn */
     }
     case PENDING_FULL: {
-        for(unsigned i=0;i<PENDING_CALL_TABLE_SIZE;i++) {
+        for(unsigned i=0;i<PENDING_CALL_LIMIT;i++) {
             held[i]=pending_call_acquire(&pending_call_table);
             if(!held[i]) abort();
         }

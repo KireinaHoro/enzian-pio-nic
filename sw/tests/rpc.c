@@ -45,10 +45,10 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, bool inline
     state->tx_capacity = inline_payload ? 64 : LAUBERHORN_MTU;
     return state->tx_buf;
 }
-#define core_eci_tx_cancel core_eci_tx_finish
-#define core_eci_tx_get_buffer test_tx_get
-#define core_eci_tx_commit test_tx
-#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
+#define core_tx_cancel core_eci_tx_finish
+#define core_tx_get_buffer test_tx_get
+#define core_tx_commit test_tx
+#define core_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
 #define ioctl test_ioctl
 #include "../rt/rpc.c"
 #undef ioctl

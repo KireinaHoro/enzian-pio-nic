@@ -101,6 +101,7 @@
           }
           // pkgs.lib.optionalAttrs linux {
             thunderx-ptp = platform.thunderx.checks;
+            userspace-vm = platform.vmTest;
           };
         # Standard package outputs are complete deployable artifacts.
         packages = pkgs.lib.optionalAttrs linux platform.images;
@@ -116,10 +117,19 @@
           kernel = {
             buildTree = platform.kernelBuildTree;
             lauberhornModule = platform.kmod;
+            vmModule = platform.vmModule;
             thunderxPtpModules = platform.thunderx.modules;
           };
           software = {
-            inherit (platform) runtime runtimeUninstrumented runtimeNative microbenchmarksUninstrumented dandelion memcached;
+            inherit (platform)
+              runtime
+              runtimeUninstrumented
+              runtimeNative
+              runtimeVm
+              microbenchmarksUninstrumented
+              dandelion
+              memcached
+              ;
             inherit (platform.applications) microbenchmarks recovery-test nested-validation;
             memcachedReferenceNative = platform.memcachedReference;
             inherit (platform) mlx5TrafficGenerator mlx5TrafficGeneratorNative

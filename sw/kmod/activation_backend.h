@@ -11,6 +11,8 @@ struct lh_device_activation {
     u8 rx_next, tx_next;
 };
 
+struct proc_def;
+void lh_device_fail_domain(struct proc_def *proc);
 struct worker_fpi_data;
 struct lh_device_activation lh_device_activate(struct worker_fpi_data *worker);
 bool lh_device_idle_pending(struct worker_fpi_data *worker);

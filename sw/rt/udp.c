@@ -38,7 +38,7 @@ static int udp_wait(void) {
         if (server_trace_enabled) {
             uint64_t enter = server_activation_pending ? server_trace_clock() : 0;
             uint64_t observed = 0;
-            received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
+            received = core_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &observed, server_trace_clock);
             w->rx_trace = NULL;
             if (received && desc.type != TY_DESCHED) {
@@ -50,7 +50,7 @@ static int udp_wait(void) {
         } else
 #endif
         {
-            received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
+            received = core_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (!received) return 0;
         if (desc.type == TY_DESCHED) {
@@ -67,7 +67,7 @@ static int udp_wait(void) {
 #if LH_ENABLE_TRACING
             server_trace_discard(w->rx_trace);
 #endif
-            core_eci_rx_release(&w->dp);
+            core_rx_release(&w->dp);
             errno = EPROTO; return -1;
         }
         w->udp_rx_view = (lauberhorn_udp_datagram_t){
@@ -108,7 +108,7 @@ int lauberhorn_udp_release(void) {
     lauberhorn_worker_t w = worker_get_current();
     if (!w) { errno = EINVAL; return -1; }
     if (!w->dp.rx_view.pending) { errno = EINVAL; return -1; }
-    core_eci_rx_release(&w->dp);
+    core_rx_release(&w->dp);
     memset(&w->udp_rx_view, 0, sizeof(w->udp_rx_view));
     return 0;
 }
@@ -127,8 +127,8 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
     }
     uint64_t doorbell = 0;
     int result = server_trace_inline
-        ? core_eci_tx_commit_traced(w->dp_base, &w->dp, desc, &doorbell, server_trace_clock)
-        : core_eci_tx_commit(w->dp_base, &w->dp, desc);
+        ? core_tx_commit_traced(w->dp_base, &w->dp, desc, &doorbell, server_trace_clock)
+        : core_tx_commit(w->dp_base, &w->dp, desc);
     if (server_trace_inline) {
         struct server_trace_row *row = server_trace_inline;
         row->tx_publish_ns = doorbell;
@@ -139,7 +139,7 @@ static int udp_commit(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc) {
         server_trace_event(row, LH_TRACE_UDP_TX_END, length, result);
     }
 #else
-    int result = core_eci_tx_commit(w->dp_base, &w->dp, desc);
+    int result = core_tx_commit(w->dp_base, &w->dp, desc);
 #endif
     return result;
 }

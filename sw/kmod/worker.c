@@ -8,6 +8,7 @@
 
 #include "regblock_bases.h"
 #include "worker_regs.h"
+#include "activation_backend.h"
 
 #include "lauberhorn_eci_desched_dev.h"
 #include "lauberhorn_eci_ownership_dev.h"
@@ -83,29 +84,10 @@ u32 allocate_domain_code(u32 slot)
     lauberhorn_eci_ownership_domain_slot_wr(&ownership_dev, slot);
     return code;
 }
-void fail_domain(struct proc_def *proc)
+void lh_device_fail_domain(struct proc_def *proc)
 {
-    unsigned long flags;
-    int i;
-    bool first;
-    if (!proc) return;
-    spin_lock_irqsave(&claim_lock, flags);
-    first = !proc->failed;
-    proc->failed = true;
-    for (i = 0; i < proc->declared_workers; ++i) {
-        proc->thr_defs[i].activation_ready = false;
-        proc->thr_defs[i].waiting = false;
-    }
-    spin_unlock_irqrestore(&claim_lock, flags);
-    // Kill before control MMIO: another handoff can temporarily occupy the bus.
-    send_sig(SIGKILL, proc->leader, 1);
-    wake_up_all(&proc->claims);
-    for (i = 0; i < proc->declared_workers; ++i)
-        if (proc->thr_defs[i].enabled) wake_up_all(&proc->thr_defs[i].wait);
-    if (first) {
-        lauberhorn_eci_ownership_fail_domain_wr(&ownership_dev, proc->idx);
-        pr_err("Domain slot %u code %u killed; session requires coherence reset\n", proc->idx, proc->domain_code);
-    }
+    lauberhorn_eci_ownership_fail_domain_wr(&ownership_dev, proc->idx);
+    pr_err("Domain slot %u code %u killed; session requires coherence reset\n", proc->idx, proc->domain_code);
 }
 void handle_domain_faults(void)
 {

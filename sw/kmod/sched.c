@@ -7,6 +7,28 @@
 
 DEFINE_SPINLOCK(claim_lock);
 
+void fail_domain(struct proc_def *proc)
+{
+    unsigned long flags;
+    int i;
+    bool first;
+    if (!proc) return;
+    spin_lock_irqsave(&claim_lock, flags);
+    first = !proc->failed;
+    proc->failed = true;
+    for (i = 0; i < proc->declared_workers; ++i) {
+        proc->thr_defs[i].activation_ready = false;
+        proc->thr_defs[i].waiting = false;
+    }
+    spin_unlock_irqrestore(&claim_lock, flags);
+    // Kill before control MMIO: another handoff can temporarily occupy the bus.
+    send_sig(SIGKILL, proc->leader, 1);
+    wake_up_all(&proc->claims);
+    for (i = 0; i < proc->declared_workers; ++i)
+        if (proc->thr_defs[i].enabled) wake_up_all(&proc->thr_defs[i].wait);
+    if (first) lh_device_fail_domain(proc);
+}
+
 int register_worker_thread(struct proc_def *proc, u32 index)
 {
     struct thr_def *thr;

@@ -65,8 +65,8 @@ static void execution_flush(void) {
     uint8_t command = worker_execution_take(w, false);
     if (!command) return;
     lauberhorn_pkt_desc_t desc = {.type = TY_EXECUTION_CONTROL, .execution = command};
-    if (!core_eci_tx_get_buffer(w->dp_base, &w->dp, true) ||
-        core_eci_tx_commit(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
+    if (!core_tx_get_buffer(w->dp_base, &w->dp, true) ||
+        core_tx_commit(w->dp_base, &w->dp, &desc) != CORE_TX_ACCEPTED) abort();
 }
 static void execution_begin(void) {
     lauberhorn_worker_t w = worker_get_current();
@@ -109,7 +109,7 @@ static void *lauberhorn_worker_loop(void *arg) {
         if (server_trace_enabled) {
             uint64_t enter = server_activation_pending ? server_trace_clock() : 0;
             uint64_t observed = 0;
-            received = core_eci_rx_acquire_traced(w->dp_base, &w->dp, &desc,
+            received = core_rx_acquire_traced(w->dp_base, &w->dp, &desc,
                 &observed, server_trace_clock);
             w->rx_trace = NULL;
             if (received && desc.type != TY_DESCHED) {
@@ -122,7 +122,7 @@ static void *lauberhorn_worker_loop(void *arg) {
         } else
 #endif
         {
-            received = core_eci_rx_acquire(w->dp_base, &w->dp, &desc);
+            received = core_rx_acquire(w->dp_base, &w->dp, &desc);
         }
         if (received && desc.type == TY_DESCHED) {
 #if LH_ENABLE_TRACING
@@ -137,7 +137,7 @@ static void *lauberhorn_worker_loop(void *arg) {
 #if LH_ENABLE_TRACING
             if (desc.type != TY_ONCRPC_CALL_RX) server_trace_discard(w->rx_trace);
 #endif
-            core_eci_rx_release(&w->dp);
+            core_rx_release(&w->dp);
         }
     }
     worker_fail(w); /* Individual withdrawal is unsupported. */

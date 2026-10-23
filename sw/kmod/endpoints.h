@@ -21,12 +21,16 @@ static bool endpoint_port_reserved(u16 port)
 static void endpoint_listener(struct file_priv *fp,
                               struct endpoint_reservation *ep, bool enable)
 {
+#if LH_BACKEND_VM
+    lh_vm_endpoint(fp->pd, ep->handle, ep->port, ep->socket, ep->native_udp, enable);
+#else
     lauberhorn_eci_UdpDecoder_ctrl_listen_port_wr(&fp->dev->UdpDecoder_dev, ep->port);
     lauberhorn_eci_UdpDecoder_ctrl_listen_next_proto_wr(&fp->dev->UdpDecoder_dev,
         enable ? (ep->native_udp ? lauberhorn_eci_listen_native_udp : lauberhorn_eci_listen_onc_rpc_reply) : lauberhorn_eci_listen_disabled);
     lauberhorn_eci_UdpDecoder_ctrl_listen_pid_wr(&fp->dev->UdpDecoder_dev, fp->pd->tgid);
     lauberhorn_eci_UdpDecoder_ctrl_listen_endpoint_wr(&fp->dev->UdpDecoder_dev, ep->handle);
     lauberhorn_eci_UdpDecoder_ctrl_listen_idx_wr(&fp->dev->UdpDecoder_dev, ep->listen_idx);
+#endif
 }
 
 static void release_endpoint(struct file_priv *fp, int idx)
@@ -99,14 +103,20 @@ free_ep:
 static long deregister_endpoint(struct file_priv *fp, void __user *arg)
 {
     lauberhorn_dereg_endpoint_t cmd;
+    int i;
+#if !LH_BACKEND_VM
     lauberhorn_eci_OncRpcReplyDecoder_t dev;
-    int i, j;
+    int j;
+#endif
     if (copy_from_user(&cmd, arg, sizeof(cmd))) return -EFAULT;
     if (cmd.reserved) return -EINVAL;
     if (fp->pd->num_rdy_thrs) return -EBUSY;
     for (i = 0; i < LAUBERHORN_NUM_LISTEN_PORTS; ++i)
         if (fp->endpoints[i] && fp->endpoints[i]->handle == cmd.handle) break;
     if (i == LAUBERHORN_NUM_LISTEN_PORTS) return -ENOENT;
+#if LH_BACKEND_VM
+    if (lh_vm_endpoint_busy(fp->endpoints[i]->port)) return -EBUSY;
+#else
     lauberhorn_eci_OncRpcReplyDecoder_initialize(&dev,
         LAUBERHORN_ECI__ONC_RPC_REPLY_DECODER_BASE);
     for (j = 0; j < LAUBERHORN_NUM_SESSIONS; ++j) {
@@ -115,6 +125,7 @@ static long deregister_endpoint(struct file_priv *fp, void __user *arg)
             lauberhorn_eci_OncRpcReplyDecoder_stat_req_readback_local_port_rd(&dev) == fp->endpoints[i]->port)
             return -EBUSY;
     }
+#endif
     release_endpoint(fp, i);
     return 0;
 }

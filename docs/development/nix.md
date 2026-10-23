@@ -42,7 +42,10 @@ The old flat `deployFs`/`*DeployFs` names are now `microbenchmarksImage`,
 
 `dev.SYSTEM.software.runtimeNative` builds the complete runtime for the Linux
 build host with tracing disabled. It still uses ECI transport and does not
-provide VM emulation. Runtime CPU tuning is supplied by
+provide VM emulation. `dev.SYSTEM.software.runtimeVm` selects VM transport,
+paired with `dev.SYSTEM.kernel.vmModule`. The
+[`userspace-vm` check](../software/vm-backend.md#validation) uses Nixpkgs NixOS
+test scaffolding with that matching pair. Runtime CPU tuning is supplied by
 `nix/software/runtime.nix` through `cpuFlags`; `nix/platform.nix` selects
 ThunderX tuning for the deployed AArch64 runtime and generic host compilation
 for the native build.

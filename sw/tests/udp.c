@@ -56,13 +56,13 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, bool inline
     state->tx_capacity = inline_payload ? 64 : LAUBERHORN_MTU;
     return tx;
 }
-#define core_eci_tx_cancel core_eci_tx_finish
-#define core_eci_tx_get_buffer test_tx_get
-#define core_eci_rx_acquire_traced test_rx_traced
+#define core_tx_cancel core_eci_tx_finish
+#define core_tx_get_buffer test_tx_get
+#define core_rx_acquire_traced test_rx_traced
 #define ioctl test_ioctl
-#define core_eci_tx_commit test_tx
-#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) (*(stamp) = (clock)(), test_tx(base, state, desc))
-#define core_eci_rx_acquire test_rx
+#define core_tx_commit test_tx
+#define core_tx_commit_traced(base, state, desc, stamp, clock) (*(stamp) = (clock)(), test_tx(base, state, desc))
+#define core_rx_acquire test_rx
 #include "../rt/udp.c"
 #include "../rt/buffer.c"
 

@@ -10,6 +10,8 @@ ifndef MACKEREL_DEV_HDRS
 endif
 
 LH_ENABLE_TRACING ?= 1
+LH_BACKEND_VM ?= 0
+override CFLAGS += -DLH_BACKEND_VM=$(LH_BACKEND_VM)
 override CFLAGS += -DLH_ENABLE_TRACING=$(LH_ENABLE_TRACING)
 
 # Base flags shared across all architectures

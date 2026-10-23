@@ -1,6 +1,6 @@
 # Shared userspace TCP for native applications
 
-**Proposal; not implemented.** Support TCP memcached with one userspace TCP
+**TCP proposal; VM infrastructure implemented.** Support TCP memcached with one userspace TCP
 stack per application, shared by its one to four request workers. Hardware
 classifies and transports segments; software owns all TCP connection state,
 ACK generation, reassembly, flow/congestion control, retransmission and close.
@@ -123,15 +123,17 @@ work; retain the existing application's maintenance/lifecycle scope limits.
 
 ## Development phases
 
-These phases are planned work. The software-only backend is shared infrastructure
+The TCP phases remain planned work. The software-only backend is shared infrastructure
 for Lauberhorn applications, not a TCP-specific replacement runtime.
 
 ### Phase 1: shared kernel module and runtime with VM emulation
 
-The preparatory build supports a host-native runtime, and kernel activation
-device reads are separated from thread registration and handoff. The VM
-transport, device emulator and acceptance matrix described below are not
-implemented.
+The compile-time VM backend shares kernel registration/activation and runtime
+dispatch with ECI. Its kernel-thread device emulator supports native UDP,
+ONC-RPC and nested RPC through mapped buffers and transport ioctls. Nixpkgs
+NixOS tests exercise these paths and UDP memcached. See the
+[VM backend contract and validation](../software/vm-backend.md) for its bounds
+and lifecycle limitations. Native TCP and domain timer activation remain phase 2.
 
 Start from the current kernel module and runtime, with a compile-time backend
 selection for real hardware or software-only VM execution. Share application

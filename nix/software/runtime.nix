@@ -7,7 +7,12 @@
   genVerilog,
   tracing ? true,
   cpuFlags ? [ ],
+  backend ? "eci",
 }:
+assert builtins.elem backend [
+  "eci"
+  "vm"
+];
 stdenv.mkDerivation {
   pname = "lauberhorn-rt";
   version = "0.0.1";
@@ -21,18 +26,25 @@ stdenv.mkDerivation {
   NIX_CFLAGS_COMPILE = builtins.concatStringsSep " " cpuFlags;
   buildPhase = ''
     runHook preBuild
-    make -C sw/rt MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers} LH_ENABLE_TRACING=${if tracing then "1" else "0"}
+    make -C sw/rt LH_BACKEND_VM=${
+      if backend == "vm" then "1" else "0"
+    } MACKEREL_DEV_HDRS=${devHdrs} HW_CFG_HDRS=${genVerilog.headers} LH_ENABLE_TRACING=${if tracing then "1" else "0"}
     ${if tracing then "$CC -O2 -g -DLH_PMU_PROBE sw/rt/pmu.c -o lh-pmu-probe" else ""}
-    ${if tracing then "" else ''
-      if ${stdenv.cc.targetPrefix}nm sw/rt/liblauberhorn.so | grep -E 'server_trace_|lauberhorn_trace_|lh_pmu_'; then
-        echo "Tracing symbols survived the uninstrumented build" >&2
-        exit 1
-      fi
-      if ${stdenv.cc.targetPrefix}strings sw/rt/liblauberhorn.so | grep -E 'LAUBERHORN_(SERVER_TRACE|EVENT_TRACE|PMU)'; then
-        echo "Tracing environment controls survived the uninstrumented build" >&2
-        exit 1
-      fi
-    ''}
+    ${
+      if tracing then
+        ""
+      else
+        ''
+          if ${stdenv.cc.targetPrefix}nm sw/rt/liblauberhorn.so | grep -E 'server_trace_|lauberhorn_trace_|lh_pmu_'; then
+            echo "Tracing symbols survived the uninstrumented build" >&2
+            exit 1
+          fi
+          if ${stdenv.cc.targetPrefix}strings sw/rt/liblauberhorn.so | grep -E 'LAUBERHORN_(SERVER_TRACE|EVENT_TRACE|PMU)'; then
+            echo "Tracing environment controls survived the uninstrumented build" >&2
+            exit 1
+          fi
+        ''
+    }
     runHook postBuild
   '';
   dontStrip = true;
@@ -52,9 +64,19 @@ stdenv.mkDerivation {
     Version: 0.0.1
     Requires: libtirpc
     Libs: -L$out/lib -llauberhorn
-    Cflags: -I$dev/include -DLH_ENABLE_TRACING=${if tracing then "1" else "0"}
+    Cflags: -I$dev/include -DLH_BACKEND_VM=${
+      if backend == "vm" then "1" else "0"
+    } -DLH_ENABLE_TRACING=${if tracing then "1" else "0"}
     PC
     runHook postInstall
   '';
-  passthru = { inherit genVerilog devHdrs tracing cpuFlags; };
+  passthru = {
+    inherit
+      genVerilog
+      devHdrs
+      tracing
+      cpuFlags
+      backend
+      ;
+  };
 }
