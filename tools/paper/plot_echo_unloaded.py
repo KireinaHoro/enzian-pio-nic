@@ -117,7 +117,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
                     ax.text(center,len(systems)-1-i,f'{mean:.3f}',ha='center',va='center',fontsize=7)
                 elif mean>=.5:
                     ax.text(center,len(systems)-1-i,f'{mean:.3f}',ha='center',va='center',fontsize=6.5,rotation=90)
-                else:
+                elif not split_dispatch:
                     below=label in ('RPC (un)marshal','Network stack')
                     ax.annotate('0' if mean==0 else f'{mean:.3f}',
                                 (center,len(systems)-1-i+(-.225 if below else .225)),
