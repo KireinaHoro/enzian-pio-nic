@@ -9,6 +9,10 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
+#include <linux/nsproxy.h>
+#include <net/route.h>
+#include "lauberhorn/tcp_transport.h"
 #include <linux/sched/signal.h>
 #include <net/ip.h>
 #include <net/udp.h>
@@ -17,7 +21,7 @@
 /* All device state below is owned by emulator, except the explicitly published
  * hook port bitmap and notification flags. Callers submit synchronous commands;
  * receive commands remain queued until packet, DESCHED or bounded NACK. */
-enum command { SERVICE, ENDPOINT, BUSY, RETIRE, ACTIVATE, TRANSPORT, DEADLINE_SET, DEADLINE_GET, SCHEDULE_STATE };
+enum command { SERVICE, ENDPOINT, BUSY, RETIRE, ACTIVATE, TRANSPORT, DEADLINE_SET, DEADLINE_GET, SCHEDULE_STATE, TCP_ENDPOINT };
 struct vm_cmd {
     struct list_head link;
     struct completion done;
@@ -29,6 +33,7 @@ struct vm_cmd {
     struct lauberhorn_deadline_set deadline_set;
     struct lauberhorn_deadline_state deadline_state;
     struct lh_vm_schedule_state schedule_state;
+    struct lauberhorn_tcp_endpoint tcp_endpoint;
     lauberhorn_pkt_desc_t desc;
     unsigned int op, worker;
     unsigned long expires;
@@ -90,6 +95,12 @@ static void service_socket_put(struct socket *socket)
 }
 static struct vm_context incoming[LAUBERHORN_NUM_SESSIONS], outgoing[LAUBERHORN_NUM_SESSIONS];
 static u8 hooked_ports[65536];
+static u32 hooked_tcp_addresses[65536];
+static struct {
+    struct proc_def *proc;
+    struct lauberhorn_tcp_endpoint endpoint;
+    struct socket *reservation;
+} tcp_endpoints[LAUBERHORN_NUM_LISTEN_PORTS];
 static u32 next_token, next_domain;
 static unsigned int deadline_cursor;
 static void packet_arrival(struct proc_def *proc, unsigned int fill);
@@ -157,12 +168,15 @@ static unsigned int receive_hook(void *priv, struct sk_buff *skb, const struct n
     unsigned int ihl;
     if (!pskb_may_pull(skb, sizeof(*ip))) return NF_ACCEPT;
     ip = ip_hdr(skb);
-    if (ip->protocol != IPPROTO_UDP || ip->ihl != 5 || ip_is_fragment(ip)) return NF_ACCEPT;
+    if ((ip->protocol != IPPROTO_UDP && ip->protocol != IPPROTO_TCP) ||
+        ip->ihl != 5 || ip_is_fragment(ip)) return NF_ACCEPT;
     ihl = ip->ihl * 4;
     if (!pskb_may_pull(skb, ihl + sizeof(*udp))) return NF_ACCEPT;
     ip = ip_hdr(skb);
     udp = (void *)ip + ihl;
-    if (!READ_ONCE(hooked_ports[ntohs(udp->dest)])) return NF_ACCEPT;
+    if (ip->protocol == IPPROTO_TCP) {
+        if (READ_ONCE(hooked_tcp_addresses[ntohs(udp->dest)]) != ntohl(ip->daddr)) return NF_ACCEPT;
+    } else if (!READ_ONCE(hooked_ports[ntohs(udp->dest)])) return NF_ACCEPT;
     spin_lock_irqsave(&ingress.lock, flags);
     if (skb_queue_len(&ingress) >= LH_VM_QUEUE_DEPTH) {
         spin_unlock_irqrestore(&ingress.lock, flags);
@@ -219,6 +233,26 @@ static void receive_packet(struct sk_buff *skb)
     lauberhorn_pkt_desc_t desc = {0};
     if (skb_linearize(skb)) goto out;
     ip = ip_hdr(skb);
+    if (ip->protocol == IPPROTO_TCP) {
+        struct tcphdr *tcp = (void *)ip + 20;
+        len = ntohs(ip->tot_len);
+        if (len < 40 || len > LAUBERHORN_MTU || skb->len < len ||
+            ip_fast_csum((u8 *)ip, 5) || tcp->doff < 5 || 20 + tcp->doff * 4 > len) goto out;
+        /* Loopback/offloaded packets may still carry a partial checksum. */
+        if (skb->ip_summed == CHECKSUM_PARTIAL && skb_checksum_help(skb)) goto out;
+        ip = ip_hdr(skb); tcp = (void *)ip + 20;
+        if (csum_tcpudp_magic(ip->saddr, ip->daddr, len - 20, IPPROTO_TCP,
+                             csum_partial(tcp, len - 20, 0))) goto out;
+        for (i = 0; i < ARRAY_SIZE(tcp_endpoints); ++i) {
+            if (!tcp_endpoints[i].proc || tcp_endpoints[i].endpoint.port != ntohs(tcp->dest) ||
+                tcp_endpoints[i].endpoint.address != ntohl(ip->daddr)) continue;
+            desc.type = TY_NATIVE_TCP_RX; desc.payload_len = len;
+            desc.tcp.endpoint = tcp_endpoints[i].endpoint.handle;
+            enqueue(tcp_endpoints[i].proc, &desc, (u8 *)ip);
+            goto out;
+        }
+        goto out;
+    }
     udp = (void *)ip + 20;
     len = ntohs(udp->len);
     if (len < 8 || len > LAUBERHORN_MTU - 20 || ntohs(ip->tot_len) != len + 20 ||
@@ -279,6 +313,78 @@ static void receive_packet(struct sk_buff *skb)
 out:
     kfree_skb(skb);
 }
+/* Linux supplies IP routing/neighbour resolution only; TCP bytes and protocol
+ * state belong to the application stack. No Linux TCP send/receive is used. */
+static int transmit_tcp(struct vm_cmd *cmd, const void *payload)
+{
+    u8 packet[LAUBERHORN_MTU];
+    unsigned int size = cmd->desc.payload_len, i;
+    struct iphdr *ip = (void *)packet;
+    struct tcphdr *tcp = (void *)packet + 20;
+    struct rtable *route;
+    struct sk_buff *skb;
+    struct flowi4 flow = { .flowi4_proto = IPPROTO_TCP };
+    if (size < 40 || size > sizeof(packet)) return TX_ERROR;
+    memcpy(packet, payload, size);
+    if (ip->version != 4 || ip->ihl != 5 || ip->protocol != IPPROTO_TCP ||
+        ip_is_fragment(ip) || ntohs(ip->tot_len) != size || tcp->doff < 5 ||
+        20 + tcp->doff * 4 > size || ip_fast_csum(packet, 5) ||
+        csum_tcpudp_magic(ip->saddr, ip->daddr, size - 20, IPPROTO_TCP,
+                         csum_partial(tcp, size - 20, 0))) return TX_ERROR;
+    for (i = 0; i < ARRAY_SIZE(tcp_endpoints); ++i)
+        if (tcp_endpoints[i].proc == cmd->proc &&
+            tcp_endpoints[i].endpoint.handle == cmd->desc.tcp.endpoint &&
+            tcp_endpoints[i].endpoint.address == ntohl(ip->saddr) &&
+            tcp_endpoints[i].endpoint.port == ntohs(tcp->source)) break;
+    if (i == ARRAY_SIZE(tcp_endpoints)) return TX_ERROR;
+    flow.saddr = ip->saddr; flow.daddr = ip->daddr;
+    flow.fl4_sport = tcp->source; flow.fl4_dport = tcp->dest;
+    route = ip_route_output_flow(&init_net, &flow, NULL);
+    if (IS_ERR(route)) return TX_ERROR;
+    skb = alloc_skb(LL_MAX_HEADER + size, GFP_KERNEL);
+    if (!skb) { ip_rt_put(route); return TX_RETRY; }
+    skb_reserve(skb, LL_MAX_HEADER);
+    skb_reset_network_header(skb);
+    skb_put_data(skb, packet, size);
+    skb_set_transport_header(skb, 20);
+    skb->protocol = htons(ETH_P_IP); skb->ip_summed = CHECKSUM_NONE;
+    skb_dst_set(skb, &route->dst);
+    /* net_xmit_eval may evaluate its argument twice; output consumes skb. */
+    int result = ip_local_out(&init_net, NULL, skb);
+    return net_xmit_eval(result) ? TX_ERROR : TX_ACCEPTED;
+}
+static int register_tcp_endpoint(struct vm_cmd *cmd)
+{
+    struct lauberhorn_tcp_endpoint *ep = &cmd->tcp_endpoint;
+    struct socket *reservation;
+    struct sockaddr_in addr = { .sin_family = AF_INET,
+        .sin_addr.s_addr = htonl(ep->address), .sin_port = htons(ep->port) };
+    unsigned int i, free_slot = ARRAY_SIZE(tcp_endpoints);
+    int ret;
+    if (!ep->address || !ep->port || ep->reserved || ep->handle) return -EINVAL;
+    if (cmd->proc->num_rdy_thrs) return -EBUSY;
+    if (inet_addr_type(&init_net, addr.sin_addr.s_addr) != RTN_LOCAL) return -EADDRNOTAVAIL;
+    for (i = 0; i < ARRAY_SIZE(tcp_endpoints); ++i) {
+        if (!tcp_endpoints[i].proc) { free_slot = i; continue; }
+        if (tcp_endpoints[i].endpoint.port != ep->port) continue;
+        if (tcp_endpoints[i].proc != cmd->proc || tcp_endpoints[i].endpoint.address != ep->address)
+            return -EADDRINUSE;
+        *ep = tcp_endpoints[i].endpoint; return 0;
+    }
+    if (free_slot == ARRAY_SIZE(tcp_endpoints)) return -ENOSPC;
+    /* Bind without listen/connect reserves the host port; incoming packets
+     * are stolen before the host TCP stack sees them. */
+    ret = sock_create_kern(&init_net, AF_INET, SOCK_STREAM, IPPROTO_TCP, &reservation);
+    if (ret) return ret;
+    ret = kernel_bind(reservation, (struct sockaddr *)&addr, sizeof(addr));
+    if (ret) { sock_release(reservation); return ret; }
+    ep->handle = free_slot + 1;
+    tcp_endpoints[free_slot].proc = cmd->proc;
+    tcp_endpoints[free_slot].endpoint = *ep;
+    tcp_endpoints[free_slot].reservation = reservation;
+    WRITE_ONCE(hooked_tcp_addresses[ep->port], ep->address);
+    return 0;
+}
 static int transmit(struct vm_cmd *cmd, struct vm_worker *worker)
 {
     lauberhorn_pkt_desc_t *d = &cmd->desc;
@@ -293,6 +399,7 @@ static int transmit(struct vm_cmd *cmd, struct vm_worker *worker)
     if (d->execution || d->payload_len > LAUBERHORN_MTU) return TX_ERROR;
     switch (d->type) {
     case TY_EXECUTION_CONTROL: return d->payload_len ? TX_ERROR : TX_ACCEPTED;
+    case TY_NATIVE_TCP_TX: return transmit_tcp(cmd, payload);
     case TY_NATIVE_UDP_TX:
         if (d->payload_len > LAUBERHORN_MTU - 28) return TX_ERROR;
         for (i = 0; i < ARRAY_SIZE(endpoints); ++i)
@@ -516,6 +623,7 @@ static void process_command(struct vm_cmd *cmd)
     struct vm_worker *w;
     long result = 0;
     switch (cmd->kind) {
+    case TCP_ENDPOINT: result = register_tcp_endpoint(cmd); break;
     case DEADLINE_SET: {
         struct lauberhorn_deadline_state *d = &domains[cmd->proc->idx].deadline;
         u64 now = ktime_get_ns(), next = cmd->deadline_set.next_deadline_ns;
@@ -629,7 +737,14 @@ long lh_vm_control(struct proc_def *proc, unsigned int op, unsigned long arg)
 {
     struct vm_cmd cmd = { .proc = proc };
     long result;
-    if (op == LAUBERHORN_IOCTL_SET_DEADLINE) {
+    if (op == LAUBERHORN_IOCTL_REG_TCP_ENDPOINT) {
+        if (!net_eq(current->nsproxy->net_ns, &init_net)) return -EXDEV;
+        cmd.kind = TCP_ENDPOINT;
+        if (copy_from_user(&cmd.tcp_endpoint, (void __user *)arg, sizeof(cmd.tcp_endpoint))) return -EFAULT;
+        if (cmd.tcp_endpoint.port < 1024 && !capable(CAP_NET_BIND_SERVICE)) return -EACCES;
+        result = submit(&cmd);
+        if (!result && copy_to_user((void __user *)arg, &cmd.tcp_endpoint, sizeof(cmd.tcp_endpoint))) return -EFAULT;
+    } else if (op == LAUBERHORN_IOCTL_SET_DEADLINE) {
         cmd.kind = DEADLINE_SET;
         if (copy_from_user(&cmd.deadline_set, (void __user *)arg, sizeof(cmd.deadline_set))) return -EFAULT;
         result = submit(&cmd);
@@ -696,4 +811,6 @@ void lh_vm_exit(void)
     kthread_stop(emulator);
     for (i = 0; i < ARRAY_SIZE(workers); ++i) stop_worker_dispatch(&workers[i].shared);
     skb_queue_purge(&ingress);
+    for (i = 0; i < ARRAY_SIZE(tcp_endpoints); ++i)
+        if (tcp_endpoints[i].reservation) sock_release(tcp_endpoints[i].reservation);
 }

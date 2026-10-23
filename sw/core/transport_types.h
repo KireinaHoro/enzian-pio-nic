@@ -21,6 +21,8 @@ typedef enum {
   TY_NATIVE_UDP_TX,
   TY_DESCHED, /* RX status only: no application payload */
   TY_DEADLINE, /* RX status only: generation, no packet borrow */
+  TY_NATIVE_TCP_RX, /* complete wire-format IPv4/TCP packet */
+  TY_NATIVE_TCP_TX,
 } lauberhorn_pkt_desc_type_t;
 
 // descriptor for one packet / transaction
@@ -30,6 +32,7 @@ typedef struct {
   // transaction metadata (packet header, RPC session data, etc.)
   union {
     struct { uint64_t generation; } deadline;
+    struct { uint32_t endpoint; } tcp;
     struct { uint32_t endpoint, saddr, daddr; uint16_t sport, dport, trace_ref; } udp;
     struct {
       enum {

@@ -14,6 +14,10 @@
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master";
       flake = false;
     };
+    tcp = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git?ref=userspace-tcp-phase-two";
+      flake = false;
+    };
     memcached = {
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=lauberhorn";
       flake = false;
@@ -126,6 +130,7 @@
               runtimeUninstrumented
               runtimeNative
               runtimeVm
+              tcpVm
               microbenchmarksUninstrumented
               dandelion
               memcached

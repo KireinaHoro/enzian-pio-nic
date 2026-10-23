@@ -52,7 +52,7 @@ Its CPU flags also come from the selected runtime package.
 
 ## Phase-two current state
 
-TCP public API commit: `51fdfb5` on `userspace-tcp-phase-two` (unmerged).
+TCP repository: `060d11f` (public API and local contention retry) on `userspace-tcp-phase-two` (unmerged).
 FreeBSD 15.1-RELEASE-p6 is pinned at
 `95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 26 C files, 282 headers and COPYRIGHT.
 The manifest verifies all 309 pristine files. Helpers include PCB/socket,
@@ -179,6 +179,39 @@ four-worker, one-worker and ASan/UBSan public API checks passed:
 `out/tcp-api-public`, `out/tcp-api-single`, `out/tcp-api-sanitized`.
 No TCP connection has yet run in the VM.
 
+## Native TCP VM transport increment
+
+The platform pins TCP `060d11f` as optional `dev.x86_64-linux.software.tcpVm`.
+`REG_TCP_ENDPOINT` (ioctl 17) reserves a local address/port before registration;
+raw RX/TX descriptors carry full IPv4/TCP packets. VM TX validates source ownership
+and uses Linux IP routing only. Runtime attach/receive/release/send is in
+`tcp_transport.h`/`sw/rt/tcp_transport.c`. DEADLINE events are surfaced to callers;
+there is no TCP stack adapter or timer publisher yet. ECI returns EOPNOTSUPP.
+
+The maintained raw transport fixture passed against a Linux TCP client: SYN RX,
+RST/ACK TX, wrong endpoint TX rejection, RX borrow/release rules. Full VM suite
+passed at `out/userspace-vm-tcp-transport-fixed-run` and
+`/tmp/lh-vm-tcp-fixed-run.log`; Nix driver `out/userspace-vm-tcp-transport-fixed`.
+ECI kernel/runtime and output-interface checks passed:
+`/tmp/lh-tcp-eci-compat.log`. This fixture constructs RST packets itself and is
+explicitly not evidence of a FreeBSD connection in the VM.
+
+An initial raw TX bug passed an skb-consuming function directly to
+`net_xmit_eval`, which can evaluate its argument twice. The duplicate call caused
+an emulator-thread kernel fault after emitting the first packet. Fixed by storing
+the return value before invoking the macro; the successful VM suite includes the
+no-kernel-Oops gate. Failed-stage diagnostics remain in
+`/tmp/lh-vm-tcp-debug-run.log`. The first hanging probe was explicitly interrupted;
+no test processes remain. The maintained probe now bounds marker waiting to 10 s
+and prints the fixture log on failure.
+
+Next integrate the optional stack with this transport and DEADLINE, using actual
+Linux-peer connections. Account for host GSO/GRO packets in VM ingress: current
+transport accepts only MTU-sized packets, so large transfers may expose virtual
+network offload aggregation. Keep any configuration in Nix, or normalize packets
+in the emulated wire boundary. Do not treat the raw transport probe as phase-two
+completion.
+
 ## Remaining phase-two work
 
 The objective remains a reasonably working shared four-worker TCP stack in the
@@ -188,12 +221,12 @@ two complete based on host TCP tests.
 
 1. Public API and Nix package are implemented. Continue exercising their socket
    lifetime and nonblocking semantics through the actual VM transport.
-2. Make the component selectable in application Nix recipes beside runtime,
-   with no mandatory runtime dependency on TCP. Pin the pushed TCP source in the
-   platform flow. The package supports one to four workers; concurrency substrate tests run
+2. The optional `tcpVm` Nix package pins the pushed TCP source beside runtime,
+   without a mandatory runtime TCP dependency. Add it to the TCP VM application
+   fixture recipe. The package supports one to four workers; concurrency substrate tests run
    in the four-worker configuration.
-3. Add native TCP packet transport and connect stack timer publication to the
-   implemented VM DEADLINE interface. No Linux TCP sockets may substitute for the stack.
+3. Native TCP VM kernel/runtime transport is implemented; connect the stack
+   API and timer publication to it and the VM DEADLINE interface. No Linux TCP sockets may substitute for the stack.
    Preserve transport borrow release before DESCHED/yield. Timer expiry must be
    sticky/coalescible and activate a parked domain. Re-read the earliest deadline
    after bounded dispatch. Connection contention must resolve locally or fail

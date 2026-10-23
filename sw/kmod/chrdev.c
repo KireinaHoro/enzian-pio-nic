@@ -373,6 +373,7 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
         if (!ret && proc->num_rdy_thrs == proc->declared_workers) update_proc_hw(fp->dev, proc);
         return ret;
     }
+    case LAUBERHORN_IOCTL_REG_TCP_ENDPOINT:
     case LAUBERHORN_IOCTL_SET_DEADLINE:
     case LAUBERHORN_IOCTL_GET_DEADLINE:
 #if LH_BACKEND_VM

@@ -4,14 +4,16 @@ The VM backend builds the shared Lauberhorn kernel module and runtime for native
 Linux. `LH_BACKEND_VM` selects it at compile time; Nix owns this selection and
 all CPU, queue and guest settings. Runtime initialization checks the module's
 backend ID before mapping buffers. Public application APIs are unchanged.
-Native TCP transport is not implemented. Domain-scoped DEADLINE activation is
-available through the VM transport and drives RPC timeout processing. TCP timer
-publication remains stack integration work.
+Native TCP transport carries complete IPv4/TCP packets for explicitly registered
+endpoints. Domain-scoped DEADLINE activation drives RPC timeout processing.
+Connecting the optional TCP stack to transport and deadline publication remains
+integration work.
 
 ## Execution and ownership
 
 `sw/kmod/vm.c` runs device operations in the `lh_device` kernel thread on a
 housekeeping CPU. An IPv4 local-input hook selects registered UDP ports and
+TCP address/port pairs, then
 queues packets; the device thread validates and classifies them. Unregistered
 ports retain ordinary host delivery. IP options and fragmented packets bypass
 the emulator; malformed, oversized or unsupported RPC packets on registered
@@ -46,12 +48,36 @@ ioctls validate the calling registered thread's active assignment. RX borrow and
 TX reservation checks exist in the shared runtime and the device backend. RX
 cannot block while either is outstanding. After DESCHED, transport operations
 are rejected until yield installs the next activation. A TX completion means
-that the host UDP stack owns a copy; it does not imply peer receipt.
+that the host networking path owns a copy; it does not imply peer receipt.
 
 The shared `sw/core/transport.h` interface selects ECI cache-line operations or
 VM ioctls. Descriptors and common transport state live in `transport_types.h`;
 the private VM ioctl ABI is in `sw/core/vm/abi.h`. VM buffers reuse the generated
 per-worker stride but do not model ECI aliases, coherence or timing.
+
+## Native TCP transport
+
+`lauberhorn/tcp_transport.h` registers a host-order local IPv4 address and TCP
+port before workers start. Registration reserves the port with a bound, inactive
+kernel socket; it does not use Linux TCP for protocol processing. The address
+must be local, the caller must be in the initial network namespace, and privileged
+ports require bind capability. Repeating a registration with input handle zero
+returns the existing handle for that domain. Reservations persist for domain
+lifetime; endpoint teardown is not exposed. TCP and UDP port spaces are separate.
+
+RX validates and copies complete IPv4/TCP packets into the ordinary domain queue.
+TX validates packet lengths/checksums and verifies its source address/port against
+the submitting domain's endpoint handle. Linux supplies IP routing and neighbour
+resolution; the application supplies TCP state and wire bytes. Plain IPv4 without
+fragmentation/options is supported. ECI registration and runtime TCP operations
+return `EOPNOTSUPP` until the hardware path exists.
+
+The runtime exposes attach, receive/release and buffer submission. Receive handles
+DESCHED through the shared yield path and returns either a borrowed packet or a
+payload-free DEADLINE generation. The optional TCP component must copy input,
+drain output and publish/acknowledge its timers before parking. The runtime itself
+has no dependency on the TCP library. Nix exposes the optional package as
+`dev.x86_64-linux.software.tcpVm`.
 
 ## DEADLINE control and delivery
 

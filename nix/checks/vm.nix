@@ -17,6 +17,8 @@ let
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = [ runtimeVm ];
     buildPhase = ''
+      $CC -O2 -g -pthread $(pkg-config --cflags lauberhorn) sw/tests/vm/tcp_transport.c \
+        $(pkg-config --libs lauberhorn) -o vm-tcp-transport
       $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn) sw/tests/vm/udp.c \
         $(pkg-config --libs lauberhorn) -o vm-udp
       $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn) \
@@ -25,6 +27,7 @@ let
         $(pkg-config --libs lauberhorn) -o vm-scheduling
     '';
     installPhase = ''
+      install -Dm755 vm-tcp-transport $out/bin/vm-tcp-transport
       install -Dm755 vm-udp $out/bin/vm-udp
       install -Dm755 vm-scheduling $out/bin/vm-scheduling
       install -Dm644 sw/tests/vm/client.py $out/share/client.py
@@ -73,6 +76,14 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("multi-user.target")
     machine.succeed("modprobe lauberhorn")
     machine.wait_until_succeeds("test -e /dev/lauberhorn")
+    machine.succeed("vm-tcp-transport > /tmp/tcp-transport.log 2>&1 &")
+    machine.wait_until_succeeds("grep READY /tmp/tcp-transport.log")
+    machine.succeed("python3 -c 'import socket, errno; s=socket.socket(); s.settimeout(5); assert s.connect_ex((\"127.0.0.1\", 19500)) == errno.ECONNREFUSED'")
+    try:
+        machine.wait_until_succeeds("grep TCP_TRANSPORT_PASS /tmp/tcp-transport.log", timeout=10)
+    except Exception:
+        print(machine.execute("cat /tmp/tcp-transport.log")[1])
+        raise
     machine.succeed("vm-udp 19000 4 > /tmp/udp-a.log 2>&1 &")
     machine.succeed("vm-udp 19001 4 > /tmp/udp-b.log 2>&1 &")
     machine.wait_until_succeeds("grep READY /tmp/udp-a.log && grep READY /tmp/udp-b.log")

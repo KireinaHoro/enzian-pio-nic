@@ -91,6 +91,9 @@ let
     tracing = false;
   };
   runtimeVm = runtimeNative.override { backend = "vm"; };
+  tcpVm = pkgs.callPackage (inputs.tcp + "/package.nix") {
+    lauberhornRuntime = runtimeVm;
+  };
   vmKernel = pkgs.linuxPackages.kernel;
   vmModule = pkgs.callPackage ./software/vm-module.nix {
     kernel = vmKernel;
@@ -237,6 +240,7 @@ in
     runtimeUninstrumented
     runtimeNative
     runtimeVm
+    tcpVm
     vmModule
     vmTest
     microbenchmarksUninstrumented

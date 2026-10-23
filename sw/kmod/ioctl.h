@@ -105,5 +105,6 @@ typedef struct { u32 limit_us; u32 reserved; } lauberhorn_watchdog_t;
 
 /* Number 9 (the removed KICK_PROCESS operation) is not reused. */
 #include "lauberhorn/deadline.h"
+#include "lauberhorn/tcp_transport.h"
 
 #endif // LAUBERHORN_IOCTL_H

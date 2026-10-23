@@ -194,6 +194,7 @@
         "microbenchmarks": "microbenchmarks",
         "mill-ivy-fetcher": "mill-ivy-fetcher",
         "nixpkgs": "nixpkgs",
+        "tcp": "tcp",
         "thunderx-ptp": "thunderx-ptp"
       }
     },
@@ -210,6 +211,23 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "tcp": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792787333,
+        "narHash": "sha256-4K5W5nyQLWausA7wwGhaWT4pG801k86/8nmcBM8olHE=",
+        "ref": "userspace-tcp-phase-two",
+        "rev": "060d11f0bbe31122aae4629f6fb878b89469f113",
+        "revCount": 6,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
+      },
+      "original": {
+        "ref": "userspace-tcp-phase-two",
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
       }
     },
     "thunderx-ptp": {
