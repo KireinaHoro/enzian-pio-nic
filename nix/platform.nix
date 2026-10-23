@@ -101,7 +101,7 @@ let
     inherit (kmod) src;
   };
   vmTest = pkgs.callPackage ./checks/vm.nix {
-    inherit vmModule runtimeVm;
+    inherit vmModule runtimeVm tcpVm;
     memcachedVm = pkgs.callPackage (inputs.memcached + "/package.nix") {
       source = inputs.memcached;
       lauberhornRuntime = runtimeVm;

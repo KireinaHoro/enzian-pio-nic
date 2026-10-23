@@ -317,41 +317,44 @@ out:
  * state belong to the application stack. No Linux TCP send/receive is used. */
 static int transmit_tcp(struct vm_cmd *cmd, const void *payload)
 {
-    u8 packet[LAUBERHORN_MTU];
     unsigned int size = cmd->desc.payload_len, i;
-    struct iphdr *ip = (void *)packet;
-    struct tcphdr *tcp = (void *)packet + 20;
+    struct iphdr *ip;
+    struct tcphdr *tcp;
     struct rtable *route;
     struct sk_buff *skb;
     struct flowi4 flow = { .flowi4_proto = IPPROTO_TCP };
-    if (size < 40 || size > sizeof(packet)) return TX_ERROR;
-    memcpy(packet, payload, size);
+    if (size < 40 || size > LAUBERHORN_MTU) return TX_ERROR;
+    skb = alloc_skb(LL_MAX_HEADER + size, GFP_KERNEL);
+    if (!skb) return TX_RETRY;
+    skb_reserve(skb, LL_MAX_HEADER);
+    skb_reset_network_header(skb);
+    /* Snapshot the userspace reservation directly into its final host-owned
+     * skb; validate that immutable copy, with no temporary packet staging. */
+    skb_put_data(skb, payload, size);
+    ip = ip_hdr(skb); tcp = (void *)ip + 20;
     if (ip->version != 4 || ip->ihl != 5 || ip->protocol != IPPROTO_TCP ||
         ip_is_fragment(ip) || ntohs(ip->tot_len) != size || tcp->doff < 5 ||
-        20 + tcp->doff * 4 > size || ip_fast_csum(packet, 5) ||
+        20 + tcp->doff * 4 > size || ip_fast_csum((u8 *)ip, 5) ||
         csum_tcpudp_magic(ip->saddr, ip->daddr, size - 20, IPPROTO_TCP,
-                         csum_partial(tcp, size - 20, 0))) return TX_ERROR;
+                         csum_partial(tcp, size - 20, 0))) goto invalid;
     for (i = 0; i < ARRAY_SIZE(tcp_endpoints); ++i)
         if (tcp_endpoints[i].proc == cmd->proc &&
             tcp_endpoints[i].endpoint.handle == cmd->desc.tcp.endpoint &&
             tcp_endpoints[i].endpoint.address == ntohl(ip->saddr) &&
             tcp_endpoints[i].endpoint.port == ntohs(tcp->source)) break;
-    if (i == ARRAY_SIZE(tcp_endpoints)) return TX_ERROR;
+    if (i == ARRAY_SIZE(tcp_endpoints)) goto invalid;
     flow.saddr = ip->saddr; flow.daddr = ip->daddr;
     flow.fl4_sport = tcp->source; flow.fl4_dport = tcp->dest;
     route = ip_route_output_flow(&init_net, &flow, NULL);
-    if (IS_ERR(route)) return TX_ERROR;
-    skb = alloc_skb(LL_MAX_HEADER + size, GFP_KERNEL);
-    if (!skb) { ip_rt_put(route); return TX_RETRY; }
-    skb_reserve(skb, LL_MAX_HEADER);
-    skb_reset_network_header(skb);
-    skb_put_data(skb, packet, size);
+    if (IS_ERR(route)) goto invalid;
     skb_set_transport_header(skb, 20);
     skb->protocol = htons(ETH_P_IP); skb->ip_summed = CHECKSUM_NONE;
     skb_dst_set(skb, &route->dst);
     /* net_xmit_eval may evaluate its argument twice; output consumes skb. */
     int result = ip_local_out(&init_net, NULL, skb);
     return net_xmit_eval(result) ? TX_ERROR : TX_ACCEPTED;
+invalid:
+    kfree_skb(skb); return TX_ERROR;
 }
 static int register_tcp_endpoint(struct vm_cmd *cmd)
 {

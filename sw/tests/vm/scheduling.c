@@ -179,7 +179,9 @@ int main(void) {
     shared->hold[1] = 0;
     WAIT(atomic_load(&shared->deadlines[0]) == 1);
     assert(stats(0).assigned == 1 && stats(0).deadline == 1);
-    assert(stats(0).last_deadline_donor_fill == half);
+    /* Workers drain concurrently; the first RX-ready donor may appear after
+     * fill has fallen below half. The policy prohibits only above-half reclaim. */
+    assert(stats(0).last_deadline_donor_fill <= half);
     assert(atomic_load(&shared->generation[0]) == gen);
     WAIT(atomic_load(&shared->deadlines[1]) == 1);
     assert(stats(1).deadline == 0); /* four workers share one notification */

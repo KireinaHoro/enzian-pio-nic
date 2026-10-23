@@ -52,7 +52,7 @@ Its CPU flags also come from the selected runtime package.
 
 ## Phase-two current state
 
-TCP repository: `060d11f` (public API and local contention retry) on `userspace-tcp-phase-two` (unmerged).
+TCP repository: `09196d9` (direct per-worker TX and DEADLINE adapter) on `userspace-tcp-phase-two` (unmerged).
 FreeBSD 15.1-RELEASE-p6 is pinned at
 `95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 26 C files, 282 headers and COPYRIGHT.
 The manifest verifies all 309 pristine files. Helpers include PCB/socket,
@@ -65,13 +65,14 @@ The self-contained package does not depend on that checkout.
 `port/` now runs ordered FreeBSD SYSINIT hooks, shared process/credential and
 resource-accounting state, one IPv4 interface/route, per-worker context and clock
 snapshots, actual mutex/RW/SX locks, atomic counters, allocation, mbufs and shared
-callouts. The packet boundary copies IPv4/TCP input into stack-owned buffers and
-copies checksummed output into a bounded queue drained outside stack locks.
+callouts. The packet boundary copies IPv4/TCP input once into stack-owned mbufs and
+outputs directly into the current worker’s Lauberhorn TX reservation, computing
+checksums in place and committing before returning. No shared TX staging exists.
 The interface/route are immutable for process lifetime. Unsupported IP options,
 fragments, IPv6, AIO, sendfile/physical pages and descriptor observers are not
 exposed. Kernel sleep is a fail-fast error; empty observer lists retain their
-normal semantics. Wakeup increments a shared generation, but it is not yet wired
-to the runtime's parking handshake.
+normal semantics. Wakeup increments a shared generation for consistent timer
+snapshots; the adapter publishes the minimum before each worker can park.
 
 Network epochs and SMR have separate reader domains. PCB reinsertion can wait
 for SMR with PCB/hash locks held; `_inp_smr_lock()` leaves SMR before blocking
@@ -99,7 +100,8 @@ optional unused names are not proof that the protocol executable cannot link.
 The package installs `lauberhorn/tcp.h`, the static archive and pkg-config
 metadata. One through four workers are selectable in Nix; the protocol fixture
 uses the public API/archive and races close across workers, rejecting stale
-handles. `passthru.runnable = false` still indicates absent VM/runtime integration.
+handles. `passthru.runnable = true`; the optional runtime adapter is installed when a
+matching runtime is supplied.
 
 ## Current phase-two evidence
 
@@ -177,16 +179,34 @@ Phase 4 supplies ECI DEADLINE/raw TCP steering and explicitly specifies/cleans u
 all scheduler reclaim rules. Public API changes are committed and pushed. Normal
 four-worker, one-worker and ASan/UBSan public API checks passed:
 `out/tcp-api-public`, `out/tcp-api-single`, `out/tcp-api-sanitized`.
-No TCP connection has yet run in the VM.
+The first FreeBSD/Linux-peer VM echo run passed in 33.99 s:
+`out/userspace-vm-tcp-stack-run`, `/tmp/lh-vm-tcp-stack-run.log`. Both guests ran
+16 concurrent connections with sizes 1, 17, 1400, 4096 and 16384 and FIN shutdown.
+The subsequent direct-TX run passed the complete suite in 32.07 s:
+`out/userspace-vm-tcp-direct-acceptance-run`,
+`/tmp/lh-vm-tcp-direct-acceptance-run.log`. Driver:
+`out/userspace-vm-tcp-direct-acceptance`. TCP now fills the caller’s actual TX
+reservation directly; the emulator copies it directly to its final skb, with no
+intermediate packet buffer. RX retains one copy into FreeBSD-owned mbufs because
+reassembly/socket data may outlive the RX borrow. Normal host checks passed in
+`out/tcp-direct-tx`; ASan/UBSan checks passed in `out/tcp-direct-sanitized` and
+`/tmp/lh-tcp-direct-sanitized.log`.
+
+The first direct-TX VM run stopped before TCP on a scheduler fixture assumption:
+concurrent draining can produce a donor below, rather than exactly at, half fill.
+The assertion now verifies the actual at-or-below-watermark rule; scheduler
+policy is unchanged. Failure evidence: `/tmp/lh-vm-tcp-direct-final-run.log`.
+Exact-boundary acceptance needs a deterministically gated donor fixture rather
+than inferring it from concurrent drain timing.
 
 ## Native TCP VM transport increment
 
-The platform pins TCP `060d11f` as optional `dev.x86_64-linux.software.tcpVm`.
+The platform pins TCP `09196d9` as optional `dev.x86_64-linux.software.tcpVm`.
 `REG_TCP_ENDPOINT` (ioctl 17) reserves a local address/port before registration;
 raw RX/TX descriptors carry full IPv4/TCP packets. VM TX validates source ownership
 and uses Linux IP routing only. Runtime attach/receive/release/send is in
 `tcp_transport.h`/`sw/rt/tcp_transport.c`. DEADLINE events are surfaced to callers;
-there is no TCP stack adapter or timer publisher yet. ECI returns EOPNOTSUPP.
+the optional TCP stack adapter now publishes timers and processes those events. ECI returns EOPNOTSUPP.
 
 The maintained raw transport fixture passed against a Linux TCP client: SYN RX,
 RST/ACK TX, wrong endpoint TX rejection, RX borrow/release rules. Full VM suite
@@ -205,8 +225,8 @@ no-kernel-Oops gate. Failed-stage diagnostics remain in
 no test processes remain. The maintained probe now bounds marker waiting to 10 s
 and prints the fixture log on failure.
 
-Next integrate the optional stack with this transport and DEADLINE, using actual
-Linux-peer connections. Account for host GSO/GRO packets in VM ingress: current
+Next finish explicit four-worker activity, independent-connection progress and
+all-parked timer/retransmission acceptance with actual Linux-peer connections. Account for host GSO/GRO packets in VM ingress: current
 transport accepts only MTU-sized packets, so large transfers may expose virtual
 network offload aggregation. Keep any configuration in Nix, or normalize packets
 in the emulated wire boundary. Do not treat the raw transport probe as phase-two
@@ -223,10 +243,10 @@ two complete based on host TCP tests.
    lifetime and nonblocking semantics through the actual VM transport.
 2. The optional `tcpVm` Nix package pins the pushed TCP source beside runtime,
    without a mandatory runtime TCP dependency. Add it to the TCP VM application
-   fixture recipe. The package supports one to four workers; concurrency substrate tests run
+   fixture recipe (now included in `nix/checks/vm.nix`). The package supports one to four workers; concurrency substrate tests run
    in the four-worker configuration.
-3. Native TCP VM kernel/runtime transport is implemented; connect the stack
-   API and timer publication to it and the VM DEADLINE interface. No Linux TCP sockets may substitute for the stack.
+3. The stack adapter connects native TCP transport and DEADLINE. Finish its
+   publication/parking race and timer-only retransmission acceptance. No Linux TCP sockets may substitute for the stack.
    Preserve transport borrow release before DESCHED/yield. Timer expiry must be
    sticky/coalescible and activate a parked domain. Re-read the earliest deadline
    after bounded dispatch. Connection contention must resolve locally or fail

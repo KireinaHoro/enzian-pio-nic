@@ -6,8 +6,8 @@ all CPU, queue and guest settings. Runtime initialization checks the module's
 backend ID before mapping buffers. Public application APIs are unchanged.
 Native TCP transport carries complete IPv4/TCP packets for explicitly registered
 endpoints. Domain-scoped DEADLINE activation drives RPC timeout processing.
-Connecting the optional TCP stack to transport and deadline publication remains
-integration work.
+The optional TCP runtime adapter connects the stack to transport and deadline
+publication.
 
 ## Execution and ownership
 
@@ -74,8 +74,10 @@ return `EOPNOTSUPP` until the hardware path exists.
 
 The runtime exposes attach, receive/release and buffer submission. Receive handles
 DESCHED through the shared yield path and returns either a borrowed packet or a
-payload-free DEADLINE generation. The optional TCP component must copy input,
-drain output and publish/acknowledge its timers before parking. The runtime itself
+payload-free DEADLINE generation. The optional TCP component copies RX input once into FreeBSD-owned mbufs before
+releasing the RX borrow. TCP output fills and commits the current worker’s actual
+TX reservation synchronously, including output under connection locks; no shared
+TX staging queue exists. It publishes/acknowledges timers before parking. The runtime itself
 has no dependency on the TCP library. Nix exposes the optional package as
 `dev.x86_64-linux.software.tcpVm`.
 
@@ -114,7 +116,7 @@ Submission, completion and cancellation update the published minimum; ordinary
 RX performs no timeout clock read or sweep-election CAS. RPC owns the domain
 timer while using this path: independent timer providers must be multiplexed
 before sharing a domain. The native UDP receive API is not a deadline consumer.
-TCP timer publication remains integration work. The VM policy fixture uses the
+The optional TCP adapter supplies its own exclusive domain timer publisher. The VM policy fixture uses the
 low-level RX interface to test timer-only activation and TX. Read-only
 `LH_VM_SCHEDULE_STATE` reports this domain's queue capacity/fill, actual and
 reserved assignments, RX-ready workers and allocation counts by reason.
