@@ -176,28 +176,39 @@ during sleep entry. Require timer-only activation with all workers parked and
 TCP progress while another worker runs a long handler. Validate stream contents,
 connection lifetime, readiness delivery and ownership at DESCHED/yield boundaries.
 
-### Phase 3: Lauberhorn integration and Enzian end-to-end validation
+### Phase 3: TCP memcached port and validation in the VM
+
+Port our existing memcached tree to the shared Lauberhorn TCP stack. Implement
+TCP support in place alongside that tree's Lauberhorn UDP support, preserving
+the UDP path and using the same application source and packaging. Integrate
+memcached's stream parser, response buffering and readiness handling with the
+stack validated in phase 2. Keep application parsing separate from TCP critical
+sections and preserve readiness while a connection's parser is busy.
+
+Run the port on the Lauberhorn emulator in the VM with normal TCP clients.
+Compare behavior with upstream memcached, including partial commands,
+pipelining, backpressure and concurrent connections. Exercise connection close,
+timer progress and multi-worker concurrency through the application, and retain
+UDP regression coverage. This establishes the application port before real
+hardware integration.
+
+### Phase 4: Lauberhorn integration and TCP/memcached validation on Enzian
 
 Implement the native-TCP classification, descriptors, RX/TX transport, endpoint
 validation and domain timer/wakeup mechanisms in Lauberhorn hardware, kernel
-module and runtime. Connect the VM-developed stack through the real backend;
-this phase includes the missing Lauberhorn functionality, not just deployment
-of the library onto Enzian. Regenerate ABI collateral and deploy matching
-hardware/software artifacts.
+module and runtime. Connect the VM-developed stack and the memcached port from
+phase 3 through the real backend. This phase includes the missing Lauberhorn
+functionality, not just deployment of the library onto Enzian. Regenerate ABI
+collateral and deploy matching hardware/software artifacts.
 
-Build with the real runtime/kernel backend and repeat the stack-level functional
-and concurrency cases end to end on Enzian with a normal TCP link partner.
-Validate real buffer ownership, scheduling handoff, timer-only wakeups and
-transport progress, while preserving existing application transports. VM
-results do not substitute for these hardware integration checks.
+Build with the real runtime/kernel backend and repeat both the stack-level
+functional/concurrency cases from phase 2 and the memcached application cases
+from phase 3 end to end on Enzian with normal TCP peers and clients. Validate
+real buffer ownership, scheduling handoff, timer-only wakeups and transport
+progress, while preserving existing application transports, including
+Lauberhorn UDP memcached. VM results do not substitute for these hardware
+integration checks.
 
-### Phase 4: TCP memcached integration and evaluation
-
-Integrate memcached's stream parser, response buffering and readiness handling
-with the validated shared stack. Keep application parsing separate from TCP
-critical sections and preserve readiness while a connection's parser is busy.
-Test against upstream memcached behavior with normal clients, including partial
-commands, pipelining, backpressure and concurrent connections. Evaluate on
-Lauberhorn after stack-level acceptance, reporting throughput, latency and total
-CPU costs, including any helper work, within the application's existing
-maintenance and lifecycle scope.
+After functional acceptance, evaluate TCP memcached throughput, latency and
+total CPU costs on Lauberhorn, including any helper work, within the
+application's existing maintenance and lifecycle scope.
