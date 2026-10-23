@@ -129,12 +129,17 @@ application API or VM/runtime integration yet.
 
 ## DEADLINE design checkpoint
 
-The user paused implementation to design DEADLINE scheduling first. Review the
-reserved domain slot, bounded local priority and cooperative zero-core reclaim
-proposal in the TCP document before VM implementation. Keep hardware DEADLINE
-and raw TCP steering together in phase 4. `softwarePending` is inactive legacy
-ECI scaffolding, not a completed timer mechanism. Public API edits in the TCP
-sibling remain uncommitted; do not discard them or claim API/VM acceptance.
+The agreed DEADLINE policy uses one reserved notification, delivered once to one
+worker. Allocation is zero-to-one only (including reservations), idle-first,
+otherwise from RX-ready donors at or below the watermark. Retain pending expiry
+when no donor qualifies; overload delay is acceptable. Long handlers and an
+unbounded ready-fiber drain retain the cooperative limitation; no new drain
+bound or asynchronous preemption is required. Replace per-RX RPC clock reads and
+sweep-election CAS with deadline-driven processing. Phase 4 removes KICK_PROCESS
+and legacy wake scaffolding, implements SET_DEADLINE and raw TCP steering, and
+cleans up/explicitly specifies every scheduler reclaim rule. Emulate the policy
+in phase 2 first. Public API edits in the TCP sibling remain uncommitted; do not
+discard them or claim API/VM acceptance.
 
 ## Remaining phase-two work
 

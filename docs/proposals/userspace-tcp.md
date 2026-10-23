@@ -76,60 +76,59 @@ schedules service. No helper TCP thread or asynchronous handler preemption is
 introduced. Hardware implementation belongs to phase 4 alongside raw TCP
 segment steering; phase 2 first emulates the agreed policy in the VM.
 
-Queue placement and core allocation are separate decisions:
+Keep one reserved pending slot per domain outside the packet FIFO, so a full
+packet queue cannot suppress expiry and duplicate expiries do not consume extra
+slots. Deliver DEADLINE once to one assigned worker at its next eligible RX,
+ahead of queued packets. Already accepted packet delivery is not withdrawn.
+Continued overdue work alternates bounded timer and packet batches when both
+are ready; repeated expiry does not confer unlimited priority.
 
-| Policy | Response after expiry | Fairness and cost |
-| --- | --- | --- |
-| Append to packet FIFO | Waits for the packets already ahead of it, plus core allocation and the current handler | Preserves FIFO order, but a full queue needs reserved admission; packet count does not bound execution time |
-| Reserved slot selected before packets | Removes queued-packet delay at the next eligible RX boundary; still needs a core | Strict repeated priority can starve packets, including ACKs needed by TCP; bound service batches |
-| Reserved slot plus cooperative core reclaim | Also makes a zero-core domain eligible to take an idle or RX-ready core | Improves progress under competing traffic; repeated urgent requests need fair arbitration to avoid starving other domains |
+DEADLINE may increase a domain's core count only from **zero to one**. Count
+assigned and reserved cores together when deciding eligibility. Prefer an idle
+core; otherwise reclaim only an RX-ready core from a donor whose queue is **at
+or below the watermark**. Never take a core from a donor above that watermark
+for deadline service. Revalidate both recipient capacity and donor eligibility
+at reservation. If the recipient already has a core, deliver the notification
+there without allocating another core. Packet-driven scaling remains a separate
+reclaim reason.
 
-The recommended starting policy is the third, with bounded priority. Keep one
-reserved pending slot per domain outside the packet FIFO, so a full packet
-queue cannot suppress expiry and duplicate expiries do not consume extra slots.
-A worker selects a pending DEADLINE before the next queued packet, except that
-continued overdue work alternates bounded timer and packet batches when both
-are ready. Use a domain-wide claim so multiple workers cannot consume the same
-notification concurrently. Already accepted packet delivery is not withdrawn.
-Connection locks still serialize actual callbacks with packet processing;
-unrelated callbacks may execute concurrently on different workers.
+If no eligible core exists, retain the expired deadline and retry when eligibility
+changes. Indefinite delay while all possible donors remain above the watermark
+is an accepted overload behavior, not a bounded-latency guarantee. Arbitration
+must provide service among eligible requests without overriding donor protection;
+repeated rearming must not continually move one domain ahead of its peers.
 
-If a domain has no assigned or reserved core, pending DEADLINE participates in
-core allocation without requiring packet arrival or the queue watermark. Prefer
-an idle core, otherwise request an RX-ready core through ordinary DESCHED/yield.
-Request at most one core for deadline-only work; packet backlog retains the
-existing scaling policy. If the domain already has a core, notify it at its
-next loop/RX boundary without taking more cores solely for deadline work.
-This deliberately does not rescue an application whose only assigned worker
-is indefinitely blocked in a syscall or handler.
-
-Arbitrate deadline activation and packet-driven allocation fairly; neither
-class has permanent priority. Rotate among eligible deadline domains and keep
-requests pending when no core is available. Repeated rearming must not reset a
-domain's position to the front. Bound each timer batch and allow packet service
-and competing-domain handoffs between batches. These are service-opportunity
-fairness rules, not equal CPU-time guarantees: handlers still run cooperatively.
-The exact arbitration weights and batch limits are VM design parameters owned
-by Nix, to be chosen before implementing the hardware policy.
-
-A useful decomposition is: expiry-detection delay + allocation/handoff delay +
-time to the next safe worker boundary + local dispatch/connection-lock delay.
-Head selection reduces local backlog; cooperative reclaim reduces allocation
-waiting. Neither bounds a running handler, syscall sleep or lock holder.
-Punctual response therefore requires bounded cooperative work and sufficient
-capacity. Hard real-time deadlines would require a different execution and
-admission contract. TCP connections can survive finite pauses, but not arbitrary
-starvation beyond their own or their peer's timeout policy.
+A running handler, syscall sleep or continuously runnable fiber drain may delay
+the next RX boundary indefinitely. These have the same cooperative progress
+limitation. This design does not add asynchronous preemption or require a new
+fiber-drain bound. When all assigned workers are occupied, DEADLINE waits rather
+than acquiring an extra core. TCP and RPC timeouts therefore remain best effort;
+connections can expire at their peers during sufficiently long delays.
 
 ### Publication and acknowledgement
+
+Replace the obsolete `KICK_PROCESS` ioctl and `wake_idx`/`softwarePending`
+scaffolding with `SET_DEADLINE(next_deadline)`, using an absolute monotonic
+deadline. Reject a deadline earlier than the device's advertised minimum lead
+time without changing the previous armed/pending state. Provide explicit
+cancellation. The minimum, clock conversion and atomic generation/acknowledgement
+encoding are ABI details to settle in the VM; build parameters belong in Nix.
+There is one scheduling policy, without a `reclaim_on_expiry` mode switch.
+
+Use DEADLINE for both TCP timers and nested-RPC timeouts. Its single-worker
+delivery replaces the RPC loop's per-RX clock read and sweep-election CAS.
+The receiving worker reads the clock, processes expired work and publishes the
+next minimum. Concurrent insertion/cancellation still needs synchronization;
+removing sweep election does not remove connection or timer-state locks.
 
 DEADLINE remains pending until an explicit generation-checked acknowledgement
 or superseding publication; core reservation, activation and descriptor delivery
 alone must not clear it. Delivery claims suppress duplicate notifications while
 service is in flight. Complete service with an atomic acknowledgement/rearm of
 the next minimum (or cancellation when no timer remains). A newer publication
-must survive an old acknowledgement, and publishing an already expired minimum
-must leave the domain runnable. An earlier timer insertion must publish before
+must survive an old acknowledgement. Already-overdue software work remains
+runnable; rejection of a too-soon arm must not discard it or allow the last
+worker to park without a valid future retry or retained pending notification. An earlier timer insertion must publish before
 its worker can park; recheck shared timer state around publication to prevent a
 concurrent older minimum from replacing it. Serialize control publication
 outside connection locks. Exact register packing and clock conversion remain
@@ -141,8 +140,8 @@ due timers, retains the remaining work, and retries without needing a packet.
 It must also give packet processing and other domains service opportunities.
 Release all stack/application locks, RX borrows and TX reservations before
 blocking RX or yielding. Timer-only activation permits ACK/retransmission TX
-without a packet or RPC context. This interface is distinct from internal RPC
-timeout polling and [HOST_WORK](host-work.md).
+without a packet or RPC context. This replaces internal RPC timeout polling
+and remains distinct from [HOST_WORK](host-work.md).
 
 ### Fit with the current scheduler
 
@@ -156,10 +155,11 @@ are localized; the current scheduler does not implement this policy:
   behind packet dispatch and gated by `!rxDeschedReq.valid`; simply adding a
   pending bit there cannot ensure progress under continuous traffic.
 - Feed a persistent deadline activation request into fair arbitration with
-  packet-driven allocation. Reuse idle-first `DeschedCmdType.ready` victim
-  selection, `corePidMap` reservations, `drainProcInProgress` protection and
-  `coreDesched` handoff. Revalidate enabled state, lifetime and core count at
-  grant. The existing `force` value is legacy kill intent, not timer priority.
+  packet-driven allocation. Reuse `corePidMap` reservations,
+  `drainProcInProgress` protection and `coreDesched` handoff, but explicitly
+  restrict deadline donors by RX readiness and the watermark. Revalidate enabled
+  state, lifetime, zero recipient core count and donor eligibility at grant.
+  The existing `force` value is legacy kill intent, not timer priority.
 - Add a per-domain claim and bounded selection between a DEADLINE descriptor
   and packet popping at the per-core idle dispatch boundary. Hold the selected
   descriptor stable under backpressure. Keep DESCHED and failure fencing ahead
@@ -183,10 +183,12 @@ starvation freedom; the new arbitration needs explicit finite validation.
 
 Exercise a full packet queue at expiry, repeated immediate rearming, concurrent
 publication/acknowledgement, expiry during sleep entry and contended callbacks.
-Compare FIFO placement with reserved-slot selection using the same controlled
-workload. Alternate bursts between two applications, observe each lose every
-core, and require timer-only reactivation and stream progress on their existing
-connections. Include a packet-only competing domain to expose deadline-induced
+Verify that a deadline cannot allocate a second core, including concurrent
+reservations. Test donors below, exactly at and above the watermark; an expiry
+must stay pending while all donors are protected and become serviceable when
+an eligible core appears. Alternate bursts between two applications, observe
+each lose every core, and require timer-only reactivation and stream progress
+on their existing connections when donor eligibility permits. Include a packet-only competing domain to expose deadline-induced
 starvation. Report expiry-to-notification and expiry-to-callback separately,
 along with packet progress and handoff counts. Long-handler cases demonstrate
 the cooperative limit rather than claiming a deadline latency guarantee.
@@ -294,7 +296,9 @@ Expiry must remain pending and make the domain eligible for activation; after
 the scheduler grants a worker, dispatch must service the overdue timer. This
 requires eventual worker service, not execution at the exact deadline while
 the application has no workers. Bound the test's preemption intervals below
-the configured connection timeout and check for starvation under competing load.
+the configured connection timeout and check progress under competing load when
+an eligible donor or idle core is available. Separately verify accepted deferral
+when every donor is above the watermark.
 
 ### Phase 3: TCP memcached port and validation in the VM
 
@@ -320,6 +324,31 @@ module and runtime. Connect the VM-developed stack and the memcached port from
 phase 3 through the real backend. This phase includes the missing Lauberhorn
 functionality, not just deployment of the library onto Enzian. Regenerate ABI
 collateral and deploy matching hardware/software artifacts.
+
+Implement the agreed [DEADLINE policy](#deadline-execution-and-scheduling-proposed):
+`SET_DEADLINE`, minimum-lead-time rejection, reserved payload-free RX notification,
+single-worker delivery and generation-safe acknowledgement/rearm. Remove the
+obsolete `KICK_PROCESS` ioctl and legacy wake scaffolding. Replace per-RX RPC
+clock polling and sweep-election CAS with DEADLINE-driven timeout processing.
+Deadline-only allocation is strictly zero-to-one, using idle cores first and
+otherwise RX-ready donors at or below the watermark. Retain overdue work when
+no donor qualifies; overload delay and long cooperative execution are accepted
+limitations.
+
+Clean up the reclaim policy in `Scheduler.scala` as part of this integration.
+The current `idle`/`ready` victim classes are not a complete policy specification.
+Define each allocation/reclaim reason explicitly: initial packet activation,
+packet-backlog scaling, background discovery of unassigned domains, and DEADLINE
+activation. For each, specify recipient eligibility and core limits, donor
+readiness and watermark conditions, arbitration/priority, reservation and grant
+rechecks, and behavior when no donor qualifies. Centralize shared predicates
+and arbitration instead of accumulating special cases in packet and background
+paths. Keep failure fencing and legacy `force`/kill handling separate from normal
+reclaim. Preserve cooperative DESCHED/yield and document any deliberate changes
+to existing packet-driven rules. Validate simultaneous reasons, in-flight
+reservations, donor watermark transitions and protected-donor deferral in the VM
+and RTL before board acceptance; update the scheduler contract to the implemented
+rule set.
 
 Build with the real runtime/kernel backend and repeat both the stack-level
 functional/concurrency cases from phase 2 and the memcached application cases
