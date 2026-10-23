@@ -3,7 +3,7 @@
 {
   platformRef,
   applicationRevision,
-  applicationBranch ? "feat/lauberhorn-rx-wait",
+  applicationBranch ? "lauberhorn",
   runtimeRef ? null,
 }:
 let

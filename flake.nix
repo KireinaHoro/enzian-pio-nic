@@ -7,23 +7,23 @@
       flake = false;
     };
     dandelion = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/explicit-inline-codec&rev=d74fb48a06c719296126d59ac5bb7cf4b423be63";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git?ref=fix/explicit-inline-codec";
       flake = false;
     };
     microbenchmarks = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master&rev=e3b702d5c42ee07a6272d5450ba22dddc3000218";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master";
       flake = false;
     };
     memcached = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=master&rev=b376490d303da13ba15ed0295190893c64d1d324";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=lauberhorn";
       flake = false;
     };
     memcachedUpstream = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=master&rev=0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=master";
       flake = false;
     };
     crane = {
-      url = "github:ipetkov/crane/469fd08d0bcf6926321fa973c6777fbc87785dd7";
+      url = "github:ipetkov/crane";
     };
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";

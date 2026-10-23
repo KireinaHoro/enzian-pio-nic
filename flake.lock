@@ -12,7 +12,6 @@
       "original": {
         "owner": "ipetkov",
         "repo": "crane",
-        "rev": "469fd08d0bcf6926321fa973c6777fbc87785dd7",
         "type": "github"
       }
     },
@@ -29,7 +28,6 @@
       },
       "original": {
         "ref": "fix/explicit-inline-codec",
-        "rev": "d74fb48a06c719296126d59ac5bb7cf4b423be63",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/dandelion.git"
       }
@@ -102,15 +100,14 @@
       "locked": {
         "lastModified": 1791663922,
         "narHash": "sha256-MlsLus5uXO/7H3qhu3U8pP/cnPUOdW2KuDhGX9wQtmE=",
-        "ref": "master",
+        "ref": "lauberhorn",
         "rev": "b376490d303da13ba15ed0295190893c64d1d324",
         "revCount": 2233,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
       "original": {
-        "ref": "master",
-        "rev": "b376490d303da13ba15ed0295190893c64d1d324",
+        "ref": "lauberhorn",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       }
@@ -128,7 +125,6 @@
       },
       "original": {
         "ref": "master",
-        "rev": "0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       }
@@ -146,7 +142,6 @@
       },
       "original": {
         "ref": "master",
-        "rev": "e3b702d5c42ee07a6272d5450ba22dddc3000218",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git"
       }

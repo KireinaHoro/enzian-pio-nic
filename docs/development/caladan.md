@@ -178,3 +178,24 @@ The [RPC timestamp contract](rpc-breakdown.md) specifies the parked and
 preempted paths, generation identities, collection commands and join requirements.
 `activationChecks` exercises concurrent/signal recording, overflow rejection and
 compiled-out hooks without hardware.
+
+## Memcached
+
+The sibling `../memcached-caladan` checkout uses the memcached `caladan` branch
+and owns `package.nix` and `default.nix`. Its local entry point uses the platform
+flake lock and `platform.mkCaladanMemcached { source; caladanSource; }` to compose
+the AArch64 application with the same Caladan runtime and scheduler environment.
+From that checkout:
+
+```sh
+nix build --impure --file default.nix memcached
+nix build --impure --file default.nix image
+nix develop --impure --file default.nix shell
+```
+
+`caladanSource` defaults to `../caladan`. The recipe links the runtime's allocator
+shim, inherits its optimization flags, and disables extstore. The image exposes
+`/nix/store/memcached/bin/memcached CONFIG [MEMCACHED_OPTIONS]` and
+`/nix/store/caladan` for the runtime and modules. Use the same IOKernel and
+runtime configuration requirements described above. Building the application
+does not establish service or performance acceptance on Enzian.

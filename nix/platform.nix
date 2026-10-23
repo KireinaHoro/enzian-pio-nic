@@ -216,6 +216,29 @@ in
   mkCaladan = args: import ./benchmarks/caladan ({
     inherit pkgs target kernelBuildTree kernelRelease identity;
   } // args);
+  mkCaladanMemcached = { source, caladanSource }:
+    let
+      port = import ./benchmarks/caladan {
+        inherit pkgs target kernelBuildTree kernelRelease identity;
+        source = caladanSource;
+      };
+      memcached = target.callPackage (source + "/package.nix") {
+        inherit source caladanSource;
+        caladan = port.runtime;
+        inherit (port) rdmaCore;
+      };
+    in {
+      inherit memcached;
+      shell = target.mkShell { inputsFrom = [ memcached ]; };
+      image = pkgs.callPackage "${pkgs.path}/nixos/lib/make-squashfs.nix" {
+        storeContents = [ port.environment memcached ];
+        fileName = "memcached-caladan";
+        pseudoFiles = [
+          "caladan s 0777 0 0 ${baseNameOf port.environment}"
+          "memcached s 0777 0 0 ${baseNameOf memcached}"
+        ];
+      };
+    };
   mkCaladanCampaign = { source, microbenchmarkSource, rpcSource, executionModel ? "resident-workers" }:
     import ./benchmarks/caladan/campaign.nix {
       inherit pkgs target microbenchmarkSource rpcSource executionModel;
