@@ -48,97 +48,125 @@ Its CPU flags also come from the selected runtime package.
   The maintained fixture now uses the established append/single-get
   segmentation case. No memcached source modification was needed.
 
-## Phase-two checkpoint and host-port work
+## Phase-two current state
 
-TCP repository commit: `0ce3492` on `userspace-tcp-phase-two` (unmerged).
-Imported FreeBSD 15.1-RELEASE-p6 at
-`95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 22 C files and 266 transitive headers,
-plus COPYRIGHT. Compiler dependency files determine the
-minimal header closure. `upstream.json` pins each file hash; `maint/import.py`
-verifies/restores exactly that manifest. No F-Stack code or full FreeBSD tree
-was imported.
+TCP repository commit: `ff8145e` on `userspace-tcp-phase-two` (unmerged).
+FreeBSD 15.1-RELEASE-p6 is pinned at
+`95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 26 C files, 282 headers and COPYRIGHT.
+The manifest verifies all 309 pristine files. Helpers include PCB/socket,
+sockbuf/mbuf, hashes/checksum, event handlers, sbuf, formatter and inet_ntoa.
+No F-Stack source or full FreeBSD tree is imported. The ignored
+`out/tcp-import/dependencies.nix` temporarily supplies upstream headers for
+compiler dependency discovery; only reported headers enter the manifest.
+The self-contained package does not depend on that checkout.
 
-`package.nix` builds a non-runnable TCP core plus a host substrate archive.
-Selected vanilla helpers now include in_pcb, uipc_socket, uipc_sockbuf,
-uipc_mbuf/uipc_mbuf2, subr_hash, jenkins_hash, SipHash and IPv4 checksum.
-Only their 31 additional compiler-used headers were imported; the ignored
-`out/tcp-import/dependencies.nix` used upstream headers temporarily to discover
-the closure. The self-contained package does not depend on that checkout.
+`port/` now runs ordered FreeBSD SYSINIT hooks, shared process/credential and
+resource-accounting state, one IPv4 interface/route, per-worker context and clock
+snapshots, actual mutex/RW/SX locks, atomic counters, allocation, mbufs and shared
+callouts. The packet boundary copies IPv4/TCP input into stack-owned buffers and
+copies checksummed output into a bounded queue drained outside stack locks.
+The interface/route are immutable for process lifetime. Unsupported IP options,
+fragments, IPv6, AIO, sendfile/physical pages and descriptor observers are not
+exposed. Kernel sleep is a fail-fast error; empty observer lists retain their
+normal semantics. Wakeup increments a shared generation, but it is not yet wired
+to the runtime's parking handshake.
 
-`port/` implements actual mutex/RW/SX locks, TLS FreeBSD thread/CPU context,
-shared atomic counters, deferred reclamation, bounded malloc/UMA adapters,
-mapped mbufs and shared callouts.
-The queue lock is released before callbacks; associated connection locks
-serialize callbacks on the same connection. Contention retains the pending
-expiry and original deadline. Notification callbacks must be nonblocking;
-actual emulator deadline publication belongs outside stack locks.
-
-Nix validation passed (`out/tcp-host`, `/tmp/lh-tcp-mbuf-build2.log`, derivation
-`g841jihlcy4gzhkvjja4qbx0f2xn1fkj-lauberhorn-tcp-core-0.1.drv`). The installed
-`libexec/tcp-concurrency-test` also passed directly. Its four workers check
-shared locking, cross-worker reset/stop/dispatch, overlapping callbacks on
-independent connections, close during an unlocked callback, and deferred
-reclamation. Negative cases reject concurrent read/write acquisition of a held
-connection and concurrent callbacks on that connection. They check contention
-preserves the overdue deadline, then retry delivers exactly once without a
-packet or timer reset.
-
-The PCB source exposed a lock-order requirement: `in_pcbinshash()` can wait
+Network epochs and SMR have separate reader domains. PCB reinsertion can wait
 for SMR with PCB/hash locks held; `_inp_smr_lock()` leaves SMR before blocking
-on the PCB lock. Network epoch readers can block on locks. The original shared
-epoch/SMR grace domain was therefore replaced with separate reader classes.
-Synchronous SMR waits now observe only SMR readers; deferred frees wait for both
-SMR and network readers, retaining host callout lifetime protection. A regression
-holds a network reader while another worker synchronizes SMR under a connection
-lock, proving those classes do not deadlock each other. Another test retires a
-bounded UMA object under an active SMR reader and verifies destruction/capacity
-release only after that reader exits. Mbuf cloning tests use vanilla m_copym and
-m_copydata: freeing the original keeps the cluster readable via its clone and
-final release returns both headers. Full archive disassembly contains no
-GS/CR-register/CLI/STI/INVLPG accesses (`out/tcp-import/allocation-disassembly.txt`).
+on the PCB lock. Network epoch readers can wait on those locks, so merging the
+reader classes would deadlock. Deferred frees wait for both classes, preserving
+host timer callback lifetime. UMA allocations retain cache-line alignment even
+when upstream asks only for pointer alignment: a sanitizer found that sockets
+require 64-byte alignment despite UMA_ALIGN_PTR. This is fixed in `alloc.c`.
 
-Nix combines kernel objects then localizes their defined non-`lh_` symbols
-before linking the native host-libc boundary; this separates kernel malloc/free
-ABIs from libc. Function/data sections and link GC discard unused generic kernel
-helpers in host fixtures. `required-host-symbols.txt` now reports unresolved
-symbols after combining core and host objects (before GC), rather than the
-original core-only list. The full stack still has unresolved interfaces.
+Callouts use one shared queue and associated connection locks. Contention keeps
+the original overdue deadline pending. The shared round-robin scan cursor avoids
+starvation across bounded batches when an early slot repeatedly rearms. Notify
+hooks must be nonblocking because reset/stop can invoke them under connection
+locks; actual emulator deadline publication must happen outside stack locks.
+Callbacks returning unlocked remain protected by a network grace period and
+queue metadata independent of the embedded callout's lifetime.
 
-These tests cover host primitives, not TCP connections or VM wakeup. No TCP
-emulator integration or TCP VM acceptance has run. Phase one remains the only
-VM functional acceptance evidence. The user requires a reasonably working
-four-worker shared TCP implementation before stopping; no stress campaign is
-required. In particular, verify a contended overdue timer wakes/runs after lock
-release even with no new packets; pending metadata alone cannot prove liveness.
+Nix localizes kernel definitions before linking the native host-libc boundary,
+separating kernel malloc/free/formatting ABIs from libc. Upstream subr_prf supplies
+kernel formatting; native console functions are renamed and discarded. Function
+and data sections permit link GC of unsupported generic kernel facilities.
+`required-host-symbols.txt` reports undefined names before final link GC, so its
+optional unused names are not proof that the protocol executable cannot link.
+The package still has `passthru.runnable = false`: there is no installed public
+application API or VM/runtime integration yet.
 
-The available F-Stack scaffolding cannot
-safely support timer reset/stop from arbitrary workers on shared connections.
-At F-Stack revision `813b82016c5cebfcc545cb44fbbc19dd8d00e99d`,
-`lib/ff_kern_timeout.c:191-193` puts `cc_cpu` in TLS and defines `CC_CPU(cpu)` as
-the caller's wheel, ignoring the callout owner used by `callout_lock()`.
-Its mutex/RW-lock overrides are no-ops, and `ff_subr_epoch.c` immediately calls
-reclamation callbacks. Merely replacing lock macros would leave timer-wheel
-ownership and reader lifetime unsafe. The proposal already requires working
-replacements; this finding blocks reuse of those implementations, not the
-feasibility of the overall design. The initial stop overstated this as a major
-blocker: it is planned host-port implementation work, with no external
-dependency or design decision currently preventing progress.
+## Current phase-two evidence
 
-Next implement shared process/credential and protocol-domain state, ordered
-SYSINIT execution, socket initialization/public API, monotonic clock updates,
-and packet I/O. Close the link without dummy success stubs; explicit failure
-boundaries currently reject physical-page/sendfile mbufs and NIC offload tags.
-Mapped mbufs are bounded by Nix `mbufs`, but the socket send path may need more
-mapped allocation helpers. Keep generic unsupported syscall/splice/kqueue paths
-unreachable through the public API and fail them explicitly if reached. Import
-only needed vanilla helper sources and their dependency closure. Preserve
-vanilla timer lock/return-unlocked contracts.
-Integrate native TCP and domain timer arm/ack/cancel into the emulator, package
-the runnable library as the optional runtime companion, and run the phase-two
-VM matrix. Timer parking must retain overdue work and avoid lost wakeups;
-re-read the deadline after dispatch even when zero callbacks ran. Do not
-substitute per-worker stacks, a global stack lock, or Linux TCP sockets.
+- Normal self-contained Nix build passed: `out/tcp-host`,
+  `/tmp/lh-tcp-protocol-final.log`, derivation
+  `fg3pwjm9dblg0j3zbyf8brnsnh4h3dm4-lauberhorn-tcp-core-0.1.drv`.
+- Final maintained sanitizer build passed: `out/tcp-sanitized`,
+  `/tmp/lh-tcp-protocol-sanitized-final.log`, derivation
+  `l6nxw65fc02ikk6rip6qqwflid826awh-lauberhorn-tcp-core-0.1.drv`.
+  `sanitize = true` is a package Nix option. ASan/UBSan are enabled; leak checks
+  are disabled for process-lifetime stack state, and ASan global registration
+  is disabled so unused kernel facilities remain eligible for link GC.
+- Both installed normal executables passed directly:
+  `libexec/tcp-concurrency-test` and `libexec/tcp-startup-test`.
+  The latter prints `TCP_PROTOCOL_PASS`: one real FreeBSD connection receives
+  SYN, handshake ACK, data and ACK/FIN packets on different workers. Other
+  workers accept/read/write/close it. The test verifies both data directions
+  and the final FIN/ACK exchange. The synthetic peer lives in the fixture;
+  this is not Linux-peer interoperability or VM transport acceptance.
+- Negative substrate tests reject concurrent reader/writer acquisition and
+  concurrent callbacks on one connection lock; overdue timers remain pending
+  and retry delivers exactly once without a packet/reset. Separate connections'
+  callbacks overlap. Further cases cover a repeatedly rearmed timer versus an
+  unrelated expiry, close during an unlocked callback, SMR/lock-order progress,
+  deferred UMA destruction/capacity release, allocation overflow and mbuf clones
+  surviving release of the original.
+- Manifest verification and non-vendor whitespace checks passed. The protocol
+  executable has no GS/CR-register/CLI/STI/INVLPG accesses:
+  `out/tcp-import/protocol-disassembly.txt`.
+- Ptrace is disallowed even outside the sandbox. The ignored Nix sanitizer
+  diagnostic recipe located the alignment issue; no external blocker remains.
+
+## Remaining phase-two work
+
+The objective remains a reasonably working shared four-worker TCP stack in the
+Lauberhorn VM emulator. No stress campaign is required. Phase-one tests remain
+the only VM evidence. Do not mark phase two complete based on these host tests.
+
+1. Expose a public nonblocking socket/connection API and lifetime contract,
+   plus installed headers/pkg-config metadata. Keep handler ownership separate
+   from PCB locks; accept/read/write/close must be safe across workers. A bounded
+   handle table with generations and per-handle application-entry locks is a
+   possible implementation, not a settled API. Core packet/timer work must keep
+   progressing while an application handler is busy. Translate FreeBSD errors
+   explicitly rather than exposing them as Linux errno values. Refresh worker
+   clock snapshots at all application entry points as well as packet/timer entry.
+2. Make the component selectable in application Nix recipes beside runtime,
+   with no mandatory runtime dependency on TCP. Pin the pushed TCP source in the
+   platform flow. The package currently insists on four workers for its fixtures;
+   the designed application configuration is one to four workers.
+3. Add native TCP packet transport and domain timer arm/ack/cancel to the VM
+   emulator and runtime. No Linux TCP sockets may substitute for the stack.
+   Preserve transport borrow release before DESCHED/yield. Timer expiry must be
+   sticky/coalescible and activate a parked domain. Re-read the earliest deadline
+   even when dispatch ran zero callbacks; contention must not lose the retry or
+   let the domain sleep with overdue work. Earlier rearm and sleep-entry races
+   need generation-safe publication/acknowledgement outside stack locks.
+4. Run the phase-two VM functional matrix with normal TCP peers: four-worker
+   packet spraying, independent connection progress while one handler is busy,
+   flow control, loss/retransmit, reordering, FIN/RST, allocation/TX exhaustion,
+   close/timer races, earlier rearm and expiry during parking. Add negative tests
+   at the actual PCB/socket integration level, beyond the existing lock fixture.
+   Specifically prove delayed expiry runs after lock release without new packets
+   and that all-parked timer-only activation can transmit ACK/retransmission.
+   Preserve phase-one UDP/RPC/memcached regressions. Stop after this demonstrated
+   four-worker implementation; memcached TCP port and hardware remain later phases.
+
+F-Stack's local reference revision `813b82016c5cebfcc545cb44fbbc19dd8d00e99d`
+has no-op locks, immediate epoch reclamation and TLS callout ownership that
+ignores the target CPU. These are unsuitable implementations to reuse, not a
+major blocker to the intended port. Do not replace the current design with
+per-worker stacks, a global stack lock or a helper TCP thread.
 
 Whole-domain recovery remains unsupported: failed domains retain resources
-until guest restart, and existing nested deadlines do not activate a parked
-domain. No Enzian execution or hardware coherence/timing validation was added.
+until guest restart. No Enzian execution or hardware validation was added.
