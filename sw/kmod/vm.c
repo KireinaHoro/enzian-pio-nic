@@ -3,6 +3,8 @@
 #include "activation_backend.h"
 #include "vm.h"
 #include <linux/completion.h>
+#include <linux/ktime.h>
+#include "lauberhorn/deadline.h"
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
@@ -15,7 +17,7 @@
 /* All device state below is owned by emulator, except the explicitly published
  * hook port bitmap and notification flags. Callers submit synchronous commands;
  * receive commands remain queued until packet, DESCHED or bounded NACK. */
-enum command { SERVICE, ENDPOINT, BUSY, RETIRE, ACTIVATE, TRANSPORT };
+enum command { SERVICE, ENDPOINT, BUSY, RETIRE, ACTIVATE, TRANSPORT, DEADLINE_SET, DEADLINE_GET, SCHEDULE_STATE };
 struct vm_cmd {
     struct list_head link;
     struct completion done;
@@ -24,6 +26,9 @@ struct vm_cmd {
     struct srv_def *srv;
     struct socket *socket;
     struct lh_device_activation activation;
+    struct lauberhorn_deadline_set deadline_set;
+    struct lauberhorn_deadline_state deadline_state;
+    struct lh_vm_schedule_state schedule_state;
     lauberhorn_pkt_desc_t desc;
     unsigned int op, worker;
     unsigned long expires;
@@ -37,7 +42,14 @@ struct vm_packet {
     lauberhorn_pkt_desc_t desc;
     u8 bytes[LAUBERHORN_MTU];
 };
-struct vm_domain { struct list_head packets; unsigned int count; };
+struct vm_domain {
+    struct list_head packets;
+    unsigned int count;
+    bool packet_due;
+    unsigned int last_deadline_donor_fill;
+    struct lauberhorn_deadline_state deadline;
+    u64 arrival_idle, arrival_ready, background, deadline_activations;
+};
 struct vm_worker {
     struct worker_fpi_data shared;
     u32 assigned_slot, pending;
@@ -79,7 +91,8 @@ static void service_socket_put(struct socket *socket)
 static struct vm_context incoming[LAUBERHORN_NUM_SESSIONS], outgoing[LAUBERHORN_NUM_SESSIONS];
 static u8 hooked_ports[65536];
 static u32 next_token, next_domain;
-static unsigned int rr_domain;
+static unsigned int deadline_cursor;
+static void packet_arrival(struct proc_def *proc, unsigned int fill);
 static struct task_struct *emulator;
 static DECLARE_WAIT_QUEUE_HEAD(device_wait);
 static DEFINE_SPINLOCK(command_lock);
@@ -180,12 +193,13 @@ static bool enqueue(struct proc_def *proc, lauberhorn_pkt_desc_t *desc, const vo
 {
     struct vm_packet *packet;
     struct vm_domain *domain = &domains[proc->idx];
-    if (READ_ONCE(proc->failed) || domain->count >= LH_VM_QUEUE_DEPTH || desc->payload_len > LAUBERHORN_MTU) return false;
+    if (READ_ONCE(proc->failed) || domain->count >= LAUBERHORN_RX_PKTS_PER_PROC || desc->payload_len > LAUBERHORN_MTU) return false;
     packet = kmalloc(sizeof(*packet), GFP_KERNEL);
     if (!packet) return false;
     packet->desc = *desc;
     memcpy(packet->bytes, bytes, desc->payload_len);
     list_add_tail(&packet->link, &domain->packets);
+    packet_arrival(proc, domain->count);
     ++domain->count;
     return true;
 }
@@ -325,59 +339,120 @@ static int transmit(struct vm_cmd *cmd, struct vm_worker *worker)
     if (context && !call) { service_socket_put(context->socket); memset(context, 0, sizeof(*context)); }
     return TX_ACCEPTED;
 }
-static bool available(struct proc_def *proc)
+/* Match Scheduler.scala policy at device-event boundaries. This does not model
+ * its lookup pipeline latency. pending reserves the next owner, just as
+ * corePidMap does before coreResident changes at handoff. */
+static unsigned int assigned(u32 slot)
 {
-    unsigned long flags;
-    bool ready = false;
-    int i;
-    spin_lock_irqsave(&claim_lock, flags);
-    if (!proc->failed && proc->declared_workers && proc->num_rdy_thrs == proc->declared_workers)
-        for (i = 0; i < proc->declared_workers; ++i)
-            if (proc->thr_defs[i].waiting && proc->thr_defs[i].worker_idx < 0) ready = true;
-    spin_unlock_irqrestore(&claim_lock, flags);
-    return ready;
+    unsigned int i, count = 0;
+    for (i = 0; i < ARRAY_SIZE(workers); ++i)
+        count += (workers[i].pending ? workers[i].pending : workers[i].assigned_slot) == slot;
+    return count;
 }
-static u32 select_domain(u32 exclude)
+static bool eligible(struct proc_def *proc)
 {
-    unsigned int n, i, assigned;
-    struct proc_def *proc;
-    for (n = 0; n < LAUBERHORN_NUM_PROCS; ++n) {
-        u32 slot = 1 + ((rr_domain + n) % LAUBERHORN_NUM_PROCS);
-        if (slot == exclude || !domains[slot].count) continue;
-        proc = find_proc_slot(slot);
-        if (!proc || !available(proc)) continue;
-        assigned = 0;
-        for (i = 0; i < ARRAY_SIZE(workers); ++i)
-            assigned += (workers[i].pending ? workers[i].pending : workers[i].assigned_slot) == slot;
-        if (assigned >= proc->declared_workers) continue;
-        rr_domain = slot;
-        return slot;
+    return proc && !READ_ONCE(proc->failed) && proc->declared_workers &&
+        READ_ONCE(proc->num_rdy_thrs) == proc->declared_workers &&
+        assigned(proc->idx) < proc->declared_workers;
+}
+static void reserve_worker(struct vm_worker *w, u32 slot)
+{
+    WRITE_ONCE(w->pending, slot);
+    if (!w->assigned_slot) {
+        atomic_set(&w->shared.kick, 1);
+        wake_up(&w->shared.dispatch_wait);
     }
+}
+static void packet_arrival(struct proc_def *proc, unsigned int fill)
+{
+    unsigned int i;
+    bool ready = 2 * fill >= LAUBERHORN_RX_PKTS_PER_PROC;
+    if (!eligible(proc) || (!ready && assigned(proc->idx))) return;
+    /* Idle first, then first RX-ready victim; no donor watermark restriction
+     * on packet-driven reclaim in the current hardware. */
+    for (i = 0; i < ARRAY_SIZE(workers); ++i)
+        if (!workers[i].assigned_slot && !workers[i].pending) {
+            reserve_worker(&workers[i], proc->idx); ++domains[proc->idx].arrival_idle; return;
+        }
+    if (!ready) return;
+    for (i = 0; i < ARRAY_SIZE(workers); ++i)
+        if (!workers[i].pending && workers[i].rx && !READ_ONCE(workers[i].rx->proc->failed) &&
+            workers[i].assigned_slot != proc->idx) {
+            reserve_worker(&workers[i], proc->idx); ++domains[proc->idx].arrival_ready; return;
+        }
+}
+static u32 background_domain(void)
+{
+    u32 slot;
+    /* LookupTable's non-single-match port uses firstV2, not round robin. */
+    for (slot = 1; slot <= LAUBERHORN_NUM_PROCS; ++slot)
+        if (domains[slot].count && !assigned(slot) && eligible(find_proc_slot(slot)))
+            return slot;
     return 0;
+}
+static bool deadline_ready(u32 slot)
+{
+    return domains[slot].deadline.pending && !domains[slot].deadline.delivered;
+}
+static void schedule_deadlines(void)
+{
+    u64 now = ktime_get_ns();
+    unsigned int slot, n, i;
+    for (slot = 1; slot <= LAUBERHORN_NUM_PROCS; ++slot) {
+        struct proc_def *p = find_proc_slot(slot);
+        struct lauberhorn_deadline_state *d = &domains[slot].deadline;
+        if (p && READ_ONCE(p->failed)) { d->next_deadline_ns = 0; d->pending = d->delivered = 0; }
+        else if (d->next_deadline_ns && now >= d->next_deadline_ns) d->pending = 1;
+    }
+    /* One deadline allocation per pass, rotating eligible domains. Packet
+     * arrival reservations have already run. Deadline-only work never scales
+     * above one core and cannot reclaim from a donor above the watermark. */
+    for (n = 0; n < LAUBERHORN_NUM_PROCS; ++n) {
+        slot = 1 + ((deadline_cursor + n) % LAUBERHORN_NUM_PROCS);
+        if (!deadline_ready(slot) || assigned(slot) || !eligible(find_proc_slot(slot))) continue;
+        for (i = 0; i < ARRAY_SIZE(workers); ++i)
+            if (!workers[i].assigned_slot && !workers[i].pending) goto grant;
+        for (i = 0; i < ARRAY_SIZE(workers); ++i)
+            if (!workers[i].pending && workers[i].rx && !READ_ONCE(workers[i].rx->proc->failed) &&
+                2 * domains[workers[i].assigned_slot].count <= LAUBERHORN_RX_PKTS_PER_PROC)
+                goto grant;
+        continue;
+    grant:
+        domains[slot].last_deadline_donor_fill = domains[workers[i].assigned_slot].count;
+        reserve_worker(&workers[i], slot);
+        ++domains[slot].deadline_activations;
+        deadline_cursor = slot;
+        break;
+    }
 }
 static void schedule_device(void)
 {
     unsigned int i;
+    schedule_deadlines();
     for (i = 0; i < ARRAY_SIZE(workers); ++i) {
         struct vm_worker *w = &workers[i];
         struct vm_cmd *rx = w->rx;
-        if (!w->assigned_slot && !w->pending) {
-            u32 next = select_domain(0);
-            if (next) {
-                WRITE_ONCE(w->pending, next);
-                atomic_set(&w->shared.kick, 1);
-                wake_up(&w->shared.dispatch_wait);
-            }
+        if (rx && READ_ONCE(rx->proc->failed)) { w->rx = NULL; finish(rx, -ESHUTDOWN); continue; }
+        if (!w->pending && ((!w->assigned_slot) ||
+            (rx && !domains[w->assigned_slot].count && !deadline_ready(w->assigned_slot)))) {
+            u32 next = background_domain();
+            if (next) { reserve_worker(w, next); ++domains[next].background; }
         }
         if (!rx) continue;
-        if (READ_ONCE(rx->proc->failed)) { w->rx = NULL; finish(rx, -ESHUTDOWN); continue; }
-        if (!w->pending) WRITE_ONCE(w->pending, select_domain(w->assigned_slot));
         if (w->pending) {
             rx->desc = (lauberhorn_pkt_desc_t){ .type = TY_DESCHED };
+        } else if (deadline_ready(w->assigned_slot) &&
+            (!domains[w->assigned_slot].packet_due || !domains[w->assigned_slot].count)) {
+            struct lauberhorn_deadline_state *d = &domains[w->assigned_slot].deadline;
+            rx->desc = (lauberhorn_pkt_desc_t){ .type = TY_DEADLINE,
+                .deadline.generation = d->generation };
+            d->delivered = 1; /* Explicit SET acknowledges; activation never does. */
+            domains[w->assigned_slot].packet_due = true;
         } else if (domains[w->assigned_slot].count) {
             struct vm_domain *d = &domains[w->assigned_slot];
             struct vm_packet *p = list_first_entry(&d->packets, struct vm_packet, link);
             rx->desc = p->desc;
+            d->packet_due = false;
             memcpy(rx->proc->vm_buffers + i * LAUBERHORN_ECI_CORE_OFFSET, p->bytes, p->desc.payload_len);
             list_del(&p->link); --d->count; kfree(p); w->borrowed = true;
         } else if (time_before(jiffies, rx->expires)) continue;
@@ -441,6 +516,39 @@ static void process_command(struct vm_cmd *cmd)
     struct vm_worker *w;
     long result = 0;
     switch (cmd->kind) {
+    case DEADLINE_SET: {
+        struct lauberhorn_deadline_state *d = &domains[cmd->proc->idx].deadline;
+        u64 now = ktime_get_ns(), next = cmd->deadline_set.next_deadline_ns;
+        if (READ_ONCE(cmd->proc->failed)) { result = -ESHUTDOWN; break; }
+        if (cmd->deadline_set.expected_generation != d->generation) { result = -ESTALE; break; }
+        if (d->generation == U64_MAX) { result = -EOVERFLOW; break; }
+        if (next && (next < now || next - now < LH_VM_DEADLINE_MIN_LEAD_NS)) { result = -ETIME; break; }
+        d->generation++;
+        d->next_deadline_ns = next;
+        d->pending = d->delivered = 0;
+        cmd->deadline_set.generation = d->generation;
+        break;
+    }
+    case DEADLINE_GET:
+        cmd->deadline_state = domains[cmd->proc->idx].deadline;
+        cmd->deadline_state.minimum_lead_ns = LH_VM_DEADLINE_MIN_LEAD_NS;
+        break;
+    case SCHEDULE_STATE: {
+        struct vm_domain *d = &domains[cmd->proc->idx];
+        struct lh_vm_schedule_state *s = &cmd->schedule_state;
+        *s = (struct lh_vm_schedule_state){ .queued = d->count,
+            .capacity = LAUBERHORN_RX_PKTS_PER_PROC,
+            .registered = READ_ONCE(cmd->proc->num_rdy_thrs),
+            .last_deadline_donor_fill = d->last_deadline_donor_fill,
+            .arrival_idle = d->arrival_idle, .arrival_ready = d->arrival_ready,
+            .background = d->background, .deadline = d->deadline_activations };
+        for (i = 0; i < ARRAY_SIZE(workers); ++i) {
+            s->assigned += workers[i].assigned_slot == cmd->proc->idx;
+            s->reserved += workers[i].pending == cmd->proc->idx;
+            s->ready_workers += workers[i].assigned_slot == cmd->proc->idx && workers[i].rx != NULL;
+        }
+        break;
+    }
     case SERVICE: result = service_update(cmd); break;
     case ENDPOINT:
         for (i = 0; i < ARRAY_SIZE(endpoints); ++i)
@@ -516,6 +624,26 @@ static int device_thread(void *unused)
         if (!skb_queue_empty(&ingress)) lh_vm_notify();
     }
     return 0;
+}
+long lh_vm_control(struct proc_def *proc, unsigned int op, unsigned long arg)
+{
+    struct vm_cmd cmd = { .proc = proc };
+    long result;
+    if (op == LAUBERHORN_IOCTL_SET_DEADLINE) {
+        cmd.kind = DEADLINE_SET;
+        if (copy_from_user(&cmd.deadline_set, (void __user *)arg, sizeof(cmd.deadline_set))) return -EFAULT;
+        result = submit(&cmd);
+        if (!result && copy_to_user((void __user *)arg, &cmd.deadline_set, sizeof(cmd.deadline_set))) return -EFAULT;
+    } else if (op == LAUBERHORN_IOCTL_GET_DEADLINE) {
+        cmd.kind = DEADLINE_GET;
+        result = submit(&cmd);
+        if (!result && copy_to_user((void __user *)arg, &cmd.deadline_state, sizeof(cmd.deadline_state))) return -EFAULT;
+    } else {
+        cmd.kind = SCHEDULE_STATE;
+        result = submit(&cmd);
+        if (!result && copy_to_user((void __user *)arg, &cmd.schedule_state, sizeof(cmd.schedule_state))) return -EFAULT;
+    }
+    return result;
 }
 long lh_vm_ioctl(struct proc_def *proc, unsigned int op, unsigned long arg)
 {

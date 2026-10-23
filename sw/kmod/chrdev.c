@@ -373,7 +373,11 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
         if (!ret && proc->num_rdy_thrs == proc->declared_workers) update_proc_hw(fp->dev, proc);
         return ret;
     }
-    case LAUBERHORN_IOCTL_KICK_PROCESS:
+    case LAUBERHORN_IOCTL_SET_DEADLINE:
+    case LAUBERHORN_IOCTL_GET_DEADLINE:
+#if LH_BACKEND_VM
+        return lh_vm_control(proc, cmd, arg);
+#endif
     case LAUBERHORN_IOCTL_WATCHDOG:
         return -EOPNOTSUPP;
 	case LAUBERHORN_IOCTL_RETIRE_CALL:
@@ -446,6 +450,7 @@ static long app_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
     if (current->tgid != fp->pd->tgid) return -EPERM;
     // Yield must never hold the control/lifetime mutex across blocking MMIO.
 #if LH_BACKEND_VM
+    if (cmd == LH_VM_SCHEDULE_STATE) return lh_vm_control(fp->pd, cmd, arg);
     if (cmd == LH_VM_RX || cmd == LH_VM_RX_RELEASE || cmd == LH_VM_TX_RESERVE ||
         cmd == LH_VM_TX_CANCEL || cmd == LH_VM_TX)
         return lh_vm_ioctl(fp->pd, cmd, arg);

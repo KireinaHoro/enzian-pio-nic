@@ -19,7 +19,7 @@ static inline bool core_vm_rx_acquire_traced(void *base, lauberhorn_core_state_t
     if (ret < 0) abort();
     *ctx->rx_next_cl ^= 1;
     if (!ret) return false;
-    if (desc->type != TY_DESCHED) {
+    if (desc->type != TY_DESCHED && desc->type != TY_DEADLINE) {
         ctx->rx_view.data = base;
         ctx->rx_view.length = desc->payload_len;
         ctx->rx_view.pending = true;

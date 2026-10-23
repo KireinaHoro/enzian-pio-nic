@@ -11,5 +11,6 @@ void lh_vm_endpoint(struct proc_def *proc, u32 handle, u16 port,
                     struct socket *socket, bool native, bool enable);
 bool lh_vm_endpoint_busy(u16 port);
 long lh_vm_retire(struct proc_def *proc, u32 cookie);
+long lh_vm_control(struct proc_def *proc, unsigned int cmd, unsigned long arg);
 long lh_vm_ioctl(struct proc_def *proc, unsigned int cmd, unsigned long arg);
 #endif

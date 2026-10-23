@@ -16,10 +16,12 @@ def echo(port, payload):
 for size in (0, 1, 24, 64, 65, 256, 1472):
     echo(19000, bytes(i % 128 for i in range(size)))
 
+# A burst crosses the hardware queue watermark to scale beyond one core.
+# Four isolated arrivals do not request four workers under that policy.
 # Simultaneous sleeping handlers occupy all four assignments; syscall blocking
 # must retain those assignments. A second domain must receive DESCHED handoffs.
-with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-    futures = [pool.submit(echo, 19000, b'\xd0' + bytes([i])) for i in range(4)]
+with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
+    futures = [pool.submit(echo, 19000, b'\xd0' + bytes([i])) for i in range(12)]
     time.sleep(0.05)
     futures += [pool.submit(echo, 19001, b'handoff' + bytes([i])) for i in range(4)]
     for f in futures:

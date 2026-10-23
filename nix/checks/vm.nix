@@ -5,6 +5,9 @@
   nestedFixture,
   memcachedVm,
   source,
+  policyTimeoutMs ? 10000,
+  policySettleMs ? 30,
+  policyArmMs ? 100,
 }:
 let
   fixture = pkgs.stdenv.mkDerivation {
@@ -16,9 +19,14 @@ let
     buildPhase = ''
       $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn) sw/tests/vm/udp.c \
         $(pkg-config --libs lauberhorn) -o vm-udp
+      $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn) \
+        -DTEST_TIMEOUT_MS=${toString policyTimeoutMs} -DTEST_SETTLE_MS=${toString policySettleMs} \
+        -DTEST_ARM_MS=${toString policyArmMs} sw/tests/vm/scheduling.c \
+        $(pkg-config --libs lauberhorn) -o vm-scheduling
     '';
     installPhase = ''
       install -Dm755 vm-udp $out/bin/vm-udp
+      install -Dm755 vm-scheduling $out/bin/vm-scheduling
       install -Dm644 sw/tests/vm/client.py $out/share/client.py
       install -Dm644 sw/tests/vm/rpc.py $out/share/rpc.py
       install -Dm644 sw/tests/vm/memcached.py $out/share/memcached.py
@@ -55,6 +63,13 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     start_all()
     peer.wait_for_unit("multi-user.target")
+    machine.wait_for_unit("multi-user.target")
+    machine.succeed("modprobe lauberhorn")
+    machine.wait_until_succeeds("test -e /dev/lauberhorn")
+    machine.succeed("taskset -c 0-1 vm-scheduling > /tmp/scheduling.log 2>&1 || { cat /tmp/scheduling.log; exit 1; }", timeout=60)
+    machine.succeed("grep VM_SCHEDULER_POLICY_PASS /tmp/scheduling.log && grep VM_DEADLINE_PASS /tmp/scheduling.log")
+    machine.shutdown()
+    machine.start()
     machine.wait_for_unit("multi-user.target")
     machine.succeed("modprobe lauberhorn")
     machine.wait_until_succeeds("test -e /dev/lauberhorn")

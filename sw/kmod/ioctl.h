@@ -103,7 +103,7 @@ typedef struct {
 typedef struct { u32 limit_us; u32 reserved; } lauberhorn_watchdog_t;
 #define LAUBERHORN_IOCTL_WATCHDOG _IOW(LAUBERHORN_IOCTL_MAGIC, 8, lauberhorn_watchdog_t)
 
-/* Internal runtime deadline wakeup, not a public service/timer API. */
-#define LAUBERHORN_IOCTL_KICK_PROCESS _IO(LAUBERHORN_IOCTL_MAGIC, 9)
+/* Number 9 (the removed KICK_PROCESS operation) is not reused. */
+#include "lauberhorn/deadline.h"
 
 #endif // LAUBERHORN_IOCTL_H

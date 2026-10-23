@@ -74,7 +74,8 @@ lifetime and publication generation, not a connection or worker identity.
 Application workers execute callbacks; the device only records expiry and
 schedules service. No helper TCP thread or asynchronous handler preemption is
 introduced. Hardware implementation belongs to phase 4 alongside raw TCP
-segment steering; phase 2 first emulates the agreed policy in the VM.
+segment steering; phase 2 emulates the policy in the [VM backend](../software/vm-backend.md)
+before stack integration.
 
 Keep one reserved pending slot per domain outside the packet FIFO, so a full
 packet queue cannot suppress expiry and duplicate expiries do not consume extra
@@ -174,7 +175,7 @@ are localized; the current scheduler does not implement this policy:
 2026): a housekeeping thread used `KICK_PROCESS`/`wake_idx` to request a core
 for expired nested RPC calls. It clears on core residency rather than timer
 service. Commit `2fd67e37` excluded its control register from cooperative ECI;
-the current kernel rejects `KICK_PROCESS`. It is not an active ECI deadline
+the current kernel has removed `KICK_PROCESS`. It is not an active ECI deadline
 implementation and must not be relabeled as the proposed acknowledged slot.
 Existing first-set-bit arbitration and background lookup are not evidence of
 starvation freedom; the new arbitration needs explicit finite validation.
