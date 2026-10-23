@@ -123,7 +123,8 @@ outstanding.
 
 ## Segment formulas
 
-Write `D(a,b) = b − a`. All intervals below are disjoint. The implementation is
+Write `D(a,b) = b − a`. The CPU component intervals below are disjoint; the
+wire-total marker measures a separate interval. The implementation is
 [accounting.py](../../tools/paper/campaign/accounting.py); importers retain
 `cpu_partition_version: 3` plus each row's `accounting` object with CPU bounds,
 used timestamps and `runtime_details_ns`. Raw CSV files remain hashed evidence.
@@ -206,7 +207,9 @@ cache lines, issues the TX descriptor and starts packet-buffer read DMA. Payload
 streams through ONC-RPC, UDP, IP and Ethernet encoders, alignment/padding and a
 complete-frame TX CDC FIFO to CMAC and the switch. In `DmaControlPlugin`, success
 is returned after read-DMA completion (or descriptor acceptance for a zero-DMA
-packet). `DcsTxAxiRouter.waitResult` then releases the pending ECI read response.
+packet). Specifically, `axi_dma_rd.v` emits descriptor status when it produces
+the final beat into its internal output FIFO; it does not wait for that FIFO to
+drain into the encoders. `DcsTxAxiRouter.waitResult` then releases the pending ECI read response.
 This response and the remaining encoder/FIFO/CMAC/link path are separate branches;
 there is no wire-completion dependency on the CPU response. `tx_doorbell_return`
 is after the CPU read and barrier; `tx_exit` follows probe stores, helper return
