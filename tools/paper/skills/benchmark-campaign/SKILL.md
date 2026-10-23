@@ -28,6 +28,24 @@ or implement a paper-specific dump/export/restore path.
 Keep execution logic in `tools/paper/benchmark_campaign.py` and its campaign
 package; do not reproduce its rate selection or acquisition loops in chat.
 
+## Build verification and inspection discipline
+
+Use the maintained Nix build/check targets and campaign staging/preflight
+entry points. Read their compact results and receipts. Passing automated checks
+are the evidence for the properties they cover; do not manually repeat them.
+Do not unpack or browse successful build outputs, run `unsquashfs`, inspect ELF
+sections/disassembly, recalculate covered hashes, or compare binaries merely to
+reassure yourself before launch. Do not read build logs for routine progress;
+use build completion and structured results.
+
+Manual artifact inspection requires a specific failed gate, a concrete required
+property absent from the automated checks, or an explicit user request. State
+that reason and inspect only the relevant artifact or bounded failure excerpt.
+A routine missing check belongs in the maintained build/staging/preflight
+workflow, not a parallel one-off verification script. Follow the Enzian skill's
+raw-log restrictions for board operations. These rules do not replace the
+required visual review of final plot previews.
+
 Before launch, require a concrete manifest, current EMG reservations, matching
 artifact hashes, 32 isolated generator CPUs (currently 16–47), best-effort IRQ affinity setup, storage and RAM budgets,
 restoration paths, and established terminal callback delivery to the current thread.

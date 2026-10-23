@@ -65,6 +65,21 @@ and actual correct RPC replies for acceptance. Read compact `summary.json`
 first. Only inspect bounded raw log excerpts for a reported failure. Preserve
 all failed attempts; never overwrite evidence or silently treat login as a pass.
 
+## Raw-log access
+
+Read compact stage/results output and `summary.json` by default. Do not open,
+tail, grep/search, or otherwise read raw console, CPU, BMC, programmer or boot
+logs during normal progress or after success. Do not read them merely to verify
+markers that the shared harness already validates. Let the harness perform its
+bounded retries and report their outcome.
+
+Raw logs may be read only to diagnose a reported error that requires them, or
+when the user explicitly requests log inspection. First identify the failed
+stage and the diagnostic question from its summary, then read only a bounded,
+relevant excerpt. Keep full logs preserved on disk without loading them into
+the conversation. Missing routine summary fields should be fixed in the shared
+workflow rather than making raw-log inspection a normal operating step.
+
 ## BMC state and recovery
 
 The BMC API is stateful. Start diagnosis with `print_voltage_all()` in
