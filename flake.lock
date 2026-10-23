@@ -216,11 +216,11 @@
     "tcp": {
       "flake": false,
       "locked": {
-        "lastModified": 1792788879,
-        "narHash": "sha256-svme3VKKCrXzce7LsUgwNdVL6HTlAWxuDRgcQTVyb9M=",
+        "lastModified": 1792790845,
+        "narHash": "sha256-7JcW0XcIKWw2aa1aM69aC2+UGIxp/JI+jKy8lll2djo=",
         "ref": "userspace-tcp-phase-two",
-        "rev": "09196d9af6a76d07c5cce31da652ed4d98d07cca",
-        "revCount": 8,
+        "rev": "d80d5f8e8fa453430c174a58b8b7fb074fefb146",
+        "revCount": 9,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
       },

@@ -265,6 +265,11 @@ functional behavior; it does not establish ECI coherence or hardware timing.
 
 ### Phase 2: shared FreeBSD TCP library and validation in the VM
 
+The shared IPv4 server path is implemented in the VM backend with bounded
+four-worker acceptance. The optional adapter serves one registered listening
+port per application; active-open ephemeral-port steering is outside its current
+interface. Hardware transport remains phase 4.
+
 The source/build checkpoint lives in the separate `lauberhorn-tcp` repository.
 It imports only selected vanilla FreeBSD TCP sources and their transitive
 headers, with a pinned revision and per-file hashes. Its source-owned Nix recipe

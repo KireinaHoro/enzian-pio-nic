@@ -168,7 +168,8 @@ cases, then fills and releases emulator RPC contexts. UDP memcached covers
 store/get, arithmetic, delete and segmented replies. The peer guest exercises
 native UDP and memcached over the virtual network. TCP exchanges streams with
 Linux in both guests, observes zero-window backpressure and recovery, and checks
-reset recovery. A raw packet fixture checks out-of-order and duplicate reassembly
+reset recovery. The TCP service exhausts and reclaims its socket allocation before
+accepting traffic. A raw packet fixture checks out-of-order and duplicate reassembly
 through the same transport. Two TCP applications retain established connections
 while alternating bursts reclaim all four workers; the test observes zero-worker
 intervals, independent progress during a busy handler, and DEADLINE-driven

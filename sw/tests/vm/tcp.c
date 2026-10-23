@@ -105,6 +105,23 @@ int main(int argc, char **argv)
     assert(!lauberhorn_init(&app));
     assert(!lauberhorn_set_worker_count(&app, lh_tcp_worker_count()));
     assert(!lh_tcp_runtime_init(&app, &config, port));
+    if (getenv("LH_VM_TCP_RESOURCE_CHECK")) {
+        lh_tcp_handle *held = calloc(TEST_TCP_SOCKET_LIMIT, sizeof(*held));
+        assert(held && TEST_TCP_SOCKET_LIMIT < 50000);
+        unsigned int count = 0;
+        for (; count < TEST_TCP_SOCKET_LIMIT; ++count) {
+            enum lh_tcp_result result = lh_tcp_listen(10000 + count, 1, &held[count]);
+            if (result == LH_TCP_NO_MEMORY) break;
+            assert(result == LH_TCP_OK);
+        }
+        assert(count);
+        lh_tcp_handle overflow;
+        assert(lh_tcp_listen(port, 1, &overflow) == LH_TCP_NO_MEMORY && !overflow);
+        for (unsigned int i = 0; i < count; ++i)
+            assert(lh_tcp_close(held[i]) == LH_TCP_OK);
+        free(held);
+        puts("TCP_RESOURCE_RECOVERY_PASS");
+    }
     assert(lh_tcp_listen(port, TEST_TCP_CONNECTIONS, &listener) == LH_TCP_OK);
     for (unsigned int i = 0; i < TEST_TCP_CONNECTIONS; ++i)
         assert(!pthread_mutex_init(&connections[i].lock, NULL));

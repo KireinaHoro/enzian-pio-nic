@@ -52,7 +52,7 @@ Its CPU flags also come from the selected runtime package.
 
 ## Phase-two current state
 
-TCP repository: `09196d9` (direct per-worker TX and DEADLINE adapter) on `userspace-tcp-phase-two` (unmerged).
+TCP repository: `d80d5f8` (shared stack, direct TX, DEADLINE adapter and bounded acceptance) on `userspace-tcp-phase-two` (unmerged).
 FreeBSD 15.1-RELEASE-p6 is pinned at
 `95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 26 C files, 282 headers and COPYRIGHT.
 The manifest verifies all 309 pristine files. Helpers include PCB/socket,
@@ -201,7 +201,7 @@ than inferring it from concurrent drain timing.
 
 ## Native TCP VM transport increment
 
-The platform pins TCP `09196d9` as optional `dev.x86_64-linux.software.tcpVm`.
+The platform pins TCP `d80d5f8` as optional `dev.x86_64-linux.software.tcpVm`.
 `REG_TCP_ENDPOINT` (ioctl 17) reserves a local address/port before registration;
 raw RX/TX descriptors carry full IPv4/TCP packets. VM TX validates source ownership
 and uses Linux IP routing only. Runtime attach/receive/release/send is in
@@ -267,45 +267,61 @@ outgoing Ethernet ACKs (now ETH_P_ALL with explicit IPv4 filtering). Failure log
 change was needed. The successful 257024-byte cases do not prove arbitrary
 GSO/GRO handling; the ingress still accepts only MTU-sized packets.
 
-Next cover resource exhaustion and actual PCB/socket close/timer concurrency,
-plus targeted earlier-publication and parking races. Keep configuration in Nix.
+The final host checks add actual socket exhaustion/reuse, TX reservation and
+commit rejection/recovery, concurrent same-PCB duplicate input, and listener
+accept/close races. A real packet-output callback holds the PCB lock while a due
+retransmission dispatcher enters; the same dispatch must wait locally and complete
+after release without another packet. A subsequent retransmission holds the PCB
+lock while three workers race close: none may finish before release, exactly one
+wins, and the peer completes FIN. The fixture first observes an actual wire
+retransmission to distinguish its RTO from an earlier emptied SYN-cache timer;
+the initial fixture failure is preserved in
+`/tmp/lh-tcp-pcb-earlier-callout-failure.log`.
 
-## Remaining phase-two work
+The adapter unit test links the real runtime adapter with controlled snapshots
+and control ioctls. It verifies earlier mutation racing an older publication,
+stale acknowledgement, ETIME retry, expiry at receive entry and no timer sweep
+on NACK. It is publication-unit evidence, not a substitute for the real-stack VM.
+Final normal four-worker/adapter checks passed in `out/tcp-phase2-final`,
+`/tmp/lh-tcp-phase2-final.log`; ASan/UBSan in `out/tcp-phase2-sanitized`,
+`/tmp/lh-tcp-phase2-sanitized.log`; one-worker protocol/resource checks in
+`out/tcp-phase2-single`, `/tmp/lh-tcp-phase2-single.log`. Nix check logs contain
+TCP_HOST_CONCURRENCY_PASS, TCP_PROTOCOL_PASS and TCP_RUNTIME_PUBLICATION_PASS
+(normal/sanitized), and TCP_PROTOCOL_PASS (one worker).
 
-The objective remains a reasonably working shared four-worker TCP stack in the
-Lauberhorn VM emulator. No stress campaign is required. VM scheduler/deadline and
-existing application tests are separate from TCP acceptance; do not mark phase
-two complete based on host TCP tests.
+Final pinned VM acceptance passed in 43.81 s:
+`out/userspace-vm-tcp-phase2-final-run`, `/tmp/lh-tcp-phase2-vm-run.log`;
+driver `out/userspace-vm-tcp-phase2-final`, build log
+`/tmp/lh-tcp-phase2-vm-build.log`. It additionally exhausts actual stack sockets
+inside the VM, reclaims them and starts the normal echo service. The capacity
+comes from the TCP package's Nix metadata. Both Linux peers, reordering and all
+four-worker/preemption/timer checks pass, as do the phase-one regressions.
 
-1. Public API and Nix package are implemented. Continue exercising their socket
-   lifetime and nonblocking semantics through the actual VM transport.
-2. The optional `tcpVm` Nix package pins the pushed TCP source beside runtime,
-   without a mandatory runtime TCP dependency. The TCP VM application recipe
-   includes both in `nix/checks/vm.nix`. The package supports one to four workers; concurrency substrate tests run
-   in the four-worker configuration.
-3. The stack adapter connects native TCP transport and DEADLINE. Timer-only retransmission after full preemption now passes; finish targeted
-   publication/parking race checks. No Linux TCP sockets may substitute for the stack.
-   Preserve transport borrow release before DESCHED/yield. Timer expiry must be
-   sticky/coalescible and activate a parked domain. Re-read the earliest deadline
-   after bounded dispatch. Connection contention must resolve locally or fail
-   its watchdog, never return for a deadline-rearm fallback. Earlier rearm and sleep-entry races
-   need generation-safe publication/acknowledgement outside stack locks.
-4. Run the phase-two VM functional matrix with normal TCP peers: four-worker
-   packet spraying, independent connection progress while one handler is busy,
-   flow control, loss/retransmit, reordering, FIN/RST, allocation/TX exhaustion,
-   close/timer races, earlier rearm and expiry during parking. Add negative tests
-   at the actual PCB/socket integration level, beyond the existing lock fixture.
-   Specifically prove delayed expiry runs after lock release without new packets
-   and that all-parked timer-only activation can transmit ACK/retransmission.
-   Alternate bursts between two applications with established connections,
-   prove each reaches zero assigned workers, then verify both resume on the same
-   connections. Include timer expiry without incoming traffic while fully
-   preempted, and service under competing load when an eligible donor exists.
-   The VM now provides timer-only eligibility and wakeup; exercise the actual
-   stack callbacks, not just the transport fixture. Preserve pending expiry
-   across handoff and acknowledgement.
-   Preserve phase-one UDP/RPC/memcached regressions. Stop after this demonstrated
-   four-worker implementation; memcached TCP port and hardware remain later phases.
+## Phase-two completion boundary
+
+The requested reasonably working shared four-worker TCP implementation is
+complete within the supported IPv4 server interface. No stress campaign was run.
+The branch must remain unmerged until hardware DEADLINE exists.
+
+| Requirement | Evidence |
+| --- | --- |
+| Minimal pristine FreeBSD import, optional source-owned Nix component | Package manifest check, source/headers/archive builds; VM recipe explicitly selects runtime plus TCP |
+| Actual transport lifetimes, per-worker direct TX | Raw transport ownership rejection fixture; all TCP VM traffic uses the shared RX/TX adapter, no production staging queue |
+| Normal peers and protocol behavior | Both Linux guests: handshake, bidirectional streams, ACKs, zero-window recovery, FIN and reset recovery; raw peer: gap/duplicate reassembly |
+| Four-worker concurrency and connection lifetime | VM requires all four worker IDs; independent reply during a busy handler; host same-PCB input, accept/close and timer/close negative tests |
+| Capacity and rejection recovery | Actual socket exhaustion/reuse in host and VM; host callback TX admission/commit rejection; substrate allocation and mbuf ownership checks |
+| Timer locking and publication | Real PCB contention/local retry; stuck-lock watchdog subprocess; adapter publication-unit races; VM sticky/generation/lead-time DEADLINE checks |
+| Full preemption with live TCP connections | Two applications alternate bursts, each observed with zero assigned/reserved workers, and resume original streams |
+| Timer-only progress after full preemption | ACK filter plus packet capture requires new DEADLINE activation and retransmitted sequence/payload before new application data |
+| Donor policy and existing applications | VM protected-donor deferral and eligible-donor activation; UDP, RPC timeout and UDP memcached regressions |
+
+Later work remains intentionally outside this phase: phase 3 ports our memcached
+TCP support alongside UDP; phase 4 implements hardware DEADLINE/raw TCP steering,
+cleans up reclaim rules and validates TCP/memcached on Enzian. Add a deterministically
+gated exact-watermark donor fixture with that policy work; current acceptance
+checks at-or-below eligibility and above-watermark protection. Active-open
+runtime ephemeral-port steering, IPv6, IP fragmentation/options and whole-domain
+recovery are outside the current interface. No real hardware execution occurred.
 
 F-Stack's local reference revision `813b82016c5cebfcc545cb44fbbc19dd8d00e99d`
 has no-op locks, immediate epoch reclamation and TLS callout ownership that

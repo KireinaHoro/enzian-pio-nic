@@ -24,7 +24,7 @@ let
     buildPhase = ''
       $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn-tcp-runtime) \
         -DTEST_TCP_HOLD_MS=${toString tcpHoldMs} -DTEST_TCP_STATE_US=${toString tcpStateUs} \
-        -DTEST_TCP_CONNECTIONS=${toString tcpConnections} -DTEST_TCP_BUFFER=${toString tcpBuffer} \
+        -DTEST_TCP_SOCKET_LIMIT=${toString tcpVm.sockets} -DTEST_TCP_CONNECTIONS=${toString tcpConnections} -DTEST_TCP_BUFFER=${toString tcpBuffer} \
         sw/tests/vm/tcp.c $(pkg-config --libs lauberhorn-tcp-runtime) -o vm-tcp
       $CC -O2 -g -pthread $(pkg-config --cflags lauberhorn) sw/tests/vm/tcp_transport.c \
         $(pkg-config --libs lauberhorn) -o vm-tcp-transport
@@ -110,8 +110,9 @@ pkgs.testers.runNixOSTest {
     machine.wait_until_succeeds("python3 ${fixture}/share/memcached.py", timeout=30)
     peer.succeed("LH_VM_HOST=192.168.1.1 python3 ${fixture}/share/memcached.py")
     peer.succeed("LH_VM_HOST=192.168.1.1 python3 ${fixture}/share/client.py")
-    machine.succeed("taskset -c 0-1 vm-tcp 192.168.1.1 19501 > /tmp/tcp.log 2>&1 &")
+    machine.succeed("LH_VM_TCP_RESOURCE_CHECK=1 taskset -c 0-1 vm-tcp 192.168.1.1 19501 > /tmp/tcp.log 2>&1 &")
     machine.wait_until_succeeds("grep TCP_READY /tmp/tcp.log", timeout=30)
+    machine.succeed("grep TCP_RESOURCE_RECOVERY_PASS /tmp/tcp.log")
     try:
         machine.succeed("python3 ${fixture}/share/tcp.py", timeout=60)
         peer.succeed("python3 ${fixture}/share/tcp.py", timeout=60)
