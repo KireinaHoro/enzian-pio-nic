@@ -1,13 +1,37 @@
 # Userspace TCP
 
 Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
-`../lauberhorn-tcp`. TCP is pinned to `4b894e9`; memcached to `13f9e9a`.
+`../lauberhorn-tcp`. TCP is pinned to `13a182b`; memcached to `13f9e9a`.
 The user authorized phase 3: one memcached source tree with TCP alongside UDP,
 four instances with four threads each sharing four workers, separate bursts,
 load below saturation and persistent connections.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+
+## TCP second-stage build
+
+TCP `13a182b` moves compilation, pristine-import verification, patching, linking,
+pkg-config metadata and installation into Make. `all` builds libraries only;
+`check` builds/runs tests; `install` installs the component (test executables
+stay in build/). `config.mk` defaults and maint/config.py bounds are validated
+before compilation. Nix supplies dependencies and typed argument overrides via
+makeFlags and uses standard phases. No transport code changed.
+
+Validation: standalone single-worker Nix check passed
+(`/tmp/lh-tcp-make-single.log`, `out/tcp-make-single`); sanitizer protocol and
+four-worker concurrency checks passed (`/tmp/lh-tcp-make-sanitized.log`,
+`out/tcp-make-sanitized`). Direct Make inside nix develop passed build/check
+separation, no-op rebuild, invalid configuration rejection, WORKERS change
+recompilation and both worker-count checks (`/tmp/lh-tcp-make-incremental.log`,
+`/tmp/lh-tcp-make.1mgMSp`). The actual VM driver dependency chain built successfully
+with the final source (`/tmp/lh-tcp-make-vm-build.log`,
+`out/userspace-vm-tcp-make`); its TCP check phase passed protocol, concurrency,
+configuration and runtime publication tests (derivation y9f2khl5dsncnwdnwfnj9i5qs4q4lhdk).
+The committed pin also resolved successfully (`out/userspace-vm-tcp-make-pinned`,
+`/tmp/lh-tcp-make-pinned.log`). The VM itself was not rerun for this build-only change. The redundant dev-runtime
+build was stopped while restoring unrelated hardware-generation dependencies;
+the actual VM dependency chain above supplied the matched runtime instead.
 
 ## Adapter cleanup follow-up
 

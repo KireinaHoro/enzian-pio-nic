@@ -272,8 +272,12 @@ interface. Hardware transport remains phase 4.
 
 The source/build checkpoint lives in the separate `lauberhorn-tcp` repository.
 It imports only selected vanilla FreeBSD TCP sources and their transitive
-headers, with a pinned revision and per-file hashes. Its source-owned Nix recipe
-builds the shared TCP library and optional runtime adapter. The
+headers, with a pinned revision and per-file hashes. Its source-owned Nix recipe supplies dependencies and configuration overrides
+to a GNU Make build. Separate `all`, `check` and `install` targets build the
+libraries, run host regressions and install the component. `config.mk` declares
+configuration defaults; the build validates their types and bounds before
+compilation. The shared TCP library and optional runtime adapter use the same
+configuration under direct Make and Nix builds. The
 TCP library is an optional component alongside the runtime: application Nix
 recipes explicitly include both packages, and the runtime does not depend on
 TCP. Shared callouts, safe reclamation and the host interfaces live in the
@@ -330,7 +334,7 @@ bounded functional workloads, not a stress campaign or hardware performance
 results. See the [application contract](../applications/memcached.md) for ownership
 and unsupported administration/teardown operations.
 
-The port uses FreeBSD's send low watermark for WRITABLE readiness. Its Nix build
+The port uses FreeBSD's send low watermark for WRITABLE readiness. Its Make build
 also adapts SYN-cache publication to synchronous TX: the existing bucket lock
 covers SYN-ACK output and insertion so another worker cannot reject an early ACK.
 The imported source files remain pristine; the adaptation is applied to a build
