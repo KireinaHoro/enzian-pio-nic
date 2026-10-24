@@ -147,40 +147,46 @@ Clean-revision artifacts built successfully:
 - Final port verifier: NIC 354 ports, trace DMA 497 ports, all 16 ILA probes and
   five 21-bit debug state probes match the maintained wrapper.
 
-**Current blocker: shared scratch quota.** After the user renewed the expired
-Kerberos ticket, permissions passed, but creating
-`/scratch/pengxu/phase4-ed902d66` failed with `Disk quota exceeded`.
-The user was asked to free at least 250 MiB or provide another board-visible
-staging path. No existing artifacts were deleted. This is the first blocked
-continuation; goal remains active. Stop here per the user's major-blocker rule.
+The shared-scratch quota blocker is resolved. The image is staged at
+`/scratch/pengxu/phase4-ed902d66/tcp-validation.img`; its remote SHA256 matches
+above. The prepared cases, manifest and maintained nested-RPC peer client are
+staged alongside it. No existing experiment artifacts were deleted.
 
-The bundle and launcher ARE staged on enzian-ba2 under
-`/tmp/lauberhorn-phase4-ed902d66-20261024/{inputs,launch.sh}`. The remote input
-revision was checked. Vivado has NOT been launched; callback is NOT armed.
-`out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image hash,
-program.json, seven-case cases.json (six transport cases plus maintained nested
-RPC timeout/late-reply validation), launch.sh and schedule.py. The callback script
-uses systemd-run -> codex queue in this thread, verifies the timer and defaults
-its first check to five hours; --delay 30m --recheck handles a still-running job.
-The prepared 07/14 topology comes from the existing campaign configuration and
-requires live reservation/campaign/route checks before board access. No board
-reservation, provisioning, reset or console access occurred.
+## Manual phase-four build and callback
 
-Next after quota is resolved: stage the image as
-`/scratch/pengxu/phase4-ed902d66/tcp-validation.img`, plus the prepared cases,
-manifest and tools/enzian/nested_validation_client.py. Verify transferred SHA256.
-Launch the already-staged blade launch.sh detached, recording PID in build.pid,
-stdout in launcher.log and terminal status in build.exit. Verify the actual
-Docker/Vivado process before scheduling the five-hour callback. Update record.json
-with live launch/timer evidence and commit continuation state (documentation-only
-commits do not change the pinned ed902d66 artifact selection). Keep the goal active
-until launch, test readiness and callback are verified.
+The requested launch boundary is reached; real hardware acceptance follows the
+callback. Build revision is **ed902d66**, not subsequent documentation commits.
 
-Blade preflight: Docker 29.9.2, pinned image locally present, Vivado 2025.1,
-699 GiB /tmp free. Local user systemd is running and codex is installed. Inventory
-reserves 07/14 to pengxu, but a separate campaign uses them; callback must not
-interrupt it. Follow enzian-deploy, common test.py two-repeat acceptance and
-mandatory failure capture before resetting. No CI build was launched.
+- Host: enzian-ba2; root `/tmp/lauberhorn-phase4-ed902d66-20261024`.
+- Inputs and launcher: `inputs/`, `launch.sh`. Nine hashes (RTL, trace map,
+  wrapper, static shell, runner and revision metadata) verified remotely.
+- Detached launcher PID **132853**; container **6d1b3f5efebb**. Docker process
+  inspection confirmed live Vivado processes 132936/132985, not just a shell.
+- Progress: `launcher.log` and `build/vivado-build.log`; terminal status is
+  `build.exit`. Do not infer completion from the existence of output directories.
+- Outputs after success: `build/eci/vivadoProject.dest/` bit/ltx/routed DCP,
+  plus `build/physical/COMPLETE` and reports.
+- Callback timer: `lauberhorn-manual-ed902d66-20261024-results.timer`, verified
+  active, due **2026-10-24 16:00:47 CEST** (14:00:47 UTC). Service ExecStart was
+  inspected: codex queue targets this thread with the correct working directory,
+  exact artifact revision and collection/testing instructions.
+
+`out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image/bundle
+hashes, program.json, seven-case cases.json, launch.sh, schedule.py, callback
+command/prompt JSON and callback-receipt.log. The cases are six shared transport
+checks plus maintained nested-RPC timeout/late-reply validation, for two repeats.
+The record has launcher/container IDs, staging and callback verification. The
+schedule helper's `--delay 30m --recheck` handles a still-running build; inspect
+existing timer/service state first. Do not start a duplicate build or a new
+five-hour delay on an observation timeout.
+
+At callback: collect/check timing and artifact hashes, then run matched hardware
+acceptance through test.py. The prepared 07/14 topology comes from the existing
+campaign configuration: recheck live reservation, active campaign, routes, MTU,
+peer image mount and preserved failure state before board access. Do not interrupt
+another active campaign. Follow enzian-deploy and mandatory capture before reset;
+keep tracing armed through module load. No board provisioning, reset or console
+access occurred during this launch. No CI build was launched.
 
 ## TCP second-stage build
 
