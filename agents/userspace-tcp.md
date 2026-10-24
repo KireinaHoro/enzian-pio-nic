@@ -124,38 +124,63 @@ Full KVM suite passed in 139.50 s: `out/phase4-hardware-fixtures-run`,
 `/tmp/lh-phase4-hardware-fixtures-run.log`. Both local and remote raw peers
 passed timer-only SYN-ACK retransmission/reassembly/FIN. Packet-free DEADLINE,
 RPC/UDP, TCP protocol/wakeup, observed four-domain parking and the hardware's
-network-only 64-stream/eight-burst fixture all passed. The image currently uses
-dirty-tree identity; rebuild from the clean final commit before staging.
+network-only 64-stream/eight-burst fixture all passed.
 
-Fixture checkpoint c55ec740 is pushed with CI skipped. Its clean bundle build
-failed the maintained VHDL port gate: two TCP decoder/encoder ports were missing
-from the wrapper, and 21 deadline trace ports were allocated after TracePlugin
-had frozen NicEngine's IO. The latter appeared only in trace DMA/map generation.
-Move those allocations before Scheduler.awaitBuild, reject late makePort calls,
-and connect all 81 sources in the maintained VHDL wrapper. Preserve
-`/tmp/lh-phase4-c55ec740-artifacts.log`. Integration rebuild is
-`out/phase4-trace-fixed-inputs`, `/tmp/lh-phase4-trace-fixed-inputs.log`;
-full ECI deadline recheck is `/tmp/lh-phase4-trace-deadline-sim.log`.
-Check their terminal results before launch. No scheduler decision/datapath
-behavior changed in this trace fix.
+Final implementation revision **ed902d661a5735c355ec6b77ee334caf2dd9f713** is
+pushed with CI skipped. The first c55ec740 bundle failed its maintained port gate:
+missing TCP wrapper connections and 21 DEADLINE trace ports allocated after NIC
+IO construction. ed902d66 allocates them in setup, rejects late makePort calls,
+and connects all 81 sources in VHDL. Preserve the failed log
+`/tmp/lh-phase4-c55ec740-artifacts.log`. Corrected integration passed:
+`out/phase4-trace-fixed-inputs`, `/tmp/lh-phase4-trace-fixed-inputs.log`.
+Full ECI DeadlineSim passed with tracing/assertions active in 244 s:
+`/tmp/lh-phase4-trace-deadline-sim.log`. No scheduler decisions changed.
 
-Next: build clean-revision ECI inputs and matching application image, launch
-manual blade build and schedule callback. The ignored run preparation under
-`out/phase4-manual-c55ec740` is not launched or armed; update its record and
-paths to the final trace-fix revision before using it.
-Read enzian-deploy skill (already used) before actual board access. No board
-reservation/provisioning has been performed. No bitstream build or callback
-has been launched. Read-only blade preflight on 2026-10-24 found enzian-ba2 Docker
-29.9.2, Vivado 2025.1 and 699 GiB free on /tmp. Local user systemd is running and
-codex is installed. Recheck live state before launch. Use
-`docs/development/hardware-build.md`; `tools/ci/schedule-hw-check.py` demonstrates
-systemd-run → codex queue, but its CI-specific prompt needs a manual-build
-counterpart. Callback must collect matching artifacts and start the authorized
-TCP/memcached plus existing transport board checks.
-The gateway ticket expired during staging preflight; user renewed it and
-`test -w /scratch/pengxu` passed. Inventory currently reserves 07 and 14 to
-pengxu, but campaign state must be rechecked before board access; no reset or
-provisioning occurred here.
+Clean-revision artifacts built successfully:
+- `out/phase4-ed902d66-artifacts`: ECI Vivado bundle; git-revision is ed902d66.
+- `out/phase4-ed902d66-artifacts-1`: 218 MiB tcpValidationImage. Embedded manifest
+  extracted and checked: platform.local=false, exact ed902d66 revision.
+- Image SHA256: `03248c6e83661135977ca6c5ed130a85f6ff39e8709c43929a4e0aa0caf874fb`.
+- `/tmp/lh-phase4-ed902d66-artifacts.log`: build evidence. Final AArch64 TCP
+  checkPhase under QEMU passed configuration, protocol, concurrency and runtime
+  publication checks (drv djxd9yrqi3amym1ila892sn4n7vgjddn).
+- Final port verifier: NIC 354 ports, trace DMA 497 ports, all 16 ILA probes and
+  five 21-bit debug state probes match the maintained wrapper.
+
+**Current blocker: shared scratch quota.** After the user renewed the expired
+Kerberos ticket, permissions passed, but creating
+`/scratch/pengxu/phase4-ed902d66` failed with `Disk quota exceeded`.
+The user was asked to free at least 250 MiB or provide another board-visible
+staging path. No existing artifacts were deleted. This is the first blocked
+continuation; goal remains active. Stop here per the user's major-blocker rule.
+
+The bundle and launcher ARE staged on enzian-ba2 under
+`/tmp/lauberhorn-phase4-ed902d66-20261024/{inputs,launch.sh}`. The remote input
+revision was checked. Vivado has NOT been launched; callback is NOT armed.
+`out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image hash,
+program.json, seven-case cases.json (six transport cases plus maintained nested
+RPC timeout/late-reply validation), launch.sh and schedule.py. The callback script
+uses systemd-run -> codex queue in this thread, verifies the timer and defaults
+its first check to five hours; --delay 30m --recheck handles a still-running job.
+The prepared 07/14 topology comes from the existing campaign configuration and
+requires live reservation/campaign/route checks before board access. No board
+reservation, provisioning, reset or console access occurred.
+
+Next after quota is resolved: stage the image as
+`/scratch/pengxu/phase4-ed902d66/tcp-validation.img`, plus the prepared cases,
+manifest and tools/enzian/nested_validation_client.py. Verify transferred SHA256.
+Launch the already-staged blade launch.sh detached, recording PID in build.pid,
+stdout in launcher.log and terminal status in build.exit. Verify the actual
+Docker/Vivado process before scheduling the five-hour callback. Update record.json
+with live launch/timer evidence and commit continuation state (documentation-only
+commits do not change the pinned ed902d66 artifact selection). Keep the goal active
+until launch, test readiness and callback are verified.
+
+Blade preflight: Docker 29.9.2, pinned image locally present, Vivado 2025.1,
+699 GiB /tmp free. Local user systemd is running and codex is installed. Inventory
+reserves 07/14 to pengxu, but a separate campaign uses them; callback must not
+interrupt it. Follow enzian-deploy, common test.py two-repeat acceptance and
+mandatory failure capture before resetting. No CI build was launched.
 
 ## TCP second-stage build
 
