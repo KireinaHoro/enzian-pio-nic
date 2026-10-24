@@ -3,12 +3,37 @@
 Status: sketch; not implemented. No RX ABI or hardware changes are authorized by
 this note.
 
-Emit a specialized trampoline for each registered RPC procedure, with request
-unmarshaling and handler execution inlined into that trampoline. Change the RX
-cache-line layout so the NIC returns its executable entry address directly.
-The proposed successful dispatch path has one indirect jump into that entry,
-with no CPU service/codec table lookup or conditional dispatch branch. This is
-not a promise that arbitrary handler or codec bodies contain no branches.
+The RX trampoline specializes the complete handling of a request: inline the
+exact request-unmarshal, user-handler and response-marshal routines for each
+registered RPC procedure, followed by reply submission. It is not merely a
+specialized entry into the generic runtime's decode/handler/outcome/encode path.
+
+Change the RX cache-line layout so every completed blocking RX supplies an
+executable continuation address. Once RX returns, the runtime unconditionally
+jumps indirectly to that NIC-provided address, without a software message-type
+switch, service/codec lookup or control-reason check before the jump. The NIC
+selects both procedure entries and runtime control entries:
+
+| RX result | Selected continuation |
+| --- | --- |
+| RPC request | Procedure-specific inlined unmarshal → handler → marshal → reply submission |
+| NACK | Host-work check, then return to RX |
+| DESCHED | Enter `lh_yield` directly |
+| DEADLINE | Check timers and invoke due timer callbacks |
+
+Control entries perform their own required work and resume the receive loop
+under the appropriate ownership/activation state. DEADLINE selects timer
+processing; software still checks which timers are due and calls their
+callbacks. NACK enters the host-work check directly; its relationship to
+[HOST_WORK notification and liveness](host-work.md) must preserve that proposal's
+progress requirements. These entries and the executable-address RX ABI are
+proposed behavior, not existing transport support.
+
+The single indirect jump is the common dispatch mechanism for all these RX
+results. Checks inside an entry, timer callback invocation, and branches in
+codec or handler bodies remain where their semantics require them. The
+specialized request entry binds the complete request/reply path; it must not
+reintroduce generic codec or handler dispatch after entry.
 
 Move supported RPC-envelope validation into hardware before delivering the
 trampoline address. The present call decoder selects the service in hardware,
@@ -22,10 +47,13 @@ the current DPDK and Caladan baselines would retain it. This is an evaluation
 hypothesis, not a measured speedup or a claim that those systems cannot also be
 specialized.
 
-Still to define: exact RX layout and entry ABI; pointer registration, validation
-and lifetime under process isolation; specialization/inlining boundaries; error
-and non-fast paths; code-size tradeoffs; and a matched comparison that isolates
-the specialization's savings. Coordinate any implementation with the
+Still to define: exact RX layout and entry ABI, including continuation state
+and stack discipline; procedure/control pointer registration, validation and
+lifetime under process isolation and reassignment; allocation and cleanup in
+specialized entries; error, deferred/forwarded and nested-completion paths;
+timer delivery/rearming and the continuation after yield; code-size tradeoffs;
+and a matched comparison that isolates the specialization's savings.
+Coordinate any implementation with the
 [ECI boundary contract](../software/nested-rpc.md#endianness-at-the-host-boundary)
 and [cache-line interface](../architecture/hw-sw-interface.md), including ownership
 and progress rules and matched generated hardware/software collateral.
