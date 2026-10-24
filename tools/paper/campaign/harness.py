@@ -38,7 +38,7 @@ class Harness:
                 c['fpga_directory']+'/shell_lauberhorn-eci.ltx']
 
     def gateway(self, argv, name, **kwargs):
-        return self.command(['ssh',self.config['gateway'],shlex.join(list(map(str,argv)))],name,**kwargs)
+        return self.command(['ssh',self.config['gateway'],'cd /tmp && '+shlex.join(list(map(str,argv)))],name,**kwargs)
 
     def stage(self, source, name=None):
         source=Path(source);name=name or source.name
