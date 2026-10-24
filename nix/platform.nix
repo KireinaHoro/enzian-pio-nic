@@ -91,6 +91,9 @@ let
     tracing = false;
   };
   runtimeVm = runtimeNative.override { backend = "vm"; };
+  tcp = target.callPackage (inputs.tcp + "/package.nix") {
+    lauberhornRuntime = runtime;
+  };
   tcpVm = pkgs.callPackage (inputs.tcp + "/package.nix") {
     lauberhornRuntime = runtimeVm;
   };
@@ -169,6 +172,7 @@ let
   memcached = callPackage (inputs.memcached + "/package.nix") {
     source = inputs.memcached;
   };
+  memcachedTcp = memcached.override { lauberhornTcp = tcp; };
   memcachedTools = pkgs.callPackage ./software/memcached-tools.nix {
     inherit source identity;
     inherit (deploymentTarget) python3 bash;
@@ -233,6 +237,7 @@ in
     runtimeTests
     dandelion
     memcached
+    memcachedTcp
     memcachedReference
     target
     callPackage
@@ -241,6 +246,7 @@ in
     runtimeUninstrumented
     runtimeNative
     runtimeVm
+    tcp
     tcpVm
     vmModule
     vmTest

@@ -130,10 +130,12 @@
               runtimeUninstrumented
               runtimeNative
               runtimeVm
+              tcp
               tcpVm
               microbenchmarksUninstrumented
               dandelion
               memcached
+              memcachedTcp
               ;
             inherit (platform.applications) microbenchmarks recovery-test nested-validation;
             memcachedReferenceNative = platform.memcachedReference;

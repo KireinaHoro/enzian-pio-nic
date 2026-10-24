@@ -1,8 +1,9 @@
 # Native memcached
 
 The same application tree supports native UDP and optional userspace TCP.
-TCP uses the shared FreeBSD component and DEADLINE wakeups in the VM emulator;
-ECI raw TCP steering and hardware DEADLINE belong to
+TCP uses the shared FreeBSD component and DEADLINE wakeups through the VM or
+ECI transport. AArch64 TCP and memcached packages are composed by Nix; board
+acceptance belongs to
 [phase four](../proposals/userspace-tcp.md#phase-4-lauberhorn-integration-and-tcpmemcached-validation-on-enzian).
 Each instance selects one transport. The UDP ownership contract below is unchanged.
 
@@ -16,7 +17,9 @@ Linux-over-FPGA-bypass experiment is a separate control.
 The application is pinned at `13f9e9a` and
 based on upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, before the
 legacy PIONIC changes. Platform Nix calls its source-owned `package.nix` with
-the matched runtime and builds `memcachedImage`. The deployment manifest
+the matched runtime and builds `memcachedImage`. The optional AArch64 TCP
+composition is `dev.x86_64-linux.software.memcachedTcp`, backed by
+`dev.x86_64-linux.software.tcp`; the default `memcached` package selects UDP. The deployment manifest
 identifies application, runtime, module, RTL and generated headers.
 
 ## Adapter organization

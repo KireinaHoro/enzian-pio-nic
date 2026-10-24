@@ -270,8 +270,10 @@ to a GNU Make build. Separate `all`, `check` and `install` targets build the
 libraries, run host regressions and install the component. `config.mk` declares
 configuration defaults; the build validates their types and bounds before
 compilation. The shared TCP library and optional runtime adapter use the same
-configuration under direct Make and Nix builds. The
-TCP library is an optional component alongside the runtime: application Nix
+configuration under direct Make and Nix builds. Both x86-64 and AArch64 use
+selected machine headers from the same FreeBSD revision. Cross builds run the
+same protocol and concurrency checks through Nixpkgs' user-mode QEMU.
+The TCP library is an optional component alongside the runtime: application Nix
 recipes explicitly include both packages, and the runtime does not depend on
 TCP. Shared callouts, safe reclamation and the host interfaces live in the
 TCP package; the emulator supplies raw packet transport and domain deadlines.
