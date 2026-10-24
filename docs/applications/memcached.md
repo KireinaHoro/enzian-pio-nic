@@ -13,11 +13,27 @@ The finite integration and scheduling results below establish bounded native
 operation; they do not establish the controlled Caladan comparison. The
 Linux-over-FPGA-bypass experiment is a separate control.
 
-The application is pinned at `1819552` and
+The application is pinned at `13f9e9a` and
 based on upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, before the
 legacy PIONIC changes. Platform Nix calls its source-owned `package.nix` with
 the matched runtime and builds `memcachedImage`. The deployment manifest
 identifies application, runtime, module, RTL and generated headers.
+
+## Adapter organization
+
+The application keeps native support in three modules: `lauberhorn.c` owns
+transport selection, domain initialization and the worker startup barrier;
+`lauberhorn_udp.c` owns borrowed datagrams and direct TX; `lauberhorn_tcp.c`
+owns stream admission, parser serialization, readiness and migratable response
+allocations. The shared lifecycle selects a transport once; UDP entry points do
+not dispatch TCP. Autoconf compiles only the selected components, with dependency
+selection supplied by the source-owned Nix recipe.
+
+The upstream core retains narrow hooks for startup/worker dispatch, socket-event
+bypass, UDP receive/framing/release, stream close and allocations that survive
+worker migration. TCP drives the existing state machine under a connection
+parser lock. Command parsing, item storage and response construction stay in
+the upstream implementation. Ordinary socket builds omit the adapter modules.
 
 ## Integration and ownership
 

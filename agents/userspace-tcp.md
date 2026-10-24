@@ -1,13 +1,35 @@
 # Userspace TCP
 
 Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
-`../lauberhorn-tcp`. TCP is pinned to `4b894e9`; memcached to `1819552`.
+`../lauberhorn-tcp`. TCP is pinned to `4b894e9`; memcached to `13f9e9a`.
 The user authorized phase 3: one memcached source tree with TCP alongside UDP,
 four instances with four threads each sharing four workers, separate bursts,
 load below saturation and persistent connections.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+
+## Adapter cleanup follow-up
+
+The user requested a holistic cleanup against memcached master. Commit `13f9e9a`
+extracts shared lifecycle, UDP ownership and TCP scheduling into separate modules,
+with a public adapter hook header and a private module header. Transport selection
+is removed from thread.c and UDP startup. Core response ownership hooks delegate
+to the TCP module. The core diff against master is 69 lines in memcached.c,
+13 in thread.c and six metadata lines in memcached.h. Package version no longer
+labels the combined build UDP-only. All source changes are on the existing branch.
+
+Pinned VM acceptance passed in 118.31 s with the maintained test unchanged:
+`out/userspace-vm-memcached-modular-final`, output
+`out/userspace-vm-memcached-modular-run`, log `/tmp/lh-memcached-modular-run.log`.
+It includes both transports, four instances/four threads/four workers, all 128
+original streams, full parking, separate bursts, under-saturation traffic and
+DEADLINE-only retransmission. UDP-only compatibility also passed:
+`out/memcached-modular-udp/summary.json`, `/tmp/lh-memcached-modular-udp.log`.
+Ordinary socket-mode build also passed in `out/memcached-modular-sockets`
+(`/tmp/lh-memcached-modular-sockets.log`); it uses the pinned input's source-owned
+recipe with enableLauberhorn=false. All three configurations use the same tree.
+Do not merge before hardware phase 4.
 
 ## Phase-three completion
 
