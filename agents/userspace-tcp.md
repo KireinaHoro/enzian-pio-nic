@@ -166,10 +166,17 @@ callback. Build revision is **ed902d66**, not subsequent documentation commits.
   `build.exit`. Do not infer completion from the existence of output directories.
 - Outputs after success: `build/eci/vivadoProject.dest/` bit/ltx/routed DCP,
   plus `build/physical/COMPLETE` and reports.
-- Callback timer: `lauberhorn-manual-ed902d66-20261024-results.timer`, verified
-  active, due **2026-10-24 16:00:47 CEST** (14:00:47 UTC). Service ExecStart was
-  inspected: codex queue targets this thread with the correct working directory,
-  exact artifact revision and collection/testing instructions.
+- Initial five-hour callback ran at 16:00 CEST on October 24. The exact launcher
+  and container remained live after five hours; Docker process inspection also
+  confirmed both Vivado processes. No build.exit or physical/COMPLETE existed.
+  The build was in routing phase 14.4 (timing update). Intermediate slack was
+  WNS -2.279 ns / TNS -63339.743 ns, WHS -0.250 ns / THS -467.134 ns;
+  these are router progress figures, not final STA or a deployable result.
+- Recheck timer `lauberhorn-manual-ed902d66-20261024-recheck.timer` is verified
+  active, due **2026-10-24 16:31:37 CEST**. Receipt:
+  `out/phase4-manual-ed902d66/recheck-1-receipt.log`. No duplicate build launched,
+  no artifacts substituted, and no board access occurred during this follow-up.
+
 
 `out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image/bundle
 hashes, program.json, seven-case cases.json, launch.sh, schedule.py, callback
