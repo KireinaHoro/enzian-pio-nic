@@ -13,6 +13,7 @@
   tcpConnections ? 64,
   tcpBuffer ? 4096,
   tcpHoldMs ? 200,
+  tcpGateMs ? 5000,
   tcpStateUs ? 1000,
   memcachedObserverUs ? 1000,
 }:
@@ -28,7 +29,7 @@ let
         -DTEST_MC_OBSERVER_US=${toString memcachedObserverUs} $(pkg-config --cflags lauberhorn) \
         sw/tests/vm/memcached_observer.c -ldl -o memcached-observer.so
       $CC -O2 -g -pthread -I${runtimeVm.src}/sw/core $(pkg-config --cflags lauberhorn-tcp-runtime) \
-        -DTEST_TCP_HOLD_MS=${toString tcpHoldMs} -DTEST_TCP_STATE_US=${toString tcpStateUs} \
+        -DTEST_TCP_GATE_MS=${toString tcpGateMs} -DTEST_TCP_HOLD_MS=${toString tcpHoldMs} -DTEST_TCP_STATE_US=${toString tcpStateUs} \
         -DTEST_TCP_SOCKET_LIMIT=${toString tcpVm.sockets} -DTEST_TCP_CONNECTIONS=${toString tcpConnections} -DTEST_TCP_BUFFER=${toString tcpBuffer} \
         sw/tests/vm/tcp.c $(pkg-config --libs lauberhorn-tcp-runtime) -o vm-tcp
       $CC -O2 -g -pthread $(pkg-config --cflags lauberhorn) sw/tests/vm/tcp_transport.c \
@@ -148,6 +149,12 @@ pkgs.testers.runNixOSTest {
         print(machine.execute("tail -40 /tmp/tcp-a.log; tail -40 /tmp/tcp-b.log; cat /tmp/tcp-a.json /tmp/tcp-b.json")[1])
         raise
     machine.fail("dmesg | grep -E 'BUG:|Oops:|general protection fault'")
+    # Native worker teardown is unsupported; reset this guest without relying
+    # on graceful process exit. Colocation starts with exactly four domains.
+    machine.crash()
+    machine.start()
+    machine.wait_for_unit("multi-user.target")
+    machine.succeed("modprobe lauberhorn")
     for port in range(11220, 11224):
         machine.succeed(f"LH_VM_STATE_PATH=/tmp/mc-{port}.json LD_PRELOAD=${fixture}/lib/memcached-observer.so taskset -c 0-1 memcached -l 192.168.1.1 -p {port} -U 0 -t 4 -c 128 -m 32 -o hashpower=16 -u root > /tmp/mc-{port}.log 2>&1 &")
         machine.wait_until_succeeds(f"grep 'LAUBERHORN_READY TCP' /tmp/mc-{port}.log && test -s /tmp/mc-{port}.json", timeout=30)

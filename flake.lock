@@ -98,11 +98,11 @@
     "memcached": {
       "flake": false,
       "locked": {
-        "lastModified": 1792792441,
-        "narHash": "sha256-F9SU3lRnD2f5ecxhhPc1B0mJJkkQvPQSjPGhcMSj9X0=",
+        "lastModified": 1792794697,
+        "narHash": "sha256-ldqkrmhZE2VcdpyJPiCD1Kcj3pQaxEo92eAuRBCI7SE=",
         "ref": "userspace-tcp-phase-three",
-        "rev": "46e8339197556a34974efa63e278f1d372e6d9e4",
-        "revCount": 2235,
+        "rev": "181955288668c2bde0572823beefbb0a10791aa3",
+        "revCount": 2237,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
@@ -216,16 +216,16 @@
     "tcp": {
       "flake": false,
       "locked": {
-        "lastModified": 1792790845,
-        "narHash": "sha256-7JcW0XcIKWw2aa1aM69aC2+UGIxp/JI+jKy8lll2djo=",
-        "ref": "userspace-tcp-phase-two",
-        "rev": "d80d5f8e8fa453430c174a58b8b7fb074fefb146",
-        "revCount": 9,
+        "lastModified": 1792794770,
+        "narHash": "sha256-cqrpteOZOHAbsVESV0lBFl9CJyeQv/bFOtkkGkdoAS8=",
+        "ref": "userspace-tcp-phase-three",
+        "rev": "4b894e9bd830857e22bcedf7490c71d8241afc9e",
+        "revCount": 12,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
       },
       "original": {
-        "ref": "userspace-tcp-phase-two",
+        "ref": "userspace-tcp-phase-three",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
       }

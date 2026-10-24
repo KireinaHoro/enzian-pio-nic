@@ -1,7 +1,7 @@
 # Userspace TCP
 
-Active branches: `userspace-tcp-phase-three` in platform and `../memcached`;
-TCP remains pinned to completed phase-two `d80d5f8` on its phase-two branch.
+Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
+`../lauberhorn-tcp`. TCP is pinned to `4b894e9`; memcached to `1819552`.
 The user authorized phase 3: one memcached source tree with TCP alongside UDP,
 four instances with four threads each sharing four workers, separate bursts,
 load below saturation and persistent connections.
@@ -9,9 +9,9 @@ Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
 
-## Phase-three working state
+## Phase-three completion
 
-Memcached `46e8339` adds optional `lauberhornTcp` to its source-owned recipe.
+Memcached adds optional `lauberhornTcp` to its source-owned recipe.
 Native TCP selects `-l IPv4 -p PORT -U 0`; UDP remains `-p 0 -U PORT`.
 Shared connection parser locks permit migration across active workers. TCP
 read buffers/response objects are independent of worker-local allocation pools;
@@ -32,21 +32,77 @@ pipelining, arithmetic, noreply, large responses, FIN/reset, existing UDP
 memcached and the complete TCP/RPC/scheduler suite. This run predates the added
 backpressure/upstream comparison and four-instance checks.
 
-The expanded pre-fix suite failed on a 64-KiB store with a connection reset:
-`/tmp/lh-memcached-colocation-run.log`,
-`out/userspace-vm-memcached-colocation-run`. Fresh-VM single-store and complete
-stream/backpressure reproductions passed (13.91 s and 18.08 s) in
-`/tmp/lh-memcached-diagnose.log` and `/tmp/lh-memcached-diagnose-full.log`.
-Root cause is not established; do not call this resolved based on those passes.
-Current follow-up runs the complete suite against readiness fix `46e8339`:
-`out/userspace-vm-memcached-readiness`, `/tmp/lh-memcached-readiness-run.log`.
+Phase-three fixes and regression evidence:
 
-Next checks: build/run expanded VM with upstream comparison, unread-response
-backpressure, four domains/128 original streams, alternating bursts, observed
-zero-core intervals and four-worker use, fixed 20 requests/s/domain low-load
-phase. Test-only preload observes domain state and packet-worker IDs; its
-ordinary thread never runs TCP or publishes timers. Add application-level
-parked retransmission coverage and review allocation bounds/readiness races.
+- TCP `34f8900` makes WRITABLE follow FreeBSD's send low-watermark. The old
+  positive-space predicate kept all four memcached workers retrying writes,
+  leaving the domain's queue full and correctly preventing DEADLINE reclaim.
+  Negative host reproduction: `/tmp/lh-tcp-lowat-negative.log`, derivation
+  `8z40kp57g8vlc7xlq7sgxymzd2xahg98`; fixed checks:
+  `out/tcp-phase3-lowat-fixed`, `/tmp/lh-tcp-lowat-fixed.log`.
+- TCP `b50cebf` retains the existing SYN-cache bucket lock through synchronous
+  SYN-ACK output and insertion. Without it, an ACK on another worker can arrive
+  before the entry exists and be rejected, explaining the sporadic connection
+  resets seen after longer VM runs. The new TX gate deterministically fails on
+  the old code: `/tmp/lh-tcp-syn-negative.log`, derivation
+  `1szswli3ar7dbgjqlggyb83p8a16jd4q`. The build patches a copy; imported files
+  remain pristine and manifest-checked. Normal checks pass in
+  `out/tcp-phase3-syn-fixed`, `/tmp/lh-tcp-syn-fixed.log`; ASan/UBSan in
+  `out/tcp-phase3-syn-sanitized`, `/tmp/lh-tcp-syn-sanitized.log`; one worker in
+  `out/tcp-phase3-syn-single`, `/tmp/lh-tcp-syn-single.log`.
+- The older independent-progress fixture depended on a 200-ms hold still being
+  active when the client sampled it. It now has an explicit release gate and
+  queues work across the scaling watermark, so parallel execution is tested
+  without depending on retained core assignments or host timing.
+- Native worker teardown remains unsupported. The maintained VM suite uses
+  NixOS `machine.crash()` before the clean four-domain workload. The earlier
+  diagnostic run was stuck at graceful shutdown; its verified guest process
+  was terminated to let the driver continue. No hardware was touched.
+
+The requested four-domain workload passed in 28.18 s on the low-watermark fix:
+`out/userspace-vm-memcached-four-run`, `/tmp/lh-memcached-four-run.log`, driver
+`out/userspace-vm-memcached-gated`. All four instances registered four threads,
+all thread IDs processed packets, all domains were observed fully parked, and
+128 original connections survived two separate bursts per domain, idle intervals,
+expiry and fixed 20 requests/s/domain traffic. Distinct values checked domain
+isolation. A dropped ACK required DEADLINE activation and same-sequence response
+retransmission after parking, before new application data. Low-load p95 was
+4.85–5.60 ms; burst service was 832–1358 requests/s. These are VM functional
+workload observations, not paper performance claims.
+
+Final pinned acceptance passed after the user cleared the storage blocker:
+
+- `nix build .#checks.x86_64-linux.userspace-vm.driver --max-jobs 1`:
+  `out/userspace-vm-memcached-accept-final`, build log
+  `/tmp/lh-memcached-accept-final-gc-build.log`. TCP host checks also rebuilt
+  successfully with the exact RESET-before-accept assertion.
+- The maintained driver (no diagnostic overrides) passed in 115.02 s:
+  `out/userspace-vm-memcached-accept-final-run`,
+  `/tmp/lh-memcached-accept-final-run.log`. This includes upstream/native
+  memcached comparison, both guests, UDP/RPC, TCP transport/reordering,
+  competing-domain scheduling and all four-instance checks.
+- Four-domain results: all 16 application threads processed packets, all four
+  domains fully parked, 128 original streams survived eight separate bursts,
+  idle/expiry and 400 requests at 20 requests/s/domain. Timer-only retransmission
+  passed. Burst service was 596–1288 requests/s; low-rate p95 was 5.24–6.05 ms.
+  These are bounded VM observations, not hardware performance results.
+- `nix build .#checks.x86_64-linux.memcached-adapter --max-jobs 1` passed:
+  `out/memcached-phase3-udp-regression/summary.json`, build log
+  `/tmp/lh-memcached-phase3-udp-gc.log`. The optional-TCP recipe still builds
+  UDP-only; upstream comparison, borrow lifetime and expansion-scope checks pass.
+
+The previous maintained run in `/tmp/lh-memcached-phase3-final-run.log` exposed
+an aborted pending accept. Memcached `1819552` and the fixture handle RESET and
+continue listener progress; TCP `4b894e9` covers reset-before-accept and recovery.
+Earlier negative/failure evidence remains in the logs referenced above.
+
+Phase 3 is complete. Keep all three branches unmerged: phase 4 must implement
+hardware DEADLINE, raw TCP steering and explicit reclaim rules, then validate
+TCP and this memcached port on Enzian. No real-hardware validation or stress
+campaign was performed in phase 3.
+
+Concurrent unrelated commit `2e2d2cc1` changed campaign timing recovery on the
+shared platform branch; it is preserved. This task did not edit those files.
 
 ## Phase-one implementation
 

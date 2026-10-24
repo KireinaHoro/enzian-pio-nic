@@ -164,7 +164,18 @@ The test exercises zero-length through MTU-sized UDP, four-worker activation,
 competing-domain handoff, syscall blocking, RX/TX ownership rejection and host
 bypass. It runs the existing nested-validation application through immediate,
 deferred, forwarded, timeout, cancellation, pending-table saturation and error
-cases, then fills and releases emulator RPC contexts. UDP memcached covers
+cases, then fills and releases emulator RPC contexts. The same memcached tree
+includes native UDP and optional TCP. TCP checks compare ordinary Linux clients
+with upstream memcached: ASCII/binary commands, split streams, pipelining,
+backpressure, closes and resets. A fresh guest runs four instances with four
+threads each on the four workers, using 128 persistent connections, separate
+bursts, fixed-rate traffic and expiry. Read-only test instrumentation records
+allocation and application-thread use. A filtered ACK plus packet capture checks
+DEADLINE retransmission after full preemption. These are bounded functional
+workloads, not throughput or tail-latency research results. The guest resets
+without relying on unsupported native worker teardown between workload groups.
+
+UDP memcached covers
 store/get, arithmetic, delete and segmented replies. The peer guest exercises
 native UDP and memcached over the virtual network. TCP exchanges streams with
 Linux in both guests, observes zero-window backpressure and recovery, and checks
@@ -173,7 +184,10 @@ accepting traffic. A raw packet fixture checks out-of-order and duplicate reasse
 through the same transport. Two TCP applications retain established connections
 while alternating bursts reclaim all four workers; the test observes zero-worker
 intervals, independent progress during a busy handler, and DEADLINE-driven
-retransmission without new incoming data. These are functional checks, not
+retransmission without new incoming data. The independent-progress test holds
+one handler behind an explicit test gate, queues enough work to cross the scaling
+watermark, and releases the gate only after another connection replies. It does
+not infer concurrency from a wall-clock delay. These are functional checks, not
 performance measurements or ECI hardware acceptance.
 
 Before the application regressions, a two-domain policy fixture checks the

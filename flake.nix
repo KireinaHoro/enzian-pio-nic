@@ -15,7 +15,7 @@
       flake = false;
     };
     tcp = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git?ref=userspace-tcp-phase-two";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git?ref=userspace-tcp-phase-three";
       flake = false;
     };
     memcached = {

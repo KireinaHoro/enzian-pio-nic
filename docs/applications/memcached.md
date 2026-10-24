@@ -13,7 +13,7 @@ The finite integration and scheduling results below establish bounded native
 operation; they do not establish the controlled Caladan comparison. The
 Linux-over-FPGA-bypass experiment is a separate control.
 
-The application is pinned at `46e8339` and
+The application is pinned at `1819552` and
 based on upstream `0e6ba4da1fcaa3bf93f588d6d1144c9ecb231f9e`, before the
 legacy PIONIC changes. Platform Nix calls its source-owned `package.nix` with
 the matched runtime and builds `memcachedImage`. The deployment manifest
@@ -113,8 +113,8 @@ concurrent dispatch cannot leave readable data stranded behind a busy parser.
 
 TCP parser buffers and response objects can survive a worker change. They use
 connection-owned allocations instead of worker-local caches; response accounting
-retains the allocating worker's stats owner. These allocations are outside the
-worker read-buffer-cache memory limit. Stable, unbound identity descriptors
+retains the allocating worker's stats owner. TCP rejects the worker-cache
+`read_buf_mem_limit` option instead of silently ignoring it. Stable, unbound identity descriptors
 index upstream connection objects and remain allocated per slot until process
 exit; they carry no network traffic.
 

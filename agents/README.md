@@ -6,7 +6,7 @@ for working rules and topic routing.
 
 - [Build and CI](build-ci.md): build ownership, validation references and continuation checks.
 - [Runtime and applications](runtime-applications.md): accepted scope, bounded results and next checks.
-- [Userspace TCP](userspace-tcp.md): shared VM backend, minimal FreeBSD import and bounded four-worker TCP acceptance.
+- [Userspace TCP](userspace-tcp.md): shared VM backend, minimal FreeBSD import and TCP/memcached integration with four-domain acceptance.
 - [Caladan baseline](caladan.md): CS-A64 port integration, evidence and remaining checks.
 - [Measurements](measurements.md): instrumentation, evidence and remaining measurement work.
 - [Physical implementation](physical-implementation.md): timing pause and dependency ownership.

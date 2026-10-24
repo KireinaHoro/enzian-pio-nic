@@ -1,6 +1,6 @@
 # Shared userspace TCP for native applications
 
-**TCP proposal; VM infrastructure implemented.** Support TCP memcached with one userspace TCP
+**VM TCP and memcached implemented; hardware integration proposed.** Support TCP memcached with one userspace TCP
 stack per application, shared by its one to four request workers. Hardware
 classifies and transports segments; software owns all TCP connection state,
 ACK generation, reassembly, flow/congestion control, retransmission and close.
@@ -311,19 +311,30 @@ when every donor is above the watermark.
 
 ### Phase 3: TCP memcached port and validation in the VM
 
-Port our existing memcached tree to the shared Lauberhorn TCP stack. Implement
-TCP support in place alongside that tree's Lauberhorn UDP support, preserving
-the UDP path and using the same application source and packaging. Integrate
-memcached's stream parser, response buffering and readiness handling with the
-stack validated in phase 2. Keep application parsing separate from TCP critical
-sections and preserve readiness while a connection's parser is busy.
+The existing memcached tree includes the shared Lauberhorn TCP stack alongside
+its UDP adapter. One source-owned Nix recipe optionally includes TCP beside the
+runtime; each process selects TCP or UDP. The upstream stream parser and response
+machinery run under per-connection parser locks, outside transport locks. Parser
+buffers and response objects can survive worker changes. A readiness generation
+prevents concurrent input from being stranded behind a busy parser.
 
-Run the port on the Lauberhorn emulator in the VM with normal TCP clients.
-Compare behavior with upstream memcached, including partial commands,
-pipelining, backpressure and concurrent connections. Exercise connection close,
-timer progress and multi-worker concurrency through the application, and retain
-UDP regression coverage. This establishes the application port before real
-hardware integration.
+The NixOS VM suite compares normal Linux clients against upstream memcached:
+ASCII/binary commands, partial command headers and bodies, pipelining,
+backpressure, concurrent streams, closes and resets. UDP regression checks use
+the same native binary. A separate clean guest workload colocates four instances,
+each with four threads, on four workers. It retains 128 connections through
+separate bursts, full preemption, fixed-rate traffic below measured burst service
+and cache expiry; distinct values test domain isolation. Filtering a response's
+ACK checks timer-only wakeup and retransmission after full preemption. These are
+bounded functional workloads, not a stress campaign or hardware performance
+results. See the [application contract](../applications/memcached.md) for ownership
+and unsupported administration/teardown operations.
+
+The port uses FreeBSD's send low watermark for WRITABLE readiness. Its Nix build
+also adapts SYN-cache publication to synchronous TX: the existing bucket lock
+covers SYN-ACK output and insertion so another worker cannot reject an early ACK.
+The imported source files remain pristine; the adaptation is applied to a build
+copy. Deterministic negative tests cover both boundaries.
 
 ### Phase 4: Lauberhorn integration and TCP/memcached validation on Enzian
 

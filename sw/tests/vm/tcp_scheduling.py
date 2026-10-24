@@ -28,6 +28,7 @@ def receive(s, payload):
     assert result == payload
 
 
+gate_tickets = {'a': 0, 'b': 0}
 streams = {
     name: [socket.create_connection(('192.168.1.1', port), timeout=10)
            for _ in range(24)]
@@ -112,12 +113,20 @@ for name, other in [('a', 'b'), ('b', 'a'), ('a', 'b')]:
          'four workers and fully preempted competing TCP application')
     for index, s in enumerate(streams[name]):
         receive(s, bytes([0xd0, index]))
-    streams[name][0].sendall(b'\xd0held')
+    streams[name][0].sendall(b'\xd1held')
     wait(lambda: state(name)['holding'] == 1, 'one busy application handler')
-    streams[name][1].sendall(b'independent')
+    # Cross the packet watermark so parallelism does not depend on cores
+    # retained after the preceding burst (other domains may have timers due).
+    for s in streams[name][1:]:
+        s.sendall(b'independent')
     receive(streams[name][1], b'independent')
     assert state(name)['holding'] == 1, 'independent reply waited for slow handler'
-    receive(streams[name][0], b'\xd0held')
+    gate_tickets[name] += 1
+    with open('/tmp/tcp-' + name + '.json.release', 'w') as release:
+        release.write(str(gate_tickets[name]))
+    receive(streams[name][0], b'\xd1held')
+    for s in streams[name][2:]:
+        receive(s, b'independent')
     # The parked application's original connection must resume normally.
     streams[other][0].sendall(b'resume')
     receive(streams[other][0], b'resume')
