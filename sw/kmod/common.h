@@ -111,6 +111,7 @@ struct thr_def {
 struct proc_def {
     bool enabled, failed;
     u64 lifetime;
+    u64 deadline_ns; /* last successful publication, CLOCK_MONOTONIC */
     u32 idx, domain_code, declared_workers, num_rdy_thrs;
     pid_t tgid;
     struct task_struct *leader;

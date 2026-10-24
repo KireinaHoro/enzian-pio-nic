@@ -20,8 +20,8 @@ cooperative execution contract. Ordinary syscall sleep retains the assignment.
 At idle RX the NIC supplies a packet, stalls, returns a finite NACK or returns
 DESCHED. The runtime drains ready fibers before RX; DESCHED causes immediate
 yield without further transport access. RPC timeout polling has been replaced
-by DEADLINE-driven sweeps. The VM implements that notification, but ECI support
-is pending; nested submission fails before TX when DEADLINE control is unavailable.
+by DEADLINE-driven sweeps. VM and ECI ABI 3 implement that notification and its generation-checked control
+interface. Nested submission fails before TX when DEADLINE control is unavailable.
 See the [runtime contract](runtime.md#limits-and-lifecycle).
 
 ## Activation and handoff
@@ -66,8 +66,8 @@ ordinary handoff; unrelated register accesses are not guaranteed independent
 progress while that read is pending. No claim or lifetime lock is held across
 blocking MMIO.
 
-Allocation is packet-driven, with idle-first selection, an additional-core
-watermark policy and background discovery of queued unassigned domains.
+Allocation follows the [packet, background and DEADLINE rules](scheduler.md#allocation-and-reclaim-rules),
+with idle-first selection and explicit donor eligibility.
 Registration does not eagerly activate threads.
 
 ## Pool and runtime lifecycle

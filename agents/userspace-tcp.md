@@ -12,30 +12,64 @@ Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
 
-## Phase-four implementation in progress
+## Phase-four current checkpoint
 
-`DomainDeadline` implements a generation/lifetime-fenced acknowledged timer
-slot with sticky expiry, single claim, minimum-lead rejection, cancellation and
-generation exhaustion. Its focused RTL test passed via Nix/Mill
-(`/tmp/lh-phase4-deadline.log`). It is not yet connected to scheduler/CSR/RX.
+SchedulerAllocation centralizes all four normal reasons. The VM calls the pure
+C counterpart in sw/kmod/scheduler_policy.h; the source-owned scheduler-policy
+Nix check compiles that actual helper and compares 4096 stateful vectors with
+RTL. Exact watermark, reservation limits, cooperative readiness and arbitration
+also have targeted RTL checks. Legacy wake_idx/softwarePending is gone.
 
-`SchedulerAllocation` centralizes initial packet, backlog, background and
-DEADLINE reservation predicates, including current owner/reservation limits,
-exact-watermark donor protection and alternating packet/deadline grants.
-Its focused RTL test passed (`/tmp/lh-phase4-policy.log`). Scheduler.scala now
-uses it for packet/background allocations and removes wake_idx/softwarePending;
-deadline inputs remain tied off pending integration. Full ECI elaboration passed; log: `/tmp/lh-phase4-eci-elaboration.log`. VM still uses the previous
-allocator and must be aligned, including the new global one-grant arbitration.
+ECI ABI 3 wires DomainDeadline, privileged DeadlineRegisters, generation-only
+RX without a buffer allocation, and SET/GET kernel conversion/control. Claims
+suppress duplicate deliveries but only successful acknowledgement/replacement
+or lifetime retirement clears pending state. Traces separate timer events from
+ordinary core events; trace generation is low 32 bits, public/control generation
+is 64 bits. Nix owns minimum lead; the VM defaults to the same RTL package value.
 
-Next: connect deadline CSR/lifetime/tick conversion and payload-free RX path;
-add native TCP RX/TX endpoint steering and checksums; align VM policy with shared
-finite test vectors; prepare AArch64 stack and matched application/test image;
-run integrated RTL and VM regressions, then launch the bundle on enzian-ba2.
-TCP currently selects amd64 headers and port/internal.h has an x86 pause; add
-AArch64 support before claiming hardware test readiness. No hardware build or
-callback has been launched. `docs/development/hardware-build.md` owns the Docker
-launcher; `tools/ci/schedule-hw-check.py` demonstrates systemd-run → codex queue
-callbacks, but its CI-specific prompt is not suitable for this manual build.
+Current evidence:
+- `out/phase4-scheduler-policy`, `/tmp/lh-phase4-policy-agreement-fixed.log`:
+  all three tests passed, none canceled. Includes actual C/RTL differential
+  comparison, targeted allocator and timer-slot state tests.
+- `/tmp/lh-phase4-deadline-accepted.log`: full ECI DeadlineSim passed (146 s
+  Mill invocation). Tests no-packet idle activation, one core only, single
+  notification, stale ACK rejection, cancellation/rearm, NACK and coherent
+  control-line retirement across three expiries.
+- `out/phase4-deadline-eci-final`, `/tmp/lh-phase4-deadline-build-final.log`:
+  matching AArch64 kernel/runtime builds passed. Kernel drv
+  `3miha4s2jrrq7v8df96x0ycg9gk1bg63`, runtime
+  `a7awp6afk8vjyjs320dbm7rq9qqkbz0v`.
+- `out/phase4-scheduler-vm`, `out/phase4-scheduler-vm-run`,
+  `/tmp/lh-phase4-scheduler-vm-run.log`: full suite passed in 119.22 s,
+  including scheduler/DEADLINE, RPC timeout, TCP protocol/wakeup and four
+  memcached applications. 128 persistent streams, all four domains fully
+  parked and resumed, eight bursts, all 16 workers observed. Low-rate p95
+  1.04–1.21 ms is functional-test evidence, not a benchmark. Subsequent removal
+  of an unused C counting helper and Nix metadata/default plumbing did not
+  change the tested policy.
+
+Initial test failures were fixed: simulation timeout used picoseconds rather
+than milliseconds; two trace sources fired on one port; full generation plus
+IDs exceeded the existing trace payload. Preserved logs:
+`/tmp/lh-phase4-deadline-sim.log`, `...-sim-final.log`,
+`...-trace-fixed.log`. The asserted sim-final test wrapper was explicitly
+terminated after the Verilog failure; the final accepted test exited normally.
+The first policy Nix check omitted C sources from its hardware-only closure;
+the recipe now supplies the two C inputs explicitly. No validation process from
+this checkpoint needs to remain running.
+
+Next: implement native TCP RX/TX listen-port steering/checksums and ECI runtime
+transport, prepare the AArch64 stack and matched application/test image, run
+integrated transport regressions, then launch a manual blade build and callback.
+TCP still selects amd64 headers and port/internal.h has x86 pause; add AArch64
+support before claiming hardware test readiness. No bitstream build or callback
+has been launched. Read-only blade preflight on 2026-10-24 found enzian-ba2 Docker
+29.9.2, Vivado 2025.1 and 699 GiB free on /tmp. Local user systemd is running and
+codex is installed. Recheck live state before launch. Use
+`docs/development/hardware-build.md`; `tools/ci/schedule-hw-check.py` demonstrates
+systemd-run → codex queue, but its CI-specific prompt needs a manual-build
+counterpart. Callback must collect matching artifacts and start the authorized
+TCP/memcached plus existing transport board checks.
 
 ## TCP second-stage build
 

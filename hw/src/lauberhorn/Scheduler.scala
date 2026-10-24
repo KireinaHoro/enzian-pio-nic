@@ -79,6 +79,7 @@ class Scheduler extends FiberPlugin {
 
   def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.procDb.update.setIdle()
+    new DeadlineRegisters(busCtrl, alloc, logic.deadlines, logic.deadlineNow, logic.deadlineMinimumLead)
     if (host.list[EciOwnership].isEmpty) {
     val watchdogLimit = UInt(32 bits)
     busCtrl.driveAndRead(watchdogLimit, alloc("ctrl", "Execution limit in cycles; zero disables",
@@ -212,6 +213,35 @@ class Scheduler extends FiberPlugin {
       processMaximum(procDb.update.idx) := procDb.update.value.maxThreads
     }
 
+    // A bound lifetime can publish before its worker pool becomes runnable.
+    val deadlineNow = host[GlobalCSRPlugin].logic.status.cycles
+    val deadlineMinimumLead = (BigInt(ClockDomain.current.frequency.getValue.toLong) * DEADLINE_MIN_LEAD_NS.get + 999999999) / 1000000000
+    val deadlines = Seq.tabulate(NUM_PROCS.get + 1) { i =>
+      val slot = new DomainDeadline(minimumLead = deadlineMinimumLead)
+      slot.io.now := deadlineNow
+      slot.io.claim := False
+      host.list[EciOwnership].headOption match {
+        case Some(ownership) =>
+          slot.io.enabled := ownership.logic.domainBound(i) && !ownership.logic.faults.io.failed(i) && Bool(i != 0)
+          slot.io.lifetime := ownership.logic.domainCodes(i).resized
+        case None =>
+          slot.io.enabled := processEnabled(i) && Bool(i != 0)
+          slot.io.lifetime := processPids(i).bits.resized
+      }
+      val timerTp = host[TracePlugin].makePort(s"scheduler_deadline$i", LauberhornTraceDma.NicHostInterfaceSlr)
+      val publication = slot.io.command.valid && slot.io.accepted
+      val expiry = slot.io.pending.rise()
+      timerTp.trace("SchedulerDeadlineState", QueueIndex(U(i, log2Up(NUM_PROCS.get + 1) bits)),
+        DeadlineAction(expiry ## publication),
+        DeadlineGenerationLow((slot.io.generation + publication.asUInt).resize(32))) := expiry || publication
+      slot
+    }
+    val deadlineRunnable = deadlines.map(_.io.runnable).asBits
+    val packetDue = Vec.fill(NUM_PROCS + 1)(RegInit(False))
+    val deadlineRequests = Bits(NUM_WORKER_CORES bits)
+    deadlineRequests := 0
+    val deadlineSelected = OHMasking.firstV2(deadlineRequests)
+
     val statistics = new Bundle {
       val pushed, dropped = Reg(UInt(REG_WIDTH bits)) init 0
       val watchdogControls, watchdogExpirations = Vec.fill(NUM_WORKER_CORES)(Reg(UInt(REG_WIDTH bits)) init 0)
@@ -324,6 +354,7 @@ class Scheduler extends FiberPlugin {
       switch (req.ty) {
         import HostReqType._
         is (nativeUdpRx) { ret := req.data.nativeUdp.pid }
+        is (deadline) { ret := req.data.deadline.pid }
         is (oncRpcCallRx) { ret := req.data.oncRpcCallRx.pid }
         is (oncRpcReplyRx) { ret := req.data.oncRpcReplyRx.pid }
         default { ret.bits := 0 }
@@ -489,7 +520,7 @@ class Scheduler extends FiberPlugin {
     allocation.io.owner := corePidMap
     allocation.io.available := 0 // only an idle dispatch FSM may reserve
     allocation.io.ready := coreMeta.map(_.ready).asBits
-    allocation.io.deadlines := 0 // connected with acknowledged deadline slots below
+    allocation.io.deadlines := deadlineRunnable
     allocation.io.arrival.valid := packetArrival.valid
     allocation.io.arrival.payload := packetArrival.idx
     allocation.io.arrivalFill := packetArrival.fill
@@ -505,6 +536,7 @@ class Scheduler extends FiberPlugin {
 
     0 until NUM_WORKER_CORES foreach { idx => new Area {
       val coreTp = coreTps(idx)
+      val deadlineTp = host[TracePlugin].makePort(s"scheduler_core${idx + 1}_deadline", LauberhornTraceDma.NicHostInterfaceSlr)
       val toCore = coreMeta(idx)
       toCore.setIdle()
       coreCancel(idx) := False
@@ -603,7 +635,27 @@ class Scheduler extends FiberPlugin {
                 DeschedOutOfIdle(coreIdleMap(idx)),
                 QueueIndex(allocationGrant.slot),
                 QueueFill(queueMetas(allocationGrant.slot).fill))
+              when(allocationGrant.reason === AllocationReason.deadline) {
+                deadlineTp.trace("SchedulerDeadlineActivation", coreTd, QueueIndex(allocationGrant.slot))
+              }
               goto(desched)
+            } elsewhen (toCore.ready && processEnabled(corePopQueueIdx) && deadlineRunnable(corePopQueueIdx) &&
+                        (!packetDue(corePopQueueIdx) || queueMetas(corePopQueueIdx).empty)) {
+              deadlineRequests(idx) := True
+              when(deadlineSelected(idx)) {
+                savedPoppedReq.req.buffer.clearAll()
+                savedPoppedReq.req.len.bits := 0
+                savedPoppedReq.req.ty := HostReqType.deadline
+                savedPoppedReq.req.data.deadline.generation := Vec(deadlines.map(_.io.generation))(corePopQueueIdx).asBits
+                savedPoppedReq.req.data.deadline.pid := processPids(corePopQueueIdx)
+                savedPoppedReq.hostMsgId := invalidTraceId(HostMsgID.width)
+                for (slot <- 1 to NUM_PROCS.get) {
+                  when(corePopQueueIdx === slot) { deadlines(slot).io.claim := True; packetDue(slot) := True }
+                }
+                deadlineTp.trace("SchedulerDeadlineSelected", coreTd, QueueIndex(corePopQueueIdx),
+                  DeadlineGenerationLow(Vec(deadlines.map(_.io.generation))(corePopQueueIdx).resize(32)))
+                goto(sendPoppedReq)
+              }
             } elsewhen (toCore.ready && processEnabled(corePopQueueIdx) && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
               // XXX: this goes against the Stream semantics (https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Libraries/stream.html#semantics):
@@ -616,6 +668,7 @@ class Scheduler extends FiberPlugin {
               popReq.queueIdx := corePopQueueIdx
               popReq.req := True
               when (popReq.grant) {
+                packetDue(corePopQueueIdx) := False
                 goto(popReqGranted)
               }
             }
@@ -660,8 +713,12 @@ class Scheduler extends FiberPlugin {
             when(!processEnabled(corePopQueueIdx)) {
               coreCancel(idx) := True
               coreDiscard.payload := savedPoppedReq
-              coreDiscard.valid := True
-              when(coreDiscard.fire) { goto(idle) }
+              when(savedPoppedReq.req.ty === HostReqType.deadline) {
+                goto(idle) // no packet allocation belongs to a deadline
+              } otherwise {
+                coreDiscard.valid := True
+                when(coreDiscard.fire) { goto(idle) }
+              }
             }
 
             when (toCore.fire) {
@@ -669,6 +726,10 @@ class Scheduler extends FiberPlugin {
               // have to wait until they try again (and re-assert ready)
               // TODO: what happens if the core went amok and never retried? Kill proc?
 
+              when(savedPoppedReq.req.ty === HostReqType.deadline) {
+                deadlineTp.trace("SchedulerDeadlineDelivered", coreTd, QueueIndex(corePopQueueIdx),
+                  DeadlineGenerationLow(savedPoppedReq.req.data.deadline.generation.asUInt.resize(32)))
+              }
               inc(_.dispatched(idx))
               coreTp.trace("SchedulerRequestDispatched",
                 HostMsgID(savedPoppedReq.hostMsgId),

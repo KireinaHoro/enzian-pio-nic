@@ -7,7 +7,7 @@
   genVerilog,
   queueDepth ? 64,
   rxWaitMs ? 1,
-  deadlineMinLeadNs ? 1000000,
+  deadlineMinLeadNs ? genVerilog.deadlineMinLeadNs,
 }:
 assert queueDepth > 0 && rxWaitMs > 0 && deadlineMinLeadNs > 0;
 stdenv.mkDerivation {

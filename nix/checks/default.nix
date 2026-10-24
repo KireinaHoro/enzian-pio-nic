@@ -66,6 +66,17 @@ in
       lauberhorn.RecoveryStreamBufferSim lauberhorn.RecoveryInFlightSim \
       lauberhorn.ExecutionWatchdogSim lauberhorn.RpcReplyContextsSim
   '';
+  scheduler-policy = check "scheduler-policy" ''
+    mkdir -p out
+    cp ${../../sw/kmod/scheduler_policy.h} out/scheduler_policy.h
+    $CC -std=c11 -O2 -Wall -Wextra -Werror -Iout \
+      -DLAUBERHORN_NUM_PROCS=16 -DLAUBERHORN_NUM_WORKER_CORES=4 \
+      -DLAUBERHORN_RX_PKTS_PER_PROC=16 ${../../sw/tests/scheduler_policy.c} -o out/scheduler-policy
+    out/scheduler-policy > out/scheduler-policy-vectors.txt
+    export LH_SCHEDULER_VECTORS="$PWD/out/scheduler-policy-vectors.txt"
+    mill --no-daemon --offline gen.test.testOnly \
+      lauberhorn.SchedulerPolicyAgreementSim lauberhorn.SchedulerAllocationSim lauberhorn.DomainDeadlineSim
+  '';
   blocks-tests = check "blocks-tests" ''
     mill --no-daemon --offline 'blocks[2.13.12].test'
   '';

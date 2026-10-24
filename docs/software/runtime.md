@@ -138,12 +138,11 @@ retry when the minimum lead time prevents immediate arming. The RPC runtime owns
 the domain timer; independent TCP/application publishers require a shared timer
 broker before mixing them in one domain.
 
-The [VM backend](vm-backend.md#deadline-control-and-delivery) implements this
-interface and zero-to-one activation subject to donor protection. ECI does not
-yet implement DEADLINE: nested submission returns `EOPNOTSUPP` before transmitting
-when the device lacks the interface. There is no timeout-polling fallback.
-Hardware DEADLINE support is required before this branch can merge. Long handlers
-and unbounded ready-fiber draining retain the cooperative progress limitation.
+The [VM backend](vm-backend.md#deadline-control-and-delivery) and ECI ABI 3
+implement this interface and zero-to-one activation subject to donor protection.
+Nested submission returns `EOPNOTSUPP` before transmitting when the device lacks
+the interface. There is no timeout-polling fallback. Long handlers and unbounded
+ready-fiber draining retain the cooperative progress limitation.
 The former deadline housekeeping thread remains removed. Execution-watchdog
 integration is deferred.
 HOST_WORK (formerly proposed as HOST_WAKE) and

@@ -38,8 +38,14 @@ Packet allocation follows `Scheduler.scala` at device-event boundaries:
   eligible queued zero-core domain. It does not round-robin between active
   domains. Core reservations count toward recipient capacity before handoff.
 
-The VM does not model RTL lookup pipeline latency, simultaneous-cycle arbitration
-or ECI timing. Its event ordering establishes policy behavior, not cycle-exact
+The shared [allocation contract](scheduler.md#allocation-and-reclaim-rules)
+defines the four reasons and donor predicates. Packet and DEADLINE candidates
+alternate when both can obtain a grant; background discovery follows them.
+Each device-event arbitration commits at most one reservation. The maintained
+`scheduler-policy` Nix check compares the actual C allocator with RTL over
+stateful allocation vectors.
+
+The VM does not model RTL lookup pipeline latency or ECI timing. Its event ordering establishes policy behavior, not cycle-exact
 scheduling. Packet-driven reclaim does not protect donors above the watermark;
 that restriction belongs specifically to DEADLINE activation below.
 
@@ -91,8 +97,8 @@ Stale generations return `ESTALE`; deadlines less than the advertised minimum
 lead time ahead of device processing return `ETIME`. Both leave state unchanged.
 GET returns the current generation, time, minimum lead and pending/delivered
 flags. If SET's result cannot be copied back after commit, GET reconciles state;
-callers must not assume `EFAULT` rolled the command back. ECI returns
-`EOPNOTSUPP` until phase-four implementation. The old `KICK_PROCESS` ioctl was
+callers must not assume `EFAULT` rolled the command back. ECI ABI 3 implements
+the same interface through privileged timer registers and coherent RX. The old `KICK_PROCESS` ioctl was
 removed, and its number is not reused.
 
 Expiry occupies one reserved domain slot independent of packet queue capacity.
@@ -105,8 +111,8 @@ Already accepted packet delivery is not withdrawn.
 
 A zero-core domain may receive one idle core or an RX-ready donor core whose
 queue is at or below half capacity. Assigned and reserved cores prevent further
-deadline-only allocation. Pending deadline domains rotate for allocation; packet
-arrival reservations run first. When all donors are protected or executing
+deadline-only allocation. Pending deadline domains rotate for allocation and alternate with eligible
+packet-arrival requests. When all donors are protected or executing
 handlers, expiry remains pending. Long handlers, syscall sleep and unbounded
 fiber draining retain the cooperative limitation. Detection uses the emulator's
 bounded event-loop wait; no punctual callback guarantee is implied.

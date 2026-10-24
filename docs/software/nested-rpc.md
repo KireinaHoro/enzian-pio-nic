@@ -139,8 +139,8 @@ child's reply locally without retaining the parent fiber. Tail calls that reply
 directly from the downstream service to the original client are not implemented
 and are not fully designed.
 
-Parked-domain deadline activation and execution watchdogs are unsupported in the
-current scheduler. Per-call retirement does not imply whole-domain recovery.
+Parked-domain deadlines use the [scheduler allocation rules](scheduler.md#allocation-and-reclaim-rules).
+Execution-watchdog integration remains deferred. Per-call retirement does not imply whole-domain recovery.
 [Service-owned events and timers](../proposals/service-execution.md) are proposals.
 
 ## Internal local RPC

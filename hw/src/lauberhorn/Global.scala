@@ -21,6 +21,7 @@ object Global extends AreaRoot {
   val NUM_PROCS = value[Int]
   val NUM_THREADS = value[Int]
   val RX_PKTS_PER_PROC = value[Int]
+  val DEADLINE_MIN_LEAD_NS = value[Int]
   val BYPASS_PKTS = value[Int]
 
   val DATAPATH_WIDTH = value[Int]
@@ -126,6 +127,9 @@ object Global extends AreaRoot {
     // TODO:  implement a memory-based lookup table
     NUM_SERVICES.set(8)
     NUM_SESSIONS.set(16)
+    val deadlineLead = sys.env.getOrElse("LAUBERHORN_DEADLINE_MIN_LEAD_NS", "1000000").toInt
+    require(deadlineLead > 0, "deadline minimum lead must be positive")
+    DEADLINE_MIN_LEAD_NS.set(deadlineLead)
     NUM_PROCS.set(16)
     RX_PKTS_PER_PROC.set(16)
 

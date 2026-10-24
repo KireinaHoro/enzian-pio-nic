@@ -70,7 +70,7 @@ struct worker_fpi_data *worker_by_index(unsigned int index)
 int check_ownership_abi(void)
 {
     lauberhorn_eci_ownership_initialize(&ownership_dev, LAUBERHORN_ECI_OWNERSHIP_BASE);
-    if (lauberhorn_eci_ownership_abi_rd(&ownership_dev) != 2) return -EPROTO;
+    if (lauberhorn_eci_ownership_abi_rd(&ownership_dev) != 3) return -EPROTO;
     if (lauberhorn_eci_ownership_reset_required_rd(&ownership_dev)) return -ESHUTDOWN;
     return 0;
 }

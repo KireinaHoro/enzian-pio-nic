@@ -156,6 +156,12 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
+    case lauberhorn_eci_deadline:
+      desc->type = TY_DEADLINE;
+      desc->deadline.generation = lauberhorn_eci_host_ctrl_info_deadline_generation_extract(rx_ctrl);
+      desc->payload_len = 0;
+      BARRIER;
+      return valid; /* no packet borrow or buffer allocation */
     case lauberhorn_eci_native_udp_rx:
       desc->type = TY_NATIVE_UDP_RX;
       desc->udp.trace_ref = lauberhorn_eci_host_ctrl_info_native_udp_rx_trace_ref_extract(rx_ctrl);

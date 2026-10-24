@@ -56,6 +56,7 @@ object EciHostCtrlInfoSim {
           dp.pop(64),
           token,
           dp.pop(ONCRPC_INLINE_BYTES*8))
+      case 10 => RxDeadlineSim(dp.pop(64, skip = 43))
       case 8 => RxNativeUdpSim(len.toInt, dp.pop(32, skip = 11), dp.pop(32), dp.pop(32), dp.pop(16), dp.pop(16), dp.pop(16))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
@@ -197,4 +198,10 @@ case class TxNativeUdpSim(len: Int, endpoint: BigInt, daddr: BigInt, dport: BigI
   def ty = 9
   def encode: BigInt = (new BigIntBuilder).push(32, endpoint, skip = 12)
     .push(32, daddr).push(16, dport).push(16, relatedRx).toBigInt
+}
+
+case class RxDeadlineSim(generation: BigInt) extends EciHostCtrlInfoSim {
+  def len = 0
+  def ty = 10
+  def encode: BigInt = generation << 43
 }

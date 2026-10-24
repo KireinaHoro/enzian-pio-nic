@@ -5,6 +5,7 @@
 #include <linux/completion.h>
 #include <linux/ktime.h>
 #include "lauberhorn/deadline.h"
+#include "scheduler_policy.h"
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
@@ -102,7 +103,7 @@ static struct {
     struct socket *reservation;
 } tcp_endpoints[LAUBERHORN_NUM_LISTEN_PORTS];
 static u32 next_token, next_domain;
-static unsigned int deadline_cursor;
+static struct lh_scheduler_cursor allocation_cursor;
 static void packet_arrival(struct proc_def *proc, unsigned int fill);
 static struct task_struct *emulator;
 static DECLARE_WAIT_QUEUE_HEAD(device_wait);
@@ -452,19 +453,6 @@ static int transmit(struct vm_cmd *cmd, struct vm_worker *worker)
 /* Match Scheduler.scala policy at device-event boundaries. This does not model
  * its lookup pipeline latency. pending reserves the next owner, just as
  * corePidMap does before coreResident changes at handoff. */
-static unsigned int assigned(u32 slot)
-{
-    unsigned int i, count = 0;
-    for (i = 0; i < ARRAY_SIZE(workers); ++i)
-        count += (workers[i].pending ? workers[i].pending : workers[i].assigned_slot) == slot;
-    return count;
-}
-static bool eligible(struct proc_def *proc)
-{
-    return proc && !READ_ONCE(proc->failed) && proc->declared_workers &&
-        READ_ONCE(proc->num_rdy_thrs) == proc->declared_workers &&
-        assigned(proc->idx) < proc->declared_workers;
-}
 static void reserve_worker(struct vm_worker *w, u32 slot)
 {
     WRITE_ONCE(w->pending, slot);
@@ -473,81 +461,63 @@ static void reserve_worker(struct vm_worker *w, u32 slot)
         wake_up(&w->shared.dispatch_wait);
     }
 }
-static void packet_arrival(struct proc_def *proc, unsigned int fill)
-{
-    unsigned int i;
-    bool ready = 2 * fill >= LAUBERHORN_RX_PKTS_PER_PROC;
-    if (!eligible(proc) || (!ready && assigned(proc->idx))) return;
-    /* Idle first, then first RX-ready victim; no donor watermark restriction
-     * on packet-driven reclaim in the current hardware. */
-    for (i = 0; i < ARRAY_SIZE(workers); ++i)
-        if (!workers[i].assigned_slot && !workers[i].pending) {
-            reserve_worker(&workers[i], proc->idx); ++domains[proc->idx].arrival_idle; return;
-        }
-    if (!ready) return;
-    for (i = 0; i < ARRAY_SIZE(workers); ++i)
-        if (!workers[i].pending && workers[i].rx && !READ_ONCE(workers[i].rx->proc->failed) &&
-            workers[i].assigned_slot != proc->idx) {
-            reserve_worker(&workers[i], proc->idx); ++domains[proc->idx].arrival_ready; return;
-        }
-}
-static u32 background_domain(void)
-{
-    u32 slot;
-    /* LookupTable's non-single-match port uses firstV2, not round robin. */
-    for (slot = 1; slot <= LAUBERHORN_NUM_PROCS; ++slot)
-        if (domains[slot].count && !assigned(slot) && eligible(find_proc_slot(slot)))
-            return slot;
-    return 0;
-}
 static bool deadline_ready(u32 slot)
 {
     return domains[slot].deadline.pending && !domains[slot].deadline.delivered;
 }
-static void schedule_deadlines(void)
+static void allocate_worker(struct proc_def *arrival, unsigned int arrival_fill)
 {
+    struct lh_scheduler_input input = {0};
+    struct lh_scheduler_grant grant;
     u64 now = ktime_get_ns();
-    unsigned int slot, n, i;
+    unsigned int slot, i;
     for (slot = 1; slot <= LAUBERHORN_NUM_PROCS; ++slot) {
         struct proc_def *p = find_proc_slot(slot);
         struct lauberhorn_deadline_state *d = &domains[slot].deadline;
         if (p && READ_ONCE(p->failed)) { d->next_deadline_ns = 0; d->pending = d->delivered = 0; }
         else if (d->next_deadline_ns && now >= d->next_deadline_ns) d->pending = 1;
+        input.enabled[slot] = p && !READ_ONCE(p->failed) && p->declared_workers &&
+            READ_ONCE(p->num_rdy_thrs) == p->declared_workers;
+        input.maximum[slot] = p ? p->declared_workers : 0;
+        input.fill[slot] = domains[slot].count;
+        input.deadline[slot] = deadline_ready(slot);
     }
-    /* One deadline allocation per pass, rotating eligible domains. Packet
-     * arrival reservations have already run. Deadline-only work never scales
-     * above one core and cannot reclaim from a donor above the watermark. */
-    for (n = 0; n < LAUBERHORN_NUM_PROCS; ++n) {
-        slot = 1 + ((deadline_cursor + n) % LAUBERHORN_NUM_PROCS);
-        if (!deadline_ready(slot) || assigned(slot) || !eligible(find_proc_slot(slot))) continue;
-        for (i = 0; i < ARRAY_SIZE(workers); ++i)
-            if (!workers[i].assigned_slot && !workers[i].pending) goto grant;
-        for (i = 0; i < ARRAY_SIZE(workers); ++i)
-            if (!workers[i].pending && workers[i].rx && !READ_ONCE(workers[i].rx->proc->failed) &&
-                2 * domains[workers[i].assigned_slot].count <= LAUBERHORN_RX_PKTS_PER_PROC)
-                goto grant;
-        continue;
-    grant:
+    for (i = 0; i < ARRAY_SIZE(workers); ++i) {
+        struct vm_worker *w = &workers[i];
+        input.owner[i] = w->pending ? w->pending : w->assigned_slot;
+        input.available[i] = !w->pending && (!w->assigned_slot || input.enabled[w->assigned_slot]);
+        input.ready[i] = w->rx != NULL;
+    }
+    input.arrival = arrival ? arrival->idx : 0;
+    input.arrival_fill = arrival_fill;
+    grant = lh_scheduler_allocate(&input, &allocation_cursor);
+    if (grant.core < 0) return;
+    slot = grant.slot;
+    i = grant.core;
+    switch (grant.reason) {
+    case LH_DEADLINE:
         domains[slot].last_deadline_donor_fill = domains[workers[i].assigned_slot].count;
-        reserve_worker(&workers[i], slot);
         ++domains[slot].deadline_activations;
-        deadline_cursor = slot;
         break;
+    case LH_BACKGROUND: ++domains[slot].background; break;
+    default:
+        if (!workers[i].assigned_slot) ++domains[slot].arrival_idle;
+        else ++domains[slot].arrival_ready;
     }
+    reserve_worker(&workers[i], slot);
+}
+static void packet_arrival(struct proc_def *proc, unsigned int fill)
+{
+    allocate_worker(proc, fill);
 }
 static void schedule_device(void)
 {
     unsigned int i;
-    schedule_deadlines();
+    allocate_worker(NULL, 0);
     for (i = 0; i < ARRAY_SIZE(workers); ++i) {
         struct vm_worker *w = &workers[i];
         struct vm_cmd *rx = w->rx;
         if (rx && READ_ONCE(rx->proc->failed)) { w->rx = NULL; finish(rx, -ESHUTDOWN); continue; }
-        if (!w->pending && ((!w->assigned_slot) ||
-            (rx && !domains[w->assigned_slot].count && !deadline_ready(w->assigned_slot)))) {
-            u32 next = background_domain();
-            if (next) { reserve_worker(w, next); ++domains[next].background; }
-        }
         if (!rx) continue;
         if (w->pending) {
             rx->desc = (lauberhorn_pkt_desc_t){ .type = TY_DESCHED };

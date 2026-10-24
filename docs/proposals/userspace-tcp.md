@@ -1,6 +1,6 @@
 # Shared userspace TCP for native applications
 
-**VM TCP and memcached implemented; hardware integration proposed.** Support TCP memcached with one userspace TCP
+**VM TCP and memcached implemented; hardware integration in progress.** Support TCP memcached with one userspace TCP
 stack per application, shared by its one to four request workers. Hardware
 classifies and transports segments; software owns all TCP connection state,
 ACK generation, reassembly, flow/congestion control, retransmission and close.
@@ -65,7 +65,7 @@ reservations before blocking RX or yield. After DESCHED, yield immediately
 without further transport access. Ordinary syscall blocking retains assignment;
 critical sections must not contain blocking operations.
 
-## DEADLINE execution and scheduling (proposed)
+## DEADLINE execution and scheduling
 
 Software keeps connection timers in shared application state and publishes its
 minimum absolute deadline to the device. **DEADLINE** is a domain-scoped,
@@ -73,9 +73,8 @@ payload-free notification that this minimum has expired. It contains a domain
 lifetime and publication generation, not a connection or worker identity.
 Application workers execute callbacks; the device only records expiry and
 schedules service. No helper TCP thread or asynchronous handler preemption is
-introduced. Hardware implementation belongs to phase 4 alongside raw TCP
-segment steering; phase 2 emulates the policy in the [VM backend](../software/vm-backend.md)
-before stack integration.
+introduced. The [VM backend](../software/vm-backend.md) and ECI ABI 3 implement this policy.
+Raw TCP segment steering and board acceptance remain phase-four work.
 
 Keep one reserved pending slot per domain outside the packet FIFO, so a full
 packet queue cannot suppress expiry and duplicate expiries do not consume extra
@@ -112,8 +111,9 @@ Replace the obsolete `KICK_PROCESS` ioctl and `wake_idx`/`softwarePending`
 scaffolding with `SET_DEADLINE(next_deadline)`, using an absolute monotonic
 deadline. Reject a deadline earlier than the device's advertised minimum lead
 time without changing the previous armed/pending state. Provide explicit
-cancellation. The minimum, clock conversion and atomic generation/acknowledgement
-encoding are ABI details to settle in the VM; build parameters belong in Nix.
+cancellation. The public ABI uses absolute CLOCK_MONOTONIC nanoseconds and a 64-bit
+compare-and-replace generation. ECI binds commands to the kernel-owned PA
+lifetime and converts time to device ticks; build parameters belong in Nix.
 There is one scheduling policy, without a `reclaim_on_expiry` mode switch.
 
 Use DEADLINE for both TCP timers and nested-RPC timeouts. Its single-worker
@@ -132,8 +132,8 @@ runnable; rejection of a too-soon arm must not discard it or allow the last
 worker to park without a valid future retry or retained pending notification. An earlier timer insertion must publish before
 its worker can park; recheck shared timer state around publication to prevent a
 concurrent older minimum from replacing it. Serialize control publication
-outside connection locks. Exact register packing and clock conversion remain
-phase-2 ABI design work.
+outside connection locks. The [scheduler contract](../software/scheduler.md#allocation-and-reclaim-rules)
+defines ECI clock conversion and minimum-lead configuration.
 
 Connection-lock contention is resolved locally in the timer dispatcher. Release
 timer-queue protection while waiting, then revalidate the timer before dispatch:
@@ -146,41 +146,29 @@ blocking RX or yielding. Timer-only activation permits ACK/retransmission TX
 without a packet or RPC context. This replaces internal RPC timeout polling
 and remains distinct from [HOST_WORK](host-work.md).
 
-### Fit with the current scheduler
+### Scheduler implementation
 
-The intended changes to [Scheduler.scala](../../hw/src/lauberhorn/Scheduler.scala)
-are localized; the current scheduler does not implement this policy:
+[Scheduler.scala](../../hw/src/lauberhorn/Scheduler.scala) keeps acknowledged
+[deadline slots](../../hw/src/lauberhorn/DomainDeadline.scala) beside domain queue
+metadata. Packet queue pointers and buffer allocation do not include deadline
+notifications. Privileged deadline registers stage atomic generation/lifetime
+commands and latch consistent readback. Descriptor selection claims one expiry;
+only acknowledgement/replacement/cancellation or failure retirement clears it.
 
-- Keep deadline state beside per-domain queue metadata, leaving `queueMem`,
-  packet head/tail accounting and packet-buffer allocation unchanged.
-- Include pending deadline work in the domain-runnable predicate. The existing
-  `drainLookup` discovers domains with no reserved core, but its consumer is
-  behind packet dispatch and gated by `!rxDeschedReq.valid`; simply adding a
-  pending bit there cannot ensure progress under continuous traffic.
-- Feed a persistent deadline activation request into fair arbitration with
-  packet-driven allocation. Reuse `corePidMap` reservations,
-  `drainProcInProgress` protection and `coreDesched` handoff, but explicitly
-  restrict deadline donors by RX readiness and the watermark. Revalidate enabled
-  state, lifetime, zero recipient core count and donor eligibility at grant.
-  The existing `force` value is legacy kill intent, not timer priority.
-- Add a per-domain claim and bounded selection between a DEADLINE descriptor
-  and packet popping at the per-core idle dispatch boundary. Hold the selected
-  descriptor stable under backpressure. Keep DESCHED and failure fencing ahead
-  of delivery. A payload-free descriptor must traverse RX without allocating
-  or freeing a packet buffer; descriptor encoding and transport handling must
-  be updated together.
-- Clear state on domain disable/failure and reject stale lifetime commands.
-  Add tracing for expiry, selection, activation, delivery and acknowledgement
-  so allocation delay can be distinguished from callback delay.
+[SchedulerAllocation](../../hw/src/lauberhorn/SchedulerAllocation.scala) centralizes
+all four normal allocation reasons. The VM uses the corresponding pure C policy
+from `sw/kmod/scheduler_policy.h`; the `scheduler-policy` Nix check compares
+stateful input sequences against RTL. The [allocation rule table](../software/scheduler.md#allocation-and-reclaim-rules)
+specifies recipient and donor eligibility, watermark boundaries, reservation
+rechecks and arbitration. Failure fencing and legacy kill intent remain separate.
+`wake_idx` and `softwarePending` have been removed; their old residency-based
+clearing did not acknowledge timer service.
 
-`softwarePending` is legacy scaffolding from commit `b11c85a6` (September 17,
-2026): a housekeeping thread used `KICK_PROCESS`/`wake_idx` to request a core
-for expired nested RPC calls. It clears on core residency rather than timer
-service. Commit `2fd67e37` excluded its control register from cooperative ECI;
-the current kernel has removed `KICK_PROCESS`. It is not an active ECI deadline
-implementation and must not be relabeled as the proposed acknowledged slot.
-Existing first-set-bit arbitration and background lookup are not evidence of
-starvation freedom; the new arbitration needs explicit finite validation.
+A selected DEADLINE descriptor stays stable under backpressure and traverses
+ECI without a packet allocation or software borrow. DESCHED/failure fencing
+precedes delivery. Per-domain packet/timer alternation prevents repeated
+rearming from suppressing all queued packets. Tracing distinguishes publication,
+expiry, activation, selection and accepted descriptor delivery.
 
 ### VM policy checks before hardware implementation
 
@@ -227,7 +215,8 @@ work; retain the existing application's maintenance/lifecycle scope limits.
 
 ## Development phases
 
-The TCP phases remain planned work. The software-only backend is shared infrastructure
+Phases 1–3 provide the software path; phase 4 adds hardware integration and
+board validation. The software-only backend is shared infrastructure
 for Lauberhorn applications, not a TCP-specific replacement runtime.
 
 ### Phase 1: shared kernel module and runtime with VM emulation
@@ -349,7 +338,7 @@ phase 3 through the real backend. This phase includes the missing Lauberhorn
 functionality, not just deployment of the library onto Enzian. Regenerate ABI
 collateral and deploy matching hardware/software artifacts.
 
-Implement the agreed [DEADLINE policy](#deadline-execution-and-scheduling-proposed):
+Implement the agreed [DEADLINE policy](#deadline-execution-and-scheduling):
 `SET_DEADLINE`, minimum-lead-time rejection, reserved payload-free RX notification,
 single-worker delivery and generation-safe acknowledgement/rearm. Remove the
 legacy hardware wake scaffolding. The runtime already removes `KICK_PROCESS`

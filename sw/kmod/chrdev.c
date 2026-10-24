@@ -65,6 +65,7 @@ static struct file_priv *app_files[LAUBERHORN_NUM_PROCS + 1];
 #include "endpoints.h"
 #include <linux/iopoll.h>
 #include "retire_call.h"
+#include "deadline_control.h"
 
 struct proc_def *find_proc(pid_t tgid)
 {
@@ -373,9 +374,14 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
         if (!ret && proc->num_rdy_thrs == proc->declared_workers) update_proc_hw(fp->dev, proc);
         return ret;
     }
-    case LAUBERHORN_IOCTL_REG_TCP_ENDPOINT:
     case LAUBERHORN_IOCTL_SET_DEADLINE:
     case LAUBERHORN_IOCTL_GET_DEADLINE:
+#if LH_BACKEND_VM
+        return lh_vm_control(proc, cmd, arg);
+#else
+        return deadline_control(fp, cmd, (void __user *)arg);
+#endif
+    case LAUBERHORN_IOCTL_REG_TCP_ENDPOINT:
 #if LH_BACKEND_VM
         return lh_vm_control(proc, cmd, arg);
 #endif

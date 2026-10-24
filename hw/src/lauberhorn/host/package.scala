@@ -11,7 +11,7 @@ import scala.language.postfixOps
 package object host {
   /** Type of request to a host CPU core. */
   object HostReqType extends SpinalEnum {
-    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, executionControl, nativeUdpRx, nativeUdpTx = newElement()
+    val error, bypass, neighborMiss, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, executionControl, nativeUdpRx, nativeUdpTx, deadline = newElement()
 
     def addMackerel() = {
       ALLOC.addMackerelEpilogue(
@@ -27,6 +27,7 @@ package object host {
            |  execution_control = 0b111 "Local execution interval notification";
            |  native_udp_rx = 8 "Native UDP receive";
            |  native_udp_tx = 9 "Native UDP transmit";
+           |  deadline = 10 "Domain deadline notification";
            |};""".stripMargin)
     }
   }
@@ -108,7 +109,13 @@ package object host {
     val dport = Bits(16 bits)
   }
 
+  case class HostReqDeadline() extends Bundle {
+    val generation = Bits(64 bits)
+    val pid = PID()
+  }
+
   case class HostReqData() extends Union {
+    val deadline = newElement(HostReqDeadline())
     val nativeUdp = newElement(HostReqNativeUdp())
     val bypassMeta = newElement(HostReqBypassHeaders())
     val oncRpcCallRx = newElement(HostReqOncRpcCallRx())

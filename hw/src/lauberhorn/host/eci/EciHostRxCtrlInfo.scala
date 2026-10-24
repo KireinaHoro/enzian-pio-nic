@@ -30,6 +30,11 @@ case class EciHostRxCtrlInfo() extends Bundle {
   val ty = HostReqType()                                              // [1 : 5)  = 4b
   val len = PacketLength()                                            // [5 : 21) = 16b
   val data = new Union {
+    case class DeadlineBundle() extends Bundle {
+      val padding = Bits(43 bits) // generation starts at byte 8
+      val generation = Bits(64 bits)
+    }
+    val deadline = newElement(DeadlineBundle())
     case class NativeUdpBundle() extends Bundle {
       val padding = Bits(11 bits)
       val endpoint = Bits(32 bits)
@@ -97,6 +102,14 @@ case class EciHostRxCtrlInfo() extends Bundle {
 
     ALLOC.addMackerelEpilogue(
       s"""
+         |datatype host_ctrl_info_deadline lsbfirst(64) "Acknowledged domain deadline" {
+         |  valid 1 "RX descriptor valid";
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "deadline";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "Zero; no packet allocation";
+         |  _ 43 rsvd;
+         |  generation 64 "Publication generation";
+         |};
+         |
          |datatype host_ctrl_info_native_udp_rx lsbfirst(64) "Native UDP RX" {
          |  valid 1 "RX descriptor valid";
          |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_udp_rx";
@@ -212,6 +225,10 @@ object EciHostRxCtrlInfo {
     ret.ty := desc.ty
     ret.data.assignDontCare()
     switch (desc.ty) {
+      is (HostReqType.deadline) {
+        ret.data.deadline.padding := 0
+        ret.data.deadline.generation := desc.data.deadline.generation
+      }
       is (HostReqType.nativeUdpRx) {
         ret.data.nativeUdp.padding := 0
         ret.data.nativeUdp.tracePadding := 0
