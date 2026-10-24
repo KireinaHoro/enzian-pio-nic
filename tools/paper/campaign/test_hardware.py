@@ -15,6 +15,16 @@ from .import_loaded import digest
 
 
 class Hardware(unittest.TestCase):
+    def test_gateway_avoids_remote_home_and_preserves_argument_quoting(self):
+        import shlex
+        from .harness import Harness
+        h=Harness({'gateway':'gateway'},Path('/tmp'));h.command=Mock()
+        h.gateway(['python3','-c','print("a b")'],'probe')
+        argv=h.command.call_args.args[0]
+        self.assertEqual(argv[:2],['ssh','gateway'])
+        self.assertTrue(argv[2].startswith('cd /tmp && '))
+        self.assertEqual(shlex.split(argv[2][len('cd /tmp && '):]),['python3','-c','print("a b")'])
+
     def test_pdf_gate_uses_observed_system_canvas_and_rejects_wrong_height(self):
         from .adapter import pdf_checks
         from types import SimpleNamespace
