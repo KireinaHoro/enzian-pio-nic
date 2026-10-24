@@ -2,12 +2,40 @@
 
 Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
 `../lauberhorn-tcp`. TCP is pinned to `13a182b`; memcached to `13f9e9a`.
-The user authorized phase 3: one memcached source tree with TCP alongside UDP,
-four instances with four threads each sharing four workers, separate bursts,
-load below saturation and persistent connections.
+The active goal is phase 4: clean up Scheduler.scala; implement hardware
+DEADLINE and native TCP listen-port steering; align VM and RTL policy; prepare
+matching AArch64 TCP/memcached test artifacts; launch a manual blade bitstream
+build and schedule a callback to collect it and begin hardware testing. Completion
+is the build running with the callback scheduled and tests ready, not board
+acceptance itself. CI is unavailable; use the maintained Docker bundle workflow.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+
+## Phase-four implementation in progress
+
+`DomainDeadline` implements a generation/lifetime-fenced acknowledged timer
+slot with sticky expiry, single claim, minimum-lead rejection, cancellation and
+generation exhaustion. Its focused RTL test passed via Nix/Mill
+(`/tmp/lh-phase4-deadline.log`). It is not yet connected to scheduler/CSR/RX.
+
+`SchedulerAllocation` centralizes initial packet, backlog, background and
+DEADLINE reservation predicates, including current owner/reservation limits,
+exact-watermark donor protection and alternating packet/deadline grants.
+Its focused RTL test passed (`/tmp/lh-phase4-policy.log`). Scheduler.scala now
+uses it for packet/background allocations and removes wake_idx/softwarePending;
+deadline inputs remain tied off pending integration. Full ECI elaboration passed; log: `/tmp/lh-phase4-eci-elaboration.log`. VM still uses the previous
+allocator and must be aligned, including the new global one-grant arbitration.
+
+Next: connect deadline CSR/lifetime/tick conversion and payload-free RX path;
+add native TCP RX/TX endpoint steering and checksums; align VM policy with shared
+finite test vectors; prepare AArch64 stack and matched application/test image;
+run integrated RTL and VM regressions, then launch the bundle on enzian-ba2.
+TCP currently selects amd64 headers and port/internal.h has an x86 pause; add
+AArch64 support before claiming hardware test readiness. No hardware build or
+callback has been launched. `docs/development/hardware-build.md` owns the Docker
+launcher; `tools/ci/schedule-hw-check.py` demonstrates systemd-run → codex queue
+callbacks, but its CI-specific prompt is not suitable for this manual build.
 
 ## TCP second-stage build
 

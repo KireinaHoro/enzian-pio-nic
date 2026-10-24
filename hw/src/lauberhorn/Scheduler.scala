@@ -65,10 +65,9 @@ class Scheduler extends FiberPlugin {
   def MemAddr = UInt(log2Up(totalPkts) bits)
   def ProcTblIdx = UInt(log2Up(NUM_PROCS+1) bits)
 
-  case class DeschedCmd() extends Bundle {
-    val ty = DeschedCmdType()
-    val pid = PID()
+  case class PacketArrival() extends Bundle {
     val idx = ProcTblIdx
+    val fill = UInt(log2Up(RX_PKTS_PER_PROC + 1) bits)
     val hostMsgId = UInt(HostMsgID.width bits)
   }
 
@@ -81,13 +80,6 @@ class Scheduler extends FiberPlugin {
   def ctrl(busCtrl: BusSlaveFactory, alloc: RegBlockAlloc): Unit = {
     logic.procDb.update.setIdle()
     if (host.list[EciOwnership].isEmpty) {
-    val wakeIndex = ProcTblIdx
-    wakeIndex := 0
-    val wakeAddr = alloc("ctrl", "Request a worker for internal deadline progress", "wake_idx", attr = AccessType.WO)
-    busCtrl.write(wakeIndex, wakeAddr)
-    busCtrl.onWrite(wakeAddr) {
-      when(logic.processEnabled(wakeIndex)) { logic.softwarePending(wakeIndex) := True }
-    }
     val watchdogLimit = UInt(32 bits)
     busCtrl.driveAndRead(watchdogLimit, alloc("ctrl", "Execution limit in cycles; zero disables",
       "watchdog_cycles")) init 0
@@ -160,7 +152,7 @@ class Scheduler extends FiberPlugin {
   }
 
   val logic = during setup new Area {
-    /** Packet metadata to accept from the decoding pipeline.  Must be a [[OncRpcCallRxMeta]] */
+    /** Routable packet metadata accepted from the decoding pipeline. */
     val rxMeta = Stream(HostReqWithTrace())
     // Rejected descriptors still own their packet allocation and reply context.
     val discarded = Stream(HostReqWithTrace())
@@ -205,19 +197,19 @@ class Scheduler extends FiberPlugin {
     }
     // The pipelined lookup can still contain a result from before disable.
     // Gate admission/pop with the current control state as well.
-    val softwarePending = Vec.fill(NUM_PROCS + 1)(RegInit(False))
     val watchdogLimits = Vec.fill(NUM_PROCS + 1)(
       if (host.list[EciOwnership].nonEmpty) U(0, 32 bits) else Reg(UInt(32 bits)) init 0)
     val watchdogKilled = Vec.fill(NUM_PROCS + 1)(RegInit(False))
     val watchdogNow = Counter(32 bits)
     watchdogNow.increment()
+    val processMaximum = Vec.fill(NUM_PROCS + 1)(Reg(UInt(log2Up(NUM_WORKER_CORES + 1) bits)) init 0)
     val processEnabled = Vec.fill(NUM_PROCS + 1)(RegInit(False))
     val processPids = Vec.fill(NUM_PROCS + 1)(Reg(PID()))
     processPids.foreach(_.bits init U(0xffff))
     when(procDb.update.valid) {
       processEnabled(procDb.update.idx) := procDb.update.value.enabled && !watchdogKilled(procDb.update.idx)
       processPids(procDb.update.idx) := procDb.update.value.pid
-      when(!procDb.update.value.enabled) { softwarePending(procDb.update.idx) := False }
+      processMaximum(procDb.update.idx) := procDb.update.value.maxThreads
     }
 
     val statistics = new Bundle {
@@ -321,31 +313,6 @@ class Scheduler extends FiberPlugin {
       Reg(ProcTblIdx) init 0
     }
 
-    // used to find a non-empty queue that has no cores, when a core has drained its queue
-    case class DrainQuery() extends Bundle {
-      val procEmptyMap = Bits(NUM_PROCS+1 bits)
-      val corePidMap = Vec.fill(NUM_WORKER_CORES)(ProcTblIdx)
-    }
-
-    val (drainLookup, drainResult, _) = procDb.makePort(DrainQuery(), NoData(), "drain") { (v, q, idx) =>
-      val coreMap = q.corePidMap.map(_ === idx).asBits()
-      v.enabled && v.maxThreads =/= 0 && !q.procEmptyMap(idx) && coreMap === 0
-    }
-
-    // always valid to select a process to drain
-    drainLookup.query.procEmptyMap := queueMetas.zipWithIndex.map { case (q, i) =>
-      q.empty && !softwarePending(i)
-    }.asBits()
-    drainLookup.query.corePidMap := corePidMap
-    drainLookup.valid := True
-    drainResult.ready := True
-
-    // make sure no two cores will pick up the same queue to drain
-    val drainProcCoreReq, drainProcCoreGrant = Bits(NUM_WORKER_CORES bits)
-    drainProcCoreReq := 0
-    drainProcCoreGrant := OHMasking.firstV2(drainProcCoreReq)
-    val drainProcInProgress = Vec.fill(NUM_PROCS+1)(Reg(Bool()) init False)
-
     val (pushLookup, pushResult, pushLookupCapacity) = procDb.makePort(PID(), HostReqWithTrace(),
       "rxPush", singleMatch = true) { (v, q, _) =>
       v.enabled && v.pid === q
@@ -373,13 +340,11 @@ class Scheduler extends FiberPlugin {
         "scheduler requires a routable request")
     }
 
-    val pushResultCoreMap = corePidMap.map(_ === pushResult.idx).asBits()
-    val pushResultThrCount = CountOne(pushResultCoreMap)
-
-    // desched request to popping side
-    val rxDeschedReq = Reg(Flow(DeschedCmd()))
-    rxDeschedReq.valid := False
-    rxDeschedReq.hostMsgId := invalidTraceId(HostMsgID.width)
+    // Capture the admission event; allocation rechecks live state next cycle.
+    val packetArrival = Reg(Flow(PacketArrival()))
+    packetArrival.valid init False
+    packetArrival.valid := False
+    packetArrival.hostMsgId := invalidTraceId(HostMsgID.width)
 
     pushResult.ready := False
     val pushDiscard, queueDiscard = Stream(HostReqWithTrace())
@@ -419,26 +384,12 @@ class Scheduler extends FiberPlugin {
           ProcessID(pushResult.value.pid.bits)) := True
       }
 
-      // A new packet arrived, try to select a core to desched, but do not block the RX process.
-      when (pushResult.fire && pushResult.matched && processEnabled(pushResult.idx) && !queueMetas(pushResult.idx).full &&
-            pushResultThrCount < pushResult.value.maxThreads) {
-        rxDeschedReq.pid := pushResult.value.pid
-        rxDeschedReq.idx := pushResult.idx
-        rxDeschedReq.hostMsgId := pushResult.userData.hostMsgId
-
-        // descheduling as ready takes priority
-        when (queueMetas(pushResult.idx).almostFull) {
-          // queue almost full (V_arrival > V_consume, need to scale up)
-          // in addition to descheduling idle cores, also allow descheduling a ready one
-          rxDeschedReq.ty := DeschedCmdType.ready
-          rxDeschedReq.valid := True
-        } elsewhen (pushResultCoreMap === 0) {
-          // no process assigned to this queue -- idle desched
-          rxDeschedReq.ty := DeschedCmdType.idle
-          rxDeschedReq.valid := True
-        }
+      when (pushResult.fire && pushResult.matched && processEnabled(pushResult.idx) && !queueMetas(pushResult.idx).full) {
+        packetArrival.valid := True
+        packetArrival.idx := pushResult.idx
+        packetArrival.fill := queueMetas(pushResult.idx).fill
+        packetArrival.hostMsgId := pushResult.userData.hostMsgId
       }
-
     }
 
     // each core can raise a pop request, to remove one packet from the queues.
@@ -517,11 +468,6 @@ class Scheduler extends FiberPlugin {
     // Actual old owner is retained through the entire descheduling handshake;
     // corePidMap reserves the next owner earlier to bound parallelism.
     val coreResident = Vec.fill(NUM_WORKER_CORES)(Reg(ProcTblIdx) init 0)
-    for(i <- 1 to NUM_PROCS.get) {
-      when((0 until NUM_WORKER_CORES).map(c => coreResident(c) === i && !coreDesched(c).valid).asBits.orR) {
-        softwarePending(i) := False
-      }
-    }
     val processDraining = Vec.tabulate(NUM_PROCS + 1) { pid =>
       val busy = inTransitBusy(pid) || !queueMetas(pid).empty || reclaimOwner === pid ||
         discardStage.io.owners.map(o => o.valid && o.payload === processPids(pid).bits).asBits.orR ||
@@ -534,29 +480,28 @@ class Scheduler extends FiberPlugin {
       RegNext(busy || processEnabled(pid)) init True
     }
 
-    // victim core selection, based on descheduling type
-    val coreIdleMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
-      // idle descheduling: a core that is
-      // - running the IDLE process, and
-      // - a descheduling is not underway
-      corePidMap(cid) === 0
-    }.asBits()
-    val coreReadyMap = Seq.tabulate(NUM_WORKER_CORES) { cid =>
-      // ready descheduling: a core that is
-      // - running another PID, and
-      // - running some proc but ready (i.e. no request ongoing), and
-      // - a descheduling is not underway
-      corePidMap(cid) =/= rxDeschedReq.idx && coreMeta(cid).ready
-    }.asBits()
-
-    val victimCoreMap = rxDeschedReq.ty.mux(
-      DeschedCmdType.idle -> coreIdleMap,
-      DeschedCmdType.ready -> Mux(coreIdleMap.orR, coreIdleMap, coreReadyMap),
-      // TODO: when do we need the `force` command type?
-      //       when we need to kill a running handler?
-      default -> B(0),
-    )
-    val victimCoreMapSel = OHMasking.firstV2(victimCoreMap)
+    // All normal reservations share one arbiter. Current owner includes a
+    // reservation before handoff, so every grant rechecks the recipient limit.
+    val allocation = new SchedulerAllocation(NUM_PROCS, NUM_WORKER_CORES, RX_PKTS_PER_PROC)
+    allocation.io.enabled := processEnabled.asBits
+    allocation.io.maximum := processMaximum
+    allocation.io.fill := Vec(queueMetas.map(_.fill))
+    allocation.io.owner := corePidMap
+    allocation.io.available := 0 // only an idle dispatch FSM may reserve
+    allocation.io.ready := coreMeta.map(_.ready).asBits
+    allocation.io.deadlines := 0 // connected with acknowledged deadline slots below
+    allocation.io.arrival.valid := packetArrival.valid
+    allocation.io.arrival.payload := packetArrival.idx
+    allocation.io.arrivalFill := packetArrival.fill
+    val coreIdleMap = corePidMap.map(_ === 0).asBits
+    val allocationGrant = allocation.io.grant
+    val allocationPid = processPids(allocationGrant.slot)
+    val allocationTrace = UInt(HostMsgID.width bits)
+    allocationTrace := invalidTraceId(HostMsgID.width)
+    when(allocationGrant.reason === AllocationReason.initialPacket ||
+         allocationGrant.reason === AllocationReason.packetBacklog) {
+      allocationTrace := packetArrival.hostMsgId
+    }
 
     0 until NUM_WORKER_CORES foreach { idx => new Area {
       val coreTp = coreTps(idx)
@@ -619,6 +564,7 @@ class Scheduler extends FiberPlugin {
       val popFsm = new StateMachine {
         val idle: State = new State with EntryPoint {
           whenIsActive {
+            allocation.io.available(idx) := corePopQueueIdx === 0 || processEnabled(corePopQueueIdx)
             when (corePopQueueIdx =/= 0 && !processEnabled(corePopQueueIdx)) {
               if (host.list[EciOwnership].isEmpty) {
               coreDesched(idx).kill := watchdogKilled(corePopQueueIdx)
@@ -635,28 +581,28 @@ class Scheduler extends FiberPlugin {
                 QueueFill(queueMetas(corePopQueueIdx).fill))
               goto(desched)
               } // ECI fatal lifetimes retain their worker; no recovery handoff.
-            } elsewhen (rxDeschedReq.valid && processEnabled(rxDeschedReq.idx) && victimCoreMapSel(idx)) {
+            } elsewhen (allocationGrant.valid && allocationGrant.core === idx) {
               // we are selected as the eviction target
-              // capture requested PID since it's a Flow and only valid for one cycle
+              // Commit the reservation in the same cycle as the arbiter grant.
               coreDesched(idx).kill := False
-              coreDesched(idx).pid := rxDeschedReq.pid
+              coreDesched(idx).pid := allocationPid
 
               // Only an idle reservation authorizes a scheduling kick.
               coreDesched(idx).outOfIdle := coreIdleMap(idx)
 
-              corePidMap(idx) := rxDeschedReq.idx
-              savedDeschedIdx := rxDeschedReq.idx
-              savedDeschedPid := rxDeschedReq.pid
-              savedDeschedHostMsgId := rxDeschedReq.hostMsgId
+              corePidMap(idx) := allocationGrant.slot
+              savedDeschedIdx := allocationGrant.slot
+              savedDeschedPid := allocationPid
+              savedDeschedHostMsgId := allocationTrace
               coreTp.trace("SchedulerDeschedCore",
-                HostMsgID(rxDeschedReq.hostMsgId),
-                ProcessID(rxDeschedReq.pid.bits),
+                HostMsgID(allocationTrace),
+                ProcessID(allocationPid.bits),
                 PreviousProcessID(processPids(coreResident(idx)).bits),
                 coreTd,
-                DeschedCommand(rxDeschedReq.ty.asBits),
+                DeschedCommand(Mux(coreIdleMap(idx), DeschedCmdType.idle, DeschedCmdType.ready).asBits),
                 DeschedOutOfIdle(coreIdleMap(idx)),
-                QueueIndex(rxDeschedReq.idx),
-                QueueFill(queueMetas(rxDeschedReq.idx).fill))
+                QueueIndex(allocationGrant.slot),
+                QueueFill(queueMetas(allocationGrant.slot).fill))
               goto(desched)
             } elsewhen (toCore.ready && processEnabled(corePopQueueIdx) && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
@@ -672,42 +618,6 @@ class Scheduler extends FiberPlugin {
               when (popReq.grant) {
                 goto(popReqGranted)
               }
-            } elsewhen (!rxDeschedReq.valid && (toCore.ready || coreIdleMap(idx)) &&
-                        drainResult.idx =/= 0 && drainResult.valid && drainResult.matched &&
-                        processEnabled(drainResult.idx) && !corePidMap.map(_ === drainResult.idx).asBits.orR) {
-              // FIXME: can we simplify and merge this case with the RX descheduling case?
-
-              // When a core completely drained its queue, it needs to check if there are non-empty queues that
-              // have no cores assigned.  This is needed to be work-efficient and prevent excessive latency for
-              // the following case:
-              // - process received a request when all cores are busy, couldn't desched any core
-              // - system later became not busy, but no new requests arrive for process
-              // - if we don't scan inactive queues, the request will sit there indefinitely
-              // TODO: fairness?
-
-              // we are not popping from the queue here, only descheduling;
-              // so no need to check again if queue is empty
-              coreDesched(idx).kill := False
-              coreDesched(idx).pid := drainResult.value.pid
-              coreDesched(idx).outOfIdle := coreIdleMap(idx)
-              savedDeschedIdx := drainResult.idx
-              savedDeschedPid := drainResult.value.pid
-              savedDeschedHostMsgId := invalidTraceId(HostMsgID.width)
-              drainProcCoreReq(idx) := True
-              when (drainProcCoreGrant(idx) && !drainProcInProgress(drainResult.idx)) {
-                corePidMap(idx) := drainResult.idx
-                drainProcInProgress(drainResult.idx) := True
-                coreTp.trace("SchedulerDeschedCore",
-                  HostMsgID(invalidTraceId(HostMsgID.width)), // invalid in the drain case
-                  ProcessID(drainResult.value.pid.bits),
-                  PreviousProcessID(processPids(coreResident(idx)).bits),
-                  coreTd,
-                  DeschedCommand(DeschedCmdType.ready.asBits),
-                  DeschedOutOfIdle(coreIdleMap(idx)),
-                  QueueIndex(drainResult.idx),
-                  QueueFill(queueMetas(drainResult.idx).fill))
-                goto(desched)
-              }
             }
           }
         }
@@ -720,7 +630,6 @@ class Scheduler extends FiberPlugin {
 
             when (coreDesched(idx).ready) {
               coreResident(idx) := savedDeschedIdx
-              drainProcInProgress(savedDeschedIdx) := False
               inc(_.descheduled(idx))
               coreTp.trace("SchedulerProcessRun",
                 HostMsgID(savedDeschedHostMsgId),
