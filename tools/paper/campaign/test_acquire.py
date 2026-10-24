@@ -9,6 +9,21 @@ from .acquire import extract, remote_script
 
 
 class Acquisition(unittest.TestCase):
+    def test_runner_summary_can_omit_duplicate_returncode(self):
+        import json
+        from .acquire import validate_role
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'runner').mkdir()
+            request=dict(role='client',cpus=[16])
+            values={'files.json':{},'request.json':request,
+                    'result.json':dict(returncode=0,error=None),
+                    'runner/summary.json':dict(status='pass',restored=True),
+                    'runner/before.json':dict(binary_sha256='binary',lcores=[16],isolated_cpus='16',timestamp_provenance=None)}
+            for name,value in values.items(): (root/name).write_text(json.dumps(value))
+            validate_role(root,request,'binary')
+            (root/'result.json').write_text(json.dumps(dict(returncode=1,error=None)))
+            with self.assertRaises(ValueError): validate_role(root,request,'binary')
+
     def test_timing_retry_rejects_other_failures_and_changed_seed(self):
         import json
         from .acquire import validate_timing_failure

@@ -42,7 +42,7 @@ def validate_role(root, request, binary_sha, *, timing_failure=False):
     if read('request.json')!=request: raise ValueError('Role request provenance differs')
     outcome=read('result.json');wrapper=read('runner/summary.json');before=read('runner/before.json')
     expected_code, expected_status = (1, 'failed') if timing_failure else (0, 'pass')
-    if outcome['returncode']!=expected_code or outcome['error'] or wrapper['returncode']!=expected_code or wrapper['status']!=expected_status or wrapper['restored'] is not True:
+    if outcome['returncode']!=expected_code or outcome['error'] or wrapper.get('returncode',outcome['returncode'])!=expected_code or wrapper['status']!=expected_status or wrapper['restored'] is not True:
         raise ValueError('Role execution or NIC restoration failed')
     if timing_failure:
         validate_timing_failure(root, request)
