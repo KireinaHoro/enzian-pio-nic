@@ -138,7 +138,7 @@ retry when the minimum lead time prevents immediate arming. The RPC runtime owns
 the domain timer; independent TCP/application publishers require a shared timer
 broker before mixing them in one domain.
 
-The [VM backend](vm-backend.md#deadline-control-and-delivery) and ECI ABI 3
+The [VM backend](vm-backend.md#deadline-control-and-delivery) and ECI ABI 4
 implement this interface and zero-to-one activation subject to donor protection.
 Nested submission returns `EOPNOTSUPP` before transmitting when the device lacks
 the interface. There is no timeout-polling fallback. Long handlers and unbounded

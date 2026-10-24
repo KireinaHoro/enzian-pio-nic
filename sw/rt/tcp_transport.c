@@ -5,7 +5,6 @@
 #include "worker.h"
 int lauberhorn_tcp_receive(struct lauberhorn_tcp_event *event)
 {
-#if LH_BACKEND_VM
     lauberhorn_worker_t w = worker_get_current();
     if (!w || !event) { errno = EINVAL; return -1; }
     if (w->dp.rx_view.pending || w->dp.tx_reserved) { errno = EBUSY; return -1; }
@@ -28,24 +27,16 @@ int lauberhorn_tcp_receive(struct lauberhorn_tcp_event *event)
             .length = w->dp.rx_view.length, .endpoint = desc.tcp.endpoint };
         return 1;
     }
-#else
-    errno = EOPNOTSUPP; return -1;
-#endif
 }
 int lauberhorn_tcp_release(void)
 {
-#if LH_BACKEND_VM
     lauberhorn_worker_t w = worker_get_current();
     if (!w || !w->dp.rx_view.pending) { errno = EINVAL; return -1; }
     core_rx_release(&w->dp); return 0;
-#else
-    errno = EOPNOTSUPP; return -1;
-#endif
 }
 int lauberhorn_tcp_send(const struct lauberhorn_tcp_endpoint *ep,
                        lauberhorn_tx_buffer_t *buffer, size_t length)
 {
-#if LH_BACKEND_VM
     lauberhorn_worker_t w = worker_get_current();
     if (!w || !ep || !ep->handle || !buffer || buffer->_worker != w ||
         !w->dp.tx_reserved || buffer->_generation != w->dp.tx_generation ||
@@ -57,7 +48,4 @@ int lauberhorn_tcp_send(const struct lauberhorn_tcp_endpoint *ep,
     memset(buffer, 0, sizeof(*buffer));
     if (result == CORE_TX_ACCEPTED) return 0;
     errno = result == CORE_TX_RETRY ? EAGAIN : EIO; return -1;
-#else
-    errno = EOPNOTSUPP; return -1;
-#endif
 }

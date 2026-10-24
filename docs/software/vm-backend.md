@@ -97,7 +97,7 @@ Stale generations return `ESTALE`; deadlines less than the advertised minimum
 lead time ahead of device processing return `ETIME`. Both leave state unchanged.
 GET returns the current generation, time, minimum lead and pending/delivered
 flags. If SET's result cannot be copied back after commit, GET reconciles state;
-callers must not assume `EFAULT` rolled the command back. ECI ABI 3 implements
+callers must not assume `EFAULT` rolled the command back. ECI ABI 4 implements
 the same interface through privileged timer registers and coherent RX. The old `KICK_PROCESS` ioctl was
 removed, and its number is not reused.
 

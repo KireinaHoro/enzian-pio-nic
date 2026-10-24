@@ -20,7 +20,7 @@ Nix check compiles that actual helper and compares 4096 stateful vectors with
 RTL. Exact watermark, reservation limits, cooperative readiness and arbitration
 also have targeted RTL checks. Legacy wake_idx/softwarePending is gone.
 
-ECI ABI 3 wires DomainDeadline, privileged DeadlineRegisters, generation-only
+ECI ABI 4 wires DomainDeadline, privileged DeadlineRegisters, generation-only
 RX without a buffer allocation, and SET/GET kernel conversion/control. Claims
 suppress duplicate deliveries but only successful acknowledgement/replacement
 or lifetime retirement clears pending state. Traces separate timer events from
@@ -58,9 +58,37 @@ The first policy Nix check omitted C sources from its hardware-only closure;
 the recipe now supplies the two C inputs explicitly. No validation process from
 this checkpoint needs to remain running.
 
-Next: implement native TCP RX/TX listen-port steering/checksums and ECI runtime
-transport, prepare the AArch64 stack and matched application/test image, run
-integrated transport regressions, then launch a manual blade build and callback.
+Native TCP worktree now contains listen-port RX, full IPv4/TCP payload delivery,
+source-authorized/checksummed TX through existing IP/Ethernet encoders, ABI 4
+packing, ECI endpoint registration and runtime entry points. The TCP port namespace
+is independent of UDP. Kernel reservations remain for the domain lifetime.
+The old empty net/Tcp.scala placeholder is removed. TCP RX/TX and matched
+AArch64 kernel/runtime checks passed. The broad bypass TX size sweep below is
+still running; collect its result before moving on to integration validation.
+
+RX evidence: `/tmp/lh-phase4-tcp-encoder-elaboration.log` passed NativeTcpSim
+(RX-only version) and NativeUdpSim, 2 tests, 143 s. RX covers all TCP flags,
+TCP options, checksums, IP length/header negatives, full IP payloads, and
+unaltered unmatched/fragment/IP-options bypass. Fixed two failures: a register
+between aligner and listen lookup breaks the stalled first-beat handshake;
+IP MTU is 1500, whereas Global.MTU is the 1518-byte Ethernet buffer bound.
+Preserve `/tmp/lh-phase4-tcp-rx-debug.log` and `...-rx-buffered.log` for those failures.
+
+Running validation:
+- exec session 38865, `/tmp/lh-phase4-tcp-tx-sim.log`: expanded TCP RX/TX
+  (endpoint ownership, spoofed source tuple, mandatory checksum completion,
+  inline/overflow dirty reservation) plus TxBypassSim. TCP RX/TX passed, as did
+  bypass simple/IPv6/neighbor resolution/invalidation cases. The per-core size
+  sweeps are still running; do not restart without checking this session.
+- `/tmp/lh-phase4-tcp-eci-build.log`, `out/phase4-tcp-eci`: matched generated
+  headers, AArch64 kernel/runtime passed. Kernel drv
+  `m3lqqz00fwmyvbx0rnnd34hs1k5ciazs`, runtime
+  `v6ccz63kwdiimm6r1mngjdmgy6zcgrwq`. No functional changes after launch;
+  subsequent edits removed the empty placeholder and updated comments/docs.
+
+Next: finish TCP transport validation, prepare the AArch64 stack and matched
+application/test image, run integrated transport regressions, then launch a
+manual blade build and callback.
 TCP still selects amd64 headers and port/internal.h has x86 pause; add AArch64
 support before claiming hardware test readiness. No bitstream build or callback
 has been launched. Read-only blade preflight on 2026-10-24 found enzian-ba2 Docker

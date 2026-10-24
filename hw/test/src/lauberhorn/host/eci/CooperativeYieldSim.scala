@@ -118,7 +118,7 @@ class CooperativeYieldSim extends NicSim with OncRpcSuiteFactory {
       waitUntil(dcs.invalidationsAwaitingReply > 0)
       var otherControlDone = false
       fork {
-        assert(csr.read(ALLOC.readBack("ownership")("abi"), 8).bytesToBigInt == 3)
+        assert(csr.read(ALLOC.readBack("ownership")("abi"), 8).bytesToBigInt == 4)
         otherControlDone = true
       }
       var duplicateDone = false

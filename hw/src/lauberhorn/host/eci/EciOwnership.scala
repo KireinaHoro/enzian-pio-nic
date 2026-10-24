@@ -17,7 +17,7 @@ import spinal.lib.misc.plugin.FiberPlugin
 class EciOwnership extends FiberPlugin {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val ctrl = AxiLite4SlaveFactory(bus)
-    ctrl.read(U(3, REG_WIDTH bits), alloc("abi", attr = RO,
+    ctrl.read(U(4, REG_WIDTH bits), alloc("abi", attr = RO,
       desc = "Cooperative ECI ABI version; must equal software version"))
     // A 20-bit saturating counter distinguishes exhausted from code zero.
     val allocate = alloc("allocateDomain", attr = RC, readSensitive = true,

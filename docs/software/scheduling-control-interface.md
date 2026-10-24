@@ -20,7 +20,7 @@ cooperative execution contract. Ordinary syscall sleep retains the assignment.
 At idle RX the NIC supplies a packet, stalls, returns a finite NACK or returns
 DESCHED. The runtime drains ready fibers before RX; DESCHED causes immediate
 yield without further transport access. RPC timeout polling has been replaced
-by DEADLINE-driven sweeps. VM and ECI ABI 3 implement that notification and its generation-checked control
+by DEADLINE-driven sweeps. VM and ECI ABI 4 implement that notification and its generation-checked control
 interface. Nested submission fails before TX when DEADLINE control is unavailable.
 See the [runtime contract](runtime.md#limits-and-lifecycle).
 

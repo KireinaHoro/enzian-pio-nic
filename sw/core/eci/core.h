@@ -156,6 +156,10 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
+    case lauberhorn_eci_native_tcp_rx:
+      desc->type = TY_NATIVE_TCP_RX;
+      desc->tcp.endpoint = lauberhorn_eci_host_ctrl_info_native_tcp_rx_endpoint_extract(rx_ctrl);
+      break;
     case lauberhorn_eci_deadline:
       desc->type = TY_DEADLINE;
       desc->deadline.generation = lauberhorn_eci_host_ctrl_info_deadline_generation_extract(rx_ctrl);
@@ -337,6 +341,13 @@ static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void 
     break;
 
 #else // ! __KERNEL__
+  case TY_NATIVE_TCP_TX:
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_ty_insert(tx_ctrl, lauberhorn_eci_native_tcp_tx);
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_len_insert(tx_ctrl, payload_len);
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_execution_insert(tx_ctrl, desc->execution);
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_endpoint_insert(tx_ctrl, desc->tcp.endpoint);
+    break;
+
   case TY_NATIVE_UDP_TX:
     lauberhorn_eci_host_ctrl_info_native_udp_tx_ty_insert(tx_ctrl, lauberhorn_eci_native_udp_tx);
     lauberhorn_eci_host_ctrl_info_native_udp_tx_len_insert(tx_ctrl, payload_len);
@@ -398,8 +409,11 @@ static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void 
     return CORE_TX_ERROR;
   }
 
-  lauberhorn_eci_host_tx_placement_inline_payload_insert(tx_ctrl,
-      desc->type != TY_EXECUTION_CONTROL && ctx->tx_capacity <= 64);
+  if (desc->type == TY_BYPASS)
+    lauberhorn_eci_host_ctrl_info_bypass_tx_inline_payload_insert(tx_ctrl, ctx->tx_capacity <= 64);
+  else
+    lauberhorn_eci_host_tx_placement_inline_payload_insert(tx_ctrl,
+        desc->type != TY_EXECUTION_CONTROL && ctx->tx_capacity <= 64);
   BARRIER; // make sure all data is written before we ring the doorbell
 
   // Flip the parity

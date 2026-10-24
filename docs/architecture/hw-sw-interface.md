@@ -1,6 +1,6 @@
 # Hot-path hardware/software cache-line interface
 
-This document describes the implemented ECI payload-layout version 3 shared by
+This document describes the implemented ECI payload-layout version 4 shared by
 the FPGA, generated descriptors and C runtime. It covers RX/TX data placement,
 coherence handoff and buffer ownership. The [queue-pair design](../hardware/queue-pair-design.md)
 defines worker/domain address encoding and the HoL constraints on these offsets.
@@ -41,7 +41,10 @@ matching C helpers. Protocol-specific descriptor fields are generated from
 Use their Mackerel accessors rather than independent handwritten bit layouts.
 RX includes valid/type/length and request metadata; invalid RX status distinguishes
 NACK from DESCHED. TX includes type/length, protocol metadata and an explicit
-`inline_payload` placement bit at bit 23. Numeric host fields and wire bytes
+`inline_payload` placement bit at bit 23 for application descriptors. Bypass
+uses bit 24, following its four-bit packet discriminator; bypass headers still
+begin at byte 4. Native TCP RX/TX types are 11/12, with a host-order endpoint
+handle at byte 4 and a complete IPv4/TCP packet as payload. Numeric host fields and wire bytes
 follow the [endianness contract](../software/nested-rpc.md#endianness-at-the-host-boundary).
 
 ## RX: contiguous payload and replay

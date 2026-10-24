@@ -54,7 +54,7 @@ backpressure. Subsequent timer generations alternate with packets when both are
 ready. Already selected packets are not withdrawn. Failure fencing takes
 priority over normal grants and delivery; legacy force/kill intent is separate.
 
-ECI ABI 3 adds lifetime-checked deadline control and payload-free RX. The kernel
+ECI ABI 4 adds lifetime-checked deadline control and payload-free RX. The kernel
 serializes staged control writes and converts absolute CLOCK_MONOTONIC times to
 the device tick counter. Sampling the host clock before the device clock makes
 MMIO delay contribute late service rather than early callback execution. The

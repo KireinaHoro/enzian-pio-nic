@@ -22,14 +22,17 @@ it; stopping new accepts must not remove delivery for existing connections.
 Validate IP/TCP lengths, header bounds and checksums before host admission;
 initial scope is MTU-bounded IPv4 without IP options or fragmentation. Preserve
 the complete TCP header, options and payload, including zero-payload segments.
-Expose source/destination IP context, endpoint identity, length and checksum
-status alongside the borrowed packet. The stack adapter supplies a normal IP
-packet view if its input API requires one. Hardware does not update sequence
+Deliver the complete IPv4 packet as the borrowed payload, with endpoint identity
+and length in the descriptor. Accepted segments have passed both checksum checks;
+IP options and fragments retain bypass routing. Hardware does not update sequence
 state, acknowledge bytes, reorder segments or maintain a connection table.
 
-TX accepts the software-generated TCP header/options/payload and remote IP,
-validates the bound local endpoint, and supplies IP/Ethernet framing and TCP
-checksum completion. Retain existing neighbor resolution and bounded TX
+TX accepts a complete software-generated IPv4/TCP packet. It validates the
+endpoint owner before DMA, checks the packet source address/port and header bounds
+before wire emission, and supplies IP/Ethernet framing and TCP checksum completion.
+The existing IP encoder owns the NIC source address and neighbor lookup.
+Descriptor acceptance releases the host TX buffer; malformed packet contents
+are subsequently dropped before wire emission. Retain existing neighbor resolution and bounded TX
 admission semantics. Regenerate descriptors, headers and mappings together;
 define new native-TCP RX/TX variants without importing the split-offload ABI.
 Preserve native UDP, ONC-RPC and bypass configurations.
@@ -73,8 +76,9 @@ payload-free notification that this minimum has expired. It contains a domain
 lifetime and publication generation, not a connection or worker identity.
 Application workers execute callbacks; the device only records expiry and
 schedules service. No helper TCP thread or asynchronous handler preemption is
-introduced. The [VM backend](../software/vm-backend.md) and ECI ABI 3 implement this policy.
-Raw TCP segment steering and board acceptance remain phase-four work.
+introduced. The [VM backend](../software/vm-backend.md) and ECI ABI 4 implement this policy.
+The native TCP transport supplies listen-port steering and complete IP packet
+borrows; AArch64 stack packaging and board acceptance are phase-four work.
 
 Keep one reserved pending slot per domain outside the packet FIFO, so a full
 packet queue cannot suppress expiry and duplicate expiries do not consume extra

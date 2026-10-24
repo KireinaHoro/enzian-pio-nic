@@ -63,6 +63,7 @@ static struct file_priv *app_files[LAUBERHORN_NUM_PROCS + 1];
 #include "stats/worker.h"
 #endif
 #include "endpoints.h"
+#include "tcp_endpoints.h"
 #include <linux/iopoll.h>
 #include "retire_call.h"
 #include "deadline_control.h"
@@ -384,6 +385,8 @@ static long app_dev_ioctl_locked(struct file *f, unsigned int cmd, unsigned long
     case LAUBERHORN_IOCTL_REG_TCP_ENDPOINT:
 #if LH_BACKEND_VM
         return lh_vm_control(proc, cmd, arg);
+#else
+        return register_tcp_endpoint(fp, (void __user *)arg);
 #endif
     case LAUBERHORN_IOCTL_WATCHDOG:
         return -EOPNOTSUPP;

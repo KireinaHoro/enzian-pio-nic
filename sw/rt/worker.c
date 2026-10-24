@@ -223,10 +223,5 @@ int lauberhorn_udp_attach(lauberhorn_t *ctx, uint32_t index) {
 }
 
 int lauberhorn_tcp_attach(lauberhorn_t *ctx, uint32_t index) {
-#if LH_BACKEND_VM
     return lauberhorn_udp_attach(ctx, index);
-#else
-    errno = EOPNOTSUPP;
-    return -1;
-#endif
 }

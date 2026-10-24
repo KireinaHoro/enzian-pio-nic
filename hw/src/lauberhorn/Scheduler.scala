@@ -354,6 +354,7 @@ class Scheduler extends FiberPlugin {
       switch (req.ty) {
         import HostReqType._
         is (nativeUdpRx) { ret := req.data.nativeUdp.pid }
+        is (nativeTcpRx) { ret := req.data.nativeTcp.pid }
         is (deadline) { ret := req.data.deadline.pid }
         is (oncRpcCallRx) { ret := req.data.oncRpcCallRx.pid }
         is (oncRpcReplyRx) { ret := req.data.oncRpcReplyRx.pid }
@@ -367,7 +368,7 @@ class Scheduler extends FiberPlugin {
     }
     when (rxMeta.valid) {
       assert(
-        rxMeta.req.ty === HostReqType.nativeUdpRx || rxMeta.req.ty === HostReqType.oncRpcCallRx || rxMeta.req.ty === HostReqType.oncRpcReplyRx,
+        rxMeta.req.ty === HostReqType.nativeTcpRx || rxMeta.req.ty === HostReqType.nativeUdpRx || rxMeta.req.ty === HostReqType.oncRpcCallRx || rxMeta.req.ty === HostReqType.oncRpcReplyRx,
         "scheduler requires a routable request")
     }
 
@@ -482,7 +483,8 @@ class Scheduler extends FiberPlugin {
     // storage. Retain it through the pipelined process lookup even after disable.
     val admissions = Seq(host[OncRpcCallDecoder].logic.admission,
       host[OncRpcReplyDecoder].logic.admission,
-      host[lauberhorn.net.udp.NativeUdpDecoder].logic.admission)
+      host[lauberhorn.net.udp.NativeUdpDecoder].logic.admission,
+      host[lauberhorn.net.tcp.NativeTcpDecoder].logic.admission)
     // DecoderSink has one FULL (two-record) stage for each RPC decoder,
     // DmaControl has one active record, and LookupTable exports its stage count.
     // One additional record covers a departure waiting in the accounting stage.
