@@ -120,15 +120,29 @@ on failure. Two unit tests cover shell payloads and failed-post-check preservati
 
 `out/phase4-hardware-fixtures` driver and `out/phase4-hardware-fixtures-1` image
 built successfully; `/tmp/lh-phase4-hardware-fixtures-build.log`.
-Full KVM suite passed: `out/phase4-hardware-fixtures-run`,
+Full KVM suite passed in 139.50 s: `out/phase4-hardware-fixtures-run`,
 `/tmp/lh-phase4-hardware-fixtures-run.log`. Both local and remote raw peers
 passed timer-only SYN-ACK retransmission/reassembly/FIN. Packet-free DEADLINE,
 RPC/UDP, TCP protocol/wakeup, observed four-domain parking and the hardware's
 network-only 64-stream/eight-burst fixture all passed. The image currently uses
 dirty-tree identity; rebuild from the clean final commit before staging.
 
-Next: commit/push this fixture checkpoint, build clean-revision ECI inputs and
-matching application image, launch manual blade build and schedule callback.
+Fixture checkpoint c55ec740 is pushed with CI skipped. Its clean bundle build
+failed the maintained VHDL port gate: two TCP decoder/encoder ports were missing
+from the wrapper, and 21 deadline trace ports were allocated after TracePlugin
+had frozen NicEngine's IO. The latter appeared only in trace DMA/map generation.
+Move those allocations before Scheduler.awaitBuild, reject late makePort calls,
+and connect all 81 sources in the maintained VHDL wrapper. Preserve
+`/tmp/lh-phase4-c55ec740-artifacts.log`. Integration rebuild is
+`out/phase4-trace-fixed-inputs`, `/tmp/lh-phase4-trace-fixed-inputs.log`;
+full ECI deadline recheck is `/tmp/lh-phase4-trace-deadline-sim.log`.
+Check their terminal results before launch. No scheduler decision/datapath
+behavior changed in this trace fix.
+
+Next: build clean-revision ECI inputs and matching application image, launch
+manual blade build and schedule callback. The ignored run preparation under
+`out/phase4-manual-c55ec740` is not launched or armed; update its record and
+paths to the final trace-fix revision before using it.
 Read enzian-deploy skill (already used) before actual board access. No board
 reservation/provisioning has been performed. No bitstream build or callback
 has been launched. Read-only blade preflight on 2026-10-24 found enzian-ba2 Docker

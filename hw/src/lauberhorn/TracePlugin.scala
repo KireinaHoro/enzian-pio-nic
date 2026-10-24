@@ -137,14 +137,17 @@ class TracePlugin extends FiberPlugin {
   }
 
   def makePort(name: String = "", sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
+    require(!portsFrozen, "trace ports must be allocated during plugin setup, before trace IO is built")
     val ret = new TracePort(name, sourceSlr)
     require(!tracePorts.exists(_.name == ret.name), s"duplicate trace port name ${ret.name}")
     tracePorts.append(ret)
     ret
   }
   val tracePorts = mutable.ArrayBuffer[TracePort]()
+  private var portsFrozen = false
 
   val logic = during build new Area {
+    portsFrozen = true
     val trace = Vec(master(Flow(Bits(LauberhornTraceDma.PayloadWidth bits))), tracePorts.length)
     trace zip tracePorts foreach { case (to, tp) =>
       to := tp.out

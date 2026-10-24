@@ -161,6 +161,10 @@ class Scheduler extends FiberPlugin {
     val queueTp = host[TracePlugin].makePort("scheduler_queue", LauberhornTraceDma.NicHostInterfaceSlr)
     val coreTps = Seq.tabulate(NUM_WORKER_CORES)(idx =>
       host[TracePlugin].makePort(s"scheduler_core${idx + 1}", LauberhornTraceDma.NicHostInterfaceSlr))
+    val timerTps = Seq.tabulate(NUM_PROCS.get + 1)(idx =>
+      host[TracePlugin].makePort(s"scheduler_deadline$idx", LauberhornTraceDma.NicHostInterfaceSlr))
+    val deadlineTps = Seq.tabulate(NUM_WORKER_CORES)(idx =>
+      host[TracePlugin].makePort(s"scheduler_core${idx + 1}_deadline", LauberhornTraceDma.NicHostInterfaceSlr))
 
     /** Packet metadata issued to the downstream [[lauberhorn.host.DatapathPlugin]].
       *
@@ -228,7 +232,7 @@ class Scheduler extends FiberPlugin {
           slot.io.enabled := processEnabled(i) && Bool(i != 0)
           slot.io.lifetime := processPids(i).bits.resized
       }
-      val timerTp = host[TracePlugin].makePort(s"scheduler_deadline$i", LauberhornTraceDma.NicHostInterfaceSlr)
+      val timerTp = timerTps(i)
       val publication = slot.io.command.valid && slot.io.accepted
       val expiry = slot.io.pending.rise()
       timerTp.trace("SchedulerDeadlineState", QueueIndex(U(i, log2Up(NUM_PROCS.get + 1) bits)),
@@ -538,7 +542,7 @@ class Scheduler extends FiberPlugin {
 
     0 until NUM_WORKER_CORES foreach { idx => new Area {
       val coreTp = coreTps(idx)
-      val deadlineTp = host[TracePlugin].makePort(s"scheduler_core${idx + 1}_deadline", LauberhornTraceDma.NicHostInterfaceSlr)
+      val deadlineTp = deadlineTps(idx)
       val toCore = coreMeta(idx)
       toCore.setIdle()
       coreCancel(idx) := False
