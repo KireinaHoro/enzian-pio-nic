@@ -2,7 +2,7 @@ import os
 import socket
 import struct
 
-host = os.environ.get('LH_VM_HOST', '127.0.0.1')
+host = os.environ.get('LH_TEST_HOST', os.environ.get('LH_VM_HOST', '127.0.0.1'))
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
     s.settimeout(2)
     request_id = 0

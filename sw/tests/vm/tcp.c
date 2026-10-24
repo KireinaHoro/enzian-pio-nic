@@ -12,7 +12,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#if LH_BACKEND_VM
 #include "vm/abi.h"
+#endif
 static atomic_uint worker_mask, holding, gate_requested, gate_released;
 static atomic_uint_fast64_t readiness_generation;
 static int controlled;
@@ -116,7 +118,9 @@ static void *worker(void *arg)
 int main(int argc, char **argv)
 {
     assert(argc == 3);
+#if LH_BACKEND_VM
     controlled = getenv("LH_VM_STATE_PATH") != NULL;
+#endif
     struct lh_tcp_config config;
     assert(inet_pton(AF_INET, argv[1], &config.address) == 1);
     assert(inet_pton(AF_INET, "255.255.255.0", &config.netmask) == 1);
@@ -148,6 +152,7 @@ int main(int argc, char **argv)
     for (unsigned long i = 0; i < lh_tcp_worker_count(); ++i)
         assert(!pthread_create(&threads[i], NULL, worker, (void *)i));
     puts("TCP_READY"); fflush(stdout);
+#if LH_BACKEND_VM
     const char *path = getenv("LH_VM_STATE_PATH");
     if (path) {
         char *temporary, *release_path;
@@ -176,5 +181,6 @@ int main(int argc, char **argv)
             usleep(TEST_TCP_STATE_US);
         }
     }
+#endif
     for (unsigned int i = 0; i < lh_tcp_worker_count(); ++i) pthread_join(threads[i], NULL);
 }

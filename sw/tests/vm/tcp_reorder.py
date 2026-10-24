@@ -1,10 +1,15 @@
-"""Deterministic gap/duplicate injection through the actual VM TCP transport."""
+"""Raw-peer retransmission, gap and duplicate checks for VM or ECI TCP."""
+import os
 import socket
 import struct
 import subprocess
 import time
 
-address = socket.inet_aton('192.168.1.1')
+host = os.environ.get('LH_TEST_HOST', os.environ.get('LH_VM_HOST', '192.168.1.1'))
+address = socket.inet_aton(host)
+with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as route:
+    route.connect((host, 19501))
+    local = socket.inet_aton(route.getsockname()[0])
 source, destination = 20001, 19501
 client_next = 100001
 
@@ -20,17 +25,17 @@ def checksum(data):
 
 wire = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
 capture = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
-capture.bind(('lo', 0))
+capture.bind((os.environ.get('LH_TEST_INTERFACE', 'lo'), 0))
 capture.settimeout(5)
 
 
 def send(sequence, acknowledgement, flags, payload=b''):
     tcp = struct.pack('!HHIIBBHHH', source, destination, sequence, acknowledgement,
                       5 << 4, flags, 65535, 0, 0) + payload
-    check = checksum(address * 2 + struct.pack('!BBH', 0, 6, len(tcp)) + tcp)
+    check = checksum(local + address + struct.pack('!BBH', 0, 6, len(tcp)) + tcp)
     tcp = tcp[:16] + struct.pack('!H', check) + tcp[18:]
-    ip = struct.pack('!BBHHHBBH', 0x45, 0, 20 + len(tcp), 0, 0, 64, 6, 0) + address * 2
-    wire.sendto(ip + tcp, ('192.168.1.1', 0))
+    ip = struct.pack('!BBHHHBBH', 0x45, 0, 20 + len(tcp), 0, 0, 64, 6, 0) + local + address
+    wire.sendto(ip + tcp, (host, 0))
 
 
 def receive():
@@ -40,7 +45,7 @@ def receive():
         if metadata[2] == socket.PACKET_OUTGOING:
             continue
         ip = frame[14:]
-        if len(ip) < 40 or ip[9] != 6:
+        if len(ip) < 40 or ip[9] != 6 or ip[12:16] != address or ip[16:20] != local:
             continue
         tcp = ip[(ip[0] & 15) * 4:struct.unpack('!H', ip[2:4])[0]]
         if len(tcp) < 20 or struct.unpack('!HH', tcp[:4]) != (destination, source):
@@ -64,6 +69,12 @@ try:
     send(client_next - 1, 0, 2)
     sequence, acknowledgement, flags, data = receive()
     assert flags & 18 == 18 and acknowledgement == client_next and not data
+    # Withhold the handshake ACK: no further peer packets can drive stack work.
+    # A repeated SYN-ACK therefore requires the server's timer/DEADLINE path.
+    retry_sequence, retry_ack, retry_flags, retry_data = receive()
+    assert retry_sequence == sequence and retry_ack == acknowledgement
+    assert retry_flags & 18 == 18 and not retry_data
+    print('TCP_IDLE_RETRANSMISSION_PASS')
     server_next = sequence + 1
     send(client_next, server_next, 16)
     first, second = b'first segment/', b'second segment'

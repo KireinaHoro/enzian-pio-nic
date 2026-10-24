@@ -110,12 +110,25 @@ LL/SC capability default, and architecture-specific unused VM declarations.
 Platform exposes software.tcp and software.memcachedTcp without changing the
 UDP-only default. The TCP flake input was updated to the pushed commit.
 
-Next: prepare shared TCP protocol/scheduling fixtures and matched application/test
-image for real hardware, run integrated regressions, then launch manual build and
-callback. Existing sw/tests/vm/tcp.c is transport-neutral except optional
-LH_VM_STATE_PATH observer/ioctl; reuse its service rather than fork a board echo
-implementation. VM peer scripts cover protocol/retransmission and memcached;
-port observation and test orchestration into the maintained board harness.
+Shared VM/ECI fixtures now build through sw/tests/transport/Makefile and
+nix/software/tcp-validation.nix. tcpValidationImage includes them, TCP-enabled
+memcached and peer Python/nftables. tools/enzian/transport_validation.py generates
+six cases for test.py: packet-free DEADLINE, raw TCP ownership/endpoint rejection,
+TCP protocol/retransmission/reassembly, memcached TCP, four-domain persistent
+bursts and UDP regression. test.py post_cpu checks stop before another reset
+on failure. Two unit tests cover shell payloads and failed-post-check preservation.
+
+`out/phase4-hardware-fixtures` driver and `out/phase4-hardware-fixtures-1` image
+built successfully; `/tmp/lh-phase4-hardware-fixtures-build.log`.
+Full KVM suite passed: `out/phase4-hardware-fixtures-run`,
+`/tmp/lh-phase4-hardware-fixtures-run.log`. Both local and remote raw peers
+passed timer-only SYN-ACK retransmission/reassembly/FIN. Packet-free DEADLINE,
+RPC/UDP, TCP protocol/wakeup, observed four-domain parking and the hardware's
+network-only 64-stream/eight-burst fixture all passed. The image currently uses
+dirty-tree identity; rebuild from the clean final commit before staging.
+
+Next: commit/push this fixture checkpoint, build clean-revision ECI inputs and
+matching application image, launch manual blade build and schedule callback.
 Read enzian-deploy skill (already used) before actual board access. No board
 reservation/provisioning has been performed. No bitstream build or callback
 has been launched. Read-only blade preflight on 2026-10-24 found enzian-ba2 Docker
@@ -125,6 +138,10 @@ codex is installed. Recheck live state before launch. Use
 systemd-run → codex queue, but its CI-specific prompt needs a manual-build
 counterpart. Callback must collect matching artifacts and start the authorized
 TCP/memcached plus existing transport board checks.
+The gateway ticket expired during staging preflight; user renewed it and
+`test -w /scratch/pengxu` passed. Inventory currently reserves 07 and 14 to
+pengxu, but campaign state must be rechecked before board access; no reset or
+provisioning occurred here.
 
 ## TCP second-stage build
 

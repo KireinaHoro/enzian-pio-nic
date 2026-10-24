@@ -2,6 +2,7 @@
 #include <lauberhorn/tcp_transport.h>
 #include <assert.h>
 #include <errno.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -45,8 +46,14 @@ static void *worker(void *unused)
         puts("TCP_TRANSPORT_PASS"); fflush(stdout);
     }
 }
-int main(void)
+int main(int argc, char **argv)
 {
+    assert(argc == 1 || argc == 2);
+    if (argc == 2) {
+        struct in_addr address;
+        assert(inet_pton(AF_INET, argv[1], &address) == 1);
+        endpoint.address = ntohl(address.s_addr);
+    }
     assert(!lauberhorn_init(&app));
     assert(!ioctl(app.fd, LAUBERHORN_IOCTL_REG_TCP_ENDPOINT, &endpoint));
     struct lauberhorn_tcp_endpoint again = endpoint; again.handle = 0;

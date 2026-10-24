@@ -3,7 +3,8 @@
 
 Manifest: list of cases with name, image, revision, program (argv), cpu (shell
 commands after mount/load/verify), and client (shell command; gateway by default,
-or client_machine CPU console). Cases run in listed order each round, always
+or client_machine CPU console), and optional post_cpu commands on the DUT after
+the client succeeds. Cases run in listed order each round, always
 with a full power cycle. No CI polling.
 """
 import argparse
@@ -136,6 +137,14 @@ def main():
                     client_argv = ['ssh', '-o', 'BatchMode=yes', args.gateway, client_command]
                 rc = run_step(client_argv, root/'client.log', 120)
                 result['client_exit'] = rc
+            if not rc and case.get('post_cpu'):
+                print(json.dumps({'case': name, 'stage': 'post_cpu'}), flush=True)
+                post_script = root/'post-cpu.sh'
+                post_script.write_text('set -eu\n' + case['post_cpu'].replace('{run}', name) + '\n')
+                rc = run_step([sys.executable, str(HERE/'run.py'), *shared,
+                    '--logs', str(root/'post-cpu'), '--script', str(post_script),
+                    '--timeout', '60'], root/'post-cpu-output.log', 90)
+                result['post_cpu_exit'] = rc
             result['status'] = 'pass' if not rc else 'fail'
             result['seconds'] = round(time.monotonic()-started, 1)
             save(); print(json.dumps(result), flush=True)

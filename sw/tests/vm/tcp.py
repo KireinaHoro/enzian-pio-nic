@@ -5,7 +5,7 @@ import socket
 import struct
 import threading
 
-host = os.environ.get("LH_VM_HOST", "192.168.1.1")
+host = os.environ.get("LH_TEST_HOST", os.environ.get("LH_VM_HOST", "192.168.1.1"))
 
 
 def exchange(index):

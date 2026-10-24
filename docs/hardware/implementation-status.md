@@ -11,7 +11,8 @@ references below distinguish them.
 | --- | --- |
 | Four worker engines plus bypass by default; protected domain aliases and cooperative activation | [ECI integration](eci-implementation.md), [address-space design](queue-pair-design.md), [scheduling interface](../software/scheduling-control-interface.md) |
 | Decoupled coherent RX/TX, contiguous payloads, mutable RX replay and TX scrub | [Cache-line interface](../architecture/hw-sw-interface.md), [isolation checks](../formal/domain-isolation.md) |
-| Ethernet/IPv4/UDP, native UDP and ONC-RPC call/reply processing, nested reply matching, packet RAM and allocation | [Packet processing](packet-processing.md), [nested RPC](../software/nested-rpc.md) |
+| Ethernet/IPv4, native UDP and raw TCP listen-port steering, ONC-RPC call/reply processing, nested reply matching, packet RAM and allocation | [Packet processing](packet-processing.md), [nested RPC](../software/nested-rpc.md) |
+| Generation-safe DEADLINE notifications and reason-specific core allocation | [Scheduler policy and ECI control](../software/scheduler.md) |
 | Multi-source tracing, generated event map and dedicated trace DMA | [Tracing](../development/tracing.md) |
 | One-shot GSYNC early NACK and programmable RX wait timeout | [ECI behavior](eci-implementation.md#one-shot-early-nack-implementation), [finite progress evaluation](../research/eci-progress.md) |
 
@@ -20,9 +21,9 @@ references below distinguish them.
 | Topic | Limit and reference |
 | --- | --- |
 | Shared-resource progress | Coloring separates active control colors from overflow colors; it does not discharge shared queues, CPU synchronization or endpoint-service assumptions. [Finite contention and GSYNC results](../research/eci-progress.md) distinguish three-peer contention from one/two-peer early-NACK coverage. They do not establish infinite-stall progress, all worker permutations or four-worker tail distributions. |
-| Ownership recovery | Fatal faults fence the affected domain; lifetime codes are not recycled. Complete kill/exit resource recovery and deadline activation remain separate work. See [recovery](../software/scheduler.md#failure-and-reset-boundary). |
+| Ownership recovery | Fatal faults fence the affected domain; lifetime codes are not recycled. Complete kill/exit resource recovery is unsupported. DEADLINE activation does not recover failed domains. See [recovery](../software/scheduler.md#failure-and-reset-boundary). |
 | Table scaling | `Global.scala` limits tables because fully connected lookup routing is costly to place. [Lookup spill](../proposals/lookup-spill.md) proposes caches and typed software slow paths; general spill is not implemented. |
-| TCP/HTTP/gRPC | The in-tree classes are placeholders. External [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects are unmerged; see the [protocol roadmap](../proposals/grpc.md). |
+| TCP/HTTP/gRPC | Native IPv4 TCP steering feeds the optional shared FreeBSD userspace stack; TCP options remain wire-native. IPv6, IP fragmentation/options and active-open ephemeral-port steering are outside this interface. HTTP/gRPC offload is not implemented. The separate external [TCP](../research/tcp.md) and [Protobuf](../research/protobuf.md) projects remain unmerged; see the [protocol roadmap](../proposals/grpc.md). |
 | PCIe parity | `PcieDeschedulingControlPlugin.deschedReq` is unimplemented. `PcieDatapathPlugin` flags unreliable TX triggering from a shared register word. PCIe does not provide the ECI scheduling contract. |
 | Coupled RX/TX | Generated datapaths use `EciDecoupledRxTxProtocol`. [RX-return response transmission](../research/hot-path-performance.md#hardware-reuse-the-rx-return-half-for-responses) is a proposal. |
 | Network completeness | IPv4 validation/options, default-gateway behavior and malformed ONC-RPC handling have explicit source TODOs. Inline ONC-RPC fields are not a general serialization engine. |

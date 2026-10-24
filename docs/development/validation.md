@@ -169,11 +169,14 @@ it is reapplied by the routine after every cold reset and recorded in
 or ordinary scheduler/worker synchronization locks.
 
 The manifest is a list of cases: `name`, full software `revision`, CPU-visible `image`,
-programmer argv `program`, post-verification shell commands `cpu`, and
+programmer argv `program`, post-verification shell commands `cpu`, optional
+post-client DUT checks `post_cpu`, and
 shell command `client` (gateway by default). Set `client_machine` (for example `zuestoll12`) to
 execute that command as root through the reserved peer CPU console instead of
 on the gateway. Peer logs are retained in `client-cpu/console.log`. The `cpu` function exposes all `cpu.sh` steps. `{run}`
-expands to round/case name in CPU/client commands. Cases alternate each round;
+expands to round/case name in CPU/client/post-client commands. A failed
+`post_cpu` check stops before the next reset, preserving the board state just
+like a failed client. Cases alternate each round;
 the gateway client must exit nonzero on incorrect replies. The example checks
 100 add calls per trial, including arithmetic and echoed request IDs.
 
@@ -201,6 +204,42 @@ are retained; client CSVs are at the manifest's shared paths. Reset failures
 stop the campaign as infrastructure failures. CPU or client failures also stop
 the entire campaign before another reset, preserving hardware state for capture. Timeouts
 interrupt/reap local child processes. The final successful server stays running.
+
+### TCP, DEADLINE and memcached acceptance
+
+Build `.#tcpValidationImage` from the same clean revision as `.#eciVivadoInputs`.
+It includes the shared VM/ECI transport fixtures, TCP-enabled memcached (also
+supporting UDP), and Python/nftables for a normal Linux peer. The peer needs a
+reserved CPU console, an MTU-1500 route to the DUT and access to the image under
+`/scratch`. A different image already mounted on the peer is an error; inspect
+its active workload before explicitly changing that mount.
+
+Write the matched programmer command as a JSON argv array, then generate cases:
+
+```sh
+python3 tools/enzian/transport_validation.py \
+  --revision FULL_COMMIT --image /scratch/USER/tcp-validation.img \
+  --program /tmp/program.json --cidr DUT_IP/PREFIX --mac DUT_MAC \
+  --peer PEER_MACHINE --peer-interface PEER_INTERFACE --output /tmp/tcp-cases.json
+python3 tools/enzian/test.py /tmp/tcp-cases.json \
+  --machine DUT_MACHINE --logs out/tcp-hardware-UNIQUE --repeats 2
+```
+
+Each case cold-boots through the common harness. The packet-free DEADLINE probe
+checks single delivery, three generations, stale acknowledgement and cancellation.
+The raw transport probe checks RX borrow/release and invalid endpoint TX; its
+DUT-side completion marker is required in addition to the peer's refused
+connection. TCP tests exercise streams, backpressure, reset recovery, reassembly,
+duplicate segments and timer-only SYN-ACK retransmission. Application cases cover
+the memcached TCP command contract, four competing domains retaining 64 streams
+across eight bursts, and UDP commands including fragmented responses. DUT-side
+checks require live servers and no kernel fault reports. The burst test verifies
+connection progress; the VM's separate observer test establishes fully parked
+domains and worker assignments.
+
+Run the existing matched-image RPC acceptance alongside these cases. Keep board
+provisioning and failure capture in the common workflow above; this generator
+does not reserve machines, alter boot selection or reset hardware.
 
 Each normal boot shuts down CPU/FPGA rails and main PSU, waits five seconds,
 restores common power to access monitors, and requires CPU/FPGA core readings

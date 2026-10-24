@@ -97,6 +97,16 @@ let
   tcpVm = pkgs.callPackage (inputs.tcp + "/package.nix") {
     lauberhornRuntime = runtimeVm;
   };
+  transportValidationSource = pkgs.lib.fileset.toSource {
+    root = source;
+    fileset = pkgs.lib.fileset.unions (map (p: source + "/${p}") [
+      "sw/tests/vm" "sw/tests/transport" "sw/core"
+    ]);
+  };
+  transportValidation = target.callPackage ./software/tcp-validation.nix {
+    inherit runtime tcp;
+    source = transportValidationSource;
+  };
   vmKernel = pkgs.linuxPackages.kernel;
   vmModule = pkgs.callPackage ./software/vm-module.nix {
     kernel = vmKernel;
@@ -113,10 +123,7 @@ let
     nestedFixture = pkgs.callPackage (source + "/sw/apps/nested-validation/package.nix") {
       lauberhornRuntime = runtimeVm;
     };
-    source = pkgs.lib.fileset.toSource {
-      root = source;
-      fileset = source + "/sw/tests/vm";
-    };
+    source = transportValidationSource;
   };
   microbenchmarkSource = inputs.microbenchmarks;
   benchmarkRuntimeSource = (sources.c [
@@ -238,6 +245,7 @@ in
     dandelion
     memcached
     memcachedTcp
+    transportValidation
     memcachedReference
     target
     callPackage
@@ -292,11 +300,14 @@ in
       };
     };
   images = import ./images {
+    transportPeerTools = with deploymentTarget; [ python3 nftables ];
     inherit
       bootFiles
       applications
       deployment
       memcachedTools
+      memcachedTcp
+      transportValidation
       ;
     eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
       inherit

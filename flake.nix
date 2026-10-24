@@ -136,6 +136,7 @@
               dandelion
               memcached
               memcachedTcp
+              transportValidation
               ;
             inherit (platform.applications) microbenchmarks recovery-test nested-validation;
             memcachedReferenceNative = platform.memcachedReference;

@@ -5,7 +5,7 @@ import socket
 import struct
 import time
 
-HOST = os.environ.get('LH_VM_HOST', '192.168.1.1')
+HOST = os.environ.get('LH_TEST_HOST', os.environ.get('LH_VM_HOST', '192.168.1.1'))
 PORT = int(os.environ.get('LH_MC_PORT', '11212'))
 
 class Client:
