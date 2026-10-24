@@ -166,16 +166,26 @@ callback. Build revision is **ed902d66**, not subsequent documentation commits.
   `build.exit`. Do not infer completion from the existence of output directories.
 - Outputs after success: `build/eci/vivadoProject.dest/` bit/ltx/routed DCP,
   plus `build/physical/COMPLETE` and reports.
-- Latest callback at 18:34 CEST on October 24 confirmed the exact launcher,
-  container and both Vivado processes still live after 7 h 34 min. No build.exit
-  or physical/COMPLETE exists. Physical optimization completed successfully
-  (zero warnings/errors); Vivado is writing the routed checkpoint. This is
-  stage success only: bitstream generation and final reports remain pending.
-- Recheck timer `lauberhorn-manual-ed902d66-20261024-recheck.timer` is verified
-  active, due **2026-10-24 19:04:31 CEST**. Receipt:
-  `out/phase4-manual-ed902d66/recheck-6-receipt.log`. The previous timer/service
-  had completed successfully before rearming. No duplicate build, artifact
-  substitution or board access occurred.
+- Final callback on October 24: `build.exit=0`, launcher exited, Docker
+  container removed, and `physical/COMPLETE` present. Bitstream/probes and
+  post-route reports completed successfully. No further timer is armed.
+- **Major blocker: final setup timing fails.** Maintained physical digest reports
+  WNS **−1.944 ns**, TNS **−67852.938 ns**, **125173** failing endpoints.
+  Hold slack is 0.000 ns with zero failures; pulse-width slack +0.039 ns with
+  zero failures. All 1053217 routable nets are routed, zero routing errors.
+- Worst path: worker 1 descheduling snapshot bit 1 to Scheduler queue-memory
+  address bit 8, 27 logic levels, 6.615 ns data delay (2.077 ns logic,
+  4.538 ns routing) against 5 ns. The bounded sample also includes UDP/TCP
+  checksum accumulation; ECI clk_sys representative fails at −0.461 ns.
+  These are final post-route measurements, not intermediate router estimates.
+- Collected under `out/phase4-manual-ed902d66/collected/`: matched bitstream,
+  probes, routed DCP, generated trace map, complete physical reports/digest,
+  build logs and exit status. Remote artifact SHA256 values verified locally;
+  trace-map SHA256 matches the immutable input manifest. Remote originals remain.
+- Stopped before board access or seven-case acceptance because timing is a major
+  blocker and timing optimization remains paused. No functional hardware result
+  is claimed. Branch remains unmerged; no rebuild or artifact substitution.
+
 
 
 `out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image/bundle
