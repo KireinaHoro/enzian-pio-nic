@@ -166,16 +166,15 @@ callback. Build revision is **ed902d66**, not subsequent documentation commits.
   `build.exit`. Do not infer completion from the existence of output directories.
 - Outputs after success: `build/eci/vivadoProject.dest/` bit/ltx/routed DCP,
   plus `build/physical/COMPLETE` and reports.
-- Initial five-hour callback ran at 16:00 CEST on October 24. The exact launcher
-  and container remained live after five hours; Docker process inspection also
-  confirmed both Vivado processes. No build.exit or physical/COMPLETE existed.
-  The build was in routing phase 14.4 (timing update). Intermediate slack was
-  WNS -2.279 ns / TNS -63339.743 ns, WHS -0.250 ns / THS -467.134 ns;
-  these are router progress figures, not final STA or a deployable result.
+- Latest callback at 16:32 CEST on October 24 confirmed the exact launcher,
+  container and both Vivado processes still live after 5 h 31 min. No build.exit
+  or physical/COMPLETE exists. Routing continues; the bounded log excerpt shows
+  one or two overlapping nodes being resolved. No final timing result exists.
 - Recheck timer `lauberhorn-manual-ed902d66-20261024-recheck.timer` is verified
-  active, due **2026-10-24 16:31:37 CEST**. Receipt:
-  `out/phase4-manual-ed902d66/recheck-1-receipt.log`. No duplicate build launched,
-  no artifacts substituted, and no board access occurred during this follow-up.
+  active, due **2026-10-24 17:02:17 CEST**. Receipt:
+  `out/phase4-manual-ed902d66/recheck-2-receipt.log`. The previous timer/service
+  had completed successfully before rearming. No duplicate build, artifact
+  substitution or board access occurred.
 
 
 `out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image/bundle
