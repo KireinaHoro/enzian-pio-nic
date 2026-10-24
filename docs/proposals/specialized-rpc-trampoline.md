@@ -58,6 +58,47 @@ Coordinate any implementation with the
 and [cache-line interface](../architecture/hw-sw-interface.md), including ownership
 and progress rules and matched generated hardware/software collateral.
 
+## Packed request cache line
+
+Pack the request into one 128-byte ECI coherence line, keeping numeric fields
+naturally aligned and payload bytes wire-native:
+
+| Bytes | Proposed contents |
+| --- | --- |
+| `0..7` | Executable entry pointer |
+| `8..15` | Optional TLS/context pointer |
+| `16..127` | Fourteen 8-byte words of RPC payload (112 bytes) |
+
+If the entry can obtain its context from existing thread state, omit the second
+pointer and use bytes `8..127` for fifteen payload words (120 bytes). Decide the
+context convention at registration/entry specialization time; do not add a
+generic optional-field test before jumping. A TLS/context pointer here is an
+entry argument; whether it denotes runtime state or a language TLS base remains
+an ABI decision.
+
+Do not spend cache-line space on a generic payload-length field. The specialized
+codec knows fixed field sizes, and variable-length fields carry their lengths
+in the encoded payload. For fixed-size codecs, either omit the receive-length
+check under an explicit accepted-input contract or program a per-codec hardware
+length filter so the CPU entry needs no such check. Hardware still retains the
+actual received length for packet storage and transport accounting.
+
+An encoded variable length describes intended content; it does not establish
+that all those bytes arrived. Define how truncated messages, oversized embedded
+lengths and padding are handled before enabling unchecked decoding. A hardware
+min/max-length filter alone cannot validate every embedded length. The design
+must specify codec-aware hardware validation, bounded decoding with a supplied
+or derivable end, or an explicit restriction on accepted inputs. None requires
+committing to a generic length word in this proposed line.
+
+The packed line also omits the current request token. Specify how reply
+submission identifies the current request, for example through an implicit
+per-worker current-request context; deferred/forwarded work needs a way to retain
+that identity across later receives. Payload overflow beyond 112/120 bytes and
+its addressing remain open. Resolve both without silently taking words from
+the stated inline capacity. The existing 64-byte descriptor/64-byte payload
+split remains the implemented ABI until matched hardware/software changes.
+
 ## Measurement plan
 
 Separate Dispatch (service/codec selection, invocation, outcome routing and
