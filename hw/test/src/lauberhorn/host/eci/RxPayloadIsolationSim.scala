@@ -9,6 +9,8 @@ import spinal.lib.bus.amba4.axi._
 import spinal.lib.misc.database.Database
 
 case class RxPayloadIsolationFixture() extends Component {
+  // Standalone routers have no DecoderSink to initialize the packet-type ABI.
+  Global.PKT_DESC_TY_WIDTH.set(lauberhorn.net.PacketDescType().getBitsWidth)
   val cfg = Axi4Config(addressWidth = 24, dataWidth = 512, idWidth = 3,
     useRegion = false, useQos = false)
   val axi = slave(Axi4(cfg))

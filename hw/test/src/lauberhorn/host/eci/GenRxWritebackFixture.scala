@@ -10,6 +10,8 @@ import spinal.lib.misc.database.Database
   * Generated into an ignored directory for the DCU + AXI writeback RTL reproducer.
   */
 case class RxWritebackFixture() extends Component {
+  // Standalone routers have no DecoderSink to initialize the packet-type ABI.
+  Global.PKT_DESC_TY_WIDTH.set(lauberhorn.net.PacketDescType().getBitsWidth)
   val axi = slave(Axi4(Axi4Config(addressWidth = 38, dataWidth = 512, idWidth = 7)))
   val invDone = in Bool()
   val quiescent = out Bool()
