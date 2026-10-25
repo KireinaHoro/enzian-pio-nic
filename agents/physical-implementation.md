@@ -1,11 +1,11 @@
 # Physical implementation continuation
 
-## Application-clock build running: follow-up only
+## Application-clock build failed routing: work stopped
 
 The October 25 user request resumes application timing work after the TCP
 simplification merged into master. Implement all remaining sampled path-family
 fixes and finer placement, validate, launch **one** hardware build on ba2 with a
-scheduled callback, then stop. Changes are merged and the one build is running.
+scheduled callback, then stop. Changes are merged; the one build failed routing.
 No further optimization or rebuild is authorized by this handoff. No board acceptance or toolkit-master changes are
 part of this launch task. Branch: `timing/20261025-app-closure`, based on
 `c95de205`. Earlier paused-scope notes describe the September experiments only.
@@ -131,34 +131,38 @@ Evidence and launch preparation:
   five hours from that check, then 30-minute rechecks if live. No replacement
   build, board access or further optimization is authorized by the callback.
 
-Launch complete; stop active work:
+Terminal result (checked October 25 at 17:30 UTC):
 
-- Changes merged and pushed to private master through `6f79fc35` with CI skipped.
-  Build revision is the clean `1ebe5c26`; subsequent commits change tests and
-  handoff only, with identical RTL/constraints. Keep
-  `timing/20261025-app-closure` until all build processes finish, then remove this
-  merged branch locally and privately; preserve unrelated experiment refs.
-- Exactly one maintained Docker build launched on ba2 at 11:58 UTC October 25.
-  Root `/tmp/lauberhorn-app-timing-1ebe5c26-20261025`; launcher PID 801843,
-  container `113bac7e8358`, actual Vivado PID 801977 verified live with the exact
-  `/bundle` and `/work` mounts. Status will be in `build.exit`, log in
-  `build/vivado-build.log`, routed reports in `build/physical/`.
-- Preflight at **12:29:35 UTC October 25** confirmed the same launcher and
-  container live, main Vivado PID 801977 and `synth_1` Vivado PID 808990 running.
-  `build.exit` and `build/physical/COMPLETE` were absent. All staged bundle hashes
-  and the exact revision matched; recorded CSR, router, recovery, transport,
-  trace and corrected replay passing logs were rechecked.
-- Verified active results callback:
-  `lauberhorn-app-timing-1ebe5c26-20261025-results.timer`, due **18:29:41 CET
-  October 25**, five hours from the preflight check. Stop polling until then.
-  If still running at collection, use the prepared 30-minute recheck; never
-  restart the five-hour wait or launch a replacement build.
-- Callback reads the maintained timing digest first, collects exact artifacts and
-  hashes, compares all clock results and the bounded app-path families against
-  73c3dc76, and checks new pblock memberships/resource use. Report actual timing;
-  launch success and baseline resource fit are not timing closure. No board access.
-- Canonical local record: `out/app-timing-20261025/record.json`; scheduler command
-  and prompt are saved alongside it. There is no pending local regression run.
+- Exact candidate `1ebe5c26e8d5b4e137c7716427da1a34b860953f` exited 1 during
+  `route_design -directive AggressiveExplore`. Launcher 801843 and main Vivado
+  801977 exited; container `113bac7e8358` no longer exists and no related build
+  processes remained. No callback timers remain and no replacement was launched.
+- The placer warned of high congestion; initial router congestion reached level
+  7 (128x128). Route verification reported **56,099 unrouted signals** and
+  **47,058 node overlaps**. DFX verification named partially conflicted native
+  UDP aligner and CMAC RX ILA nets; overlap examples also include DCS-even logic.
+  The exact contribution of individual pblocks has not been isolated.
+- All 15 new floorplan groups had nonempty selector matches in the actual build.
+  This establishes selection, not routability. Baseline primitive capacity fit
+  did not establish routing capacity. Actual region utilization/membership beyond
+  selector matches remains available for later inspection in the placed DCP.
+- Router intermediate WNS was -13.419 ns, but routing was illegal: this is not a
+  valid final timing result or a comparable replacement for baseline routed WNS
+  -1.119 ns. No bitstream, probes .ltx, routed DCP, physical/COMPLETE or final
+  timing/CDC reports were produced. Consequently the maintained final digest,
+  all-clock setup/hold/pulse-width comparison and routed app top-1000 comparison
+  cannot be produced for this failed run. Do not substitute pre-route estimates.
+- Preserved 135 files under `out/app-timing-20261025/collected/`: build/launcher
+  logs, reports, matching trace map and five synthesized/linked/optimized/placed
+  checkpoints. All five checkpoint hashes match ba2. `SHA256SUMS`,
+  `remote-checkpoints.sha256` and `failure-summary.json` record evidence.
+  Original remote tree remains `/tmp/lauberhorn-app-timing-1ebe5c26-20261025`.
+- Source and test fixes were merged through `6f79fc35`; subsequent handoffs do
+  not alter that candidate. The merged timing branch can now be removed because
+  all its processes have terminated. Preserve unrelated experiment/audit refs.
+- Scope is finished: report the failure and stop. No RTL/constraint changes,
+  replacement build, board programming or acceptance are authorized. A new user
+  request is required for another optimization iteration.
 
 SSH, Nix, Git metadata and systemd user operations require sandbox escalation.
 Use the maintained Docker bundle workflow because CI is unavailable. One-off
