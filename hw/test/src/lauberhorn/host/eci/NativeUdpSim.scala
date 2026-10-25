@@ -40,6 +40,11 @@ class NativeUdpSim extends NicSim {
     }
     val replies = mutable.ArrayBuffer[List[Byte]]()
     fork { while (true) replies += output.recv() }
+    setBypassCore(() => {
+      val (desc, body) = tryReadPacketDesc(dcs, -1).result.get
+      assert(desc.isInstanceOf[RxBypassCtrlInfoSim])
+      readPayload(dcs, body, desc.len)
+    })
     var expectedDrops = 0
     var lastTraceId: Option[Int] = None
     var sawTraceWrap = false
@@ -60,13 +65,16 @@ class NativeUdpSim extends NicSim {
       if (size == 65) {
         for (offset <- Seq(24, 40, 38)) {
           input.send(wire.updated(offset, (wire(offset) ^ 1).toByte))
-          expectedDrops += 1
+          if (offset != 24) expectedDrops += 1
         }
         // A checksum-correct IPv4 fragment, short UDP length and oversized UDP.
         input.send(ipChecksum(wire.updated(20, 0x20.toByte)))
         input.send(wire.updated(38, 0.toByte).updated(39, 4.toByte))
         input.send(packet(List.fill(1473)(1.toByte)).getRawData.toList)
-        expectedDrops += 3
+        expectedDrops += 2
+        // The valid fragment now follows bypass and consumes an RX trace ID.
+        // Check consecutive native-UDP IDs again after this mixed-traffic batch.
+        lastTraceId = None
       }
       println(s"Native UDP test size=$size")
       // IPv4 permits a zero UDP checksum; check that path as well.

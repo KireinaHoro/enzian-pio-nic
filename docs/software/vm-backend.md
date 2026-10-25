@@ -12,9 +12,9 @@ publication.
 ## Execution and ownership
 
 `sw/kmod/vm.c` runs device operations in the `lh_device` kernel thread on a
-housekeeping CPU. An IPv4 local-input hook selects registered UDP ports and
-TCP address/port pairs, then
-queues packets; the device thread validates and classifies them. Unregistered
+housekeeping CPU. An IPv4 local-input hook selects registered UDP and TCP
+destination ports, then queues packets; the device thread classifies them and
+validates UDP/RPC traffic. Unregistered
 ports retain ordinary host delivery. IP options and fragmented packets bypass
 the emulator; malformed, oversized or unsupported RPC packets on registered
 ports are dropped. Services support the existing fixed AUTH_NULL ONC-RPC format.
@@ -71,12 +71,15 @@ ports require bind capability. Repeating a registration with input handle zero
 returns the existing handle for that domain. Reservations persist for domain
 lifetime; endpoint teardown is not exposed. TCP and UDP port spaces are separate.
 
-RX validates and copies complete IPv4/TCP packets into the ordinary domain queue.
-TX validates packet lengths/checksums and verifies its source address/port against
-the submitting domain's endpoint handle. Linux supplies IP routing and neighbour
-resolution; the application supplies TCP state and wire bytes. Plain IPv4 without
-fragmentation/options is supported. ECI registration and runtime TCP operations
-return `EOPNOTSUPP` until the hardware path exists.
+RX selects registered TCP destination ports and copies complete received IPv4
+packets into the ordinary domain queue. It does not validate TCP headers or
+checksums. TX checks endpoint ownership and buffer bounds, regenerates the fixed
+IPv4 header and uses Linux routing/neighbor resolution; TCP bytes pass unchanged.
+The application stack owns packet validation and TCP checksums. Linux IP receive
+validation still precedes the VM hook, and partial offload checksums are completed
+to emulate wire bytes. The shared hardware IP decoder validates IPv4 headers;
+valid fragments and options retain bypass routing in both backends. ECI uses
+the corresponding native-TCP descriptors and endpoint ownership checks.
 
 The runtime exposes attach, receive/release and buffer submission. Receive handles
 DESCHED through the shared yield path and returns either a borrowed packet or a

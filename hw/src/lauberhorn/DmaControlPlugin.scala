@@ -501,8 +501,7 @@ class DmaControlPlugin extends FiberPlugin {
           tcp.txResult.ready := True
           when(tcp.txResult.fire) {
             when(tcp.txResult.matched && tcp.txResult.value.pid === tcp.txResult.userData &&
-              txReqBuffered.req.buffer.size.bits >= 40 && txReqBuffered.req.buffer.size.bits <= 1500) {
-              txPacketDesc.metadata.nativeTcpTx.sport := tcp.txResult.value.port
+              txReqBuffered.req.buffer.size.bits > 20 && txReqBuffered.req.buffer.size.bits <= 1500) {
               goto(sendDmaCmd)
             } otherwise { goto(rejectDescriptor) }
           }

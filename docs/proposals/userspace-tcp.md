@@ -19,20 +19,21 @@ workers without connection affinity. Unmatched traffic retains bypass routing.
 The binding remains valid while accepted connections and close processing need
 it; stopping new accepts must not remove delivery for existing connections.
 
-Validate IP/TCP lengths, header bounds and checksums before host admission;
-initial scope is MTU-bounded IPv4 without IP options or fragmentation. Preserve
-the complete TCP header, options and payload, including zero-payload segments.
-Deliver the complete IPv4 packet as the borrowed payload, with endpoint identity
-and length in the descriptor. Accepted segments have passed both checksum checks;
-IP options and fragments retain bypass routing. Hardware does not update sequence
-state, acknowledge bytes, reorder segments or maintain a connection table.
+Deliver the complete received IPv4 packet as the borrowed payload, with endpoint
+identity and received length in the descriptor. The shared IPv4 decoder validates
+version, IHL, total length and the header checksum, including options. Valid
+options and fragments retain bypass routing. Ordinary TCP packets are selected
+by destination port; hardware does not validate TCP length, header or checksum.
+Software trims Ethernet padding, validates TCP and owns connection state. TCP
+options and zero-payload segments remain intact.
 
-TX accepts a complete software-generated IPv4/TCP packet. It validates the
-endpoint owner before DMA, checks the packet source address/port and header bounds
-before wire emission, and supplies IP/Ethernet framing and TCP checksum completion.
-The existing IP encoder owns the NIC source address and neighbor lookup.
-Descriptor acceptance releases the host TX buffer; malformed packet contents
-are subsequently dropped before wire emission. Retain existing neighbor resolution and bounded TX
+TX accepts a complete software-generated IPv4/TCP packet. It checks endpoint
+ownership and DMA buffer bounds before transfer, strips the supplied IPv4 header,
+and forwards TCP bytes, including their checksum, unchanged. The existing IP
+encoder supplies the configured source address, IP checksum and neighbor lookup;
+software must use that source address for its TCP pseudo-header checksum.
+Descriptor acceptance releases the host TX buffer. There is no subsequent TCP
+packet-content validation or checksum completion in hardware. Retain existing neighbor resolution and bounded TX
 admission semantics. Regenerate descriptors, headers and mappings together;
 define new native-TCP RX/TX variants without importing the split-offload ABI.
 Preserve native UDP, ONC-RPC and bypass configurations.

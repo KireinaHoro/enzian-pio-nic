@@ -8,7 +8,7 @@ import spinal.lib._
 import scala.collection.mutable
 
 class NativeTcpSim extends NicSim {
-  testWithDB("native-tcp-all-segments-validation-and-bypass", timeout = 1500000000L)(Rx, Tx) { implicit dut =>
+  testWithDB("native-tcp-port-steering-and-byte-preserving-tx", timeout = 1500000000L)(Rx, Tx) { implicit dut =>
     val (csr, input, output, dcs) = commonDutSetup(1000)
     csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
     val proc = mkRandomProc(1)
@@ -79,7 +79,7 @@ class NativeTcpSim extends NicSim {
       assert(desc.isInstanceOf[RxBypassCtrlInfoSim])
       bypass += readPayload(dcs, body, desc.len)
     })
-    // Unmatched TCP, IPv4 fragments and options must preserve the full frame.
+    // Unmatched destination ports preserve the full frame on bypass.
     val unmatched = packet(11, port = 11213)
     val fragment = packet(11).toArray
     put16(fragment, 20, 0x2000); fixIp(fragment)
@@ -93,7 +93,28 @@ class NativeTcpSim extends NicSim {
       check(wire, bypass.last)
     }
     assert(proc.threads.forall(_.runningOn.isEmpty))
-    var drops = 0
+    def receiveRaw(wire: List[Byte]): Unit = {
+      input.send(wire)
+      workerCore(0).waitUser()
+      val tid = workerCore(0).currThread.get.tid
+      val (desc, body) = tryReadPacketDesc(dcs, tid).result.get
+      assert(desc == RxNativeTcpSim(wire.length - 14, 42))
+      check(wire.drop(14), readPayload(dcs, body, desc.len))
+    }
+    var ipDrops = 0
+    def dropIp(wire: List[Byte]): Unit = {
+      input.send(wire); ipDrops += 1
+      sleepCycles(1000)
+      assert(csr.read(ALLOC.readBack("IpDecoder")("stat", "dropCount"), 8).bytesToBigInt == ipDrops)
+    }
+    val badVersion = unmatched.updated(14, 0x65.toByte)
+    val badIhl = unmatched.updated(14, 0x44.toByte)
+    val badLength = unmatched.toArray
+    put16(badLength, 16, 19); fixIp(badLength)
+    val shortOptions = unmatched.updated(14, 0x4f.toByte)
+    for (bad <- Seq(badVersion, badIhl, badLength.toList, shortOptions,
+      options.toList.updated(34, 2.toByte))) dropIp(bad)
+    // TCP checksum, data offset and TCP length validation belong to software.
     for ((size, flags, header) <- Seq((0, 2, 20), (0, 16, 20), (0, 17, 20), (0, 4, 20),
         (1, 24, 20), (23, 24, 20), (24, 24, 20), (25, 24, 20), (64, 24, 24),
         (129, 24, 60), (1460, 24, 20))) {
@@ -104,51 +125,48 @@ class NativeTcpSim extends NicSim {
         val shortHeader = wire.toArray
         shortHeader(46) = 0x40.toByte; fixTcp(shortHeader)
         val shortPacket = wire.dropRight(10)
+        dropIp(badIp); dropIp(shortPacket)
         val shortLength = wire.toArray
         put16(shortLength, 16, 39); fixIp(shortLength)
-        for (bad <- Seq(badIp, badTcp, shortHeader.toList, shortPacket, shortLength.toList, packet(1461))) {
-          input.send(bad); drops += 1
+        for (bad <- Seq(badTcp, shortHeader.toList, shortLength.toList, packet(1461))) {
+          receiveRaw(bad)
         }
       }
       input.send(wire)
       sleepCycles(1000)
-      assert(csr.read(regs("stat", "dropCount"), 8).bytesToBigInt == drops)
       workerCore(0).waitUser()
       val tid = workerCore(0).currThread.get.tid
       val (desc, body) = tryReadPacketDesc(dcs, tid).result.get
-      assert(desc == RxNativeTcpSim(20 + header + size, 42))
+      assert(desc == RxNativeTcpSim(wire.length - 14, 42))
       check(wire.drop(14).take(desc.len), readPayload(dcs, body, desc.len))
       val response = wire.toArray
       Array.copy(serverIp.getAddress, 0, response, 26, 4)
       Array.copy(clientIp.getAddress, 0, response, 30, 4)
       put16(response, 34, 11211); put16(response, 36, 32123)
       fixTcp(response); fixIp(response)
-      val expected = response.slice(14, 14 + desc.len).toList
-      // Deliberately leave the input checksum wrong: hardware must complete it.
+      val txLength = 20 + header + size
+      // A deliberately wrong checksum is emitted unchanged, including on
+      // overflow reservations. Hardware must not repair it.
       put16(response, 50, 0x1234)
-      val tx = response.slice(14, 14 + desc.len).toList
-      txSendSingle(dcs, TxNativeTcpSim(desc.len, 43), tx, tid, expectedStatus = 3)
-      txSendSingle(dcs, TxNativeTcpSim(desc.len, 99), tx, tid, expectedStatus = 3)
+      if (size == 64) put16(response, 34, 12345) // no source-port validation
+      val expected = response.slice(14, 14 + txLength).toList
+      val tx = expected
+      txSendSingle(dcs, TxNativeTcpSim(txLength, 43), tx, tid, expectedStatus = 3)
+      txSendSingle(dcs, TxNativeTcpSim(txLength, 99), tx, tid, expectedStatus = 3)
       val before = replies.size
-      if (size == 64) {
-        // Descriptor acceptance releases the buffer; bad packet contents are
-        // subsequently dropped by the encoder, before any wire output.
-        txSendSingle(dcs, TxNativeTcpSim(desc.len, 42), tx.updated(12, 0.toByte), tid)
-        txSendSingle(dcs, TxNativeTcpSim(desc.len, 42), tx.updated(20, 0.toByte), tid)
-      }
       for (overflow <- Seq(false, true)) {
-        txSendSingle(dcs, TxNativeTcpSim(desc.len, 42), tx, tid,
-          forceOverflow = overflow, reservationCapacity = if (overflow) 1500 else desc.len,
+        txSendSingle(dcs, TxNativeTcpSim(txLength, 42), tx, tid,
+          forceOverflow = overflow, reservationCapacity = if (overflow) 1500 else txLength,
           dirtyReservation = true)
       }
       waitUntil(replies.size == before + 2)
       sleepCycles(100)
       assert(replies.size == before + 2)
       replies.drop(before).foreach { raw =>
-        assert(raw.length == scala.math.max(60, 14 + desc.len))
+        assert(raw.length == scala.math.max(60, 14 + txLength))
         check(clientMac.getAddress.toList, raw.take(6))
-        check(expected, raw.slice(14, 14 + desc.len))
-        assert(raw.drop(14 + desc.len).forall(_ == 0))
+        check(expected, raw.slice(14, 14 + txLength))
+        assert(raw.drop(14 + txLength).forall(_ == 0))
       }
     }
     val tid = workerCore(0).currThread.get.tid

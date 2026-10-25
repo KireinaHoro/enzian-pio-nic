@@ -122,7 +122,8 @@ class UdpDecoder extends Decoder[UdpRxMeta] {
     val ipPayload = Axi4Stream(macIf.axisConfig)
 
     from[IpRxMeta, IpDecoder](
-      _.hdr.proto === B("8'x11"), // 17 for UDP
+      m => m.hdr.proto === B("8'x11") && m.hdr.ihl === 5 &&
+        (EndiannessSwap(m.hdr.flags) & B(0x3fff, 16 bits)) === 0,
       ipHeader, ipPayload
     )
 

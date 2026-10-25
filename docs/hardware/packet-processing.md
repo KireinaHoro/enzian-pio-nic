@@ -11,16 +11,22 @@ RX: CMAC → Ethernet → IPv4 → UDP → native UDP or ONC-RPC call/reply deco
 its remaining payload. Admitted application requests enter scheduler process
 queues; bypass descriptors go through `BypassCmdSink` to datapath 0.
 
-TCP branches directly from IPv4 into `NativeTcpDecoder`. A separate listen-port
-table selects the owning domain and endpoint. Matched packets require a local
-destination, a 20-byte unfragmented IPv4 header, consistent IP/TCP lengths and
-valid IP/TCP checksums. TCP header options and flags remain intact. The decoder
-trims Ethernet padding and supplies the complete IPv4 packet to the host;
-unmatched TCP and unsupported IPv4 shapes follow kernel bypass.
+The shared IPv4 decoder checks version, IHL, total length against the header and
+received frame, and the IPv4 header checksum before transport admission. It
+aligns the first beat and uses a registered checksum reduction over up to 60
+header bytes, including options. Valid options and fragments retain IP bypass.
 
-TCP RX/TX and native UDP RX share a checksum accumulator with balanced,
-registered partial-sum and beat-sum stages. Only accepted beats enter it;
-validation waits for both stages to drain before using the final sum.
+TCP branches directly from IPv4 into `NativeTcpDecoder`. A separate listen-port
+table selects the owning domain and endpoint by destination port for ordinary
+unfragmented IPv4 packets with a 20-byte header. It forwards the complete received
+IPv4 packet, including Ethernet padding, without TCP checksum, TCP length or
+TCP-header validation. Software trims padding and validates TCP before processing
+connections. Unmatched ports follow kernel bypass. There is no TCP connection
+table or whole-packet validation FIFO in hardware.
+
+Native UDP RX uses a checksum accumulator with balanced, registered partial-sum
+and beat-sum stages. Only accepted beats enter it; validation waits for both
+stages to drain before using the final sum.
 Scheduler queue reads likewise register the selected address before BRAM.
 The selected slot stays occupied until the read edge, preventing an enqueue
 from overwriting it; another reader cannot select that same head meanwhile.
@@ -39,11 +45,16 @@ DMA/encoding. Native UDP TX validates the endpoint against its owner and obtains
 the local port from the listener table. See [nested RPC](../software/nested-rpc.md)
 and the [programming model](../software/programming-model.md).
 
-Native TCP TX validates endpoint ownership before DMA. `NativeTcpEncoder`
-then checks the complete IPv4 packet's bounds and authorized local IP/TCP source
-port, computes the TCP checksum and feeds its segment into the existing IP and
-Ethernet encoders. Packet-content rejection occurs after descriptor admission;
-invalid contents never reach the wire. IPv4 packets are bounded to 1500 bytes.
+Native TCP TX checks endpoint ownership and DMA buffer bounds before transfer.
+`NativeTcpEncoder` strips the supplied 20-byte IPv4 header and forwards the TCP
+bytes unchanged, including the software-computed checksum. The existing IP and
+Ethernet encoders generate wire headers and perform neighbor lookup. Software must
+use the configured source IP when calculating the TCP pseudo-header checksum.
+There is no TCP source-port, header or checksum validation/completion in hardware.
+The descriptor requires more than 20 and at most 1500 bytes so the fixed IP-header
+extractor has a residual payload. The VM follows this transport contract; Linux's
+IP receive path still precedes its hook, and partial offload checksums are completed
+to emulate received wire bytes.
 
 ## Source navigation and ownership
 
@@ -55,7 +66,7 @@ Paths below are relative to `hw/src/lauberhorn/`:
 | `net/Decoder.scala`, `net/ProtoState.scala` | Decoder registration, metadata and final/bypass output |
 | `net/ethernet/`, `net/ip/`, `net/udp/` | Header parsing/encoding and listener-based protocol selection |
 | `net/udp/NativeUdpDecoder.scala` | Buffers one datagram, checks lengths/checksum and supported IPv4 shape before admission, trims Ethernet padding and drains malformed input |
-| `net/tcp/NativeTcpDecoder.scala`, `NativeTcpEncoder.scala` | Listen-port raw segment steering, complete IPv4 host payloads and source-authorized TCP TX/checksum completion |
+| `net/tcp/NativeTcpDecoder.scala`, `NativeTcpEncoder.scala` | Destination-port steering, complete IPv4 host payloads and opaque TCP TX |
 | `net/oncrpc/OncRpcCallDecoder.scala` | Service lookup, enabled-state check, reply-context reservation and extraction of RPC argument bytes |
 | `net/oncrpc/OncRpcReplyEncoder.scala`, `RpcReplyContexts.scala` | Per-invocation routing tokens, owner/generation validation, reply retirement and bounded full-table rejection |
 | `net/oncrpc/OncRpcReplyDecoder.scala` | Outgoing-request reservations and reply matching by XID/network tuple, recovering PID/cookie |

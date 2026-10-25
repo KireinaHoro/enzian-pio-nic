@@ -1,17 +1,61 @@
 # Userspace TCP
 
 Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
-`../lauberhorn-tcp`. TCP is pinned to `226fc21`; memcached to `13f9e9a`.
+`../lauberhorn-tcp`. TCP is pinned to `77b7567`; memcached to `13f9e9a`.
 Phase-four DEADLINE/native TCP integration and VM/RTL policy agreement are
 implemented. The first routed build failed setup timing; the user authorized
 simplifying/pipelining that logic and launching one replacement manual build.
 The replacement build completed and improved timing, but setup violations
 remain a major blocker; matched artifacts are preserved and hardware acceptance
-has not started. CI is unavailable;
+has not started. The user will merge the feature branches and start the next
+timing round; finish the TCP simplification commit, then stop. No replacement
+bitstream build or board acceptance is authorized as part of that closeout.
+CI is unavailable;
 use the maintained Docker bundle workflow.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+
+## TCP simplification closeout
+
+Hardware TCP RX/TX validation, checksum accumulators and whole-packet validation
+FIFOs are removed. Full IPv4 packets remain the host interface. The shared
+IpDecoder validates version, IHL, IP length and checksum (including options)
+with a registered reduction; valid options/fragments bypass TCP/UDP parsing.
+TCP selects destination ports and forwards received bytes including padding;
+software trims padding and validates TCP. TX retains endpoint ownership/buffer
+bounds and emits software TCP bytes unchanged through the IP/Ethernet encoders.
+The VM mirrors this split, subject to Linux IP ingress validation/offload handling.
+TCP adapter commit `77b7567` handles padding and drops malformed packet errors
+without terminating the runtime worker; pushed with CI skipped.
+
+Latest routed evidence remains `73c3dc76`, not this source change. Its application
+clock top-1000 report is `out/phase4-manual-73c3dc76/app-top1000/` (exact DCP,
+Vivado 2025.1, launch/capture application clock, one path per endpoint). Slack
+ranges −1.119..−1.063 ns. Destination-family counts: RX routers 415, crossbar
+182, scheduler 128, TX routers 74, trace 48, CMAC 43, DCS 26, DMA 20, TCP 15,
+IP checksum 9, RPC 7, other 33. Median logic levels/routing share: RX 13/85%,
+crossbar 8/88%, TX 13/83%, scheduler capture 17/74%, other scheduler 9/89%,
+trace 19.5/80%, CMAC 0/99%, DCS 6/91%. These are bounded-sample statistics,
+not the distribution of every failing endpoint or a new timing result.
+
+Validation: the full userspace-vm check passed in 431.65 s, including raw TCP,
+TCP/memcached, DEADLINE, competing domains and nested RPC. Log:
+`/tmp/tcp-simplification-vm.log`; drv `zbgiqcysqc4g3khfqn9a4jx1gbmk6q5m`.
+TCP library checks passed at `/tmp/tcp-simplification-library.log`
+(config/protocol/concurrency/publication), drv `7i4l13gg8chink9x2h4xhmyv2apqqfmn`.
+Final transport-pipeline check passed all seven RTL tests (six transport/policy
+checks plus nested-RPC reclamation), none canceled/ignored. Logs:
+`/tmp/tcp-simplification-checks-final.log`, `/tmp/tcp-simplification-rtl-final.log`;
+drv `adx9hf4x7672ij5njyf8m7snfxhwlhw0`. Outputs are retained at
+`out/tcp-simplification-checks{,-1}` in the main checkout. Generated RTL/headers
+and the VM module were rebuilt through Nix. No new routed timing or board result.
+The closeout ends with the platform commit/push; the maintainer owns merging and
+the next timing round.
+The first shared-IP RTL run passed five of six tests; the UDP test's consecutive
+trace-ID assumption needed adjustment because fragment bypass consumes an ID.
+Earlier `/tmp/tcp-port-only-*` runs were superseded by shared-IP validation;
+do not count interrupted runs as passes.
 
 ## Phase-four current checkpoint
 
@@ -59,8 +103,8 @@ The first policy Nix check omitted C sources from its hardware-only closure;
 the recipe now supplies the two C inputs explicitly. No validation process from
 this checkpoint needs to remain running.
 
-Native TCP worktree now contains listen-port RX, full IPv4/TCP payload delivery,
-source-authorized/checksummed TX through existing IP/Ethernet encoders, ABI 4
+Native TCP contains listen-port RX, full IPv4/TCP payload delivery, and opaque
+TCP TX through existing IP/Ethernet encoders, ABI 4
 packing, ECI endpoint registration and runtime entry points. The TCP port namespace
 is independent of UDP. Kernel reservations remain for the domain lifetime.
 The old empty net/Tcp.scala placeholder is removed. TCP RX/TX and matched
