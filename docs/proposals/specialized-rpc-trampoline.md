@@ -3,9 +3,11 @@
 Status: sketch; not implemented. No RX ABI or hardware changes are authorized by
 this note.
 
-The RX trampoline specializes the complete handling of a request: inline the
+The RX trampoline specializes the complete handling of a request: bind the
 exact request-unmarshal, user-handler and response-marshal routines for each
-registered RPC procedure, followed by reply submission. It is not merely a
+registered RPC procedure, followed by reply submission. Inline the thin runtime
+and XDR adaptation wrappers; user handlers and individual XDR datatype routines
+may remain shared direct-call paths. It is not merely a
 specialized entry into the generic runtime's decode/handler/outcome/encode path.
 
 Change the RX cache-line layout so every completed blocking RX supplies an
@@ -16,7 +18,7 @@ selects both procedure entries and runtime control entries:
 
 | RX result | Selected continuation |
 | --- | --- |
-| RPC request | Procedure-specific inlined unmarshal → handler → marshal → reply submission |
+| RPC request | Procedure-specific unmarshal → handler → marshal → reply submission |
 | Nested RPC reply | Completion entry interpreting cookie, status and response payload |
 | Kernel bypass packet | Packet entry interpreting length and packet bytes |
 | Kernel neighbor/ARP work | Neighbor entry interpreting requested IP address and associated metadata |
@@ -60,6 +62,38 @@ Coordinate any implementation with the
 [ECI boundary contract](../software/nested-rpc.md#endianness-at-the-host-boundary)
 and [cache-line interface](../architecture/hw-sw-interface.md), including ownership
 and progress rules and matched generated hardware/software collateral.
+
+## Entry variants and shared code
+
+Provide four entry variants per procedure: RX parity 0/1 crossed with
+inline/overflow placement. Preprogram worker-specific code bases and entry
+offsets so the NIC can form the correct absolute executable address for the
+current process, worker assignment, parity and placement. Register resolved
+addresses after loading; do not assume compiler-generated functions have a
+uniform size or stride. Data-mapping bases and code bases are distinct. Worker
+mapping addresses may be bound into specialized entries to make transport
+addresses constant; define how entries are selected or refreshed on reassignment.
+
+Inline our thin XDR wrapper: stream setup, adaptation to the concrete argument
+type and decode/encode direction, and result handling. The present wrapper also
+selects a procedure through `call_xdrproc`/`resp_xdrproc`; specialization binds
+that target directly. It need not inline every XDR datatype routine or the user
+handler. Shared direct calls reduce code duplication across the four variants;
+selective inlining can remove call overhead and expose constant propagation.
+Internal XDR stream-operation indirection must be inspected separately: inlining
+the wrapper alone does not guarantee its elimination.
+
+Preserve dynamic REPLY/DEFER decisions without adding a fiber flag to handler
+registration. A deferred continuation retains owned arguments and request token;
+sharing handler code does not change that lifetime contract.
+
+The NIC-provided pointer is an absolute virtual address consumed by an indirect
+branch. Calls from linked AArch64 entries to known shared routines can use
+PC-relative branches, with linker handling for symbol resolution and range.
+Position-independent code is not generally safe to copy to arbitrary addresses:
+moving an entry alone changes its relative distances to shared code and data.
+Use normally linked variants or a relocation-aware generation strategy; inspect
+the final binary for PLT calls, veneers and address materialization.
 
 ## Unified RX cache line
 
