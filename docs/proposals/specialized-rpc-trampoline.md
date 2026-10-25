@@ -17,6 +17,9 @@ selects both procedure entries and runtime control entries:
 | RX result | Selected continuation |
 | --- | --- |
 | RPC request | Procedure-specific inlined unmarshal → handler → marshal → reply submission |
+| Nested RPC reply | Completion entry interpreting cookie, status and response payload |
+| Kernel bypass packet | Packet entry interpreting length and packet bytes |
+| Kernel neighbor/ARP work | Neighbor entry interpreting requested IP address and associated metadata |
 | NACK | Host-work check, then return to RX |
 | DESCHED | Enter `lh_yield` directly |
 | DEADLINE | Check timers and invoke due timer callbacks |
@@ -58,10 +61,31 @@ Coordinate any implementation with the
 and [cache-line interface](../architecture/hw-sw-interface.md), including ownership
 and progress rules and matched generated hardware/software collateral.
 
-## Packed request cache line
+## Unified RX cache line
 
-Pack the request into one 128-byte ECI coherence line, keeping numeric fields
-naturally aligned and payload bytes wire-native:
+Every RX result, including kernel bypass/ARP, uses the same outer format:
+an 8-byte executable entry pointer followed by 120 bytes of entry-specific data.
+The entry determines the data format; there is no common type/length header.
+Kernel entries must be kernel-owned targets selected within the kernel bypass
+domain; user registrations must not supply kernel jump targets. User entries
+are scoped to the owning process and registration lifetime.
+
+| Entry | Entry-specific data |
+| --- | --- |
+| RPC request | 32-bit request token, reserved alignment space, argument payload |
+| Nested RPC reply | Completion cookie, status, response payload |
+| Kernel bypass | Packet length and packet bytes |
+| Neighbor/ARP work | Requested IP address and required neighbor/source/protocol context |
+| NACK / DESCHED / DEADLINE | Any state required by the selected control entry |
+
+Request tokens and completion cookies serve analogous correlation roles but
+refer to different tables and lifetimes. The existing nested-reply path also
+checks a separate XID after cookie lookup; removing that host field requires
+preserving equivalent matching in hardware or the new completion contract.
+Exact completion/control metadata offsets and overflow indications remain open.
+
+The RPC request specialization keeps numeric fields naturally aligned and
+payload bytes wire-native:
 
 | Bytes | Proposed contents |
 | --- | --- |
@@ -73,8 +97,8 @@ naturally aligned and payload bytes wire-native:
 The second word reserves eight bytes for the current 32-bit request token and
 future metadata, keeping payload naturally aligned at byte 16. No TLS pointer
 is carried: worker TLS is already available on the executing OS thread, and
-fiber stack switches do not install a separate TLS base. Any additional
-application-context convention remains part of entry specialization.
+fiber stack switches do not install a separate TLS base. Application context
+is baked directly into the specialized trampoline, not carried in the RX line.
 
 The token selects the hardware reply context retaining the original client XID
 and return address; it is not the wire XID or an outgoing nested-call cookie.
@@ -83,7 +107,7 @@ save it in owned request state before later receives, preserving the existing
 [reply-context lifetime](../software/reply-contexts.md). All remaining fourteen
 words are RPC payload; no generic type or length word is added.
 
-Do not spend cache-line space on a generic payload-length field. The specialized
+Do not spend RPC request cache-line space on a generic payload-length field. The specialized
 codec knows fixed field sizes, and variable-length fields carry their lengths
 in the encoded payload. For fixed-size codecs, either omit the receive-length
 check under an explicit accepted-input contract or program a per-codec hardware
@@ -98,9 +122,45 @@ must specify codec-aware hardware validation, bounded decoding with a supplied
 or derivable end, or an explicit restriction on accepted inputs. None requires
 committing to a generic length word in this proposed line.
 
-Payload overflow beyond 112 bytes and its addressing remain open. Resolve this
-without taking words from the stated inline capacity. The existing 64-byte descriptor/64-byte payload
-split remains the implemented ABI until matched hardware/software changes.
+## Overflow placement alternatives
+
+Compare two zero-staging-copy layouts, using the entry-specific inline capacity
+`I` (112 bytes for the aligned RPC request above):
+
+- **Split prefix:** retain the first `I` payload bytes in the selected control
+  line and put the remainder in overflow. Inlined read accessors translate
+  logical offsets to the control span or overflow span. Select the current
+  control base once from parity; never read through the opposite control line,
+  since that is a receive doorbell. Fixed-offset accesses can specialize to
+  direct loads. Dynamic offsets require span selection, and accesses crossing
+  the boundary require split reads/copies. Contiguous-slice and mutable parsers
+  need corresponding adaptations.
+- **Whole-message overflow:** complete small payloads remain inline; when a
+  payload exceeds `I`, all bytes start at overflow byte zero and no payload is
+  carried in the control line. A placement indication or entry-specific length
+  selects the buffer once, after which existing contiguous codecs can read it
+  directly. A distinct entry address could encode placement instead of adding
+  a pre-jump type test. This preserves the current placement strategy with a
+  larger inline capacity.
+
+For a full sequential read of `N > I` bytes, the logical ECI line counts,
+including the mandatory control line, are `1 + ceil((N-I)/128)` for split prefix
+and `1 + ceil(N/128)` for whole-message overflow. Split prefix saves zero or one
+overflow line, depending on size; it does not save one for every oversized
+request. Actual cache misses, prefetch, retirement traffic and exposed latency
+need measurement. With `I=112`, both layouts need two lines for 128-byte payloads;
+200-byte payloads need two versus three. An always-overflow variant would also
+add a payload-line access for small requests that fit in the delivered control
+line.
+
+No isolated accessor-overhead or overflow-fetch timing is available. Compare
+generated code and matched hardware measurements for both parities, fixed and
+variable offsets, boundary-crossing fields and representative sizes. Charge
+address-selection instructions separately from extra coherence traffic; do not
+use the historical TX reclaim latency as an RX overflow-read cost. Preserve
+borrow lifetime, bounded reads and mutable replay in either layout. The existing
+64-byte descriptor/64-byte payload split remains the implemented ABI until
+matched hardware/software changes.
 
 ## Measurement plan
 
