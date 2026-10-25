@@ -25,11 +25,17 @@ Launch verified October 25 at 22:27 CET:
 - Record: main checkout `out/rtl-impl-20261025/record.json`, with bundle/image
   paths, hashes, baseline paths and validation scope. The prior focused tests
   are reused after checking exact source hashes; they were not rerun.
-- Preflight timer `lauberhorn-rtl-impl-fdc689c5-20261025-preflight.timer` was
-  verified active, due 22:57:34 CET. Use that directory's `schedule.py`: after
-  preflight confirms Vivado running, schedule `--stage results` five hours from
-  that check. If still live at results, use `--stage recheck` after 30 minutes.
-  Inspect old timer/service state first. If terminal, collect immediately.
+- Preflight at 22:58 CET confirmed the exact launcher/container/main Vivado
+  still live and `synth_1` active (PID 1029152, rebuilding user hierarchy).
+  Both completion markers remain absent. Reverified all 1,183 remote input
+  hashes, test-source hashes, the three passing test results, generated RTL
+  correspondence, image hash and absence of the experimental floorplan groups.
+- Results timer `lauberhorn-rtl-impl-fdc689c5-20261025-results.timer` is verified
+  active, due October 26 at **03:58:01 CET**, five hours from this check.
+  The old preflight service finished successfully; no prior results timer was
+  active. Stop polling until this callback. If still live then, use the record
+  directory's `schedule.py --stage recheck` for 30 minutes after inspecting old
+  timer/service state. If terminal, collect immediately; never restart a five-hour wait.
 - On completion, preserve bitstream/probes/routed DCP/trace map/reports and hashes,
   or all failed-stage evidence. Read `tools/physical/summarize.py` digest first;
   compare all-clock setup/hold/pulse width and application top-1000 families to
