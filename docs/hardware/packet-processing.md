@@ -18,6 +18,14 @@ valid IP/TCP checksums. TCP header options and flags remain intact. The decoder
 trims Ethernet padding and supplies the complete IPv4 packet to the host;
 unmatched TCP and unsupported IPv4 shapes follow kernel bypass.
 
+TCP RX/TX and native UDP RX share a checksum accumulator with balanced,
+registered partial-sum and beat-sum stages. Only accepted beats enter it;
+validation waits for both stages to drain before using the final sum.
+Scheduler queue reads likewise register the selected address before BRAM.
+The selected slot stays occupied until the read edge, preventing an enqueue
+from overwriting it; another reader cannot select that same head meanwhile.
+Other queues remain eligible for arbitration.
+
 `PacketBuffer` DMA stores residual payload in FPGA RAM. Parsed headers and
 extracted RPC bytes travel in metadata. ECI reconstructs the logical payload
 from metadata prefixes and stored bytes, then exposes contiguous inline or

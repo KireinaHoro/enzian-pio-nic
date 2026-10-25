@@ -205,6 +205,26 @@ another active campaign. Follow enzian-deploy and mandatory capture before reset
 keep tracing armed through module load. No board provisioning, reset or console
 access occurred during this launch. No CI build was launched.
 
+## Authorized phase-four timing correction
+
+On October 25 the user requested simplifying/pipelining the failing logic and
+launching one replacement manual build. Work remains on userspace-tcp-phase-three;
+the main checkout has unrelated rx-trampoline-proposal work. Preserve the
+ed902d66 artifacts and final reports above as the baseline.
+
+The correction shares timer/background donor masks (their recipient owns zero
+cores), selects queue heads directly with one-hot arbitration, and registers the
+BRAM read address. Queue occupancy retires on the actual read edge, not the
+reservation edge; the pending queue cannot grant the same head twice. Worker and
+reclamation FSMs retain ownership through the additional cycle. TCP RX/TX and
+UDP RX use a shared balanced two-stage checksum reduction and explicitly drain
+it before validation. Public ABI and scheduling policy remain unchanged.
+
+Nix checks: scheduler-policy retains C/RTL stateful agreement; transport-pipeline
+covers checksum bubbles/drain/reseed, complete TCP/UDP/DEADLINE integration,
+cooperative allocation and disabled-process RPC queue/context reclamation.
+Final-source checks are running; no replacement hardware build launched yet.
+
 ## TCP second-stage build
 
 TCP `13a182b` moves compilation, pristine-import verification, patching, linking,

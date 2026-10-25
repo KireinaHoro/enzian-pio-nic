@@ -89,7 +89,11 @@ class NativeTcpDecoder extends Decoder[NativeTcpRxMeta] {
     val length = Reg(UInt(16 bits))
     val received = Reg(UInt(17 bits)) init 0
     val malformed = RegInit(False)
-    val sum = Reg(UInt(32 bits)) init 0
+    val checksumPipeline = new lauberhorn.net.PacketChecksum(config.dataWidth)
+    checksumPipeline.io.seed.valid := False
+    checksumPipeline.io.seed.payload := 0
+    checksumPipeline.io.beat.valid := False
+    val sum = checksumPipeline.io.sum
     val fifo = StreamFifo(Axi4Stream.Axi4StreamBundle(config), (MTU.get + config.dataWidth - 1) / config.dataWidth)
     val inject = AxiStreamInjectHeader(config, 20)
     inject.io.input << fifo.io.pop
@@ -109,7 +113,7 @@ class NativeTcpDecoder extends Decoder[NativeTcpRxMeta] {
     admission.payload := metadata.pid
     val dropCount = Counter(REG_WIDTH bits, dropped)
     def wordSum(raw: Bits): UInt = raw.subdivideIn(16 bits)
-      .map(word => EndiannessSwap(word).asUInt.resize(32)).reduce(_ + _)
+      .map(word => EndiannessSwap(word).asUInt.resize(32)).reduceBalancedTree(_ + _)
     def folded(value: UInt): UInt = {
       val first = value(15 downto 0).resize(17) + value(31 downto 16).resize(17)
       val second = first(15 downto 0).resize(17) + first(16).asUInt.resize(17)
@@ -119,13 +123,14 @@ class NativeTcpDecoder extends Decoder[NativeTcpRxMeta] {
     val terms = (0 until config.dataWidth).map { i =>
       keep(i) := input.keep(i) && received + i < length.resize(17)
       val byte = input.data(i * 8 + 7 downto i * 8).asUInt
-      Mux(keep(i), byte.resize(32) |<< (if (i % 2 == 0) 8 else 0), U(0, 32 bits))
+      Mux(keep(i), byte.resize(16) |<< (if (i % 2 == 0) 8 else 0), U(0, 16 bits))
     }
     val count = CountOne(input.keep).resize(17)
     val contiguous = input.keep === (B((BigInt(1) << config.dataWidth) - 1, config.dataWidth bits) |>> (config.dataWidth - count))
     header.setBlocked(); input.setBlocked(); lookup.setIdle(); result.setBlocked()
     fifo.io.push.setIdle(); fifo.io.flush := False
     metadata.setIdle(); bypassHeader.setIdle(); bypassPayload.setIdle(); dropped := False
+    checksumPipeline.io.beat.payload := Vec(terms)
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -153,7 +158,8 @@ class NativeTcpDecoder extends Decoder[NativeTcpRxMeta] {
               // Global MTU sizes Ethernet buffers; the IP transport limit is 1500.
               malformed := ipLength < 40 || ipLength > 1500 ||
                 saved.ethMeta.getPayloadSize < ipLength || folded(wordSum(saved.hdr.asBits)) =/= 65535
-              sum := wordSum(saved.hdr.saddr ## saved.hdr.daddr) + tcpLength.resize(32) + 6
+              checksumPipeline.io.seed.valid := True
+              checksumPipeline.io.seed.payload := wordSum(saved.hdr.saddr ## saved.hdr.daddr) + tcpLength.resize(32) + 6
               goto(collect)
             }
           }
@@ -184,12 +190,15 @@ class NativeTcpDecoder extends Decoder[NativeTcpRxMeta] {
               when(count < 20 || headerBytes < 20 || headerBytes > length) { malformed := True }
             }
             when(received < 65536) { received := (received + count).resized }
-            sum := sum + terms.reduce(_ + _)
+            checksumPipeline.io.beat.valid := True
             when(!contiguous || (!input.last && !input.keep.andR) ||
               (keep.orR && !malformed && !fifo.io.push.ready)) { malformed := True }
-            when(input.last) { goto(validate) }
+            when(input.last) { goto(drainChecksum) }
           }
         }
+      }
+      val drainChecksum: State = new State {
+        whenIsActive { when(!checksumPipeline.io.busy) { goto(validate) } }
       }
       val validate: State = new State {
         whenIsActive {

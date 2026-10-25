@@ -66,6 +66,14 @@ in
       lauberhorn.RecoveryStreamBufferSim lauberhorn.RecoveryInFlightSim \
       lauberhorn.ExecutionWatchdogSim lauberhorn.RpcReplyContextsSim
   '';
+  transport-pipeline = check "transport-pipeline" ''
+    mill --no-daemon --offline gen.test.testOnly \
+      lauberhorn.PacketChecksumSim lauberhorn.host.eci.NativeTcpSim \
+      lauberhorn.host.eci.NativeUdpSim lauberhorn.host.eci.DeadlineSim \
+      lauberhorn.host.eci.CooperativeAllocationSim
+    mill --no-daemon --offline gen.test.testOnly lauberhorn.host.eci.OncRpcSim \
+      -- -t disabled-process-discards-free-reply-contexts
+  '';
   scheduler-policy = check "scheduler-policy" ''
     mkdir -p out
     cp ${../../sw/kmod/scheduler_policy.h} out/scheduler_policy.h

@@ -438,35 +438,51 @@ class Scheduler extends FiberPlugin {
     // return path as rejected incoming packets. Never reset queue pointers and
     // lose the packet allocations that they own.
     val popReqs = Seq.fill(NUM_WORKER_CORES + 1)(PopReq())
-    popReqs.foreach { _.grant := False }
-    val popReqPresent = popReqs.map(_.req).asBits()
-    val grantedIdx = OHToUInt(OHMasking.firstV2(popReqPresent))
-    val grantedPopReq = popReqs(grantedIdx).queueIdx
-    popReqs(grantedIdx).grant := True
+    val popReadValid = RegInit(False)
+    val popReadOwner = Reg(ProcTblIdx) init 0
+    // A pending read keeps its queue slot occupied until BRAM samples it.
+    // Prevent a second reader taking the same head in the intervening cycle.
+    val popReqPresent = popReqs.map(p => p.req &&
+      !(popReadValid && p.queueIdx === popReadOwner)).asBits()
+    val popWinner = OHMasking.firstV2(popReqPresent)
+    val grantedPopReq = MuxOH(popWinner, popReqs.map(_.queueIdx))
+    popReqs.zipWithIndex.foreach { case (request, i) => request.grant := popWinner(i) }
+    // Select predecoded addresses directly; avoid priority encode -> queue-index
+    // mux -> head mux on the readiness path.
+    val selectedHead = MuxOH(popWinner, popReqs.map(p => queueMetas(p.queueIdx).head))
 
-    val toPopReqAddr = queueMetas(grantedPopReq).head
-    val poppedReq = queueMem.readSync(toPopReqAddr)
+    // Register the address before BRAM, retaining the queue slot until the
+    // read edge. This also prevents a simultaneous enqueue overwriting a freed
+    // slot before it was read. The granted reader holds its process ownership.
+    popReadValid := popReqPresent.orR
+    when(popReqPresent.orR) { popReadOwner := grantedPopReq }
+    val toPopReqAddr = RegNextWhen(selectedHead, popReqPresent.orR)
+    val poppedReq = queueMem.readSync(toPopReqAddr, popReadValid)
 
-    popQ(grantedPopReq) := popReqPresent.orR
+    when(popReadValid) {
+      assert(!queueMetas(popReadOwner).empty, "reserved queue head disappeared before read")
+      assert(toPopReqAddr === queueMetas(popReadOwner).head, "reserved queue head changed before read")
+    }
+    popQ(popReadOwner) := popReadValid
 
     val reclaimPop = popReqs.last
     reclaimPop.req := False
-    reclaimPop.queueIdx := 0
     queueDiscard.setIdle()
     val reclaimCandidates = queueMetas.zipWithIndex.map { case (q, i) =>
       !processEnabled(i) && !q.empty && Bool(i != 0)
     }.asBits()
     val reclaimIdx = OHToUInt(OHMasking.firstV2(reclaimCandidates))
+    reclaimPop.queueIdx := reclaimIdx
     val reclaimSaved = Reg(HostReqWithTrace())
     val reclaimOwner = Reg(ProcTblIdx) init 0
     val reclaimFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
           reclaimPop.req := reclaimCandidates.orR
-          reclaimPop.queueIdx := reclaimIdx
-          when(reclaimPop.req && reclaimPop.grant) { reclaimOwner := reclaimIdx; goto(capture) }
+          when(reclaimPop.req && reclaimPop.grant) { reclaimOwner := reclaimIdx; goto(readWait) }
         }
       }
+      val readWait: State = new State { whenIsActive { goto(capture) } }
       val capture: State = new State {
         whenIsActive {
           reclaimSaved := poppedReq
@@ -551,7 +567,7 @@ class Scheduler extends FiberPlugin {
 
       val popReq = popReqs(idx)
       popReq.req := False
-      popReq.queueIdx.assignDontCare()
+      popReq.queueIdx := corePidMap(idx)
       val savedPoppedReq = Reg(HostReqWithTrace())
 
       val corePopQueueIdx = corePidMap(idx)
@@ -671,11 +687,10 @@ class Scheduler extends FiberPlugin {
               //      needed since we don't want to pop a request when core is not ready, since after popping one:
               //      - allow desched?  need to somehow put it back in the queue
               //      - not allow desched?  no chance in practice to desched then
-              popReq.queueIdx := corePopQueueIdx
               popReq.req := True
               when (popReq.grant) {
                 packetDue(corePopQueueIdx) := False
-                goto(popReqGranted)
+                goto(popReadWait)
               }
             }
           }
@@ -698,11 +713,12 @@ class Scheduler extends FiberPlugin {
             }
           }
         }
+        val popReadWait: State = new State { whenIsActive { goto(popReqGranted) } }
         val popReqGranted: State = new State {
           whenIsActive {
             inc(_.popped(idx))
-            // if our pop request is granted, read happened on that cycle;
-            // now we have the popped request ready
+            // The registered read address reached BRAM in the previous
+            // cycle; now its descriptor is ready.
 
             // need to save popped req: timeout might happen in popReqCheckGrant, resulting in
             // the core not ready any more; we need to hold the same request instead of switching

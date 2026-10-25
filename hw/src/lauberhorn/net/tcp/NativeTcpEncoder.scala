@@ -40,7 +40,11 @@ class NativeTcpEncoder extends Encoder[NativeTcpTxMeta] {
     val ip = Reg(IpHeader())
     val received = Reg(UInt(17 bits)) init 0
     val malformed = RegInit(False)
-    val sum = Reg(UInt(32 bits)) init 0
+    val checksumPipeline = new lauberhorn.net.PacketChecksum(config.dataWidth)
+    checksumPipeline.io.seed.valid := False
+    checksumPipeline.io.seed.payload := 0
+    checksumPipeline.io.beat.valid := False
+    val sum = checksumPipeline.io.sum
     val checksum = Reg(Bits(16 bits))
     val firstOutput = RegInit(True)
     val nextPacketId = Reg(UInt(PacketID.width bits)) init 0
@@ -57,7 +61,7 @@ class NativeTcpEncoder extends Encoder[NativeTcpTxMeta] {
     val incomingIp = IpHeader()
     incomingIp.assignFromBits(input.data(159 downto 0))
     def wordSum(raw: Bits): UInt = raw.subdivideIn(16 bits)
-      .map(word => EndiannessSwap(word).asUInt.resize(32)).reduce(_ + _)
+      .map(word => EndiannessSwap(word).asUInt.resize(32)).reduceBalancedTree(_ + _)
     def folded(value: UInt): UInt = {
       val first = value(15 downto 0).resize(17) + value(31 downto 16).resize(17)
       val second = first(15 downto 0).resize(17) + first(16).asUInt.resize(17)
@@ -67,14 +71,15 @@ class NativeTcpEncoder extends Encoder[NativeTcpTxMeta] {
       val offset = received + lane
       val wanted = input.keep(lane) && offset >= 20 && offset < saved.length && offset =/= 36 && offset =/= 37
       val byte = input.data(lane * 8 + 7 downto lane * 8).asUInt
-      Mux(wanted, byte.resize(32) |<< (if (lane % 2 == 0) 8 else 0), U(0, 32 bits))
+      Mux(wanted, byte.resize(16) |<< (if (lane % 2 == 0) 8 else 0), U(0, 16 bits))
     }
+    checksumPipeline.io.beat.payload := Vec(terms)
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
           metadata.ready := True
           when(metadata.fire) {
-            saved := metadata.payload; received := 0; sum := 0
+            saved := metadata.payload; received := 0
             malformed := metadata.length < 40 || metadata.length > 1500
             firstOutput := True
             goto(collect)
@@ -87,10 +92,11 @@ class NativeTcpEncoder extends Encoder[NativeTcpTxMeta] {
           fifo.io.push.valid := input.valid && !malformed
           fifo.io.push.payload := input.payload
           when(input.fire) {
-            sum := sum + terms.reduce(_ + _)
+            checksumPipeline.io.beat.valid := True
             when(received === 0) {
               ip := incomingIp
-              sum := terms.reduce(_ + _) + wordSum(incomingIp.saddr ## incomingIp.daddr) +
+              checksumPipeline.io.seed.valid := True
+              checksumPipeline.io.seed.payload := wordSum(incomingIp.saddr ## incomingIp.daddr) +
                 (saved.length - 20).resize(32) + 6
               val headerBytes = input.data(263 downto 260).asUInt.resize(16) |<< 2
               when(count < 40 || incomingIp.version =/= 4 || incomingIp.ihl =/= 5 ||
@@ -103,9 +109,12 @@ class NativeTcpEncoder extends Encoder[NativeTcpTxMeta] {
             received := (received + count).resized
             when(!contiguous || (!input.last && !input.keep.andR) ||
               (!malformed && !fifo.io.push.ready)) { malformed := True }
-            when(input.last) { goto(validate) }
+            when(input.last) { goto(drainChecksum) }
           }
         }
+      }
+      val drainChecksum: State = new State {
+        whenIsActive { when(!checksumPipeline.io.busy) { goto(validate) } }
       }
       val validate: State = new State {
         whenIsActive {

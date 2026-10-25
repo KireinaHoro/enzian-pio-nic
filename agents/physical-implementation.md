@@ -1,8 +1,10 @@
 # Physical implementation continuation
 
-Timing optimization is paused at the maintainer's request. Do not start new
-timing work or poll CI until requested. The already launched ba2 batch was
-allowed to finish; that permission does not authorize a replacement batch.
+General timing optimization remains paused. On October 25 the maintainer
+explicitly authorized simplifying/pipelining the failing phase-four TCP branch
+and launching one replacement manual build. That scope is tracked in
+[userspace TCP](userspace-tcp.md); it does not reopen the retained September
+experiments or authorize toolkit-master changes.
 
 Platform master adopted TX placement/refinement and high-VC RX staging.
 Selected revision `1c72ea0` reached WNS −0.007 ns with 17 failing endpoints;

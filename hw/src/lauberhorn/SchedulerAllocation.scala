@@ -48,17 +48,19 @@ class SchedulerAllocation(domains: Int, cores: Int, capacity: Int) extends Compo
   val packet = io.arrival.valid && eligible(io.arrival.payload) &&
     (backlog || count(io.arrival.payload) === 0) && packetVictims.orR
 
-  val timerVictims = (1 to domains).map(d => victims(U(d, slotWidth bits), True, protectDonor = true))
+  // Timer/background recipients have zero owners, so no donor can equal
+  // the selected recipient. Build each donor mask once, not once per domain.
+  val timerVictims = victims(U(0, slotWidth bits), True, protectDonor = true)
   val timerRequests = (1 to domains).map(d => io.deadlines(d) && eligible(U(d, slotWidth bits)) &&
-    count(d) === 0 && timerVictims(d - 1).orR).asBits
+    count(d) === 0 && timerVictims.orR).asBits
   val timerPriority = Reg(Bits(domains bits)) init 1
   val timerSelected = OHMasking.roundRobin(timerRequests, timerPriority)
   val timerSlot = (OHToUInt(timerSelected).resize(slotWidth) + 1).resize(slotWidth)
   val timer = timerRequests.orR
 
-  val backgroundVictims = (1 to domains).map(d => victims(U(d, slotWidth bits), True, emptyDonor = true))
+  val backgroundVictims = victims(U(0, slotWidth bits), True, emptyDonor = true)
   val backgroundRequests = (1 to domains).map(d => io.fill(d) =/= 0 && eligible(U(d, slotWidth bits)) &&
-    count(d) === 0 && backgroundVictims(d - 1).orR).asBits
+    count(d) === 0 && backgroundVictims.orR).asBits
   val backgroundSelected = OHMasking.firstV2(backgroundRequests)
   val backgroundSlot = (OHToUInt(backgroundSelected).resize(slotWidth) + 1).resize(slotWidth)
   val preferTimer = RegInit(False)
@@ -66,7 +68,7 @@ class SchedulerAllocation(domains: Int, cores: Int, capacity: Int) extends Compo
   io.grant.valid := packet || timer || backgroundRequests.orR
   io.grant.slot := backgroundSlot
   io.grant.reason := AllocationReason.background
-  selectedVictims := Vec(backgroundVictims)((backgroundSlot - 1).resize(log2Up(domains)))
+  selectedVictims := backgroundVictims
   when(packet && (!timer || !preferTimer)) {
     io.grant.slot := io.arrival.payload
     io.grant.reason := Mux(backlog, AllocationReason.packetBacklog, AllocationReason.initialPacket)
@@ -75,7 +77,7 @@ class SchedulerAllocation(domains: Int, cores: Int, capacity: Int) extends Compo
   } elsewhen(timer) {
     io.grant.slot := timerSlot
     io.grant.reason := AllocationReason.deadline
-    selectedVictims := Vec(timerVictims)((timerSlot - 1).resize(log2Up(domains)))
+    selectedVictims := timerVictims
     timerPriority := timerSelected.rotateLeft(1)
     preferTimer := False
   }
