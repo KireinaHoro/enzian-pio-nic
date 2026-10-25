@@ -251,13 +251,13 @@ port checks; the image embeds this clean revision. Image SHA256:
   All nine input hashes, image SHA256 and three test/provenance hashes verified
   remotely. Gateway home access reported an expired key, but scratch transfers
   and hash verification succeeded; board access was not attempted.
-- Latest observation at 07:38 CET on October 25: exact launcher/container and
-  both Vivado processes remain live after 5 h. No `build.exit` or
+- Latest observation at 08:09 CET on October 25: exact launcher/container and
+  both Vivado processes remain live after 5 h 31 min. No `build.exit` or
   `physical/COMPLETE` exists. Routing is resolving overlapping nodes (latest
-  bounded output: 21 remaining); final timing is not available.
+  bounded output: 1 remaining); final timing is not available.
 - Recheck timer `lauberhorn-manual-73c3dc76-20261025-recheck.timer` verified
-  active for **2026-10-25 08:08:35 CET**, receipt
-  `out/phase4-manual-73c3dc76/recheck-1-receipt.log`. Prior results/recheck
+  active for **2026-10-25 08:39:14 CET**, receipt
+  `out/phase4-manual-73c3dc76/recheck-2-receipt.log`. Prior results/recheck
   timers and services were inactive before scheduling. Use
   `schedule.py --delay 30m --recheck` again if still running, inspecting the
   existing timer/service first. No duplicate launch or board access occurred.
