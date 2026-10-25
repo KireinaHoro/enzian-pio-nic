@@ -5,8 +5,9 @@ Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
 Phase-four DEADLINE/native TCP integration and VM/RTL policy agreement are
 implemented. The first routed build failed setup timing; the user authorized
 simplifying/pipelining that logic and launching one replacement manual build.
-The replacement is running with matched tests/image staged and a callback
-scheduled; final timing and hardware acceptance remain pending. CI is unavailable;
+The replacement build completed and improved timing, but setup violations
+remain a major blocker; matched artifacts are preserved and hardware acceptance
+has not started. CI is unavailable;
 use the maintained Docker bundle workflow.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
@@ -251,22 +252,31 @@ port checks; the image embeds this clean revision. Image SHA256:
   All nine input hashes, image SHA256 and three test/provenance hashes verified
   remotely. Gateway home access reported an expired key, but scratch transfers
   and hash verification succeeded; board access was not attempted.
-- Latest observation at 09:40 CET on October 25: exact launcher/container and
-  both Vivado processes remain live after 7 h 3 min. No `build.exit` or
-  `physical/COMPLETE` exists. The build remains in physical synthesis,
-  phase 2 critical-path optimization, with further netlist-sorting progress.
-  Final timing is not available.
-- Recheck timer `lauberhorn-manual-73c3dc76-20261025-recheck.timer` verified
-  active for **2026-10-25 10:10:46 CET**, receipt
-  `out/phase4-manual-73c3dc76/recheck-5-receipt.log`. Prior results/recheck
-  timers and services were inactive before scheduling. Use
-  `schedule.py --delay 30m --recheck` again if still running, inspecting the
-  existing timer/service first. No duplicate launch or board access occurred.
-- Collect matched reports and compare the maintained digest against preserved
-  ed902d66 before hardware acceptance. Do not claim improved timing until final
-  post-route STA exists. Revalidate the copied 07/14 topology, reservations,
-  active campaigns and preserved failures before the seven cases with two repeats.
-  No board access or benchmark claim accompanies this launch.
+- Final observation at 10:11 CET on October 25: `build.exit=0`, launcher
+  exited, recorded Docker container removed, `physical/COMPLETE` present.
+  The build and report collection succeeded; no further timer is armed.
+- **Major blocker remains: final setup timing.** Maintained digest comparison
+  against ed902d66: WNS **−1.944 → −1.119 ns**, TNS **−67852.938 →
+  −32012.260 ns**, failing endpoints **125173 → 82260**. Hold/pulse-width
+  failure counts remain zero, minimum slacks +0.001/+0.039 ns. All 1050265
+  routable nets are routed with zero routing errors. This is improvement,
+  not timing closure or functional hardware acceptance.
+- Worst representative: CMAC AXI reset synchronizer to a TX flow-control
+  configuration register reset, 5.919 ns delay (5.847 ns routing), zero logic
+  levels. The bounded sample also has a domain-code → Scheduler saved-request
+  path at −1.119 ns with 17 levels, and reply-context paths at the same slack.
+  ECI clk_sys representative is −0.421 ns. Multiple families remain; do not
+  infer that fixing the CMAC path alone resolves the setup failures.
+- Matched bitstream, probes, routed DCP, generated trace map, build logs,
+  terminal status and all physical reports/digest are preserved under
+  `out/phase4-manual-73c3dc76/collected/`. Remote artifact hashes verified
+  locally; trace-map hash matches the immutable input manifest. Remote originals
+  and the ed902d66 baseline remain intact.
+- Stopped before board access or the seven-case hardware acceptance because
+  final timing remains a major blocker. The authorized replacement build is
+  complete; no further implementation/build was started. No functional result
+  or benchmark claim is made. Reservations/topology still require live preflight
+  when hardware acceptance resumes.
 
 Use `/tmp/lauberhorn-tcp-followup` for feature sources and documentation. The main
 checkout contains unrelated work. The branch remains deliberately unmerged;
