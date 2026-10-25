@@ -1,12 +1,43 @@
 # Physical implementation continuation
 
-## RTL congestion follow-up: no hardware launch
+## RTL congestion implementation: running
 
-The follow-up user request authorizes reverting the restrictive application
-floorplan and simplifying/pipelining RTL further. It does not authorize another
-hardware build, board access, or toolkit-master changes. Work branch:
-`timing/20261025-rtl-congestion`, based on `57fc0bc1`; the unrelated
-`rx-trampoline-instruction-audit` checkout is preserved.
+The user subsequently authorized one implementation run and timing collection
+for the floorplan revert and RTL simplifications. Exact hardware revision:
+`fdc689c5afd25098c7ad37f3af51b261b09a7796`. Build ref:
+`timing/20261025-rtl-impl` (private push with CI skipped); keep it until every
+build/report process terminates. This is a manual Docker run, not GitLab CI.
+No board programming/acceptance, toolkit-master changes, optimization or
+replacement build is authorized by the callback. Preserve the unrelated
+`rx-trampoline-instruction-audit` main checkout; maintain this handoff on master
+in `/tmp/lauberhorn-rtl-congestion`.
+
+Launch verified October 25 at 22:27 CET:
+
+- ba2 root `/tmp/lauberhorn-rtl-impl-fdc689c5-20261025`; launcher PID 1022093,
+  Docker `1e072f3746a8`, Vivado PID 1022226. Project generation is active;
+  `build.exit` and `build/physical/COMPLETE` are absent. Recheck exact processes
+  and completion markers before declaring terminal status; timeout is not failure.
+- Clean `eciVivadoInputs` and matching `microbenchmarksImage` passed from the
+  exact revision. Image manifest has `local=false` and matching generated RTL.
+  All 1,183 bundle hashes passed on ba2. Compared with the tested snapshot,
+  generated `NicEngine.v` differs only in the committed git-version CSR.
+- Record: main checkout `out/rtl-impl-20261025/record.json`, with bundle/image
+  paths, hashes, baseline paths and validation scope. The prior focused tests
+  are reused after checking exact source hashes; they were not rerun.
+- Preflight timer `lauberhorn-rtl-impl-fdc689c5-20261025-preflight.timer` was
+  verified active, due 22:57:34 CET. Use that directory's `schedule.py`: after
+  preflight confirms Vivado running, schedule `--stage results` five hours from
+  that check. If still live at results, use `--stage recheck` after 30 minutes.
+  Inspect old timer/service state first. If terminal, collect immediately.
+- On completion, preserve bitstream/probes/routed DCP/trace map/reports and hashes,
+  or all failed-stage evidence. Read `tools/physical/summarize.py` digest first;
+  compare all-clock setup/hold/pulse width and application top-1000 families to
+  routed `73c3dc76`. Check routing completion, constraints/CDC, coarse placement
+  and fanout. The 15 experimental hard groups must be absent. Build success is
+  not timing closure; do not launch another implementation automatically.
+
+Implemented RTL-only follow-up (merged as `fdc689c5`):
 
 - Restored `vivado/eci/xdc/floorplan.xdc` exactly to `c95de205`, removing all
   15 added application hard pblocks while retaining the earlier coarse placement
@@ -42,9 +73,8 @@ hardware build, board access, or toolkit-master changes. Work branch:
   Worst sampled logic includes reply-context retirement and scheduler deadline
   selection. Further pipelining there changes allocation/retirement or claim
   timing and is deferred rather than delaying immediate fault fencing. Neither
-  these estimates nor the high-fanout report measures the new RTL. No new
-  implementation run was started; routing benefit requires a separately
-  authorized build.
+  these estimates nor the high-fanout report measures the new RTL. The authorized
+  implementation above will supply the next physical result.
 
 ## Previous application-clock build: failed routing
 
@@ -207,9 +237,9 @@ Terminal result (checked October 25 at 17:30 UTC):
 - Source and test fixes were merged through `6f79fc35`; subsequent handoffs do
   not alter that candidate. The merged timing branch can now be removed because
   all its processes have terminated. Preserve unrelated experiment/audit refs.
-- The original launch scope is finished. The follow-up request above authorizes
-  RTL/constraint changes only; no replacement build, board programming or
-  acceptance is authorized.
+- The original launch scope is finished. The separately authorized RTL-only
+  implementation is recorded above. No automatic replacement build, board
+  programming or acceptance is authorized.
 
 SSH, Nix, Git metadata and systemd user operations require sandbox escalation.
 Use the maintained Docker bundle workflow because CI is unavailable. One-off
