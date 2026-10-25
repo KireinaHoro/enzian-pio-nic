@@ -73,3 +73,27 @@ def save(fig, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(destination, metadata={"Creator": "Lauberhorn paper_chart", "CreationDate": None})
     plt.close(fig)
+
+
+def paper_output(destination):
+    """The paper repository holds figures and compact source references only."""
+    return Path(destination).resolve() == Path(__file__).resolve().parents[3] / "paper/plots"
+
+
+def diagnostics(destination, name, values):
+    """Retain detailed statistics for platform validation, not paper publication."""
+    if not paper_output(destination):
+        import json
+        (Path(destination) / name).write_text(json.dumps(values, indent=2) + "\n")
+
+
+def provenance(destination, source, mode):
+    """Record the original input, never a temporary archive extraction path."""
+    if not paper_output(destination):
+        return
+    import json
+    root = Path(__file__).resolve().parents[2]
+    revision = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    record = dict(platform_git=revision,
+                  dataset=os.path.relpath(Path(source).resolve(), root))
+    (Path(destination) / ("echo-" + mode + "-source.json")).write_text(json.dumps(record, indent=2) + "\n")

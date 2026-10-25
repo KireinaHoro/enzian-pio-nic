@@ -36,7 +36,10 @@ once in the experimental setup using the [baseline description](../research/cala
 The ARM/MLX5 port has partial native mechanism acceptance; include its series
 only after the benchmark contract has been accepted.
 
-Loaded latency/goodput and loss panels have one row per observed system and a
+Loaded latency/goodput uses one column with three vertically stacked payload
+panels (8, 128, 1432 B), overlaying the systems at four workers. P99 RTT uses a
+shared logarithmic y-axis; the canvas is one paper column wide and 3.5 inches tall.
+Loss panels have one row per observed system and a
 fixed height of `2 × systems + 0.5` inches (4.5 inches for two systems, 6.5 for
 three). Plotting and the PDF gate share this canvas rule; partial progress uses
 the systems actually present, while finalization requires the complete matrix.
@@ -61,7 +64,11 @@ nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
 nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```
 
-Default output is `../paper/plots/`, independent of working directory. Use
+Default output is `../paper/plots/`, independent of working directory. This
+directory receives PDFs and compact `echo-{loaded,unloaded}-source.json` references
+(platform Git revision and dataset path relative to platform).
+Detailed statistics and trial JSON remain in platform output directories or
+dataset archives; they are emitted only with a non-paper output destination. Use
 `--output out/paper-preview` for temporary renders. The Nix development shell
 supplies Python, NumPy and Matplotlib; TeX Live supplies `pdflatex`, `acmart`,
 `libertine` and `newtxmath`. Missing fonts or classes fail explicitly.
