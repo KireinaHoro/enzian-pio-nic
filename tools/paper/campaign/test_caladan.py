@@ -13,7 +13,7 @@ class CaladanImportTests(unittest.TestCase):
         self.assertEqual(caladan_execution_model(legacy[0]),'udp-spawner')
         self.assertEqual(system_label('CS-A64',legacy),'CS-A64 spawner')
         resident=[dict(system='CS-A64',execution_model='resident-workers')]
-        self.assertEqual(system_label('CS-A64',resident),'CS-A64 resident')
+        self.assertEqual(system_label('CS-A64',resident),'CS-A64')
         with self.assertRaisesRegex(ValueError,'combine'):
             system_label('CS-A64',legacy+resident)
         with self.assertRaisesRegex(ValueError,'Unknown'):

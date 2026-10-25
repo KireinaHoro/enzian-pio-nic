@@ -28,9 +28,8 @@ resolve cold-workload semantics before collecting a dependent curve.
 
 
 Comparison charts use **DPDK**, **CS-A64**, and **LH** for the DPDK control,
-Caladan Simple AArch64 setup, and Lauberhorn, respectively. Caladan series carry
-an execution-model suffix: **CS-A64 spawner** for the collected UDP-spawner
-variant, **CS-A64 resident** for the resident-worker dataset.
+Caladan Simple AArch64 setup, and Lauberhorn, respectively. Resident-worker series use **CS-A64**; the historical UDP-spawner variant uses
+**CS-A64 spawner**. Execution models remain explicit in dataset provenance.
 Legacy CS-A64 cohorts used the spawner; plotting rejects a series mixing models. Define CS-A64
 once in the experimental setup using the [baseline description](../research/caladan-enzian.md#selected-setup).
 The ARM/MLX5 port has partial native mechanism acceptance; include its series
