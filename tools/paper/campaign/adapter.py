@@ -201,12 +201,13 @@ def pdf_checks(directory, names, *, loaded_system_count=2):
         info=subprocess.check_output(['pdfinfo',str(path)],text=True,timeout=30)
         size=re.search(r'^Page size:\s+([\d.]+) x ([\d.]+) pts',info,re.M)
         if not size or not re.search(r'^Pages:\s+1$',info,re.M): raise ValueError('Invalid PDF geometry')
-        width,height=map(float,size.groups());wide=name in ('echo-overload-loss','echo-loaded-hot-latency-goodput')
+        width,height=map(float,size.groups());wide=name=='echo-overload-loss'
         expected=dimensions['text' if wide else 'column']*72
         expected_height=180 if name in ('echo-loaded-hot-peak-throughput-workers','echo-unloaded-hot-latency-cdf','echo-unloaded-hot-latency-breakdown') else 324
         if name=='echo-unloaded-hot-latency-breakdown': expected_height=388.8
         if name=='echo-unloaded-hot-latency-cdf': expected_height=252
         if name=='echo-loaded-hot-peak-throughput-workers': expected_height=230.4
+        if name=='echo-loaded-hot-latency-goodput': expected_height=252
         if wide: expected_height=paper_chart.loaded_panel_height(loaded_system_count)*72
         if abs(width-expected)>.02 or abs(height-expected_height)>.02: raise ValueError('PDF dimensions differ from paper canvas')
         font_output=subprocess.check_output(['pdffonts',str(path)],text=True,timeout=30)

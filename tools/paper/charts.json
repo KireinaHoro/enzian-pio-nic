@@ -110,6 +110,7 @@
     },
     {
       "id": "echo-loaded-hot-latency-goodput",
+      "layout": "Single column, three payload panels, systems overlaid, four workers, shared log P99 RTT axis",
       "output": "../paper/plots/echo-loaded-hot-latency-goodput.pdf",
       "script": "tools/paper/plot_echo.py",
       "manifest": "data/paper/echo/hot-loaded-spawner-20261022.tar.gz",

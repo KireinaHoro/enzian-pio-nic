@@ -13,7 +13,9 @@ from campaign.policy import SIZES, observed_systems, system_label
 
 def render(source,output, *, rehearsal=False, sizes=SIZES):
     with input_file(source, "unloaded.json") as extracted:
-        return _render(extracted, output, rehearsal=rehearsal, sizes=sizes)
+        result = _render(extracted, output, rehearsal=rehearsal, sizes=sizes)
+    chart.provenance(output, source, "unloaded")
+    return result
 
 
 def _render(source,output, *, rehearsal=False, sizes=SIZES):
@@ -144,7 +146,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
     axes[-1].set_xlabel('Elapsed time ($\\mu$s)')
     fig.legend(*axes[0].get_legend_handles_labels(),loc='upper center',ncol=2,fontsize=7,columnspacing=1.1,handlelength=1.3)
     chart.save(fig,output/'echo-unloaded-hot-latency-breakdown.pdf')
-    (output/'echo-unloaded-statistics.json').write_text(json.dumps(statistics,indent=2)+'\n')
+    chart.diagnostics(output, 'echo-unloaded-statistics.json', statistics)
 
 
 if __name__=='__main__':

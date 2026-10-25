@@ -52,7 +52,9 @@ def panels(columns=3, rows=2):
 
 def render(source,destination, *, rehearsal=False, partial=False):
     with input_file(source, "loaded.json") as extracted:
-        return _render(extracted, destination, rehearsal=rehearsal, partial=partial)
+        result = _render(extracted, destination, rehearsal=rehearsal, partial=partial)
+    chart.provenance(destination, source, "loaded")
+    return result
 
 
 def _render(source,destination, *, rehearsal=False, partial=False):
@@ -77,11 +79,18 @@ def _render(source,destination, *, rehearsal=False, partial=False):
     destination=Path(destination); destination.mkdir(parents=True,exist_ok=True)
     stats=[]
     for kind in ('latency-goodput','overload-loss'):
-        fig,axes=panels(rows=len(systems))
+        if kind=='latency-goodput':
+            fig,unused=chart.figure(columns=1,height=3.5)
+            unused.remove()
+            axes=fig.subplots(len(SIZES),1,squeeze=False,sharex=True,sharey=True)
+            fig.subplots_adjust(left=.19,right=.98,bottom=.15,top=.88,hspace=.20)
+            for ax in axes[:,0]:
+                ax.set_yscale('log')
+        else:
+            fig,axes=panels(rows=len(systems))
         for si,system in enumerate(systems):
             for ni,size in enumerate(SIZES):
-                ax=axes[si,ni]
-                if kind=='latency-goodput': ax.set_ylim(0,75)
+                ax=axes[ni,0] if kind=='latency-goodput' else axes[si,ni]
                 for worker in ((4,) if kind=='latency-goodput' else workers):
                     record=next((r for r in records if (r['system'],r['size'],r['workers'])==(system,size,worker)),None)
                     if record is None: continue
@@ -95,18 +104,17 @@ def _render(source,destination, *, rehearsal=False, partial=False):
                         populations=[sum(t['transmitted'] for t in p['trials']) for p in points]
                         for percentile,style in ((99,'-'),):
                             y=[v.population_percentile(percentile,n)/1000 for v,n in zip(values,populations)]
-                            ax.plot(x,y,style,color=chart.COLORS[si],marker=('o','s','^')[ni],
-                                    markersize=3,label=f'{system_label(system,records)} {size} B')
+                            ax.plot(x,y,style,color=chart.COLORS[si],marker=('o','s','^')[si],
+                                    markersize=1.5,linewidth=.6,markeredgewidth=.3,label=system_label(system,records))
                             if x and len(points)<len(record['points']):
                                 # The vertical ray denotes the SLA stop, not an RTT sample.
                                 ax.annotate('',xy=(x[-1],1),xycoords=ax.get_xaxis_transform(),
                                             xytext=(x[-1],y[-1]),textcoords='data',
                                             arrowprops=dict(arrowstyle='->',color=chart.COLORS[si],
-                                                            linewidth=1.2,shrinkA=0,shrinkB=0))
+                                                            linewidth=.6,shrinkA=0,shrinkB=0))
                                 ax.annotate(r'$\infty$',xy=(x[-1],1),
                                             xycoords=ax.get_xaxis_transform(),xytext=(4,-2),
                                             textcoords='offset points',va='top',color=chart.COLORS[si])
-                        if y: ax.set_ylim(0,max(75,max(y)*1.15))
                         ordered=sorted(record['points'],key=lambda p:p['rate'])
                         excluded=ordered[len(points):]
                         cutoff=(dict(offered_rate=excluded[0]['rate'],
@@ -138,15 +146,18 @@ def _render(source,destination, *, rehearsal=False, partial=False):
                     ax.set_title(f'{size} application bytes',fontsize=9)
                     if si==0 and ni==0 and ax.get_legend_handles_labels()[0]: ax.legend(fontsize=6,ncol=2)
                 if kind=='latency-goodput':
-                    ax.set_xlim(left=0)
-                    ax.set_xlabel('Goodput (kRPC/s)')
-                    ax.set_ylabel(system_label(system,records,multiline=True)+': P99 RTT ($\\mu$s)')
-                    ax.set_title(f'{size} B',fontsize=9)
+                    if ni==len(SIZES)-1: ax.set_xlabel('Goodput (kRPC/s)')
+                    if si==0:
+                        ax.text(.97,.12,f'{size} B',transform=ax.transAxes,ha='right',fontsize=8)
+        if kind=='latency-goodput':
+            axes[0,0].set_xlim(left=0)
+            axes[len(SIZES)//2,0].set_ylabel('P99 RTT ($\\mu$s)',labelpad=2)
+            fig.legend(*axes[0,0].get_legend_handles_labels(),loc='upper center',ncol=min(3,len(systems)))
         filename='echo-loaded-hot-latency-goodput.pdf' if kind=='latency-goodput' else 'echo-overload-loss.pdf'
         chart.save(fig,destination/filename)
     if rehearsal:
-        (destination/'echo-trials.json').write_text(json.dumps(TRIAL_STATS,indent=2)+'\n')
-        (destination/'echo-statistics.json').write_text(json.dumps(stats,indent=2)+'\n')
+        chart.diagnostics(destination, 'echo-trials.json', TRIAL_STATS)
+        chart.diagnostics(destination, 'echo-statistics.json', stats)
         return
     fig,ax=chart.figure(columns=1,height=3.2)
     fig.subplots_adjust(left=.19,right=.97,bottom=.18,top=.72)
@@ -171,8 +182,8 @@ def _render(source,destination, *, rehearsal=False, partial=False):
     ax.yaxis.set_minor_formatter(NullFormatter())
     fig.legend(*ax.get_legend_handles_labels(),loc='upper center',ncol=2,fontsize=7)
     chart.save(fig,destination/'echo-loaded-hot-peak-throughput-workers.pdf')
-    (destination/'echo-statistics.json').write_text(json.dumps(stats,indent=2)+'\n')
-    (destination/'echo-trials.json').write_text(json.dumps(TRIAL_STATS,indent=2)+'\n')
+    chart.diagnostics(destination, 'echo-statistics.json', stats)
+    chart.diagnostics(destination, 'echo-trials.json', TRIAL_STATS)
 
 
 if __name__=='__main__':

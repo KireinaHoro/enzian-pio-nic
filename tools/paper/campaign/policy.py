@@ -28,8 +28,8 @@ def system_label(system, records, *, multiline=False):
     if system!='CS-A64':return system
     models={caladan_execution_model(r) for r in records if r['system']==system}
     if len(models)!=1:raise ValueError('Cannot combine Caladan execution models in one series')
-    suffix='spawner' if models=={'udp-spawner'} else 'resident'
-    return 'CS-A64'+('\n' if multiline else ' ')+suffix
+    if models=={'resident-workers'}:return 'CS-A64'
+    return 'CS-A64'+('\n' if multiline else ' ')+'spawner'
 
 
 SIZES = (8, 128, 1432)

@@ -6,6 +6,11 @@ matching FPGA inputs with the [development workflow](workflow.md); application
 package recipes and local overrides are documented there. Run host commands
 from the repository root in the Nix development environment.
 
+The [AArch64 VM/RTL co-simulation proposal](../proposals/rtl-vm-cosimulation.md)
+defines a future route for running production ECI software against RTL and
+migrating Scala tests that emulate software. Existing validation flows remain
+the supported routes until that proposal's feasibility and coverage gates pass.
+
 ## Board validation
 
 A successful build supplies an artifact, not board acceptance. A passing RPC

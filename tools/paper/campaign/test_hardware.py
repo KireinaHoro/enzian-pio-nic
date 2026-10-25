@@ -36,12 +36,12 @@ class Hardware(unittest.TestCase):
                     if argv[0]=='pdfinfo':return f'Pages: 1\nPage size: 504 x {height} pts\n'
                     return 'name type encoding emb sub uni object ID\n---\nFont Type1 Custom yes yes yes 7 0\n'
                 with patch.dict('sys.modules',{'paper_chart':chart}),patch('subprocess.check_output',side_effect=output),patch('subprocess.run'):
-                    result=pdf_checks(tmp,['echo-loaded-hot-latency-goodput'],loaded_system_count=count)
+                    result=pdf_checks(tmp,['echo-overload-loss'],loaded_system_count=count)
                     self.assertEqual(len(result),1)
                     canvas.assert_called_with(count)
                 with patch.dict('sys.modules',{'paper_chart':chart}),patch('subprocess.check_output',return_value=f'Pages: 1\nPage size: 504 x {height+10} pts\n'):
                     with self.assertRaisesRegex(ValueError,'dimensions'):
-                        pdf_checks(tmp,['echo-loaded-hot-latency-goodput'],loaded_system_count=count)
+                        pdf_checks(tmp,['echo-overload-loss'],loaded_system_count=count)
 
     def test_nested_capture_identity_is_unique_across_parent_attempts(self):
         with tempfile.TemporaryDirectory() as directory:
