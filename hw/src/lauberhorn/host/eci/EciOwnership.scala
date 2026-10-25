@@ -76,6 +76,11 @@ class EciOwnership extends FiberPlugin {
     val enabled = Reg(Bits(workers bits)) init 0
     val fence = Bits(workers bits)
     val install = Vec.fill(workers)(Flow(UInt(EciAddressMap.domain_bits bits)))
+    // Capture the trusted scheduler slot with the lifetime at handoff. Slot
+    // bindings are immutable, so fault routing need not compare every lifetime
+    // on the RX readiness and descheduling paths every cycle.
+    val installSlot = Vec.fill(workers)(UInt(log2Up(NUM_PROCS.get + 1) bits))
+    val ownerSlot = Vec.fill(workers)(Reg(UInt(log2Up(NUM_PROCS.get + 1) bits)) init 0)
     val ingress = Seq.fill(2)(EciAxiIngress(host[EciInterfacePlugin].axiConfig, workers))
     val busy = Bits(workers bits)
     val faults = EciDomainFaults(NUM_PROCS.get + 1, 3)
@@ -99,8 +104,7 @@ class EciOwnership extends FiberPlugin {
     for (w <- 0 until workers) {
       // Reset owner bits are not an assignment. In particular, code zero is a
       // real first lifetime: its failure must not fence never-installed workers.
-      failedWorkers(w) := enabled(w) && (1 to NUM_PROCS.get).map(s =>
-        faults.io.failed(s) && domainBound(s) && owners(w) === domainCodes(s)).reduce(_ || _)
+      failedWorkers(w) := enabled(w) && faults.io.failed(ownerSlot(w))
     }
     ingress.foreach { port =>
       port.io.owners := owners
@@ -111,7 +115,11 @@ class EciOwnership extends FiberPlugin {
     for (w <- 0 until workers) {
       when(install(w).valid) {
         assert(!busy(w), "owner changed with accepted AXI traffic outstanding")
+        assert(installSlot(w) =/= 0 && domainBound(installSlot(w)) &&
+          domainCodes(installSlot(w)) === install(w).payload,
+          "owner installation must retain its immutable slot binding")
         owners(w) := install(w).payload
+        ownerSlot(w) := installSlot(w)
         enabled(w) := True
       }
     }

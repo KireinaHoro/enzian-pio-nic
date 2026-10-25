@@ -1,20 +1,14 @@
 # Userspace TCP
 
-Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
-`../lauberhorn-tcp`. TCP is pinned to `77b7567`; memcached to `13f9e9a`.
-Phase-four DEADLINE/native TCP integration and VM/RTL policy agreement are
-implemented. The first routed build failed setup timing; the user authorized
-simplifying/pipelining that logic and launching one replacement manual build.
-The replacement build completed and improved timing, but setup violations
-remain a major blocker; matched artifacts are preserved and hardware acceptance
-has not started. The user will merge the feature branches and start the next
-timing round; finish the TCP simplification commit, then stop. No replacement
-bitstream build or board acceptance is authorized as part of that closeout.
-CI is unavailable;
-use the maintained Docker bundle workflow.
-Keep build selection, CPU flags, VM configuration and kernel options in Nix.
-Push incremental commits to the private GitLab remotes with `-o ci.skip`.
-Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+Platform TCP/DEADLINE integration and the TCP simplification are merged into
+master. TCP is pinned to `77b7567`; memcached to `13f9e9a`. The latest routed
+revision remains `73c3dc76`, with setup violations; hardware acceptance has not
+started. The active application-clock timing round and its one-build/callback
+boundary are tracked in [physical implementation](physical-implementation.md).
+The phase-four build records below retain provenance for those earlier runs.
+CI is unavailable; use the maintained Docker bundle workflow. Keep build
+selection, CPU flags, VM configuration and kernel options in Nix. Push to the
+private GitLab remote with CI skipped while using manual hardware builds.
 
 ## TCP simplification closeout
 

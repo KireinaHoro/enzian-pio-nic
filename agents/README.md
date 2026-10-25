@@ -9,7 +9,7 @@ for working rules and topic routing.
 - [Userspace TCP](userspace-tcp.md): shared VM backend, minimal FreeBSD import and TCP/memcached integration with four-domain acceptance.
 - [Caladan baseline](caladan.md): CS-A64 port integration, evidence and remaining checks.
 - [Measurements](measurements.md): instrumentation, evidence and remaining measurement work.
-- [Physical implementation](physical-implementation.md): timing pause and dependency ownership.
+- [Physical implementation](physical-implementation.md): timing work, build follow-up and dependency ownership.
 - [Hardware state](hardware-state.md): dated observations, preserved failures and reuse constraints.
 
 Hardware observations are historical, not live reservations. Read hardware state

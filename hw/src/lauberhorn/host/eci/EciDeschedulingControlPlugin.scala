@@ -72,6 +72,7 @@ class EciDeschedulingControlPlugin(val coreID: Int) extends DeschedulingService 
     proto.logic.externalQuiet := !ownership.busy(worker)
     ownership.fence(worker) := relinquished
     ownership.install(worker).setIdle()
+    ownership.installSlot(worker) := targetSlot
 
     ipiToIntc.cmd := 0
     ipiToIntc.intId := 8

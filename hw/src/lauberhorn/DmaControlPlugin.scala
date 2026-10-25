@@ -310,7 +310,10 @@ class DmaControlPlugin extends FiberPlugin {
       dp.hostTx.valid := True
     }
 
-    val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin.on(dps.map(_.hostTxAck)).setBlocked()
+    // A queued descriptor still owns its worker's TX buffer until completeTx.
+    // Cut arbitration away from owner/type validation and metadata capture.
+    val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin
+      .on(dps.map(_.hostTxAck)).pipelined(FULL).setBlocked()
     // A waiting sender may remain valid while another transaction owns DMA.
     // Capture only acceptance, or its buffer address/cookie can replace the
     // in-flight identity and send the acknowledgement to the wrong worker.

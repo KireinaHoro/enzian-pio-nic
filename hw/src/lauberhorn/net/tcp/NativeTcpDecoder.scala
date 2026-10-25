@@ -91,7 +91,7 @@ class NativeTcpDecoder extends Decoder[NativeTcpRxMeta] {
     inject.io.header.setIdle()
     val metadata = Stream(NativeTcpRxMeta())
     val output = Axi4Stream(config)
-    output << inject.io.output
+    output << inject.io.output.pipelined(StreamPipe.FULL)
     val ack, dropped = Bool()
     produceFinal(metadata, output, ack, dropped)
     val bypassHeader = Stream(IpRxMeta())

@@ -7,8 +7,8 @@ measured paths from possible explanations of board failures.
 
 ## Scope and interpretation
 
-Timing optimization is paused; [continuation context](../../agents/physical-implementation.md)
-records the restriction and retained experiment refs. The selected September 17
+The [continuation context](../../agents/physical-implementation.md) records the
+active application-clock work and retained experiment refs. The selected September 17
 candidate reached −0.007 ns with 17 failing setup endpoints. That is a result
 for revision `1c72ea0`, not timing closure or a measurement of current master.
 The comparisons below use their named source/tool/checkpoint inputs. Later
@@ -105,6 +105,31 @@ Changing this generic alters latency/backpressure and credit buffering. Read
 `tlk_credits.vhd` and test credit exhaustion/recovery, not only one successful packet.
 
 ## Floorplanning and constraints
+
+The application RTL separates deadline selection from descriptor capture, RX
+payload alignment from replay masking and response delivery, and TX arbitration
+from descriptor validation. Each FSM retains ownership until the corresponding
+completion handshake. RPC routing captures metadata and the local/remote choice
+before forwarding; remote payload waits for metadata acceptance. IPv4 TX header
+construction is registered before checksum reduction, with the acceptance pulse
+delayed by the same checksum latency. Worker fault routing uses the immutable
+scheduler slot captured with the lifetime at installation, preserving immediate
+sticky-fault fencing without repeated lifetime comparisons.
+Native UDP relies on shared IPv4 validation and registers pseudo-header checksum
+terms before payload accumulation. Packet-memory AXI slices isolate arbitration
+from RAM address/write-enable decode. Deadline command responses separate slot
+selection from generation increment and forward the pending result to CSR reads.
+
+Fine-grained placement groups in `floorplan.xdc` cluster each physical
+datapath's RX/TX protocol and replay storage, the scheduler with ownership state,
+the DCS AXI crossbar, DMA and IP/RPC logic. The main CMAC control registers and
+their reset synchronizer share an SLR0 region. The network trace dump parser,
+injector and aligner share an SLR1 region; trace capture DDR logic remains in
+SLR2. Only the DCS response pipeline is tightened within each DCS SLR, rather
+than restricting the full DCS implementation. Selectors fail on empty matches
+and print their match counts. The hierarchical shell requires hard pblocks;
+the groups do not reserve routing or exclude unrelated cells. Check available
+resources after hierarchical snapping, and measure their effect by post-route timing.
 
 `vivado/eci/xdc/floorplan.xdc` assigns decoders/encoders to SLR0, host-interface
 logic to a region spanning CLOCKREGION Y5–Y9, DCS halves to separated regions,

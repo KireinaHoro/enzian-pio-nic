@@ -571,6 +571,11 @@ class Scheduler extends FiberPlugin {
       val savedPoppedReq = Reg(HostReqWithTrace())
 
       val corePopQueueIdx = corePidMap(idx)
+      // Sample the candidate independently of arbitration. If selected on this
+      // edge, captureDeadline consumes that edge's generation even if software
+      // supersedes the timer concurrently or on the following cycle.
+      val deadlineGenerationAtSelection = RegNext(Vec(deadlines.map(_.io.generation))(corePopQueueIdx))
+      val deadlinePidAtSelection = RegNext(processPids(corePopQueueIdx))
       val execution = host.list[EciDecoupledRxTxProtocol].find(_.coreID == idx + 1)
       val watchdog = new ExecutionWatchdog()
       watchdog.io.now := watchdogNow.value
@@ -665,18 +670,12 @@ class Scheduler extends FiberPlugin {
                         (!packetDue(corePopQueueIdx) || queueMetas(corePopQueueIdx).empty)) {
               deadlineRequests(idx) := True
               when(deadlineSelected(idx)) {
-                savedPoppedReq.req.buffer.clearAll()
-                savedPoppedReq.req.len.bits := 0
-                savedPoppedReq.req.ty := HostReqType.deadline
-                savedPoppedReq.req.data.deadline.generation := Vec(deadlines.map(_.io.generation))(corePopQueueIdx).asBits
-                savedPoppedReq.req.data.deadline.pid := processPids(corePopQueueIdx)
-                savedPoppedReq.hostMsgId := invalidTraceId(HostMsgID.width)
                 for (slot <- 1 to NUM_PROCS.get) {
                   when(corePopQueueIdx === slot) { deadlines(slot).io.claim := True; packetDue(slot) := True }
                 }
                 deadlineTp.trace("SchedulerDeadlineSelected", coreTd, QueueIndex(corePopQueueIdx),
                   DeadlineGenerationLow(Vec(deadlines.map(_.io.generation))(corePopQueueIdx).resize(32)))
-                goto(sendPoppedReq)
+                goto(captureDeadline)
               }
             } elsewhen (toCore.ready && processEnabled(corePopQueueIdx) && !queueMetas(corePopQueueIdx).empty) {
               // core ready, we can ask for a request to be popped
@@ -693,6 +692,17 @@ class Scheduler extends FiberPlugin {
                 goto(popReadWait)
               }
             }
+          }
+        }
+        val captureDeadline: State = new State {
+          whenIsActive {
+            savedPoppedReq.req.buffer.clearAll()
+            savedPoppedReq.req.len.bits := 0
+            savedPoppedReq.req.ty := HostReqType.deadline
+            savedPoppedReq.req.data.deadline.generation := deadlineGenerationAtSelection.asBits
+            savedPoppedReq.req.data.deadline.pid := deadlinePidAtSelection
+            savedPoppedReq.hostMsgId := invalidTraceId(HostMsgID.width)
+            goto(sendPoppedReq)
           }
         }
         val desched: State = new State {

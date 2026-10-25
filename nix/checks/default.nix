@@ -68,7 +68,7 @@ in
   '';
   transport-pipeline = check "transport-pipeline" ''
     mill --no-daemon --offline gen.test.testOnly \
-      lauberhorn.PacketChecksumSim lauberhorn.host.eci.NativeTcpSim \
+      lauberhorn.PacketChecksumSim lauberhorn.RpcLocalRouteSim lauberhorn.host.eci.NativeTcpSim \
       lauberhorn.host.eci.NativeUdpSim lauberhorn.host.eci.DeadlineSim \
       lauberhorn.host.eci.CooperativeAllocationSim
     mill --no-daemon --offline gen.test.testOnly lauberhorn.host.eci.OncRpcSim \
@@ -83,7 +83,8 @@ in
     out/scheduler-policy > out/scheduler-policy-vectors.txt
     export LH_SCHEDULER_VECTORS="$PWD/out/scheduler-policy-vectors.txt"
     mill --no-daemon --offline gen.test.testOnly \
-      lauberhorn.SchedulerPolicyAgreementSim lauberhorn.SchedulerAllocationSim lauberhorn.DomainDeadlineSim
+      lauberhorn.SchedulerPolicyAgreementSim lauberhorn.SchedulerAllocationSim \
+      lauberhorn.DomainDeadlineSim lauberhorn.DeadlineRegistersSim
   '';
   blocks-tests = check "blocks-tests" ''
     mill --no-daemon --offline 'blocks[2.13.12].test'

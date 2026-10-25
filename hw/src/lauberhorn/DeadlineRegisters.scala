@@ -22,6 +22,16 @@ class DeadlineRegisters(bus: BusSlaveFactory, alloc: RegBlockAlloc,
   bus.write(index, command)
   val result = Reg(UInt(3 bits)) init 0
   val generation = Reg(UInt(64 bits)) init 0
+  val commandSeen = Bool()
+  commandSeen := False
+  val responsePending = RegNext(commandSeen) init False
+  val selectedGeneration = Reg(UInt(64 bits))
+  val selectedAccepted = Reg(Bool())
+  // Keep CSR address decode / slot selection separate from the 64-bit
+  // increment. Forward the pending result to reads, preserving immediate
+  // readback without interrupting a response already held under backpressure.
+  val responseGeneration = selectedGeneration + selectedAccepted.asUInt
+  when(responsePending) { generation := responseGeneration }
   slots.zipWithIndex.foreach { case (slot, i) =>
     slot.io.command.valid := False
     slot.io.command.next := next
@@ -36,13 +46,16 @@ class DeadlineRegisters(bus: BusSlaveFactory, alloc: RegBlockAlloc,
           .elsewhen(slot.io.stale) { result := 2 }
           .elsewhen(slot.io.exhausted) { result := 4 }
           .elsewhen(slot.io.tooSoon) { result := 3 }
-        generation := slot.io.generation + slot.io.accepted.asUInt
+        commandSeen := True
+        selectedGeneration := slot.io.generation
+        selectedAccepted := slot.io.accepted
       }
     }
   }
   bus.onWrite(command) { when(index >= slots.size) { result := 1 } }
   bus.read(result, alloc("deadline", "Result of atomic command", "result", attr = RO))
-  bus.read(generation, alloc("deadline", "Generation after command", "generation", attr = RO))
+  bus.read(Mux(responsePending, responseGeneration, generation),
+    alloc("deadline", "Generation after command", "generation", attr = RO))
   bus.read(now, alloc("deadline", "Live device clock ticks", "now", attr = RO))
   bus.read(U(minimumLead, 64 bits), alloc("deadline", "Minimum publication lead in ticks", "minimumLead", attr = RO))
   val snapshotIndex = UInt(indexWidth bits)

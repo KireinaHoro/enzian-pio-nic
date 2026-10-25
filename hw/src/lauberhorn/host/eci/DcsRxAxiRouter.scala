@@ -180,6 +180,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val payloadBytes = currentPktBuf.validBytes + prefixBytes
   val firstBody = Reg(Bits(512 bits)) init 0
   val secondBody = Reg(Bits(512 bits)) init 0
+  val alignedBody = Reg(Bits(512 bits))
+  val responseBody = Reg(Bits(512 bits))
   val sourceOffset = Reg(pktBufAxi.ar.addr.clone)
   val sourceShift = Reg(UInt(6 bits))
   val sourceSecond = RegInit(False)
@@ -334,7 +336,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val readBody: State = new State {
       whenIsActive {
         when(sourceOffset >= currentPktBuf.validBytes) {
-          when(!sourceSecond) { goto(nextBody) } otherwise { goto(sendPktData) }
+          when(!sourceSecond) { goto(nextBody) } otherwise { goto(alignPktData) }
         } otherwise {
           pktBufAxi.ar.valid := True
           pktBufAxi.ar.len := 0
@@ -351,14 +353,14 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         pktBufAxi.r.ready := True
         when(pktBufAxi.r.fire) {
           assert(pktBufAxi.r.isOKAY() && pktBufAxi.r.last)
-          when(sourceSecond) { secondBody := pktBufAxi.r.data; goto(sendPktData) }
+          when(sourceSecond) { secondBody := pktBufAxi.r.data; goto(alignPktData) }
             .otherwise { firstBody := pktBufAxi.r.data; goto(nextBody) }
         }
       }
     }
     val nextBody: State = new State {
       whenIsActive {
-        when(pktBufReadOff === 0 || sourceShift === 0) { goto(sendPktData) }
+        when(pktBufReadOff === 0 || sourceShift === 0) { goto(alignPktData) }
           .otherwise { sourceSecond := True; sourceOffset := sourceOffset + 64; goto(readBody) }
       }
     }
@@ -381,22 +383,37 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         finishBeat()
       }
     }
-    val sendPktData: State = new State {
+    // Keep the wide barrel shifter, replay mux and crossbar return mux on
+    // separate cycles. The FSM retains address/ID/last and ownership until the
+    // final R handshake; response data cannot change under backpressure.
+    val alignPktData: State = new State {
       whenIsActive {
-        dcsQ.r.valid := True
-        dcsQ.r.data := ((secondBody ## firstBody) |>> (sourceShift * 8)).resize(512)
+        alignedBody := ((secondBody ## firstBody) |>> (sourceShift * 8)).resize(512)
         when(pktBufReadOff === 0) {
-          dcsQ.r.data := (firstBody |<< (prefixBytes * 8)).resize(512) | prefixData
+          alignedBody := (firstBody |<< (prefixBytes * 8)).resize(512) | prefixData
         }
+        goto(mergePktData)
+      }
+    }
+    val mergePktData: State = new State {
+      whenIsActive {
+        responseBody := alignedBody
         val word = UInt(log2Up(shadowWords) bits)
         word := ((readOffset >> 6) + (2 - pktBufReadBeats)).resized
         val replay = shadow.readAsync(word)
         for(byte <- 0 until 64) {
           when(word < shadowWords && shadowMask(word)(byte)) {
-            dcsQ.r.data(byte * 8, 8 bits) := replay(byte * 8, 8 bits)
+            responseBody(byte * 8, 8 bits) := replay(byte * 8, 8 bits)
           }
-          when(pktBufReadOff + byte >= payloadBytes) { dcsQ.r.data(byte * 8, 8 bits) := 0 }
+          when(pktBufReadOff + byte >= payloadBytes) { responseBody(byte * 8, 8 bits) := 0 }
         }
+        goto(sendPktData)
+      }
+    }
+    val sendPktData: State = new State {
+      whenIsActive {
+        dcsQ.r.valid := True
+        dcsQ.r.data := responseBody
         dcsQ.r.id := readCmd.id
         dcsQ.r.setOKAY()
         dcsQ.r.last := pktBufReadBeats === 1

@@ -58,7 +58,7 @@ class PacketBuffer extends FiberPlugin {
     axiDma.io.write_abort := False
 
     val axiMem = new AxiDpRam(axiConfig, aPipelineOutput = true, bPipelineOutput = true)
-    axiMem.io.s_axi_a <> axiDma.io.m_axi
+    axiDma.io.m_axi.fullPipe() >> axiMem.io.s_axi_a
 
     // connect descriptors from [[DmaControlPlugin]]
     axiDma.s_axis_read_desc << dc.readDesc

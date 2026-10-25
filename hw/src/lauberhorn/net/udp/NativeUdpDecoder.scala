@@ -72,6 +72,12 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
       (second(15 downto 0).resize(17) + second(16).asUInt.resize(17)).resize(16)
     }
 
+    // Capture pseudo-header terms alongside the accepted metadata. Seed the
+    // accumulator on the following cycle, before admitting payload beats.
+    val seedIp = RegNext(wordSum(header.ipMeta.hdr.saddr ## header.ipMeta.hdr.daddr))
+    val seedUdp = RegNext(wordSum(header.hdr.asBits))
+    val seedLength = RegNext(EndiannessSwap(header.hdr.len).asUInt.resize(32) + 17)
+
     val keep = Bits(config.dataWidth bits)
     val terms = (0 until config.dataWidth).map { i =>
       val lane = i
@@ -95,19 +101,27 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
             val ipLen = EndiannessSwap(ip.len).asUInt
             length := udpLen - 8
             received := 0
-            checksumPipeline.io.seed.valid := True
-            checksumPipeline.io.seed.payload := wordSum(ip.saddr ## ip.daddr) + wordSum(header.hdr.asBits) + udpLen.resize(32) + 17
             val errors = Bits(5 bits)
             errors(0) := ip.version =/= 4 || ip.ihl =/= 5 ||
               (EndiannessSwap(ip.flags) & B(0xbfff, 16 bits)) =/= 0
-            errors(1) := folded(wordSum(ip.asBits)) =/= 65535
+            // IpDecoder validates the IPv4 checksum before UDP dispatch.
+            // Retain this diagnostic bit position without duplicating its
+            // full-header reduction on the native UDP admission path.
+            errors(1) := False
             errors(2) := udpLen < 8 || udpLen > 1480 || ipLen =/= udpLen.resize(16) + 20
             errors(3) := ip.daddr =/= host[lauberhorn.net.ip.IpDecoder].logic.ipAddress
             errors(4) := header.ipMeta.ethMeta.getPayloadSize < ipLen
             headerErrors := errors
             malformed := errors.orR
-            when(header.ipMeta.getPayloadSize === 8) { goto(drainChecksum) } otherwise { goto(collect) }
+            goto(seedChecksum)
           }
+        }
+      }
+      val seedChecksum: State = new State {
+        whenIsActive {
+          checksumPipeline.io.seed.valid := True
+          checksumPipeline.io.seed.payload := seedIp + seedUdp + seedLength
+          when(saved.ipMeta.getPayloadSize === 8) { goto(drainChecksum) } otherwise { goto(collect) }
         }
       }
       val collect: State = new State {

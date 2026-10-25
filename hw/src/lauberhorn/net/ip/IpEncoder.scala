@@ -146,22 +146,22 @@ class IpEncoder extends Encoder[IpTxMeta] {
     val savedPldLen = Reg(UInt(16 bits))
     val missIpAddr = Reg(Bits(32 bits))
     val missNeighTblIdx = Reg(UInt(log2Up(NUM_NEIGHBOR_ENTRIES) bits))
-    val csumNext = nextIpHdr.calcCsum()
+    // Separate metadata length/header construction from the first checksum
+    // adder. The acceptance pulse below follows the same full pipeline latency.
+    val checksumHeader = RegNext(nextIpHdr)
+    val csumNext = checksumHeader.calcCsum()
     val csumLat = LatencyAnalysis(nextIpHdr.ihl, csumNext)
-
-    // cycle budget: lookup latency + idle -> sendDownstreamMd -> sendEncoderHdr
-    val csumUsedIn = neighLat + 2
-    // make sure header is fully saved before lookup result is back
-    assert(csumLat <= csumUsedIn,
-      s"IP checksum calculation will take $csumLat cycles, longer than required ($csumUsedIn cycles)")
+    val checksumReady = RegInit(False)
 
     when (md.fire) {
       savedIpHdr := nextIpHdr
       savedPacketId := md.packetId
       savedPldLen := md.pldLen
+      checksumReady := False
     }
     when (Delay(md.fire, csumLat)) {
       savedIpHdr.csum := csumNext
+      checksumReady := True
     }
 
     // TODO: support default gateway i.e. lookup failed then send to gateway MAC address
@@ -255,9 +255,9 @@ class IpEncoder extends Encoder[IpTxMeta] {
       }
       val sendEncoderHdr: State = new State {
         whenIsActive {
-          encoder.io.header.valid := True
+          encoder.io.header.valid := checksumReady
           encoder.io.header.payload := savedIpHdr.asBits
-          when (encoder.io.header.ready) {
+          when (encoder.io.header.fire) {
             goto(sendEncoderPld)
           }
         }

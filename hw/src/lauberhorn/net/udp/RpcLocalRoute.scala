@@ -15,6 +15,7 @@ class RpcLocalRoute(md: Stream[UdpTxMeta], pld: Axi4Stream.Axi4Stream,
   val isLocal = RegInit(False)
   val complete = RegInit(False)
   val headerSent = RegInit(False)
+  val remoteHeaderSent = RegInit(False)
   val saved = Reg(UdpTxMeta())
   // RPC headers can add up to 40 bytes to a host payload. Round up, including
   // a possible partially occupied first beat from inline-header injection.
@@ -22,20 +23,25 @@ class RpcLocalRoute(md: Stream[UdpTxMeta], pld: Axi4Stream.Axi4Stream,
   val fifo = StreamFifo(pld.payloadType, depth)
   val chooseLocal = md.daddr === localAddress
 
-  remoteMd.valid := md.valid && !busy && !complete && !chooseLocal
-  remoteMd.payload := md.payload
-  md.ready := !busy && !complete && (chooseLocal || remoteMd.ready)
+  // Own metadata before selecting local delivery versus the remote encoder.
+  // This breaks the IP-address comparison -> encoder arbitration -> DMA
+  // completion ready chain and holds the route through downstream stalls.
+  remoteMd.valid := busy && !isLocal && !remoteHeaderSent
+  remoteMd.payload := saved
+  md.ready := !busy && !complete
+  when(remoteMd.fire) { remoteHeaderSent := True }
   when(md.fire) {
     busy := True
     isLocal := chooseLocal
     saved := md.payload
+    remoteHeaderSent := False
     assert(md.pldLen <= MTU.get + 40, "RPC local packet exceeds reserved capacity")
   }
-  remotePld.valid := pld.valid && busy && !isLocal
+  remotePld.valid := pld.valid && busy && !isLocal && remoteHeaderSent
   remotePld.payload := pld.payload
   fifo.io.push.valid := pld.valid && busy && isLocal
   fifo.io.push.payload := pld.payload
-  pld.ready := busy && (isLocal ? fifo.io.push.ready | remotePld.ready)
+  pld.ready := busy && (isLocal ? fifo.io.push.ready | (remoteHeaderSent && remotePld.ready))
   when(pld.fire && pld.last) {
     busy := False
     when(isLocal) { complete := True }

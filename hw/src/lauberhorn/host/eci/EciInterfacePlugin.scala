@@ -130,7 +130,11 @@ class EciInterfacePlugin extends FiberPlugin {
     }, "hostIf")
 
     // master nodes for access to packet buffer
-    val memNode = host[PacketBuffer].logic.axiMem.io.s_axi_b
+    val packetMemory = host[PacketBuffer].logic.axiMem.io.s_axi_b
+    val memNode = Axi4(packetMemory.config)
+    // Cut the shared packet-buffer arbitration from the RAM's address/write
+    // enable decode. AXI channel slices retain IDs and outstanding responses.
+    memNode.fullPipe() >> packetMemory
 
     val routedConfig = axiConfig.copy(arUserWidth = axiConfig.addressWidth,
       awUserWidth = axiConfig.addressWidth)

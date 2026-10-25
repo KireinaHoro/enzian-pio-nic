@@ -652,7 +652,9 @@ case class LauberhornTraceDma(
   )
   traceDumpDebug := traceDump.debug
   traceDump.rx << traceDumpRxFifo.m_axis
-  traceDump.tx >> traceDumpTxAligner.io.input
+  // Separate header injection/ARP arbitration from the output aligner's ready
+  // and valid logic; keep data/keep/last together under CMAC backpressure.
+  traceDump.tx.pipelined(StreamPipe.FULL) >> traceDumpTxAligner.io.input
   traceDump.cfg.localMacOverrideValid := traceDumpLocalMacOverrideValid
   traceDump.cfg.localMacOverride := traceDumpLocalMacOverride
   traceDump.cfg.localIpOverrideValid := traceDumpLocalIpOverrideValid

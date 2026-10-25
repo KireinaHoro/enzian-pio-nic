@@ -57,8 +57,13 @@ class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
     owners(slot) := io.allocateOwner
   }
   val replySlot = io.replyToken(slotBits - 1 downto 0).asUInt
-  io.replyValid := active(replySlot) && owners(replySlot) === io.replyOwner &&
-    generations(replySlot).asBits === io.replyToken(31 downto slotBits)
+  // Compare within each context bank before reducing; avoid selecting wide
+  // owner/generation words and broadcasting their comparison back to the bank.
+  val replyMatches = Vec.tabulate(count) { i =>
+    replySlot === i && active(i) && owners(i) === io.replyOwner &&
+      generations(i).asBits === io.replyToken(31 downto slotBits)
+  }
+  io.replyValid := replyMatches.asBits.orR
   io.replyContext := contexts(replySlot)
   when(io.retire) {
     assert(io.replyValid, "invalid reply context retired")
