@@ -49,7 +49,11 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
     val malformed = RegInit(False)
     val headerErrors = Reg(Bits(5 bits)) init 0
     val lastReject = Reg(Bits(8 bits)) init 0
-    val sum = Reg(UInt(32 bits)) init 0
+    val checksumPipeline = new lauberhorn.net.PacketChecksum(config.dataWidth)
+    checksumPipeline.io.seed.valid := False
+    checksumPipeline.io.seed.payload := 0
+    checksumPipeline.io.beat.valid := False
+    val sum = checksumPipeline.io.sum
     val fifo = StreamFifo(Axi4Stream.Axi4StreamBundle(config), (1472 + config.dataWidth - 1) / config.dataWidth)
     fifo.io.push.setIdle()
     fifo.io.pop.setBlocked()
@@ -61,7 +65,7 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
     dropped := False
 
     def wordSum(raw: Bits): UInt = raw.subdivideIn(16 bits)
-      .map(x => EndiannessSwap(x).asUInt.resize(32)).reduce(_ + _)
+      .map(x => EndiannessSwap(x).asUInt.resize(32)).reduceBalancedTree(_ + _)
     def folded(value: UInt): UInt = {
       val first = value(15 downto 0).resize(17) + value(31 downto 16).resize(17)
       val second = first(15 downto 0).resize(17) + first(16).asUInt.resize(17)
@@ -74,11 +78,12 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
       val wanted = received + i < length.resize(17)
       keep(lane) := input.keep(lane) && wanted
       val byte = input.data(lane * 8 + 7 downto lane * 8).asUInt
-      Mux(keep(lane), byte.resize(32) |<< (if (i % 2 == 0) 8 else 0), U(0, 32 bits))
+      Mux(keep(lane), byte.resize(16) |<< (if (i % 2 == 0) 8 else 0), U(0, 16 bits))
     }
     val count = CountOne(input.keep).resize(17)
     val contiguous = input.keep === (B((BigInt(1) << config.dataWidth) - 1, config.dataWidth bits) |>> (config.dataWidth - count))
 
+    checksumPipeline.io.beat.payload := Vec(terms)
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -90,7 +95,8 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
             val ipLen = EndiannessSwap(ip.len).asUInt
             length := udpLen - 8
             received := 0
-            sum := wordSum(ip.saddr ## ip.daddr) + wordSum(header.hdr.asBits) + udpLen.resize(32) + 17
+            checksumPipeline.io.seed.valid := True
+            checksumPipeline.io.seed.payload := wordSum(ip.saddr ## ip.daddr) + wordSum(header.hdr.asBits) + udpLen.resize(32) + 17
             val errors = Bits(5 bits)
             errors(0) := ip.version =/= 4 || ip.ihl =/= 5 ||
               (EndiannessSwap(ip.flags) & B(0xbfff, 16 bits)) =/= 0
@@ -100,7 +106,7 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
             errors(4) := header.ipMeta.ethMeta.getPayloadSize < ipLen
             headerErrors := errors
             malformed := errors.orR
-            when(header.ipMeta.getPayloadSize === 8) { goto(validate) } otherwise { goto(collect) }
+            when(header.ipMeta.getPayloadSize === 8) { goto(drainChecksum) } otherwise { goto(collect) }
           }
         }
       }
@@ -114,12 +120,15 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
           fifo.io.push.last := received + count >= length.resize(17)
           when(input.fire) {
             when(received < 65536) { received := (received + count).resized }
-            sum := sum + terms.reduce(_ + _)
+            checksumPipeline.io.beat.valid := True
             when(!contiguous || (!input.last && !input.keep.andR) ||
                 (keep.orR && !malformed && !fifo.io.push.ready)) { malformed := True }
-            when(input.last) { goto(validate) }
+            when(input.last) { goto(drainChecksum) }
           }
         }
+      }
+      val drainChecksum: State = new State {
+        whenIsActive { when(!checksumPipeline.io.busy) { goto(validate) } }
       }
       val validate: State = new State {
         whenIsActive {

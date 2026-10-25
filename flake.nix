@@ -14,8 +14,12 @@
       url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/microbenchmarks.git?ref=master";
       flake = false;
     };
+    tcp = {
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git?ref=userspace-tcp-phase-three";
+      flake = false;
+    };
     memcached = {
-      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=lauberhorn";
+      url = "git+ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git?ref=userspace-tcp-phase-three";
       flake = false;
     };
     memcachedUpstream = {
@@ -101,6 +105,7 @@
           }
           // pkgs.lib.optionalAttrs linux {
             thunderx-ptp = platform.thunderx.checks;
+            userspace-vm = platform.vmTest;
           };
         # Standard package outputs are complete deployable artifacts.
         packages = pkgs.lib.optionalAttrs linux platform.images;
@@ -116,10 +121,23 @@
           kernel = {
             buildTree = platform.kernelBuildTree;
             lauberhornModule = platform.kmod;
+            vmModule = platform.vmModule;
             thunderxPtpModules = platform.thunderx.modules;
           };
           software = {
-            inherit (platform) runtime runtimeUninstrumented microbenchmarksUninstrumented dandelion memcached;
+            inherit (platform)
+              runtime
+              runtimeUninstrumented
+              runtimeNative
+              runtimeVm
+              tcp
+              tcpVm
+              microbenchmarksUninstrumented
+              dandelion
+              memcached
+              memcachedTcp
+              transportValidation
+              ;
             inherit (platform.applications) microbenchmarks recovery-test nested-validation;
             memcachedReferenceNative = platform.memcachedReference;
             inherit (platform) mlx5TrafficGenerator mlx5TrafficGeneratorNative

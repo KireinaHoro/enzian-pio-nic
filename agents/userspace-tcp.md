@@ -1,0 +1,789 @@
+# Userspace TCP
+
+Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
+`../lauberhorn-tcp`. TCP is pinned to `77b7567`; memcached to `13f9e9a`.
+Phase-four DEADLINE/native TCP integration and VM/RTL policy agreement are
+implemented. The first routed build failed setup timing; the user authorized
+simplifying/pipelining that logic and launching one replacement manual build.
+The replacement build completed and improved timing, but setup violations
+remain a major blocker; matched artifacts are preserved and hardware acceptance
+has not started. The user will merge the feature branches and start the next
+timing round; finish the TCP simplification commit, then stop. No replacement
+bitstream build or board acceptance is authorized as part of that closeout.
+CI is unavailable;
+use the maintained Docker bundle workflow.
+Keep build selection, CPU flags, VM configuration and kernel options in Nix.
+Push incremental commits to the private GitLab remotes with `-o ci.skip`.
+Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
+
+## TCP simplification closeout
+
+Hardware TCP RX/TX validation, checksum accumulators and whole-packet validation
+FIFOs are removed. Full IPv4 packets remain the host interface. The shared
+IpDecoder validates version, IHL, IP length and checksum (including options)
+with a registered reduction; valid options/fragments bypass TCP/UDP parsing.
+TCP selects destination ports and forwards received bytes including padding;
+software trims padding and validates TCP. TX retains endpoint ownership/buffer
+bounds and emits software TCP bytes unchanged through the IP/Ethernet encoders.
+The VM mirrors this split, subject to Linux IP ingress validation/offload handling.
+TCP adapter commit `77b7567` handles padding and drops malformed packet errors
+without terminating the runtime worker; pushed with CI skipped.
+
+Latest routed evidence remains `73c3dc76`, not this source change. Its application
+clock top-1000 report is `out/phase4-manual-73c3dc76/app-top1000/` (exact DCP,
+Vivado 2025.1, launch/capture application clock, one path per endpoint). Slack
+ranges −1.119..−1.063 ns. Destination-family counts: RX routers 415, crossbar
+182, scheduler 128, TX routers 74, trace 48, CMAC 43, DCS 26, DMA 20, TCP 15,
+IP checksum 9, RPC 7, other 33. Median logic levels/routing share: RX 13/85%,
+crossbar 8/88%, TX 13/83%, scheduler capture 17/74%, other scheduler 9/89%,
+trace 19.5/80%, CMAC 0/99%, DCS 6/91%. These are bounded-sample statistics,
+not the distribution of every failing endpoint or a new timing result.
+
+Validation: the full userspace-vm check passed in 431.65 s, including raw TCP,
+TCP/memcached, DEADLINE, competing domains and nested RPC. Log:
+`/tmp/tcp-simplification-vm.log`; drv `zbgiqcysqc4g3khfqn9a4jx1gbmk6q5m`.
+TCP library checks passed at `/tmp/tcp-simplification-library.log`
+(config/protocol/concurrency/publication), drv `7i4l13gg8chink9x2h4xhmyv2apqqfmn`.
+Final transport-pipeline check passed all seven RTL tests (six transport/policy
+checks plus nested-RPC reclamation), none canceled/ignored. Logs:
+`/tmp/tcp-simplification-checks-final.log`, `/tmp/tcp-simplification-rtl-final.log`;
+drv `adx9hf4x7672ij5njyf8m7snfxhwlhw0`. Outputs are retained at
+`out/tcp-simplification-checks{,-1}` in the main checkout. Generated RTL/headers
+and the VM module were rebuilt through Nix. No new routed timing or board result.
+The closeout ends with the platform commit/push; the maintainer owns merging and
+the next timing round.
+The first shared-IP RTL run passed five of six tests; the UDP test's consecutive
+trace-ID assumption needed adjustment because fragment bypass consumes an ID.
+Earlier `/tmp/tcp-port-only-*` runs were superseded by shared-IP validation;
+do not count interrupted runs as passes.
+
+## Phase-four current checkpoint
+
+SchedulerAllocation centralizes all four normal reasons. The VM calls the pure
+C counterpart in sw/kmod/scheduler_policy.h; the source-owned scheduler-policy
+Nix check compiles that actual helper and compares 4096 stateful vectors with
+RTL. Exact watermark, reservation limits, cooperative readiness and arbitration
+also have targeted RTL checks. Legacy wake_idx/softwarePending is gone.
+
+ECI ABI 4 wires DomainDeadline, privileged DeadlineRegisters, generation-only
+RX without a buffer allocation, and SET/GET kernel conversion/control. Claims
+suppress duplicate deliveries but only successful acknowledgement/replacement
+or lifetime retirement clears pending state. Traces separate timer events from
+ordinary core events; trace generation is low 32 bits, public/control generation
+is 64 bits. Nix owns minimum lead; the VM defaults to the same RTL package value.
+
+Current evidence:
+- `out/phase4-scheduler-policy`, `/tmp/lh-phase4-policy-agreement-fixed.log`:
+  all three tests passed, none canceled. Includes actual C/RTL differential
+  comparison, targeted allocator and timer-slot state tests.
+- `/tmp/lh-phase4-deadline-accepted.log`: full ECI DeadlineSim passed (146 s
+  Mill invocation). Tests no-packet idle activation, one core only, single
+  notification, stale ACK rejection, cancellation/rearm, NACK and coherent
+  control-line retirement across three expiries.
+- `out/phase4-deadline-eci-final`, `/tmp/lh-phase4-deadline-build-final.log`:
+  matching AArch64 kernel/runtime builds passed. Kernel drv
+  `3miha4s2jrrq7v8df96x0ycg9gk1bg63`, runtime
+  `a7awp6afk8vjyjs320dbm7rq9qqkbz0v`.
+- `out/phase4-scheduler-vm`, `out/phase4-scheduler-vm-run`,
+  `/tmp/lh-phase4-scheduler-vm-run.log`: full suite passed in 119.22 s,
+  including scheduler/DEADLINE, RPC timeout, TCP protocol/wakeup and four
+  memcached applications. 128 persistent streams, all four domains fully
+  parked and resumed, eight bursts, all 16 workers observed. Low-rate p95
+  1.04–1.21 ms is functional-test evidence, not a benchmark. Subsequent removal
+  of an unused C counting helper and Nix metadata/default plumbing did not
+  change the tested policy.
+
+Initial test failures were fixed: simulation timeout used picoseconds rather
+than milliseconds; two trace sources fired on one port; full generation plus
+IDs exceeded the existing trace payload. Preserved logs:
+`/tmp/lh-phase4-deadline-sim.log`, `...-sim-final.log`,
+`...-trace-fixed.log`. The asserted sim-final test wrapper was explicitly
+terminated after the Verilog failure; the final accepted test exited normally.
+The first policy Nix check omitted C sources from its hardware-only closure;
+the recipe now supplies the two C inputs explicitly. No validation process from
+this checkpoint needs to remain running.
+
+Native TCP contains listen-port RX, full IPv4/TCP payload delivery, and opaque
+TCP TX through existing IP/Ethernet encoders, ABI 4
+packing, ECI endpoint registration and runtime entry points. The TCP port namespace
+is independent of UDP. Kernel reservations remain for the domain lifetime.
+The old empty net/Tcp.scala placeholder is removed. TCP RX/TX and matched
+AArch64 kernel/runtime checks passed. Platform checkpoint `85df5bc0` is pushed
+with CI skipped. Bypass regression and AArch64 TCP packaging evidence follow.
+
+RX evidence: `/tmp/lh-phase4-tcp-encoder-elaboration.log` passed NativeTcpSim
+(RX-only version) and NativeUdpSim, 2 tests, 143 s. RX covers all TCP flags,
+TCP options, checksums, IP length/header negatives, full IP payloads, and
+unaltered unmatched/fragment/IP-options bypass. Fixed two failures: a register
+between aligner and listen lookup breaks the stalled first-beat handshake;
+IP MTU is 1500, whereas Global.MTU is the 1518-byte Ethernet buffer bound.
+Preserve `/tmp/lh-phase4-tcp-rx-debug.log` and `...-rx-buffered.log` for those failures.
+
+Transport validation:
+- `/tmp/lh-phase4-tcp-tx-sim.log`: expanded TCP RX/TX (endpoint ownership,
+  spoofed source tuple, checksum completion, inline/overflow dirty reservation)
+  passed. Bypass simple/IPv6/neighbor resolution/invalidation cases passed.
+  Five duplicate legacy bypass sweeps failed at address 0x1e80 because they
+  attempted 9 KiB payloads outside the current twelve-line TX window. All five
+  used tid=-1, so they never tested separate worker datapaths.
+- `/tmp/lh-phase4-bypass-bounded.log`: replacement `scan-sizes-bypass` passed
+  in 223 s, one bypass sweep through the supported IPv4 payload range with
+  an explicit 1480-byte boundary. All simulation sessions are terminal.
+- `/tmp/lh-phase4-tcp-eci-build.log`, `out/phase4-tcp-eci`: matched generated
+  headers, AArch64 kernel/runtime passed. Kernel drv
+  `m3lqqz00fwmyvbx0rnnd34hs1k5ciazs`, runtime
+  `v6ccz63kwdiimm6r1mngjdmgy6zcgrwq`. No functional changes after launch;
+  subsequent edits removed the empty placeholder and updated comments/docs.
+
+TCP `226fc21` is pushed with CI skipped. Make declares/validates ARCH=amd64|arm64;
+Nix selects architecture and uses qemu-user for cross checks, explicitly enabling
+the standard check phase which stdenv otherwise suppresses. 28 pristine arm64/CK
+headers added to the same pinned FreeBSD manifest (337 files total); compiler
+dependency output was used to remove an unused pcb.h. Port changes are ARM yield,
+LL/SC capability default, and architecture-specific unused VM declarations.
+- `/tmp/lh-tcp-arm-check-full.log`, `out/tcp-aarch64`: actual QEMU execution
+  passed TCP_CONFIG_PASS, TCP_PROTOCOL_PASS (four workers/shared connection),
+  TCP_HOST_CONCURRENCY_PASS (timers/reclamation). drv lqqb4l1jxxr3y3x13gjazqzm86svivc4.
+- `/tmp/lh-tcp-arm-amd64-regression.log`, `out/tcp-amd64`: native build/check
+  passed, drv b1yl48zsyrs5lrxwfn9n494hvza2j7hx.
+- `/tmp/lh-phase4-memcached-arm-build.log`, `out/phase4-memcached-arm`:
+  AArch64 runtime adapter checks and memcached build passed using the source
+  path override of TCP 226fc21. ELF confirmed AArch64. Adapter check evidence
+  `/tmp/lh-phase4-tcp-arm-runtime-full.log` includes TCP_RUNTIME_PUBLICATION_PASS
+  plus protocol/concurrency/config; TCP drv k6y5kpn8l0vgi2qbfr5hn59sc9gq3py7.
+  All validation processes from this checkpoint are terminal.
+Platform exposes software.tcp and software.memcachedTcp without changing the
+UDP-only default. The TCP flake input was updated to the pushed commit.
+
+Shared VM/ECI fixtures now build through sw/tests/transport/Makefile and
+nix/software/tcp-validation.nix. tcpValidationImage includes them, TCP-enabled
+memcached and peer Python/nftables. tools/enzian/transport_validation.py generates
+six cases for test.py: packet-free DEADLINE, raw TCP ownership/endpoint rejection,
+TCP protocol/retransmission/reassembly, memcached TCP, four-domain persistent
+bursts and UDP regression. test.py post_cpu checks stop before another reset
+on failure. Two unit tests cover shell payloads and failed-post-check preservation.
+
+`out/phase4-hardware-fixtures` driver and `out/phase4-hardware-fixtures-1` image
+built successfully; `/tmp/lh-phase4-hardware-fixtures-build.log`.
+Full KVM suite passed in 139.50 s: `out/phase4-hardware-fixtures-run`,
+`/tmp/lh-phase4-hardware-fixtures-run.log`. Both local and remote raw peers
+passed timer-only SYN-ACK retransmission/reassembly/FIN. Packet-free DEADLINE,
+RPC/UDP, TCP protocol/wakeup, observed four-domain parking and the hardware's
+network-only 64-stream/eight-burst fixture all passed.
+
+Final implementation revision **ed902d661a5735c355ec6b77ee334caf2dd9f713** is
+pushed with CI skipped. The first c55ec740 bundle failed its maintained port gate:
+missing TCP wrapper connections and 21 DEADLINE trace ports allocated after NIC
+IO construction. ed902d66 allocates them in setup, rejects late makePort calls,
+and connects all 81 sources in VHDL. Preserve the failed log
+`/tmp/lh-phase4-c55ec740-artifacts.log`. Corrected integration passed:
+`out/phase4-trace-fixed-inputs`, `/tmp/lh-phase4-trace-fixed-inputs.log`.
+Full ECI DeadlineSim passed with tracing/assertions active in 244 s:
+`/tmp/lh-phase4-trace-deadline-sim.log`. No scheduler decisions changed.
+
+Clean-revision artifacts built successfully:
+- `out/phase4-ed902d66-artifacts`: ECI Vivado bundle; git-revision is ed902d66.
+- `out/phase4-ed902d66-artifacts-1`: 218 MiB tcpValidationImage. Embedded manifest
+  extracted and checked: platform.local=false, exact ed902d66 revision.
+- Image SHA256: `03248c6e83661135977ca6c5ed130a85f6ff39e8709c43929a4e0aa0caf874fb`.
+- `/tmp/lh-phase4-ed902d66-artifacts.log`: build evidence. Final AArch64 TCP
+  checkPhase under QEMU passed configuration, protocol, concurrency and runtime
+  publication checks (drv djxd9yrqi3amym1ila892sn4n7vgjddn).
+- Final port verifier: NIC 354 ports, trace DMA 497 ports, all 16 ILA probes and
+  five 21-bit debug state probes match the maintained wrapper.
+
+The shared-scratch quota blocker is resolved. The image is staged at
+`/scratch/pengxu/phase4-ed902d66/tcp-validation.img`; its remote SHA256 matches
+above. The prepared cases, manifest and maintained nested-RPC peer client are
+staged alongside it. No existing experiment artifacts were deleted.
+
+## Manual phase-four build and callback
+
+The requested launch boundary is reached; real hardware acceptance follows the
+callback. Build revision is **ed902d66**, not subsequent documentation commits.
+
+- Host: enzian-ba2; root `/tmp/lauberhorn-phase4-ed902d66-20261024`.
+- Inputs and launcher: `inputs/`, `launch.sh`. Nine hashes (RTL, trace map,
+  wrapper, static shell, runner and revision metadata) verified remotely.
+- Detached launcher PID **132853**; container **6d1b3f5efebb**. Docker process
+  inspection confirmed live Vivado processes 132936/132985, not just a shell.
+- Progress: `launcher.log` and `build/vivado-build.log`; terminal status is
+  `build.exit`. Do not infer completion from the existence of output directories.
+- Outputs after success: `build/eci/vivadoProject.dest/` bit/ltx/routed DCP,
+  plus `build/physical/COMPLETE` and reports.
+- Final callback on October 24: `build.exit=0`, launcher exited, Docker
+  container removed, and `physical/COMPLETE` present. Bitstream/probes and
+  post-route reports completed successfully. No further timer is armed.
+- **Major blocker: final setup timing fails.** Maintained physical digest reports
+  WNS **−1.944 ns**, TNS **−67852.938 ns**, **125173** failing endpoints.
+  Hold slack is 0.000 ns with zero failures; pulse-width slack +0.039 ns with
+  zero failures. All 1053217 routable nets are routed, zero routing errors.
+- Worst path: worker 1 descheduling snapshot bit 1 to Scheduler queue-memory
+  address bit 8, 27 logic levels, 6.615 ns data delay (2.077 ns logic,
+  4.538 ns routing) against 5 ns. The bounded sample also includes UDP/TCP
+  checksum accumulation; ECI clk_sys representative fails at −0.461 ns.
+  These are final post-route measurements, not intermediate router estimates.
+- Collected under `out/phase4-manual-ed902d66/collected/`: matched bitstream,
+  probes, routed DCP, generated trace map, complete physical reports/digest,
+  build logs and exit status. Remote artifact SHA256 values verified locally;
+  trace-map SHA256 matches the immutable input manifest. Remote originals remain.
+- Stopped before board access or seven-case acceptance because timing is a major
+  blocker and timing optimization remains paused. No functional hardware result
+  is claimed. Branch remains unmerged; no rebuild or artifact substitution.
+
+
+
+`out/phase4-manual-ed902d66/` holds record.json, embedded manifest, image/bundle
+hashes, program.json, seven-case cases.json, launch.sh, schedule.py, callback
+command/prompt JSON and callback-receipt.log. The cases are six shared transport
+checks plus maintained nested-RPC timeout/late-reply validation, for two repeats.
+The record has launcher/container IDs, staging and callback verification. The
+schedule helper's `--delay 30m --recheck` handles a still-running build; inspect
+existing timer/service state first. Do not start a duplicate build or a new
+five-hour delay on an observation timeout.
+
+At callback: collect/check timing and artifact hashes, then run matched hardware
+acceptance through test.py. The prepared 07/14 topology comes from the existing
+campaign configuration: recheck live reservation, active campaign, routes, MTU,
+peer image mount and preserved failure state before board access. Do not interrupt
+another active campaign. Follow enzian-deploy and mandatory capture before reset;
+keep tracing armed through module load. No board provisioning, reset or console
+access occurred during this launch. No CI build was launched.
+
+## Authorized phase-four timing correction
+
+On October 25 the user requested simplifying/pipelining the failing logic and
+launching one replacement manual build. Work remains on userspace-tcp-phase-three;
+the main checkout has unrelated rx-trampoline-proposal work. Preserve the
+ed902d66 artifacts and final reports above as the baseline.
+
+The correction shares timer/background donor masks (their recipient owns zero
+cores), selects queue heads directly with one-hot arbitration, and registers the
+BRAM read address. Queue occupancy retires on the actual read edge, not the
+reservation edge; the pending queue cannot grant the same head twice. Worker and
+reclamation FSMs retain ownership through the additional cycle. TCP RX/TX and
+UDP RX use a shared balanced two-stage checksum reduction and explicitly drain
+it before validation. Public ABI and scheduling policy remain unchanged.
+
+Nix checks: scheduler-policy retains C/RTL stateful agreement; transport-pipeline
+covers checksum bubbles/drain/reseed, complete TCP/UDP/DEADLINE integration,
+cooperative allocation and disabled-process RPC queue/context reclamation.
+All final-source checks passed: scheduler-policy ran three tests, including
+4096 stateful C/RTL vectors; transport-pipeline ran six tests plus the separately
+selected disabled-process RPC reclamation test, all passing with none canceled.
+Evidence: `out/phase4-timing-final-checks{,-1}`,
+`/tmp/lh-phase4-timing-final-checks.log`, and
+`/tmp/lh-phase4-timing-transport-results.log`. Derivations:
+`gm7gdmqr0h8rizmkwwy5v3lz964igd00` (policy),
+`hhbd6v3nbpjh1nikr7i9d2vdxf4fkhxw` (transport). An earlier local validation
+snapshot was explicitly interrupted after finalizing the queue reservation logic;
+only the final check results above establish acceptance.
+
+Replacement artifact revision: **73c3dc764e4d6cc641f730a1cf1be4f83f1d8798**.
+Both Nix outputs built successfully (`/tmp/lh-phase4-73c3dc76-artifacts.log`):
+`out/phase4-73c3dc76-artifacts{,-1}`. The bundle passes generated NIC/trace/ILA
+port checks; the image embeds this clean revision. Image SHA256:
+`9941d7111ce88758218df3d68a302ff45c6cc353bfcd97eb17b6e5a2aca915dd`.
+
+- Manual build: enzian-ba2, `/tmp/lauberhorn-phase4-73c3dc76-20261025`.
+  Launcher **425586**, container **62a776299bb9**, live Vivado processes
+  **425671/425720** verified. No exit status at launch. Read `build.exit` and
+  the exact process/container before judging completion; never relaunch merely
+  because a status observation times out.
+- Immutable record and prepared seven-case acceptance:
+  `out/phase4-manual-73c3dc76/{record.json,cases.json,program.json}`.
+  Matching image/client/manifest staged under `/scratch/pengxu/phase4-73c3dc76/`.
+  All nine input hashes, image SHA256 and three test/provenance hashes verified
+  remotely. Gateway home access reported an expired key, but scratch transfers
+  and hash verification succeeded; board access was not attempted.
+- Final observation at 10:11 CET on October 25: `build.exit=0`, launcher
+  exited, recorded Docker container removed, `physical/COMPLETE` present.
+  The build and report collection succeeded; no further timer is armed.
+- **Major blocker remains: final setup timing.** Maintained digest comparison
+  against ed902d66: WNS **−1.944 → −1.119 ns**, TNS **−67852.938 →
+  −32012.260 ns**, failing endpoints **125173 → 82260**. Hold/pulse-width
+  failure counts remain zero, minimum slacks +0.001/+0.039 ns. All 1050265
+  routable nets are routed with zero routing errors. This is improvement,
+  not timing closure or functional hardware acceptance.
+- Worst representative: CMAC AXI reset synchronizer to a TX flow-control
+  configuration register reset, 5.919 ns delay (5.847 ns routing), zero logic
+  levels. The bounded sample also has a domain-code → Scheduler saved-request
+  path at −1.119 ns with 17 levels, and reply-context paths at the same slack.
+  ECI clk_sys representative is −0.421 ns. Multiple families remain; do not
+  infer that fixing the CMAC path alone resolves the setup failures.
+- Matched bitstream, probes, routed DCP, generated trace map, build logs,
+  terminal status and all physical reports/digest are preserved under
+  `out/phase4-manual-73c3dc76/collected/`. Remote artifact hashes verified
+  locally; trace-map hash matches the immutable input manifest. Remote originals
+  and the ed902d66 baseline remain intact.
+- Stopped before board access or the seven-case hardware acceptance because
+  final timing remains a major blocker. The authorized replacement build is
+  complete; no further implementation/build was started. No functional result
+  or benchmark claim is made. Reservations/topology still require live preflight
+  when hardware acceptance resumes.
+
+Use `/tmp/lauberhorn-tcp-followup` for feature sources and documentation. The main
+checkout contains unrelated work. The branch remains deliberately unmerged;
+implementation and continuation commits are pushed with CI skipped.
+
+## TCP second-stage build
+
+TCP `13a182b` moves compilation, pristine-import verification, patching, linking,
+pkg-config metadata and installation into Make. `all` builds libraries only;
+`check` builds/runs tests; `install` installs the component (test executables
+stay in build/). `config.mk` defaults and maint/config.py bounds are validated
+before compilation. Nix supplies dependencies and typed argument overrides via
+makeFlags and uses standard phases. No transport code changed.
+
+Validation: standalone single-worker Nix check passed
+(`/tmp/lh-tcp-make-single.log`, `out/tcp-make-single`); sanitizer protocol and
+four-worker concurrency checks passed (`/tmp/lh-tcp-make-sanitized.log`,
+`out/tcp-make-sanitized`). Direct Make inside nix develop passed build/check
+separation, no-op rebuild, invalid configuration rejection, WORKERS change
+recompilation and both worker-count checks (`/tmp/lh-tcp-make-incremental.log`,
+`/tmp/lh-tcp-make.1mgMSp`). The actual VM driver dependency chain built successfully
+with the final source (`/tmp/lh-tcp-make-vm-build.log`,
+`out/userspace-vm-tcp-make`); its TCP check phase passed protocol, concurrency,
+configuration and runtime publication tests (derivation y9f2khl5dsncnwdnwfnj9i5qs4q4lhdk).
+The committed pin also resolved successfully (`out/userspace-vm-tcp-make-pinned`,
+`/tmp/lh-tcp-make-pinned.log`). The VM itself was not rerun for this build-only change. The redundant dev-runtime
+build was stopped while restoring unrelated hardware-generation dependencies;
+the actual VM dependency chain above supplied the matched runtime instead.
+
+## Adapter cleanup follow-up
+
+The user requested a holistic cleanup against memcached master. Commit `13f9e9a`
+extracts shared lifecycle, UDP ownership and TCP scheduling into separate modules,
+with a public adapter hook header and a private module header. Transport selection
+is removed from thread.c and UDP startup. Core response ownership hooks delegate
+to the TCP module. The core diff against master is 69 lines in memcached.c,
+13 in thread.c and six metadata lines in memcached.h. Package version no longer
+labels the combined build UDP-only. All source changes are on the existing branch.
+
+Pinned VM acceptance passed in 118.31 s with the maintained test unchanged:
+`out/userspace-vm-memcached-modular-final`, output
+`out/userspace-vm-memcached-modular-run`, log `/tmp/lh-memcached-modular-run.log`.
+It includes both transports, four instances/four threads/four workers, all 128
+original streams, full parking, separate bursts, under-saturation traffic and
+DEADLINE-only retransmission. UDP-only compatibility also passed:
+`out/memcached-modular-udp/summary.json`, `/tmp/lh-memcached-modular-udp.log`.
+Ordinary socket-mode build also passed in `out/memcached-modular-sockets`
+(`/tmp/lh-memcached-modular-sockets.log`); it uses the pinned input's source-owned
+recipe with enableLauberhorn=false. All three configurations use the same tree.
+Do not merge before hardware phase 4.
+
+## Phase-three completion
+
+Memcached adds optional `lauberhornTcp` to its source-owned recipe.
+Native TCP selects `-l IPv4 -p PORT -U 0`; UDP remains `-p 0 -U PORT`.
+Shared connection parser locks permit migration across active workers. TCP
+read buffers/response objects are independent of worker-local allocation pools;
+response accounting retains its allocator's stats owner. Identity fds belong to
+connection slots for the process lifetime, preventing cross-slot fd reuse races.
+There is no TCP helper thread or application packet staging queue.
+
+Readiness publication uses a shared atomic generation after input/timer dispatch.
+Each parser scan snapshots it before taking locks and rechecks after releasing
+all locks. A dispatch that skips a busy parser forces its owner to rescan; a
+later dispatch can acquire that already-unlocked parser itself. Releasing a
+closed slot also forces an accept-backlog pass before parking.
+
+First full VM passed in 48.64 s: `out/userspace-vm-memcached-tcp-first-run`,
+`/tmp/lh-memcached-tcp-vm-run.log`; driver `out/userspace-vm-memcached-tcp-first`.
+It covers 16 TCP memcached streams from both Linux guests, partial commands/body,
+pipelining, arithmetic, noreply, large responses, FIN/reset, existing UDP
+memcached and the complete TCP/RPC/scheduler suite. This run predates the added
+backpressure/upstream comparison and four-instance checks.
+
+Phase-three fixes and regression evidence:
+
+- TCP `34f8900` makes WRITABLE follow FreeBSD's send low-watermark. The old
+  positive-space predicate kept all four memcached workers retrying writes,
+  leaving the domain's queue full and correctly preventing DEADLINE reclaim.
+  Negative host reproduction: `/tmp/lh-tcp-lowat-negative.log`, derivation
+  `8z40kp57g8vlc7xlq7sgxymzd2xahg98`; fixed checks:
+  `out/tcp-phase3-lowat-fixed`, `/tmp/lh-tcp-lowat-fixed.log`.
+- TCP `b50cebf` retains the existing SYN-cache bucket lock through synchronous
+  SYN-ACK output and insertion. Without it, an ACK on another worker can arrive
+  before the entry exists and be rejected, explaining the sporadic connection
+  resets seen after longer VM runs. The new TX gate deterministically fails on
+  the old code: `/tmp/lh-tcp-syn-negative.log`, derivation
+  `1szswli3ar7dbgjqlggyb83p8a16jd4q`. The build patches a copy; imported files
+  remain pristine and manifest-checked. Normal checks pass in
+  `out/tcp-phase3-syn-fixed`, `/tmp/lh-tcp-syn-fixed.log`; ASan/UBSan in
+  `out/tcp-phase3-syn-sanitized`, `/tmp/lh-tcp-syn-sanitized.log`; one worker in
+  `out/tcp-phase3-syn-single`, `/tmp/lh-tcp-syn-single.log`.
+- The older independent-progress fixture depended on a 200-ms hold still being
+  active when the client sampled it. It now has an explicit release gate and
+  queues work across the scaling watermark, so parallel execution is tested
+  without depending on retained core assignments or host timing.
+- Native worker teardown remains unsupported. The maintained VM suite uses
+  NixOS `machine.crash()` before the clean four-domain workload. The earlier
+  diagnostic run was stuck at graceful shutdown; its verified guest process
+  was terminated to let the driver continue. No hardware was touched.
+
+The requested four-domain workload passed in 28.18 s on the low-watermark fix:
+`out/userspace-vm-memcached-four-run`, `/tmp/lh-memcached-four-run.log`, driver
+`out/userspace-vm-memcached-gated`. All four instances registered four threads,
+all thread IDs processed packets, all domains were observed fully parked, and
+128 original connections survived two separate bursts per domain, idle intervals,
+expiry and fixed 20 requests/s/domain traffic. Distinct values checked domain
+isolation. A dropped ACK required DEADLINE activation and same-sequence response
+retransmission after parking, before new application data. Low-load p95 was
+4.85–5.60 ms; burst service was 832–1358 requests/s. These are VM functional
+workload observations, not paper performance claims.
+
+Final pinned acceptance passed after the user cleared the storage blocker:
+
+- `nix build .#checks.x86_64-linux.userspace-vm.driver --max-jobs 1`:
+  `out/userspace-vm-memcached-accept-final`, build log
+  `/tmp/lh-memcached-accept-final-gc-build.log`. TCP host checks also rebuilt
+  successfully with the exact RESET-before-accept assertion.
+- The maintained driver (no diagnostic overrides) passed in 115.02 s:
+  `out/userspace-vm-memcached-accept-final-run`,
+  `/tmp/lh-memcached-accept-final-run.log`. This includes upstream/native
+  memcached comparison, both guests, UDP/RPC, TCP transport/reordering,
+  competing-domain scheduling and all four-instance checks.
+- Four-domain results: all 16 application threads processed packets, all four
+  domains fully parked, 128 original streams survived eight separate bursts,
+  idle/expiry and 400 requests at 20 requests/s/domain. Timer-only retransmission
+  passed. Burst service was 596–1288 requests/s; low-rate p95 was 5.24–6.05 ms.
+  These are bounded VM observations, not hardware performance results.
+- `nix build .#checks.x86_64-linux.memcached-adapter --max-jobs 1` passed:
+  `out/memcached-phase3-udp-regression/summary.json`, build log
+  `/tmp/lh-memcached-phase3-udp-gc.log`. The optional-TCP recipe still builds
+  UDP-only; upstream comparison, borrow lifetime and expansion-scope checks pass.
+
+The previous maintained run in `/tmp/lh-memcached-phase3-final-run.log` exposed
+an aborted pending accept. Memcached `1819552` and the fixture handle RESET and
+continue listener progress; TCP `4b894e9` covers reset-before-accept and recovery.
+Earlier negative/failure evidence remains in the logs referenced above.
+
+Phase 3 is complete. Keep all three branches unmerged: phase 4 must implement
+hardware DEADLINE, raw TCP steering and explicit reclaim rules, then validate
+TCP and this memcached port on Enzian. No real-hardware validation or stress
+campaign was performed in phase 3.
+
+Concurrent unrelated commit `2e2d2cc1` changed campaign timing recovery on the
+shared platform branch; it is preserved. This task did not edit those files.
+
+## Phase-one implementation
+
+The shared kernel/runtime now select ECI or VM at compile time. The VM device
+runs in a kernel thread and uses bounded queues, private mapped buffers and
+transport ioctls. It shares registration, affinity, yield and activation logic
+with ECI. Native UDP, ONC-RPC, nested RPC and UDP memcached run in the Nixpkgs
+NixOS test. See the [backend contract](../docs/software/vm-backend.md) for
+ownership and lifecycle limits. TCP and domain timer activation remain phase 2.
+
+Nix owns runtime CPU flags, backend selection, kernel module compilation,
+emulator queue/wait parameters and guest topology. AArch64 retains ThunderX
+tuning. The existing nested-validation fixture now uses the public pending-call
+admission limit rather than its larger backing table size for saturation tests.
+Its CPU flags also come from the selected runtime package.
+
+## Phase-one validation evidence (October 23, 2026)
+
+- KVM works outside the agent sandbox (API version 12). The sandbox hides
+  `/dev/kvm`; this is not a VT-x or host KVM failure. Nix does not advertise the
+  `kvm` feature here, so build `.driver` and run it outside the sandbox.
+- `out/userspace-vm-acceptance` is the Nix-built driver. Its full two-guest KVM
+  acceptance run passed in `out/userspace-vm-acceptance-run/driver.log` (15.99 s).
+  UDP: zero through 1472 bytes, four workers, competing domains, syscall
+  blocking, runtime/kernel ownership checks and bypass. RPC: cases 0–14,
+  post-error progress, 16-context admission exhaustion and recovery.
+  Memcached: store/get, arithmetic, delete, 4096-byte segmented response.
+  Second guest: UDP and memcached over the virtual network.
+- ECI module, AArch64 runtime and runtime regression/sanitizer checks passed
+  during integration: `/tmp/lh-vm-validation-build.log` and
+  `/tmp/lh-vm-final-build.log`. Final Nix builds of `runtime-tests`, the ECI
+  module, AArch64 runtime and `output-interface` all passed; see
+  `/tmp/lh-vm-regressions.log` and `out/userspace-vm-regressions*`.
+  Modified documentation links and `git diff --check` also passed.
+- Initial failures and one-off diagnostic scripts remain ignored under `out/`.
+  The first memcached test incorrectly assumed multi-get uses one sequence
+  space; the pinned application's UDP sender frames each response separately.
+  The maintained fixture now uses the established append/single-get
+  segmentation case. No memcached source modification was needed.
+
+## Phase-two current state
+
+TCP repository: `d80d5f8` (shared stack, direct TX, DEADLINE adapter and bounded acceptance) on `userspace-tcp-phase-two` (unmerged).
+FreeBSD 15.1-RELEASE-p6 is pinned at
+`95719d8a895bf8170851e9844d9b4092b1d2b6fe`: 26 C files, 282 headers and COPYRIGHT.
+The manifest verifies all 309 pristine files. Helpers include PCB/socket,
+sockbuf/mbuf, hashes/checksum, event handlers, sbuf, formatter and inet_ntoa.
+No F-Stack source or full FreeBSD tree is imported. The ignored
+`out/tcp-import/dependencies.nix` temporarily supplies upstream headers for
+compiler dependency discovery; only reported headers enter the manifest.
+The self-contained package does not depend on that checkout.
+
+`port/` now runs ordered FreeBSD SYSINIT hooks, shared process/credential and
+resource-accounting state, one IPv4 interface/route, per-worker context and clock
+snapshots, actual mutex/RW/SX locks, atomic counters, allocation, mbufs and shared
+callouts. The packet boundary copies IPv4/TCP input once into stack-owned mbufs and
+outputs directly into the current worker’s Lauberhorn TX reservation, computing
+checksums in place and committing before returning. No shared TX staging exists.
+The interface/route are immutable for process lifetime. Unsupported IP options,
+fragments, IPv6, AIO, sendfile/physical pages and descriptor observers are not
+exposed. Kernel sleep is a fail-fast error; empty observer lists retain their
+normal semantics. Wakeup increments a shared generation for consistent timer
+snapshots; the adapter publishes the minimum before each worker can park.
+
+Network epochs and SMR have separate reader domains. PCB reinsertion can wait
+for SMR with PCB/hash locks held; `_inp_smr_lock()` leaves SMR before blocking
+on the PCB lock. Network epoch readers can wait on those locks, so merging the
+reader classes would deadlock. Deferred frees wait for both classes, preserving
+host timer callback lifetime. UMA allocations retain cache-line alignment even
+when upstream asks only for pointer alignment: a sanitizer found that sockets
+require 64-byte alignment despite UMA_ALIGN_PTR. This is fixed in `alloc.c`.
+
+Callouts use one shared queue and associated connection locks. Per the user’s
+latest decision, contention must retry locally without a DEADLINE rearm fallback;
+a Nix-configured watchdog must fail fast on prolonged contention. The shared round-robin scan cursor avoids
+starvation across bounded batches when an early slot repeatedly rearms. Notify
+hooks must be nonblocking because reset/stop can invoke them under connection
+locks; actual emulator deadline publication must happen outside stack locks.
+Callbacks returning unlocked remain protected by a network grace period and
+queue metadata independent of the embedded callout's lifetime.
+
+Nix localizes kernel definitions before linking the native host-libc boundary,
+separating kernel malloc/free/formatting ABIs from libc. Upstream subr_prf supplies
+kernel formatting; native console functions are renamed and discarded. Function
+and data sections permit link GC of unsupported generic kernel facilities.
+`required-host-symbols.txt` reports undefined names before final link GC, so its
+optional unused names are not proof that the protocol executable cannot link.
+The package installs `lauberhorn/tcp.h`, the static archive and pkg-config
+metadata. One through four workers are selectable in Nix; the protocol fixture
+uses the public API/archive and races close across workers, rejecting stale
+handles. `passthru.runnable = true`; the optional runtime adapter is installed when a
+matching runtime is supplied.
+
+## Current phase-two evidence
+
+- Normal self-contained Nix build passed: `out/tcp-host`,
+  `/tmp/lh-tcp-protocol-final.log`, derivation
+  `fg3pwjm9dblg0j3zbyf8brnsnh4h3dm4-lauberhorn-tcp-core-0.1.drv`.
+- Final maintained sanitizer build passed: `out/tcp-sanitized`,
+  `/tmp/lh-tcp-protocol-sanitized-final.log`, derivation
+  `l6nxw65fc02ikk6rip6qqwflid826awh-lauberhorn-tcp-core-0.1.drv`.
+  `sanitize = true` is a package Nix option. ASan/UBSan are enabled; leak checks
+  are disabled for process-lifetime stack state, and ASan global registration
+  is disabled so unused kernel facilities remain eligible for link GC.
+- Both installed normal executables passed directly:
+  `libexec/tcp-concurrency-test` and `libexec/tcp-startup-test`.
+  The latter prints `TCP_PROTOCOL_PASS`: one real FreeBSD connection receives
+  SYN, handshake ACK, data and ACK/FIN packets on different workers. Other
+  workers accept/read/write/close it. The test verifies both data directions
+  and the final FIN/ACK exchange. The synthetic peer lives in the fixture;
+  this is not Linux-peer interoperability or VM transport acceptance.
+- Negative substrate tests reject concurrent reader/writer acquisition and
+  concurrent callbacks on one connection lock; overdue timers remain pending
+  and retry delivers exactly once without a packet/reset. Separate connections'
+  callbacks overlap. Further cases cover a repeatedly rearmed timer versus an
+  unrelated expiry, close during an unlocked callback, SMR/lock-order progress,
+  deferred UMA destruction/capacity release, allocation overflow and mbuf clones
+  surviving release of the original.
+- Manifest verification and non-vendor whitespace checks passed. The protocol
+  executable has no GS/CR-register/CLI/STI/INVLPG accesses:
+  `out/tcp-import/protocol-disassembly.txt`.
+- Ptrace is disallowed even outside the sandbox. The ignored Nix sanitizer
+  diagnostic recipe located the alignment issue; no external blocker remains.
+
+Local contention retry checks passed (normal and ASan/UBSan):
+`out/tcp-local-retry`, `out/tcp-local-retry-sanitized`,
+`/tmp/lh-tcp-local-retry-final.log`, `/tmp/lh-tcp-local-retry-sanitized.log`.
+The dispatcher releases queue protection, retries the same timer locally and
+revalidates after reset/cancel. A stuck-lock subprocess must SIGABRT with the
+watchdog diagnostic. `lockWaitMs` in Nix defaults to 100 ms; no rearm fallback.
+
+## VM scheduler and DEADLINE integration
+
+Platform commit `b50e064f` implements hardware-style packet allocation at event
+boundaries: pre-enqueue half-capacity scaling, idle-first/first-ready victims,
+and first-match zero-core discovery after local drain. Per-domain capacity comes
+from generated headers; the VM no longer round-robins competing packet domains.
+RTL pipeline timing is not modeled. DEADLINE is one reserved notification with
+generation-checked SET/GET, lead-time rejection and atomic acknowledgement/rearm.
+Allocation is zero-to-one only, otherwise RX-ready donors at or below the watermark.
+Overload delay and long cooperative execution remain accepted limitations.
+
+The final device-level Nix VM suite passed in 31.39 s:
+`out/userspace-vm-deadline-final-run/driver.log`,
+`/tmp/lh-vm-deadline-final-run.log`. Tests cover watermark scaling/background
+selection, donor protection, single delivery across four workers/full queues,
+stale and too-soon operations, cancellation, earlier rearm and timer-only TX.
+UDP/RPC/memcached and the peer-guest regressions passed. Runtime/interface checks
+and ECI kernel compilation passed (`/tmp/lh-vm-deadline-runtime-checks.log`,
+`/tmp/lh-vm-deadline-eci-check.log`).
+
+The subsequent RPC migration removes timeout polling on every backend. Publishing
+occurs on call-state changes; DEADLINE drives sweeps and rearm. ECI nested calls
+fail before TX until the hardware interface exists. The full-parked RPC fixture
+passed: a UDP burst takes every core, then a no-reply timeout reactivates RPC,
+retires its outgoing call and resumes the waiter; a late reply is ignored.
+Final VM suite: 29.96 s, `out/userspace-vm-rpc-deadline-run/driver.log` and
+`/tmp/lh-rpc-deadline-vm-run.log`; driver build is `out/userspace-vm-rpc-deadline`.
+Final runtime/interface checks passed in `/tmp/lh-rpc-deadline-final-checks.log`,
+including injected ETIME retries and stale-notification rejection. No polling
+fallback remains on either backend. Timer publication currently scans the bounded
+pending table on state changes; it does not scan or read the clock on ordinary RX.
+RPC exclusively owns the domain timer; multiplexing independent TCP/application
+timer providers in one domain needs a shared broker.
+
+Phase 4 supplies ECI DEADLINE/raw TCP steering and explicitly specifies/cleans up
+all scheduler reclaim rules. Public API changes are committed and pushed. Normal
+four-worker, one-worker and ASan/UBSan public API checks passed:
+`out/tcp-api-public`, `out/tcp-api-single`, `out/tcp-api-sanitized`.
+The first FreeBSD/Linux-peer VM echo run passed in 33.99 s:
+`out/userspace-vm-tcp-stack-run`, `/tmp/lh-vm-tcp-stack-run.log`. Both guests ran
+16 concurrent connections with sizes 1, 17, 1400, 4096 and 16384 and FIN shutdown.
+The subsequent direct-TX run passed the complete suite in 32.07 s:
+`out/userspace-vm-tcp-direct-acceptance-run`,
+`/tmp/lh-vm-tcp-direct-acceptance-run.log`. Driver:
+`out/userspace-vm-tcp-direct-acceptance`. TCP now fills the caller’s actual TX
+reservation directly; the emulator copies it directly to its final skb, with no
+intermediate packet buffer. RX retains one copy into FreeBSD-owned mbufs because
+reassembly/socket data may outlive the RX borrow. Normal host checks passed in
+`out/tcp-direct-tx`; ASan/UBSan checks passed in `out/tcp-direct-sanitized` and
+`/tmp/lh-tcp-direct-sanitized.log`.
+
+The first direct-TX VM run stopped before TCP on a scheduler fixture assumption:
+concurrent draining can produce a donor below, rather than exactly at, half fill.
+The assertion now verifies the actual at-or-below-watermark rule; scheduler
+policy is unchanged. Failure evidence: `/tmp/lh-vm-tcp-direct-final-run.log`.
+Exact-boundary acceptance needs a deterministically gated donor fixture rather
+than inferring it from concurrent drain timing.
+
+## Native TCP VM transport increment
+
+The platform pins TCP `d80d5f8` as optional `dev.x86_64-linux.software.tcpVm`.
+`REG_TCP_ENDPOINT` (ioctl 17) reserves a local address/port before registration;
+raw RX/TX descriptors carry full IPv4/TCP packets. VM TX validates source ownership
+and uses Linux IP routing only. Runtime attach/receive/release/send is in
+`tcp_transport.h`/`sw/rt/tcp_transport.c`. DEADLINE events are surfaced to callers;
+the optional TCP stack adapter now publishes timers and processes those events. ECI returns EOPNOTSUPP.
+
+The maintained raw transport fixture passed against a Linux TCP client: SYN RX,
+RST/ACK TX, wrong endpoint TX rejection, RX borrow/release rules. Full VM suite
+passed at `out/userspace-vm-tcp-transport-fixed-run` and
+`/tmp/lh-vm-tcp-fixed-run.log`; Nix driver `out/userspace-vm-tcp-transport-fixed`.
+ECI kernel/runtime and output-interface checks passed:
+`/tmp/lh-tcp-eci-compat.log`. This fixture constructs RST packets itself and is
+explicitly not evidence of a FreeBSD connection in the VM.
+
+An initial raw TX bug passed an skb-consuming function directly to
+`net_xmit_eval`, which can evaluate its argument twice. The duplicate call caused
+an emulator-thread kernel fault after emitting the first packet. Fixed by storing
+the return value before invoking the macro; the successful VM suite includes the
+no-kernel-Oops gate. Failed-stage diagnostics remain in
+`/tmp/lh-vm-tcp-debug-run.log`. The first hanging probe was explicitly interrupted;
+no test processes remain. The maintained probe now bounds marker waiting to 10 s
+and prints the fixture log on failure.
+
+The bounded two-application TCP scheduling fixture now observes each domain through
+read-only VM scheduling ioctls. Its main thread never runs timers or protocol work.
+Each application uses four workers, and the test requires all four worker IDs to
+process events. Twenty-four persistent connections per application carry alternating
+bursts; each application is explicitly observed with zero assigned and reserved
+workers, then resumes on an original connection. A 200 ms busy application handler
+holds no TCP lock; another connection must reply while that handler remains busy.
+
+Timer-only acceptance drops incoming pure ACKs before the emulator's ingress hook.
+After the server's echo acknowledges the request, a competing TCP burst removes
+all its workers. The test requires a new DEADLINE activation and captures the same
+TCP sequence/payload retransmitted after that zero-worker observation, before any
+new application data. Removing the filter and exchanging another payload verifies
+continued connection progress. This is a bounded functional check, not stress.
+
+Full VM acceptance passed in 42.64 s with these checks and existing UDP/RPC/
+memcached, raw transport and both-guest TCP regressions:
+`out/userspace-vm-tcp-timer-run`, `/tmp/lh-tcp-timer-run.log`;
+Nix driver `out/userspace-vm-tcp-timer`, build log `/tmp/lh-tcp-timer-build.log`.
+The earlier scheduling-only increment passed in 37.22 s:
+`out/userspace-vm-tcp-concurrency-run`, `/tmp/lh-tcp-concurrency-run.log`.
+
+The subsequent protocol VM suite passed in 43.63 s:
+`out/userspace-vm-tcp-protocol-acceptance-run`,
+`/tmp/lh-tcp-protocol-acceptance-run.log`; driver
+`out/userspace-vm-tcp-protocol-acceptance`, build log
+`/tmp/lh-tcp-protocol-acceptance-build.log`. Both local and peer Linux clients
+advertise an observed zero receive window, leave another connection progressing,
+then reopen and verify all 257024 echoed bytes plus FIN. Four abortive closes with
+unread data each precede a successful replacement connection. A deterministic
+raw peer sends a gap and duplicate segment, requires ACKs without application
+bytes until the hole closes, verifies the exact ordered echo and exchanges FIN.
+The complete scheduler/preemption/DEADLINE and UDP/RPC/memcached regressions pass
+in the same run. This adds functional coverage, not a stress campaign.
+
+Two fixture errors were corrected: blocking sendall prevented the backpressure
+client from reaching its drain (now a sender thread), and ETH_P_IP capture missed
+outgoing Ethernet ACKs (now ETH_P_ALL with explicit IPv4 filtering). Failure logs:
+`/tmp/lh-tcp-flow-run.log`, `/tmp/lh-tcp-protocol-fixed-run.log`. No stack or emulator
+change was needed. The successful 257024-byte cases do not prove arbitrary
+GSO/GRO handling; the ingress still accepts only MTU-sized packets.
+
+The final host checks add actual socket exhaustion/reuse, TX reservation and
+commit rejection/recovery, concurrent same-PCB duplicate input, and listener
+accept/close races. A real packet-output callback holds the PCB lock while a due
+retransmission dispatcher enters; the same dispatch must wait locally and complete
+after release without another packet. A subsequent retransmission holds the PCB
+lock while three workers race close: none may finish before release, exactly one
+wins, and the peer completes FIN. The fixture first observes an actual wire
+retransmission to distinguish its RTO from an earlier emptied SYN-cache timer;
+the initial fixture failure is preserved in
+`/tmp/lh-tcp-pcb-earlier-callout-failure.log`.
+
+The adapter unit test links the real runtime adapter with controlled snapshots
+and control ioctls. It verifies earlier mutation racing an older publication,
+stale acknowledgement, ETIME retry, expiry at receive entry and no timer sweep
+on NACK. It is publication-unit evidence, not a substitute for the real-stack VM.
+Final normal four-worker/adapter checks passed in `out/tcp-phase2-final`,
+`/tmp/lh-tcp-phase2-final.log`; ASan/UBSan in `out/tcp-phase2-sanitized`,
+`/tmp/lh-tcp-phase2-sanitized.log`; one-worker protocol/resource checks in
+`out/tcp-phase2-single`, `/tmp/lh-tcp-phase2-single.log`. Nix check logs contain
+TCP_HOST_CONCURRENCY_PASS, TCP_PROTOCOL_PASS and TCP_RUNTIME_PUBLICATION_PASS
+(normal/sanitized), and TCP_PROTOCOL_PASS (one worker).
+
+Final pinned VM acceptance passed in 43.81 s:
+`out/userspace-vm-tcp-phase2-final-run`, `/tmp/lh-tcp-phase2-vm-run.log`;
+driver `out/userspace-vm-tcp-phase2-final`, build log
+`/tmp/lh-tcp-phase2-vm-build.log`. It additionally exhausts actual stack sockets
+inside the VM, reclaims them and starts the normal echo service. The capacity
+comes from the TCP package's Nix metadata. Both Linux peers, reordering and all
+four-worker/preemption/timer checks pass, as do the phase-one regressions.
+
+## Phase-two completion boundary
+
+The requested reasonably working shared four-worker TCP implementation is
+complete within the supported IPv4 server interface. No stress campaign was run.
+The branch must remain unmerged until hardware DEADLINE exists.
+
+| Requirement | Evidence |
+| --- | --- |
+| Minimal pristine FreeBSD import, optional source-owned Nix component | Package manifest check, source/headers/archive builds; VM recipe explicitly selects runtime plus TCP |
+| Actual transport lifetimes, per-worker direct TX | Raw transport ownership rejection fixture; all TCP VM traffic uses the shared RX/TX adapter, no production staging queue |
+| Normal peers and protocol behavior | Both Linux guests: handshake, bidirectional streams, ACKs, zero-window recovery, FIN and reset recovery; raw peer: gap/duplicate reassembly |
+| Four-worker concurrency and connection lifetime | VM requires all four worker IDs; independent reply during a busy handler; host same-PCB input, accept/close and timer/close negative tests |
+| Capacity and rejection recovery | Actual socket exhaustion/reuse in host and VM; host callback TX admission/commit rejection; substrate allocation and mbuf ownership checks |
+| Timer locking and publication | Real PCB contention/local retry; stuck-lock watchdog subprocess; adapter publication-unit races; VM sticky/generation/lead-time DEADLINE checks |
+| Full preemption with live TCP connections | Two applications alternate bursts, each observed with zero assigned/reserved workers, and resume original streams |
+| Timer-only progress after full preemption | ACK filter plus packet capture requires new DEADLINE activation and retransmitted sequence/payload before new application data |
+| Donor policy and existing applications | VM protected-donor deferral and eligible-donor activation; UDP, RPC timeout and UDP memcached regressions |
+
+Later work remains intentionally outside this phase: phase 3 ports our memcached
+TCP support alongside UDP; phase 4 implements hardware DEADLINE/raw TCP steering,
+cleans up reclaim rules and validates TCP/memcached on Enzian. Add a deterministically
+gated exact-watermark donor fixture with that policy work; current acceptance
+checks at-or-below eligibility and above-watermark protection. Active-open
+runtime ephemeral-port steering, IPv6, IP fragmentation/options and whole-domain
+recovery are outside the current interface. No real hardware execution occurred.
+
+F-Stack's local reference revision `813b82016c5cebfcc545cb44fbbc19dd8d00e99d`
+has no-op locks, immediate epoch reclamation and TLS callout ownership that
+ignores the target CPU. These are unsuitable implementations to reuse, not a
+major blocker to the intended port. Do not replace the current design with
+per-worker stacks, a global stack lock or a helper TCP thread.
+
+Whole-domain recovery remains unsupported: failed domains retain resources
+until guest restart. No Enzian execution or hardware validation was added.

@@ -11,16 +11,107 @@
 #include "log.h"
 #include "pending_call_table.h"
 #include "ioctl.h"
+#include "rpc.h"
 
 #define CALL_CAPACITY (LAUBERHORN_MTU - 82)
 #define REPLY_CAPACITY (LAUBERHORN_MTU - 66)
 
+/* Publication is a slow path on call-state changes, never on ordinary RX.
+ * This mutex serializes device generations, not RPC handlers or slot updates.
+ * A mutator publishes before it may park; a scan racing a mutator is followed
+ * by that mutator's own publication. No slot lock crosses an ioctl. */
+static pthread_mutex_t deadline_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool deadline_initialized;
+static uint64_t deadline_generation, deadline_minimum_lead, published_minimum;
+static bool deadline_initialize_locked(void)
+{
+    if (deadline_initialized) return true;
+    struct lauberhorn_deadline_state state;
+    if (ioctl(worker_get_current()->ctx->fd, LAUBERHORN_IOCTL_GET_DEADLINE, &state)) return false;
+    /* RPC owns this domain's timer. Mixing independent publishers requires a
+     * shared timer broker, not overwriting each other's generation. */
+    if (state.next_deadline_ns || state.pending) { errno = EBUSY; return false; }
+    deadline_generation = state.generation;
+    deadline_minimum_lead = state.minimum_lead_ns;
+    if (!deadline_minimum_lead || deadline_minimum_lead > UINT64_MAX / 4) {
+        errno = EPROTO; return false;
+    }
+    deadline_initialized = true;
+    return true;
+}
+static bool deadline_available(void)
+{
+    pthread_mutex_lock(&deadline_lock);
+    bool ok = deadline_initialize_locked();
+    pthread_mutex_unlock(&deadline_lock);
+    return ok;
+}
+static uint64_t pending_minimum(void)
+{
+    uint64_t minimum = 0;
+    struct pending_call *c;
+    pending_call_table_for_each(&pending_call_table, c) {
+        if (atomic_load_explicit(&c->state, memory_order_acquire) != SLOT_PENDING) continue;
+        pthread_spin_lock(&c->lock);
+        uint32_t ms = atomic_load(&c->timeout_ms);
+        if (atomic_load(&c->state) == SLOT_PENDING && ms) {
+            uint64_t due = (uint64_t)c->sent_at.tv_sec * 1000000000 +
+                c->sent_at.tv_nsec + (uint64_t)ms * 1000000;
+            if (!minimum || due < minimum) minimum = due;
+        }
+        pthread_spin_unlock(&c->lock);
+    }
+    return minimum;
+}
+static void deadline_publish(bool acknowledge)
+{
+    pthread_mutex_lock(&deadline_lock);
+    uint64_t minimum = pending_minimum();
+    if (!acknowledge && minimum == published_minimum) goto done;
+    if (!deadline_initialize_locked()) abort();
+    uint64_t lead = 2 * deadline_minimum_lead;
+    for (;;) {
+        uint64_t next = minimum;
+        if (next) {
+            struct timespec t = now();
+            uint64_t current = (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec;
+            if (UINT64_MAX - current < lead) abort();
+            /* Keep the actual due time in the table. A near/overdue timer gets
+             * a legal future retry, never cancellation or a lost wakeup. */
+            if (next < current + lead) next = current + lead;
+        }
+        struct lauberhorn_deadline_set cmd = { .next_deadline_ns = next,
+            .expected_generation = deadline_generation };
+        if (!ioctl(worker_get_current()->ctx->fd, LAUBERHORN_IOCTL_SET_DEADLINE, &cmd)) {
+            deadline_generation = cmd.generation;
+            published_minimum = minimum;
+            break;
+        }
+        /* Preemption between the clock read and command can consume the lead.
+         * Retry without parking; errors other than ETIME must fail closed. */
+        if (errno != ETIME || lead > UINT64_MAX / 2) abort();
+        lead *= 2;
+    }
+done:
+    pthread_mutex_unlock(&deadline_lock);
+}
+void rpc_deadline_refresh(void) { deadline_publish(false); }
+void rpc_deadline_expired(uint64_t generation)
+{
+    pthread_mutex_lock(&deadline_lock);
+    bool current = deadline_initialized && generation == deadline_generation;
+    pthread_mutex_unlock(&deadline_lock);
+    if (!current) return; /* Superseded notification, already acknowledged. */
+    rpc_call_process_timeout();
+    deadline_publish(true);
+}
+
 /* Transport hooks consumed by the shared synchronous reply path. */
 static inline void *rpc_tx_reserve(lauberhorn_worker_t w, bool inlined) {
-    return core_eci_tx_get_buffer(w->dp_base, &w->dp, inlined);
+    return core_tx_get_buffer(w->dp_base, &w->dp, inlined);
 }
 static inline void rpc_tx_cancel(lauberhorn_worker_t w) {
-    core_eci_tx_cancel(&w->dp);
+    core_tx_cancel(&w->dp);
 }
 #include "rpc_request.h"
 struct deferred_request {
@@ -37,13 +128,13 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
         .oncrpc_reply_tx = {.request_token = parent->oncrpc_call_rx.request_token,
                            .status = status}
     };
-    if (!w->dp.tx_reserved && !core_eci_tx_get_buffer(w->dp_base, &w->dp, len <= 64)) {
+    if (!w->dp.tx_reserved && !core_tx_get_buffer(w->dp_base, &w->dp, len <= 64)) {
         LOG("Cannot reserve reply TX"); return;
     }
 #if LH_ENABLE_TRACING
     if (trace->enabled) trace->tx_cpu_id = sched_getcpu();
     trace->reply_ready_ns = server_trace_stage(trace, LH_PMU_tx_enter);
-    int result = core_eci_tx_commit_traced(w->dp_base, &w->dp, &desc,
+    int result = core_tx_commit_traced(w->dp_base, &w->dp, &desc,
         trace->enabled ? &trace->tx_publish_ns : NULL,
         trace->enabled ? server_trace_clock : NULL);
     trace->tx_worker_id = w->worker_id;
@@ -53,7 +144,7 @@ static void send_reply(lauberhorn_pkt_desc_t *parent, unsigned status, size_t le
     trace->ok &= status == 0 && result == CORE_TX_ACCEPTED;
     server_trace_write(trace);
 #else
-    int result = core_eci_tx_commit(w->dp_base, &w->dp, &desc);
+    int result = core_tx_commit(w->dp_base, &w->dp, &desc);
 #endif
     if (result != CORE_TX_ACCEPTED)
         LOG("RPC reply transport failure; delivery is indeterminate");
@@ -72,13 +163,15 @@ static struct pending_call *prepare_call(lauberhorn_rpc_endpoint_t *ep,
     if (!ep || ep->_transport.self != ep || !w || ep->_transport.owner != w->ctx) {
         errno = EINVAL; return NULL;
     }
-    w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, false);
+    /* Fail before transmitting if the backend cannot guarantee timeout wakeup. */
+    if (!deadline_available()) return NULL;
+    w->dp.tx_buf = core_tx_get_buffer(w->dp_base, &w->dp, false);
     if (!w->dp.tx_buf) { errno = EBUSY; return NULL; }
     *encoded = ep->rpc_codec->ops->marshal_call(payload, w->dp.tx_buf, len,
                                                CALL_CAPACITY, ep->rpc_codec->priv);
-    if (*encoded < 0 || *encoded > CALL_CAPACITY) { core_eci_tx_cancel(&w->dp); errno = EMSGSIZE; return NULL; }
+    if (*encoded < 0 || *encoded > CALL_CAPACITY) { core_tx_cancel(&w->dp); errno = EMSGSIZE; return NULL; }
     struct pending_call *pc = pending_call_acquire(&pending_call_table);
-    if (!pc) { core_eci_tx_cancel(&w->dp); errno = EAGAIN; return NULL; }
+    if (!pc) { core_tx_cancel(&w->dp); errno = EAGAIN; return NULL; }
     pc->codec = ep->rpc_codec;
     pc->endpoint = ep;
     pc->result = (rpc_result_t){0};
@@ -113,7 +206,7 @@ static int submit_call(struct pending_call *pc, int len) {
     };
     pending_call_arm_timeout(pc, 0);
     lauberhorn_trace_event(LH_TRACE_CALL_SUBMIT, cookie, len);
-    int result = core_eci_tx_commit(w->dp_base, &w->dp, &desc);
+    int result = core_tx_commit(w->dp_base, &w->dp, &desc);
     lauberhorn_trace_event(LH_TRACE_CALL_SUBMITTED, cookie, result);
     if (result == CORE_TX_RETRY) {
         /* This proves no hardware reservation/packet exists. */
@@ -132,6 +225,7 @@ static int submit_call(struct pending_call *pc, int len) {
         return 0;
     }
     pending_call_start_timeout(pc, cookie, 1000);
+    rpc_deadline_refresh();
     return 0;
 }
 int lauberhorn_call_async(lauberhorn_rpc_endpoint_t *ep, void *payload,
@@ -242,6 +336,7 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
                                                        desc->oncrpc_reply_rx.cookie);
     if (!c || !pending_call_try_claim_reply(c, desc->oncrpc_reply_rx.cookie,
                                              desc->oncrpc_reply_rx.xid)) return;
+    rpc_deadline_refresh();
     if (c->kind == COMPLETION_FORWARD) {
 #if LH_ENABLE_TRACING
         c->parent_trace->forward_complete_ns = server_trace_stamp(c->parent_trace);
@@ -249,7 +344,7 @@ static void rpc_handle_reply(lauberhorn_worker_t w, lauberhorn_pkt_desc_t *desc)
         if (desc->oncrpc_reply_rx.status) fail_request(&c->completion.parent, desc->oncrpc_reply_rx.status, LH_TRACE_PTR(c->parent_trace));
         else if (desc->payload_len > REPLY_CAPACITY) fail_request(&c->completion.parent, LAUBERHORN_RPC_SYSTEM_ERR, LH_TRACE_PTR(c->parent_trace));
         else {
-            w->dp.tx_buf = core_eci_tx_get_buffer(w->dp_base, &w->dp, desc->payload_len <= 64);
+            w->dp.tx_buf = core_tx_get_buffer(w->dp_base, &w->dp, desc->payload_len <= 64);
             if (!w->dp.tx_buf) { pending_call_release(&pending_call_table, c); return; }
             memcpy(w->dp.tx_buf, w->dp.rx_view.data, desc->payload_len);
             send_reply(&c->completion.parent, 0, desc->payload_len, LH_TRACE_PTR(c->parent_trace));
@@ -313,6 +408,7 @@ bool rpc_call_cancel(struct pending_call *c, uint32_t cookie) {
     bool retired = retire_call_hardware(c);
     rpc_result_t result = {.code = retired ? LAUBERHORN_RPC_CANCELLED : LAUBERHORN_RPC_ERROR};
     pending_call_settle(c, &result);
+    rpc_deadline_refresh();
     return retired;
 }
 

@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #include "config.h"
-#include "eci/core.h"
+#include "transport.h"
 #include "lauberhorn.h"
 #include "lauberhorn/udp.h"
 #include "server_trace.h"

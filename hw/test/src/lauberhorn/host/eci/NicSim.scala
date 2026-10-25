@@ -205,7 +205,10 @@ trait NicSim extends DutSimFunSuite[NicEngine]
     val capacity = Seq(bytes.length, scala.math.min(txDesc.len, MTU.get), reservationCapacity).max
     val inline = capacity <= 64 && !forceOverflow && !txDesc.isInstanceOf[TxExecutionSim]
     val control = txDesc.toTxDesc.toArray
-    control(2) = ((control(2) & 0x7f) | (if (inline) 0x80 else 0)).toByte
+    val placementBit = if (txDesc.ty == 1) 20 + PKT_DESC_TY_WIDTH.get else 23
+    val placementByte = placementBit / 8
+    val placementMask = 1 << (placementBit % 8)
+    control(placementByte) = ((control(placementByte) & ~placementMask) | (if (inline) placementMask else 0)).toByte
     dcsMaster.write(clAddr, control.toList)
     if (capacity > 0) dcsMaster.write(
       if (inline) clAddr + 0x40 else ECI_TX_BASE.get + ECI_OVERFLOW_OFFSET + coreBase, bytes ++ (if (dirtyReservation) List.fill(capacity - bytes.length)(0xa5.toByte) else Nil))

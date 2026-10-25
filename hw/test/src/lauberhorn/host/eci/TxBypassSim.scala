@@ -89,20 +89,15 @@ class TxBypassSim extends NicSim {
     }
   }
 
-  def txScanOnCore(cid: Int) = {
-    val testName = s"scan-sizes-core$cid"
-    testWithDB(testName)(Slow, Tx) { implicit dut =>
-      implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets-expecting.pcap").toString)
-
-      val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000) // arbitrary rxBlockCycles
-
-      val tid = -1
-
-      txTestRange(axisSlave, dcsMaster, csrMaster, 64, 9618, 64, tid)
-    }
+  testWithDB("scan-sizes-bypass")(Slow, Tx) { implicit dut =>
+    implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535)
+      .dumpOpen((workspace("scan-sizes-bypass") / "packets-expecting.pcap").toString)
+    val (csrMaster, _, axisSlave, dcsMaster) = commonDutSetup(10000)
+    // Bypass belongs to datapath zero. The supported IPv4 MTU is 1500;
+    // jumbo payloads would access outside the twelve-line TX buffer window.
+    txTestRange(axisSlave, dcsMaster, csrMaster, 64, 1480, 64, -1)
+    txTestSingle(dcsMaster, csrMaster, axisSlave, getIpPacketFromEnzian(1, 1480), -1)
   }
-
-  0 until numCores foreach txScanOnCore
 
   testWithDB("simple")(Tx) { implicit dut =>
     implicit val dumper = Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace("simple") / "packets-expecting.pcap").toString)

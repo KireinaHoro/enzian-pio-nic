@@ -99,7 +99,6 @@ void pending_call_release(struct pending_call_table *tbl,
                                 struct pending_call *p);
 
 void pending_call_table_init(struct pending_call_table *tbl);
-bool pending_call_table_has_expired(struct pending_call_table *tbl);
 
 /* Check expiry with the slot lock held; sent_at is not atomic. */
 bool pending_call_has_expired(struct pending_call *entry, struct timespec *now);

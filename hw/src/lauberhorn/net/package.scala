@@ -29,7 +29,7 @@ package object net {
    * Type of the (potentially partially) decoded packet. Used by [[PacketDesc]] as well as [[lauberhorn.host.HostReqBypassHeaders]].
    */
   object PacketDescType extends SpinalEnum {
-    val ethernet, ip, udp, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, neighborMiss = newElement()
+    val ethernet, ip, udp, oncRpcCallRx, oncRpcReplyTx, oncRpcCallTx, oncRpcReplyRx, neighborMiss, nativeTcp = newElement()
 
     /** Convert a [[PacketDescData]] (generated from a [[HostReqBypassHeaders]] by [[PacketDesc.fromHeaders]]) to
       * [[EncoderMetadata]], for sending to a specific encoder. */
@@ -38,6 +38,7 @@ package object net {
         case `ethernet` => data.ethernetTx.get().asInstanceOf[T]
         case `ip` => data.ipTx.get().asInstanceOf[T]
         case `udp` => data.udpTx.get().asInstanceOf[T]
+        case `nativeTcp` => data.nativeTcpTx.get().asInstanceOf[T]
         case `oncRpcCallTx` => data.oncRpcCallTx.get().asInstanceOf[T]
         case `oncRpcReplyTx` => data.oncRpcReplyTx.get().asInstanceOf[T]
       }
@@ -55,6 +56,7 @@ package object net {
           |  hdr_onc_rpc_call_tx  = 0b101 "ONC-RPC Nested Call TX";
           |  hdr_onc_rpc_reply_rx = 0b110 "ONC-RPC Nested Reply RX";
           |  hdr_neighbor_miss    = 0b111 "Neighbor Miss";
+          |  hdr_native_tcp = 8 "Native TCP packet";
           |};""".stripMargin)
     }
   }
@@ -131,11 +133,13 @@ package object net {
     val oncRpcCallRx = newElement(OncRpcCallRxMeta())
     val oncRpcReplyRx = newElement(OncRpcReplyRxMeta())
     val neighborMissRx = newElement(NeighborMissMeta())
+    val nativeTcpRx = newElement(tcp.NativeTcpRxMeta())
 
     // Used by encoder pipeline
     val ethernetTx = newElement(EthernetTxMeta())
     val ipTx = newElement(IpTxMeta())
     val udpTx = newElement(UdpTxMeta())
+    val nativeTcpTx = newElement(tcp.NativeTcpTxMeta())
     val oncRpcReplyTx = newElement(OncRpcReplyTxMeta())
     val oncRpcCallTx = newElement(OncRpcCallTxMeta())
   }
@@ -160,6 +164,7 @@ package object net {
         is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.getPayloadSize }
         is (oncRpcReplyRx) { ret := metadata.oncRpcReplyRx.getPayloadSize }
         is (neighborMiss) { ret := metadata.neighborMissRx.getPayloadSize }
+        is (nativeTcp) { ret := metadata.nativeTcpRx.getPayloadSize }
         default { report("packet desc type not supported yet", FAILURE) }
       }
     }.ret
@@ -175,6 +180,7 @@ package object net {
         is (oncRpcCallRx) { ret := metadata.oncRpcCallRx.packetId }
         is (oncRpcReplyRx) { ret := metadata.oncRpcReplyRx.packetId }
         is (neighborMiss) { ret := metadata.neighborMissRx.packetId }
+        is (nativeTcp) { ret := metadata.nativeTcpRx.packetId }
       }
     }.ret
 

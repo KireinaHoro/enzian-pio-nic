@@ -61,7 +61,14 @@ trait RtlModule extends Module {
     }).map(_.take(16)) // 8 bytes
   }
 
+  def deadlineMinLeadNs = Task.Input {
+    val lead = sys.env.getOrElse("LAUBERHORN_DEADLINE_MIN_LEAD_NS", "1000000").toInt
+    require(lead > 0, "deadline minimum lead must be positive")
+    lead
+  }
+
   def generateVerilog = Task {
+    deadlineMinLeadNs() // Track the generator's environment input in Mill's cache.
 
     gen.runForkedTask(
       mainClass = Task.Anon("lauberhorn.GenEngineVerilog"),

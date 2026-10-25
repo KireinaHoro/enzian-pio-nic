@@ -81,7 +81,7 @@ class IpEncoder extends Encoder[IpTxMeta] {
     awaitBuild()
 
     // Only enable IP packets from host during simulation
-    collectInto(md, pld, acceptHostPackets = GenerationFlags.simulation.isEnabled)
+    collectInto(md, pld, acceptHostPackets = GenerationFlags.simulation.isEnabled, payloadBytes = _.pldLen)
 
     pld.setBlocked()
 

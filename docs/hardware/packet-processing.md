@@ -1,7 +1,7 @@
 # Packet processing
 
-The generated datapath supports native UDP and ONC-RPC calls/replies over
-Ethernet/IPv4/UDP. Unsupported traffic can use the kernel bypass path. General
+The generated datapath supports native TCP segments, native UDP and ONC-RPC
+calls/replies over Ethernet/IPv4. Unsupported traffic can use the kernel bypass path. General
 software-backed RPC table spill remains a [proposal](../proposals/lookup-spill.md).
 
 ## Receive and transmit paths
@@ -10,6 +10,27 @@ RX: CMAC → Ethernet → IPv4 → UDP → native UDP or ONC-RPC call/reply deco
 `DecoderSink` → `DmaControlPlugin`. The most specific decoder emits metadata and
 its remaining payload. Admitted application requests enter scheduler process
 queues; bypass descriptors go through `BypassCmdSink` to datapath 0.
+
+The shared IPv4 decoder checks version, IHL, total length against the header and
+received frame, and the IPv4 header checksum before transport admission. It
+aligns the first beat and uses a registered checksum reduction over up to 60
+header bytes, including options. Valid options and fragments retain IP bypass.
+
+TCP branches directly from IPv4 into `NativeTcpDecoder`. A separate listen-port
+table selects the owning domain and endpoint by destination port for ordinary
+unfragmented IPv4 packets with a 20-byte header. It forwards the complete received
+IPv4 packet, including Ethernet padding, without TCP checksum, TCP length or
+TCP-header validation. Software trims padding and validates TCP before processing
+connections. Unmatched ports follow kernel bypass. There is no TCP connection
+table or whole-packet validation FIFO in hardware.
+
+Native UDP RX uses a checksum accumulator with balanced, registered partial-sum
+and beat-sum stages. Only accepted beats enter it; validation waits for both
+stages to drain before using the final sum.
+Scheduler queue reads likewise register the selected address before BRAM.
+The selected slot stays occupied until the read edge, preventing an enqueue
+from overwriting it; another reader cannot select that same head meanwhile.
+Other queues remain eligible for arbitration.
 
 `PacketBuffer` DMA stores residual payload in FPGA RAM. Parsed headers and
 extracted RPC bytes travel in metadata. ECI reconstructs the logical payload
@@ -24,6 +45,17 @@ DMA/encoding. Native UDP TX validates the endpoint against its owner and obtains
 the local port from the listener table. See [nested RPC](../software/nested-rpc.md)
 and the [programming model](../software/programming-model.md).
 
+Native TCP TX checks endpoint ownership and DMA buffer bounds before transfer.
+`NativeTcpEncoder` strips the supplied 20-byte IPv4 header and forwards the TCP
+bytes unchanged, including the software-computed checksum. The existing IP and
+Ethernet encoders generate wire headers and perform neighbor lookup. Software must
+use the configured source IP when calculating the TCP pseudo-header checksum.
+There is no TCP source-port, header or checksum validation/completion in hardware.
+The descriptor requires more than 20 and at most 1500 bytes so the fixed IP-header
+extractor has a residual payload. The VM follows this transport contract; Linux's
+IP receive path still precedes its hook, and partial offload checksums are completed
+to emulate received wire bytes.
+
 ## Source navigation and ownership
 
 Paths below are relative to `hw/src/lauberhorn/`:
@@ -34,6 +66,7 @@ Paths below are relative to `hw/src/lauberhorn/`:
 | `net/Decoder.scala`, `net/ProtoState.scala` | Decoder registration, metadata and final/bypass output |
 | `net/ethernet/`, `net/ip/`, `net/udp/` | Header parsing/encoding and listener-based protocol selection |
 | `net/udp/NativeUdpDecoder.scala` | Buffers one datagram, checks lengths/checksum and supported IPv4 shape before admission, trims Ethernet padding and drains malformed input |
+| `net/tcp/NativeTcpDecoder.scala`, `NativeTcpEncoder.scala` | Destination-port steering, complete IPv4 host payloads and opaque TCP TX |
 | `net/oncrpc/OncRpcCallDecoder.scala` | Service lookup, enabled-state check, reply-context reservation and extraction of RPC argument bytes |
 | `net/oncrpc/OncRpcReplyEncoder.scala`, `RpcReplyContexts.scala` | Per-invocation routing tokens, owner/generation validation, reply retirement and bounded full-table rejection |
 | `net/oncrpc/OncRpcReplyDecoder.scala` | Outgoing-request reservations and reply matching by XID/network tuple, recovering PID/cookie |
@@ -63,6 +96,7 @@ Defaults come from `Global.scala`; each resource has a different failure policy.
 | Resource | Default capacity | Miss/full behavior |
 | --- | ---: | --- |
 | UDP listeners, `UdpDecoder.listenDb` | 16 | Unselected traffic follows ordinary packet bypass. Native UDP entries also identify PID/endpoint. |
+| TCP listeners, `NativeTcpDecoder.listenDb` | 16 | Independent of UDP listeners; unselected traffic follows ordinary packet bypass. Entries identify PID/endpoint. |
 | ONC-RPC services, `OncRpcCallDecoder.serviceDb` | 8 | Unmatched or disabled service requests are dropped; there is no runtime registry spill. |
 | Scheduler processes, `Scheduler.procDb` | 16 | Unmatched, disabled or full-queue requests enter explicit discard/cleanup. A full process queue is not a software queue. |
 | Incoming reply contexts, `OncRpcReplyEncoder.contexts` | 16 | No live overwrite. Full capacity prevents handler admission and queues a best-effort `SYSTEM_ERR`; the bounded rejection FIFO may itself drop. Replies require a live slot/generation and matching owner; stale/invalid replies are dropped. |
@@ -101,6 +135,7 @@ Use generated descriptors and runtime serialization when changing formats.
 Native UDP validates its supported datagram shape before publishing host work;
 that does not make the entire IPv4/ONC-RPC parser a complete malformed-packet
 validator. IPv4 options, hardware default-gateway handling and malformed ONC-RPC
-handling remain incomplete. Hardware TCP/HTTP/gRPC are placeholders in this
-checkout. See [hardware status](implementation-status.md) for capability limits
+handling remain incomplete. TCP connection state and timers run in the optional
+userspace stack; hardware supplies raw packet steering and DEADLINE delivery.
+HTTP/gRPC offload is not implemented. See [hardware status](implementation-status.md) for capability limits
 and [validation](../development/validation.md) for test selection.

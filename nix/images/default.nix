@@ -5,6 +5,9 @@
   applications,
   deployment,
   memcachedTools,
+  memcachedTcp,
+  transportValidation,
+  transportPeerTools,
   trafficGeneratorImage,
   echoCampaignImage,
   mlx5BenchmarkImage,
@@ -20,6 +23,16 @@
     applications = {
       inherit (applications) dandelion;
       dandelion-tests = applications.dandelion.interactiveTests.smoke;
+    };
+  };
+  tcpValidationImage = deployment.mkApplicationImage {
+    name = "tcp-validation";
+    extraContents = transportPeerTools;
+    applications = {
+      inherit (applications) microbenchmarks nested-validation;
+      memcached = memcachedTcp;
+      transport-validation = transportValidation;
+      memcached-tools = memcachedTools;
     };
   };
   memcachedImage = deployment.mkApplicationImage {

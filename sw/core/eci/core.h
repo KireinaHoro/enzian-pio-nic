@@ -24,95 +24,7 @@
 #define LAUBERHORN_BYPASS_HDR_SIZE (LAUBERHORN_BYPASS_HDR_WIDTH / 8)
 #define LAUBERHORN_ONCRPC_INLINE_ARGS (LAUBERHORN_ONCRPC_INLINE_BYTES / 4)
 
-typedef enum {
-  TY_ERROR,
-  TY_BYPASS,
-  TY_NEIGHBOR_MISS,
-  TY_ONCRPC_CALL_RX,
-  TY_ONCRPC_REPLY_TX,
-  TY_ONCRPC_CALL_TX,
-  TY_ONCRPC_REPLY_RX,
-  TY_EXECUTION_CONTROL,
-  TY_NATIVE_UDP_RX,
-  TY_NATIVE_UDP_TX,
-  TY_DESCHED, /* RX status only: no application payload */
-} lauberhorn_pkt_desc_type_t;
-
-// descriptor for one packet / transaction
-typedef struct {
-  lauberhorn_pkt_desc_type_t type;
-  uint8_t execution; /* local interval end=1, begin=2, combined=3 */
-  // transaction metadata (packet header, RPC session data, etc.)
-  union {
-    struct { uint32_t endpoint, saddr, daddr; uint16_t sport, dport, trace_ref; } udp;
-    struct {
-      enum {
-        HDR_ERROR,
-        HDR_ETHERNET,
-        HDR_IP,
-        HDR_UDP,
-      } header_type;
-    } bypass;
-    struct {
-      int neigh_tbl_idx;
-      // Wire-native IPv4 values consumed directly by the Linux network stack.
-      uint32_t ip_addr;
-      uint32_t saddr;
-      uint8_t proto;
-    } neighbor_miss;
-    struct {
-      void *func_ptr;
-      uint32_t request_token;
-    } oncrpc_call_rx;
-    struct {
-      uint32_t request_token;
-      uint8_t status; // ONC-RPC accept_stat, 0 for success
-    } oncrpc_reply_tx;
-    struct {
-      uint16_t pid;
-      uint32_t cookie;
-      // RPC numbers and IPv4 address are host-order; ECI performs wire conversion.
-      uint32_t xid;
-      uint32_t daddr;
-      uint16_t sport;
-      uint16_t dport;
-      uint32_t prog_num;
-      uint32_t prog_ver;
-      uint32_t proc_num;
-    } oncrpc_call_tx;
-    struct {
-      uint16_t pid;
-      uint32_t cookie;
-      // Host-order XID, converted by ECI for pending-call lookup.
-      uint32_t xid;
-      uint8_t status; // nonzero replies bypass success deserialization
-    } oncrpc_reply_rx;
-  };
-
-  // Number of bytes in the contiguous transport payload.
-  size_t payload_len;
-} lauberhorn_pkt_desc_t;
-
-typedef struct {
-  uint8_t *rx_next_cl;
-
-  /* One contiguous RX borrow, including zero-length packets. data is valid
-   * until core_eci_rx_release(); no acquisition or yield while pending.
-   * The next acquisition retires the underlying hardware slot. */
-  struct {
-    uint8_t *data;
-    size_t length;
-    bool pending;
-  } rx_view;
-
-  bool tx_reserved;
-  size_t tx_capacity;
-  void *tx_reservation_base;
-  uint64_t tx_generation;
-
-  uint8_t *tx_next_cl;
-  uint8_t *tx_buf;
-} lauberhorn_core_state_t;
+#include "transport_types.h"
 
 #define LAUBERHORN_ECI_CL_SIZE (0x80)
 #define LAUBERHORN_ECI_INLINE_DATA_OFFSET (0x40)
@@ -244,6 +156,16 @@ static inline bool core_eci_rx_acquire_traced(void *base, lauberhorn_core_state_
       desc->payload_len = 0;
       break;
 #else // ! __KERNEL__
+    case lauberhorn_eci_native_tcp_rx:
+      desc->type = TY_NATIVE_TCP_RX;
+      desc->tcp.endpoint = lauberhorn_eci_host_ctrl_info_native_tcp_rx_endpoint_extract(rx_ctrl);
+      break;
+    case lauberhorn_eci_deadline:
+      desc->type = TY_DEADLINE;
+      desc->deadline.generation = lauberhorn_eci_host_ctrl_info_deadline_generation_extract(rx_ctrl);
+      desc->payload_len = 0;
+      BARRIER;
+      return valid; /* no packet borrow or buffer allocation */
     case lauberhorn_eci_native_udp_rx:
       desc->type = TY_NATIVE_UDP_RX;
       desc->udp.trace_ref = lauberhorn_eci_host_ctrl_info_native_udp_rx_trace_ref_extract(rx_ctrl);
@@ -419,6 +341,13 @@ static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void 
     break;
 
 #else // ! __KERNEL__
+  case TY_NATIVE_TCP_TX:
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_ty_insert(tx_ctrl, lauberhorn_eci_native_tcp_tx);
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_len_insert(tx_ctrl, payload_len);
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_execution_insert(tx_ctrl, desc->execution);
+    lauberhorn_eci_host_ctrl_info_native_tcp_tx_endpoint_insert(tx_ctrl, desc->tcp.endpoint);
+    break;
+
   case TY_NATIVE_UDP_TX:
     lauberhorn_eci_host_ctrl_info_native_udp_tx_ty_insert(tx_ctrl, lauberhorn_eci_native_udp_tx);
     lauberhorn_eci_host_ctrl_info_native_udp_tx_len_insert(tx_ctrl, payload_len);
@@ -480,8 +409,11 @@ static inline __attribute__((always_inline)) int core_eci_tx_commit_traced(void 
     return CORE_TX_ERROR;
   }
 
-  lauberhorn_eci_host_tx_placement_inline_payload_insert(tx_ctrl,
-      desc->type != TY_EXECUTION_CONTROL && ctx->tx_capacity <= 64);
+  if (desc->type == TY_BYPASS)
+    lauberhorn_eci_host_ctrl_info_bypass_tx_inline_payload_insert(tx_ctrl, ctx->tx_capacity <= 64);
+  else
+    lauberhorn_eci_host_tx_placement_inline_payload_insert(tx_ctrl,
+        desc->type != TY_EXECUTION_CONTROL && ctx->tx_capacity <= 64);
   BARRIER; // make sure all data is written before we ring the doorbell
 
   // Flip the parity

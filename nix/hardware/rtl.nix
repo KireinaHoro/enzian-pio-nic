@@ -8,13 +8,17 @@
   lockFile,
   dcsRom,
   python3,
+  deadlineMinLeadNs ? 1000000,
 }:
+assert builtins.isInt deadlineMinLeadNs && deadlineMinLeadNs > 0 && deadlineMinLeadNs <= 2147483647;
 let
   ivyCache = ivy-gather lockFile;
 in
 stdenvNoCC.mkDerivation {
   name = "lauberhorn-hw-rtl-config";
   inherit src;
+  passthru = { inherit deadlineMinLeadNs; };
+  LAUBERHORN_DEADLINE_MIN_LEAD_NS = toString deadlineMinLeadNs;
   outputs = [
     "out"
     "devices"

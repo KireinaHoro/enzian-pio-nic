@@ -56,6 +56,15 @@ int lauberhorn_init(lauberhorn_t *ctx) {
         return -1;
     }
 
+    uint32_t backend;
+    if (ioctl(ctx->fd, LAUBERHORN_IOCTL_BACKEND, &backend) ||
+        backend != (LH_BACKEND_VM ? LAUBERHORN_BACKEND_VM : LAUBERHORN_BACKEND_ECI)) {
+        close(ctx->fd);
+        ctx->fd = -1;
+        errno = EPROTO;
+        return -1;
+    }
+
     ctx->_aliases = mmap(NULL, LAUBERHORN_NUM_WORKER_CORES * LAUBERHORN_ECI_CORE_OFFSET,
         PROT_READ | PROT_WRITE, MAP_SHARED, ctx->fd, 0);
     if (ctx->_aliases == MAP_FAILED) {

@@ -93,7 +93,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   val executionOnly = out Bool()
   executionOnly := txDesc.ty === HostReqType.executionControl
   val executionType = txDesc.ty === HostReqType.oncRpcReplyTx ||
-    txDesc.ty === HostReqType.oncRpcCallTx || txDesc.ty === HostReqType.nativeUdpTx || executionOnly
+    txDesc.ty === HostReqType.oncRpcCallTx || txDesc.ty === HostReqType.nativeUdpTx ||
+    txDesc.ty === HostReqType.nativeTcpTx || executionOnly
   execution.valid := txDesc.fire && executionType && !invalidLayout
   execution.payload := executionType ? savedControl(HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get + 1 downto HOST_REQ_TY_WIDTH.get + PKT_BUF_LEN_WIDTH.get) | B(0, 2 bits)
   val aliasedHostCtrl = EciHostTxCtrlInfo()

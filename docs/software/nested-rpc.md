@@ -17,7 +17,7 @@ See the [application API](programming-model.md) for ownership and waiting rules.
 | Runtime dispatch | `sw/rt/{rpc,worker,pending_call_table}.c`: call/reply dispatch, cookie generation checks and cooperative futures and fiber-free reply forwarding |
 
 All four directional types (`oncRpcCallRx`, `oncRpcReplyTx`, `oncRpcCallTx`,
-`oncRpcReplyRx`) exist. ECI transport version 3 reconstructs the decoder's
+`oncRpcReplyRx`) exist. ECI transport version 4 reconstructs the decoder's
 48-byte RPC prefix into the contiguous RX region. TX encoders consume the whole
 argument/reply stream from DMA; descriptor-resident TX argument fields are no
 longer used. Generated ABI, payload lengths and invalidation counts must agree.
@@ -139,8 +139,8 @@ child's reply locally without retaining the parent fiber. Tail calls that reply
 directly from the downstream service to the original client are not implemented
 and are not fully designed.
 
-Parked-domain deadline activation and execution watchdogs are unsupported in the
-current scheduler. Per-call retirement does not imply whole-domain recovery.
+Parked-domain deadlines use the [scheduler allocation rules](scheduler.md#allocation-and-reclaim-rules).
+Execution-watchdog integration remains deferred. Per-call retirement does not imply whole-domain recovery.
 [Service-owned events and timers](../proposals/service-execution.md) are proposals.
 
 ## Internal local RPC

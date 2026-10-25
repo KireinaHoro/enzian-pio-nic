@@ -196,6 +196,22 @@ borrow lifetime, bounded reads and mutable replay in either layout. The existing
 64-byte descriptor/64-byte payload split remains the implemented ABI until
 matched hardware/software changes.
 
+## VM-first implementation
+
+Before implementing the FPGA changes, develop the software path and emulate
+the proposed hardware behavior in the shared [VM backend](../software/vm-backend.md).
+Exercise entry registration and lifetime, the proposed RX descriptor/entry ABI,
+RPC-envelope rejection, error and control responses, and DESCHED/yield ownership
+with the shared runtime. Keep build and emulator configuration in Nix. Port the
+validated behavior to RTL and the ECI backend with matched generated collateral,
+then validate coherence, timing and performance on hardware.
+
+The VM scheduler models hardware-oriented allocation and DEADLINE arbitration
+rules described in the [VM backend](../software/vm-backend.md). Extend that model
+for any trampoline-specific scheduling or reclaim behavior before using VM
+results to validate it. VM functional results do not establish hardware latency
+or dispatch savings.
+
 ## Measurement plan
 
 Separate Dispatch (service/codec selection, invocation, outcome routing and

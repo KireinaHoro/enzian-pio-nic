@@ -2,6 +2,9 @@
 // Copyright (c) 2025 Pengcheng Xu
 
 #include "common.h"
+#if LH_BACKEND_VM
+#include "vm.h"
+#endif
 
 // Module initialization
 static int __init mod_init(void)
@@ -10,6 +13,10 @@ static int __init mod_init(void)
 
 	pr_info("Lauberhorn kernel module init\n");
 
+#if LH_BACKEND_VM
+    err = lh_vm_init();
+    if (err) return err;
+#else
 	err = map_node1();
 	if (err != 0) {
 		goto out;
@@ -39,6 +46,8 @@ static int __init mod_init(void)
 		goto workers;
 	}
 
+#endif
+
 	err = create_devices();
 	if (err != 0) {
 		pr_err("create_devices failed: err = %d\n", err);
@@ -49,6 +58,9 @@ static int __init mod_init(void)
 	return 0;
 
 bypass:
+#if LH_BACKEND_VM
+    lh_vm_exit();
+#else
 	deinit_bypass();
 workers:
 	deinit_workers();
@@ -56,6 +68,7 @@ tad_debug:
 	deinit_l2c_tad_debug();
 unmap:
 	unmap_node1();
+#endif
 out:
 	return -1;
 }
@@ -66,10 +79,14 @@ static void __exit mod_exit(void)
 	pr_info("Lauberhorn exiting...\n");
 
 	remove_devices();
+#if LH_BACKEND_VM
+    lh_vm_exit();
+#else
 	deinit_workers();
 	deinit_bypass();
 	deinit_l2c_tad_debug();
 	unmap_node1();
+#endif
 
 	pr_info("Lauberhorn unloaded\n");
 }

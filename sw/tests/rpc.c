@@ -8,9 +8,26 @@
 #include <stdio.h>
 #include <errno.h>
 #include "../kmod/ioctl.h"
+static struct lauberhorn_deadline_state test_deadline = {.minimum_lead_ns = 1000000};
+static unsigned deadline_rejections = 2;
 static int retired_calls;
 static bool retirement_error;
 static int test_ioctl(int fd, unsigned long command, void *arg) {
+    if (command == LAUBERHORN_IOCTL_GET_DEADLINE) {
+        *(struct lauberhorn_deadline_state *)arg = test_deadline; return 0;
+    }
+    if (command == LAUBERHORN_IOCTL_SET_DEADLINE) {
+        struct lauberhorn_deadline_set *set = arg;
+        assert(set->expected_generation == test_deadline.generation);
+        if (set->next_deadline_ns && deadline_rejections) {
+            --deadline_rejections; errno = ETIME; return -1;
+        }
+        test_deadline.generation++;
+        test_deadline.next_deadline_ns = set->next_deadline_ns;
+        test_deadline.pending = test_deadline.delivered = 0;
+        set->generation = test_deadline.generation;
+        return 0;
+    }
     if (command != LAUBERHORN_IOCTL_RETIRE_CALL || !arg) abort();
     retired_calls++;
     if (retirement_error) { errno = EIO; return -1; }
@@ -45,10 +62,10 @@ static void *test_tx_get(void *base, lauberhorn_core_state_t *state, bool inline
     state->tx_capacity = inline_payload ? 64 : LAUBERHORN_MTU;
     return state->tx_buf;
 }
-#define core_eci_tx_cancel core_eci_tx_finish
-#define core_eci_tx_get_buffer test_tx_get
-#define core_eci_tx_commit test_tx
-#define core_eci_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
+#define core_tx_cancel core_eci_tx_finish
+#define core_tx_get_buffer test_tx_get
+#define core_tx_commit test_tx
+#define core_tx_commit_traced(base, state, desc, stamp, clock) test_tx(base, state, desc)
 #define ioctl test_ioctl
 #include "../rt/rpc.c"
 #undef ioctl
@@ -278,7 +295,11 @@ int main(void) {
     timed->sent_at = (struct timespec){0};
     pthread_spin_unlock(&timed->lock);
     int before_timeout = replies;
-    rpc_call_process_timeout();
+    assert(!deadline_rejections && test_deadline.next_deadline_ns);
+    rpc_deadline_expired(test_deadline.generation - 1);
+    assert(replies == before_timeout && atomic_load(&timed->state) == SLOT_PENDING);
+    rpc_deadline_expired(test_deadline.generation);
+    assert(!test_deadline.next_deadline_ns);
     assert(replies == before_timeout + 1 && sent.oncrpc_reply_tx.status == 5);
     assert(!ep._transport.unresolved && !allocated && retired_calls == 3);
     rpc_handle_packet(&worker, &completion);

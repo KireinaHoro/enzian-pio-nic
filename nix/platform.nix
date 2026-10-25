@@ -73,6 +73,7 @@ let
   };
   runtime = target.callPackage ./software/runtime.nix {
     inherit devHdrs genVerilog;
+    cpuFlags = [ "-march=armv8-a+crc+lse" "-mtune=thunderxt88" ];
     src = sources.c [
       "sw/rt"
       "sw/include"
@@ -82,6 +83,48 @@ let
     ];
   };
   runtimeUninstrumented = runtime.override { tracing = false; };
+  # Host builds share runtime sources and select transport at compile time.
+  # This remains an ECI runtime; native compilation alone does not emulate a NIC.
+  runtimeNative = pkgs.callPackage ./software/runtime.nix {
+    inherit devHdrs genVerilog;
+    inherit (runtime) src;
+    tracing = false;
+  };
+  runtimeVm = runtimeNative.override { backend = "vm"; };
+  tcp = target.callPackage (inputs.tcp + "/package.nix") {
+    lauberhornRuntime = runtime;
+  };
+  tcpVm = pkgs.callPackage (inputs.tcp + "/package.nix") {
+    lauberhornRuntime = runtimeVm;
+  };
+  transportValidationSource = pkgs.lib.fileset.toSource {
+    root = source;
+    fileset = pkgs.lib.fileset.unions (map (p: source + "/${p}") [
+      "sw/tests/vm" "sw/tests/transport" "sw/core"
+    ]);
+  };
+  transportValidation = target.callPackage ./software/tcp-validation.nix {
+    inherit runtime tcp;
+    source = transportValidationSource;
+  };
+  vmKernel = pkgs.linuxPackages.kernel;
+  vmModule = pkgs.callPackage ./software/vm-module.nix {
+    kernel = vmKernel;
+    inherit devHdrs genVerilog;
+    inherit (kmod) src;
+  };
+  vmTest = pkgs.callPackage ./checks/vm.nix {
+    inherit vmModule runtimeVm tcpVm memcachedReference;
+    memcachedVm = pkgs.callPackage (inputs.memcached + "/package.nix") {
+      source = inputs.memcached;
+      lauberhornRuntime = runtimeVm;
+      lauberhornTcp = tcpVm;
+    };
+    nestedFixture = pkgs.callPackage (source + "/sw/apps/nested-validation/package.nix") {
+      lauberhornRuntime = runtimeVm;
+    };
+    source = transportValidationSource;
+  };
   microbenchmarkSource = inputs.microbenchmarks;
   benchmarkRuntimeSource = (sources.c [
     "sw/include"
@@ -136,6 +179,7 @@ let
   memcached = callPackage (inputs.memcached + "/package.nix") {
     source = inputs.memcached;
   };
+  memcachedTcp = memcached.override { lauberhornTcp = tcp; };
   memcachedTools = pkgs.callPackage ./software/memcached-tools.nix {
     inherit source identity;
     inherit (deploymentTarget) python3 bash;
@@ -200,12 +244,20 @@ in
     runtimeTests
     dandelion
     memcached
+    memcachedTcp
+    transportValidation
     memcachedReference
     target
     callPackage
     applications
     runtime
     runtimeUninstrumented
+    runtimeNative
+    runtimeVm
+    tcp
+    tcpVm
+    vmModule
+    vmTest
     microbenchmarksUninstrumented
     kmod
     genVerilog
@@ -248,11 +300,14 @@ in
       };
     };
   images = import ./images {
+    transportPeerTools = with deploymentTarget; [ python3 nftables ];
     inherit
       bootFiles
       applications
       deployment
       memcachedTools
+      memcachedTcp
+      transportValidation
       ;
     eciVivadoInputs = pkgs.callPackage ./hardware/vivado-inputs.nix {
       inherit

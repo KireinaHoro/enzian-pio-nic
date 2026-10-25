@@ -10,7 +10,7 @@ Lauberhorn is a smart NIC integrated with OS scheduling, prototyped on Enzian. I
 ## Current composition
 
 ```text
-Ethernet CMAC → Ethernet/IP/UDP decode → native UDP / ONC-RPC decode
+Ethernet CMAC → Ethernet/IP decode → native TCP / UDP / ONC-RPC decode
                                                      ↓
                                           packet storage + metadata
                                                      ↓
@@ -20,7 +20,7 @@ Ethernet CMAC → Ethernet/IP/UDP decode → native UDP / ONC-RPC decode
                                                      ↓
                     Linux worker scheduling ↔ userspace runtime/handler
                                                      ↓
-                     host TX → native UDP / ONC-RPC → UDP/IP/Ethernet encode → CMAC
+                     host TX → native TCP / UDP / ONC-RPC → IP/Ethernet encode → CMAC
 
 Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 ```

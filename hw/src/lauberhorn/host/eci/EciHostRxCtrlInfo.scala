@@ -30,6 +30,11 @@ case class EciHostRxCtrlInfo() extends Bundle {
   val ty = HostReqType()                                              // [1 : 5)  = 4b
   val len = PacketLength()                                            // [5 : 21) = 16b
   val data = new Union {
+    case class DeadlineBundle() extends Bundle {
+      val padding = Bits(43 bits) // generation starts at byte 8
+      val generation = Bits(64 bits)
+    }
+    val deadline = newElement(DeadlineBundle())
     case class NativeUdpBundle() extends Bundle {
       val padding = Bits(11 bits)
       val endpoint = Bits(32 bits)
@@ -41,9 +46,14 @@ case class EciHostRxCtrlInfo() extends Bundle {
       val tracePadding = Bits(80 bits)
     }
     val nativeUdp = newElement(NativeUdpBundle())
+    case class NativeTcpBundle() extends Bundle {
+      val padding = Bits(11 bits)
+      val endpoint = Bits(32 bits)
+    }
+    val nativeTcp = newElement(NativeTcpBundle())
     case class BypassBundle() extends Bundle {
       val ty = PacketDescType()                                       // [21: 24) = 3b
-      val xb8 = Bits(8 bits) /* make sure header is word aligned */   // [24: 32) = 8b
+      val xb8 = Bits((11 - PKT_DESC_TY_WIDTH.get) bits) /* word alignment */   // [24: 32) = 8b
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
     val bypass = newElement(BypassBundle())
@@ -97,6 +107,22 @@ case class EciHostRxCtrlInfo() extends Bundle {
 
     ALLOC.addMackerelEpilogue(
       s"""
+         |datatype host_ctrl_info_native_tcp_rx lsbfirst(64) "Complete IPv4/TCP RX" {
+         |  valid 1 "RX descriptor valid";
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_tcp_rx";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "Complete IPv4 packet length";
+         |  _ 11 rsvd;
+         |  endpoint 32 "Kernel endpoint handle";
+         |};
+         |
+         |datatype host_ctrl_info_deadline lsbfirst(64) "Acknowledged domain deadline" {
+         |  valid 1 "RX descriptor valid";
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "deadline";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "Zero; no packet allocation";
+         |  _ 43 rsvd;
+         |  generation 64 "Publication generation";
+         |};
+         |
          |datatype host_ctrl_info_native_udp_rx lsbfirst(64) "Native UDP RX" {
          |  valid 1 "RX descriptor valid";
          |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_udp_rx";
@@ -129,7 +155,7 @@ case class EciHostRxCtrlInfo() extends Bundle {
          |  ty       ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "Type of descriptor (should be bypass)";
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
-         |  _        8 rsvd;
+         |  _        ${11 - PKT_DESC_TY_WIDTH.get} rsvd;
          |  // hdr follows -- need to calculate address manually
          |};
          |
@@ -212,6 +238,14 @@ object EciHostRxCtrlInfo {
     ret.ty := desc.ty
     ret.data.assignDontCare()
     switch (desc.ty) {
+      is (HostReqType.nativeTcpRx) {
+        ret.data.nativeTcp.padding := 0
+        ret.data.nativeTcp.endpoint := desc.data.nativeTcp.endpoint
+      }
+      is (HostReqType.deadline) {
+        ret.data.deadline.padding := 0
+        ret.data.deadline.generation := desc.data.deadline.generation
+      }
       is (HostReqType.nativeUdpRx) {
         ret.data.nativeUdp.padding := 0
         ret.data.nativeUdp.tracePadding := 0

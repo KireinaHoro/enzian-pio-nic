@@ -8,10 +8,9 @@ coverage separately from implementation.
 
 ## Responsibilities and identities
 
-The FPGA scheduler preserves packet-driven allocation, idle-first selection,
-the additional-core watermark and background discovery of queued domains.
-Linux chooses a waiting initialized thread and installs its CPU affinity.
-Selection is not a completed fairness or latency-SLO policy.
+The FPGA and VM use one normal-allocation arbiter. Linux chooses a waiting
+initialized thread and installs its CPU affinity. Allocation grants are separate
+from cooperative handoff and do not establish a latency bound.
 
 Physical NIC worker indices, Linux CPU numbers, scheduler slots, Linux PIDs and
 19-bit PA lifetime codes are distinct. Bypass is datapath zero; four physical
@@ -24,6 +23,48 @@ the worker and domain; admission checks its trusted installed owner. No thread
 router, prefix reassignment, preemption control cache line or shared parity page
 participates. Kernel scheduling never touches transport cache lines.
 
+## Allocation and reclaim rules
+
+The watermark is half the generated per-domain packet capacity. Every grant
+rechecks that the recipient is enabled, has a fully registered pool and has
+capacity after counting reserved destinations. A core in a handoff or selected
+packet-delivery state cannot be reserved again. Selection prefers the first idle
+core, then the first eligible RX-ready donor. Running handlers are never donors.
+
+| Reason | Recipient | Eligible donor when no idle core exists |
+| --- | --- | --- |
+| Initial packet | Zero cores; pre-enqueue fill below watermark | None |
+| Packet backlog | Pre-enqueue fill at or above watermark; below declared core limit | Any other enabled domain at RX; no donor watermark protection |
+| Background discovery | Queued packets and zero cores; first eligible domain | Empty packet queue and no unclaimed deadline |
+| DEADLINE | Pending unclaimed expiry and zero cores | Queue at or below watermark |
+
+Packet and DEADLINE candidates alternate when both can obtain a grant. Pending
+DEADLINE domains rotate; rearming does not reset that rotation. Background
+discovery runs when neither candidate can obtain a grant. At most one reservation
+is committed per arbitration step. Packet arrival requests are transient;
+background discovery retains progress for queued zero-core domains after a
+missed arrival grant. DEADLINE remains pending while no eligible donor exists.
+This deliberately replaces the former packet-first arbitration. It does not
+promise background fairness under continuous eligible packet/timer demand.
+
+DEADLINE uses a reserved slot outside the packet FIFO. Selection claims one
+publication for one worker; it remains pending until atomic acknowledgement,
+replacement or cancellation. A selected descriptor remains stable under RX
+backpressure. Subsequent timer generations alternate with packets when both are
+ready. Already selected packets are not withdrawn. Failure fencing takes
+priority over normal grants and delivery; legacy force/kill intent is separate.
+
+ECI ABI 4 adds lifetime-checked deadline control and payload-free RX. The kernel
+serializes staged control writes and converts absolute CLOCK_MONOTONIC times to
+the device tick counter. Sampling the host clock before the device clock makes
+MMIO delay contribute late service rather than early callback execution. The
+hardware rechecks minimum lead at commit; rejection preserves the old slot.
+`deadlineMinLeadNs` in the RTL Nix recipe defaults to 1 ms and is emitted in the
+generated configuration. Use matching collateral and kernel/runtime artifacts.
+Deadline traces record state publication/expiry, activation, selection and
+accepted delivery; generation correlation uses the low 32 bits in trace records,
+while control and RX retain the full 64-bit generation.
+
 ## Pool and activation
 
 `lauberhorn_set_worker_count()` declares an immutable pool before creation.
@@ -31,7 +72,7 @@ Each thread completes its callback and runtime setup, explicitly registers,
 and enters bootstrap `lh_yield()`. Capacity is published after all declared
 threads are ready. Mapping neither registers nor parks a thread.
 
-An initial packet reserves an idle worker and sets a sticky notification.
+An initial packet or an expired deadline reserves an idle worker and sets a sticky notification.
 SGI 8 only wakes its pinned kernel dispatcher. Under the worker's reader mutex,
 the dispatcher reconciles notification and ownership before consuming one
 `DeschedInfo` snapshot. Duplicate interrupts cannot authorize duplicate reads.
@@ -75,16 +116,19 @@ sticky notification and pinned dispatcher; ordinary DESCHED uses `lh_yield()`
 and one autonomous-cleanup `DeschedInfo` transaction with no scheduling IRQ.
 
 Per-call cancellation/timeout retirement remains a separate existing operation.
-Parked-domain deadline activation and execution-watchdog integration are outside
-this stage; their control ioctls return `EOPNOTSUPP`. No HOST_WORK interface is
+Parked-domain deadline activation follows the rules above. Execution-watchdog
+integration remains outside this stage; its control ioctl returns `EOPNOTSUPP`. No HOST_WORK interface is
 implemented; the [new design](../proposals/host-work.md) uses that name instead
 of HOST_WAKE and does not change recovery. See the [control contract](scheduling-control-interface.md) and
 [evidence ledger](../hardware/eci-implementation.md).
 
 `lauberhorn_stop()` requests failure fencing, not a successful drain/reclaim
 operation. `STOP_PROCESS` and the legacy `WAKE_ALL_WORKERS` ioctl call
-`fail_domain` and return `ESHUTDOWN`. `KICK_PROCESS` and `WATCHDOG` return
-`EOPNOTSUPP`; even a zero watchdog limit is rejected by the current kernel.
+`fail_domain` and return `ESHUTDOWN`. `KICK_PROCESS` has been removed.
+`WATCHDOG` returns `EOPNOTSUPP`; even a zero
+watchdog limit is rejected by the current kernel. `SET_DEADLINE`/`GET_DEADLINE`
+are implemented only in the [VM backend](vm-backend.md) and return `EOPNOTSUPP`
+on ECI.
 Per-call retirement remains available through `RETIRE_CALL`.
 
 Sources: [scheduler](../../hw/src/lauberhorn/Scheduler.scala),

@@ -1,6 +1,6 @@
 # Shared userspace TCP for native applications
 
-**Proposal; not implemented.** Support TCP memcached with one userspace TCP
+**VM TCP and memcached implemented; hardware integration in progress.** Support TCP memcached with one userspace TCP
 stack per application, shared by its one to four request workers. Hardware
 classifies and transports segments; software owns all TCP connection state,
 ACK generation, reassembly, flow/congestion control, retransmission and close.
@@ -19,17 +19,21 @@ workers without connection affinity. Unmatched traffic retains bypass routing.
 The binding remains valid while accepted connections and close processing need
 it; stopping new accepts must not remove delivery for existing connections.
 
-Validate IP/TCP lengths, header bounds and checksums before host admission;
-initial scope is MTU-bounded IPv4 without IP options or fragmentation. Preserve
-the complete TCP header, options and payload, including zero-payload segments.
-Expose source/destination IP context, endpoint identity, length and checksum
-status alongside the borrowed packet. The stack adapter supplies a normal IP
-packet view if its input API requires one. Hardware does not update sequence
-state, acknowledge bytes, reorder segments or maintain a connection table.
+Deliver the complete received IPv4 packet as the borrowed payload, with endpoint
+identity and received length in the descriptor. The shared IPv4 decoder validates
+version, IHL, total length and the header checksum, including options. Valid
+options and fragments retain bypass routing. Ordinary TCP packets are selected
+by destination port; hardware does not validate TCP length, header or checksum.
+Software trims Ethernet padding, validates TCP and owns connection state. TCP
+options and zero-payload segments remain intact.
 
-TX accepts the software-generated TCP header/options/payload and remote IP,
-validates the bound local endpoint, and supplies IP/Ethernet framing and TCP
-checksum completion. Retain existing neighbor resolution and bounded TX
+TX accepts a complete software-generated IPv4/TCP packet. It checks endpoint
+ownership and DMA buffer bounds before transfer, strips the supplied IPv4 header,
+and forwards TCP bytes, including their checksum, unchanged. The existing IP
+encoder supplies the configured source address, IP checksum and neighbor lookup;
+software must use that source address for its TCP pseudo-header checksum.
+Descriptor acceptance releases the host TX buffer. There is no subsequent TCP
+packet-content validation or checksum completion in hardware. Retain existing neighbor resolution and bounded TX
 admission semantics. Regenerate descriptors, headers and mappings together;
 define new native-TCP RX/TX variants without importing the split-offload ABI.
 Preserve native UDP, ONC-RPC and bypass configurations.
@@ -65,32 +69,125 @@ reservations before blocking RX or yield. After DESCHED, yield immediately
 without further transport access. Ordinary syscall blocking retains assignment;
 critical sections must not contain blocking operations.
 
-## Timer execution and progress
+## DEADLINE execution and scheduling
 
-Maintain software timers in shared application state. Publish the earliest
-deadline to a domain-scoped hardware timer. Expiry creates sticky, coalescible
-application work: release any eligible worker from blocking RX, or request
-ordinary domain activation if all application workers are parked. It must work
-without network arrivals and must not target a connection's previous worker.
-Timer expiry does not interrupt a running handler.
+Software keeps connection timers in shared application state and publishes its
+minimum absolute deadline to the device. **DEADLINE** is a domain-scoped,
+payload-free notification that this minimum has expired. It contains a domain
+lifetime and publication generation, not a connection or worker identity.
+Application workers execute callbacks; the device only records expiry and
+schedules service. No helper TCP thread or asynchronous handler preemption is
+introduced. The [VM backend](../software/vm-backend.md) and ECI ABI 4 implement this policy.
+The native TCP transport supplies listen-port steering and complete IP packet
+borrows; AArch64 stack packaging and board acceptance are phase-four work.
 
-At worker-loop boundaries, service due timers and ready transport work fairly
-alongside packets and bounded batches of memcached commands. Any worker may
-claim an expired timer; serialize its connection update with segment processing.
-Drain/acknowledge the pending event and rearm the earliest remaining deadline
-with a race-safe generation/recheck protocol. Inserting an earlier deadline,
-concurrent rearming, close/cancellation and expiry during sleep entry must not
-lose a wakeup or access a freed connection. Packet arrivals must not starve due
-timers. A timer-only activation must support ACK/retransmission TX without an RX
-packet or request context.
+Keep one reserved pending slot per domain outside the packet FIFO, so a full
+packet queue cannot suppress expiry and duplicate expiries do not consume extra
+slots. Deliver DEADLINE once to one assigned worker at its next eligible RX,
+ahead of queued packets. Already accepted packet delivery is not withdrawn.
+Continued overdue work alternates bounded timer and packet batches when both
+are ready; repeated expiry does not confer unlimited priority.
 
-Progress requires an available worker, fair timer dispatch and finite critical
-sections. One busy handler must not prevent another worker from advancing TCP.
-If all assigned workers are executing handlers, transport waits until one
-reaches a loop boundary; hardware timer precision does not bound that delay.
-This proposal adds no asynchronous handler preemption. The domain timer ABI is
-new work, distinct from existing internal RPC deadline wakeups and
-[HOST_WORK](host-work.md).
+DEADLINE may increase a domain's core count only from **zero to one**. Count
+assigned and reserved cores together when deciding eligibility. Prefer an idle
+core; otherwise reclaim only an RX-ready core from a donor whose queue is **at
+or below the watermark**. Never take a core from a donor above that watermark
+for deadline service. Revalidate both recipient capacity and donor eligibility
+at reservation. If the recipient already has a core, deliver the notification
+there without allocating another core. Packet-driven scaling remains a separate
+reclaim reason.
+
+If no eligible core exists, retain the expired deadline and retry when eligibility
+changes. Indefinite delay while all possible donors remain above the watermark
+is an accepted overload behavior, not a bounded-latency guarantee. Arbitration
+must provide service among eligible requests without overriding donor protection;
+repeated rearming must not continually move one domain ahead of its peers.
+
+A running handler, syscall sleep or continuously runnable fiber drain may delay
+the next RX boundary indefinitely. These have the same cooperative progress
+limitation. This design does not add asynchronous preemption or require a new
+fiber-drain bound. When all assigned workers are occupied, DEADLINE waits rather
+than acquiring an extra core. TCP and RPC timeouts therefore remain best effort;
+connections can expire at their peers during sufficiently long delays.
+
+### Publication and acknowledgement
+
+Replace the obsolete `KICK_PROCESS` ioctl and `wake_idx`/`softwarePending`
+scaffolding with `SET_DEADLINE(next_deadline)`, using an absolute monotonic
+deadline. Reject a deadline earlier than the device's advertised minimum lead
+time without changing the previous armed/pending state. Provide explicit
+cancellation. The public ABI uses absolute CLOCK_MONOTONIC nanoseconds and a 64-bit
+compare-and-replace generation. ECI binds commands to the kernel-owned PA
+lifetime and converts time to device ticks; build parameters belong in Nix.
+There is one scheduling policy, without a `reclaim_on_expiry` mode switch.
+
+Use DEADLINE for both TCP timers and nested-RPC timeouts. Its single-worker
+delivery replaces the RPC loop's per-RX clock read and sweep-election CAS.
+The receiving worker reads the clock, processes expired work and publishes the
+next minimum. Concurrent insertion/cancellation still needs synchronization;
+removing sweep election does not remove connection or timer-state locks.
+
+DEADLINE remains pending until an explicit generation-checked acknowledgement
+or superseding publication; core reservation, activation and descriptor delivery
+alone must not clear it. Delivery claims suppress duplicate notifications while
+service is in flight. Complete service with an atomic acknowledgement/rearm of
+the next minimum (or cancellation when no timer remains). A newer publication
+must survive an old acknowledgement. Already-overdue software work remains
+runnable; rejection of a too-soon arm must not discard it or allow the last
+worker to park without a valid future retry or retained pending notification. An earlier timer insertion must publish before
+its worker can park; recheck shared timer state around publication to prevent a
+concurrent older minimum from replacing it. Serialize control publication
+outside connection locks. The [scheduler contract](../software/scheduler.md#allocation-and-reclaim-rules)
+defines ECI clock conversion and minimum-lead configuration.
+
+Connection-lock contention is resolved locally in the timer dispatcher. Release
+timer-queue protection while waiting, then revalidate the timer before dispatch:
+its owner may have reset or cancelled it. Do not rearm DEADLINE as a contention
+fallback. Stack critical sections must be short; a Nix-configured watchdog
+fails fast on prolonged contention. Bounded callback batches rotate among due
+timers and give packet processing and other domains service opportunities.
+Release all stack/application locks, RX borrows and TX reservations before
+blocking RX or yielding. Timer-only activation permits ACK/retransmission TX
+without a packet or RPC context. This replaces internal RPC timeout polling
+and remains distinct from [HOST_WORK](host-work.md).
+
+### Scheduler implementation
+
+[Scheduler.scala](../../hw/src/lauberhorn/Scheduler.scala) keeps acknowledged
+[deadline slots](../../hw/src/lauberhorn/DomainDeadline.scala) beside domain queue
+metadata. Packet queue pointers and buffer allocation do not include deadline
+notifications. Privileged deadline registers stage atomic generation/lifetime
+commands and latch consistent readback. Descriptor selection claims one expiry;
+only acknowledgement/replacement/cancellation or failure retirement clears it.
+
+[SchedulerAllocation](../../hw/src/lauberhorn/SchedulerAllocation.scala) centralizes
+all four normal allocation reasons. The VM uses the corresponding pure C policy
+from `sw/kmod/scheduler_policy.h`; the `scheduler-policy` Nix check compares
+stateful input sequences against RTL. The [allocation rule table](../software/scheduler.md#allocation-and-reclaim-rules)
+specifies recipient and donor eligibility, watermark boundaries, reservation
+rechecks and arbitration. Failure fencing and legacy kill intent remain separate.
+`wake_idx` and `softwarePending` have been removed; their old residency-based
+clearing did not acknowledge timer service.
+
+A selected DEADLINE descriptor stays stable under backpressure and traverses
+ECI without a packet allocation or software borrow. DESCHED/failure fencing
+precedes delivery. Per-domain packet/timer alternation prevents repeated
+rearming from suppressing all queued packets. Tracing distinguishes publication,
+expiry, activation, selection and accepted descriptor delivery.
+
+### VM policy checks before hardware implementation
+
+Exercise a full packet queue at expiry, repeated immediate rearming, concurrent
+publication/acknowledgement, expiry during sleep entry and contended callbacks.
+Verify that a deadline cannot allocate a second core, including concurrent
+reservations. Test donors below, exactly at and above the watermark; an expiry
+must stay pending while all donors are protected and become serviceable when
+an eligible core appears. Alternate bursts between two applications, observe
+each lose every core, and require timer-only reactivation and stream progress
+on their existing connections when donor eligibility permits. Include a packet-only competing domain to expose deadline-induced
+starvation. Report expiry-to-notification and expiry-to-callback separately,
+along with packet progress and handoff counts. Long-handler cases demonstrate
+the cooperative limit rather than claiming a deadline latency guarantee.
 
 ## Stack selection and acceptance
 
@@ -107,9 +204,9 @@ process/socket and VNET state, per-worker thread context, safe reclamation,
 allocator semantics and shared callouts. F-Stack's isolated per-thread stacks
 and stubbed synchronization do not implement this contract.
 
-Describe the result as a FreeBSD userspace TCP port for Lauberhorn, with selected
-scaffolding derived from F-Stack and its attribution retained. It does not use
-DPDK or F-Stack's execution model.
+The implementation is a FreeBSD userspace TCP port for Lauberhorn. F-Stack
+served as a source-selection and host-adaptation reference; no F-Stack source
+is imported. It does not use DPDK or F-Stack's execution model.
 
 Define the stack's concurrent-entry API and timer arm/ack/cancel ABI during VM
 development, then the memcached readiness adapter before application integration.
@@ -123,10 +220,18 @@ work; retain the existing application's maintenance/lifecycle scope limits.
 
 ## Development phases
 
-These phases are planned work. The software-only backend is shared infrastructure
+Phases 1–3 provide the software path; phase 4 adds hardware integration and
+board validation. The software-only backend is shared infrastructure
 for Lauberhorn applications, not a TCP-specific replacement runtime.
 
 ### Phase 1: shared kernel module and runtime with VM emulation
+
+The compile-time VM backend shares kernel registration/activation and runtime
+dispatch with ECI. Its kernel-thread device emulator supports native UDP,
+ONC-RPC and nested RPC through mapped buffers and transport ioctls. Nixpkgs
+NixOS tests exercise these paths and UDP memcached. See the
+[VM backend contract and validation](../software/vm-backend.md) for its bounds
+and lifecycle limitations. Native TCP and domain timer activation remain phase 2.
 
 Start from the current kernel module and runtime, with a compile-time backend
 selection for real hardware or software-only VM execution. Share application
@@ -154,11 +259,33 @@ functional behavior; it does not establish ECI coherence or hardware timing.
 
 ### Phase 2: shared FreeBSD TCP library and validation in the VM
 
-Develop the FreeBSD userspace TCP library against the emulation backend, reusing
-the selected F-Stack scaffolding described above. Implement
+The shared IPv4 server path is implemented in the VM backend with bounded
+four-worker acceptance. The optional adapter serves one registered listening
+port per application; active-open ephemeral-port steering is outside its current
+interface. Hardware transport remains phase 4.
+
+The source/build checkpoint lives in the separate `lauberhorn-tcp` repository.
+It imports only selected vanilla FreeBSD TCP sources and their transitive
+headers, with a pinned revision and per-file hashes. Its source-owned Nix recipe supplies dependencies and configuration overrides
+to a GNU Make build. Separate `all`, `check` and `install` targets build the
+libraries, run host regressions and install the component. `config.mk` declares
+configuration defaults; the build validates their types and bounds before
+compilation. The shared TCP library and optional runtime adapter use the same
+configuration under direct Make and Nix builds. Both x86-64 and AArch64 use
+selected machine headers from the same FreeBSD revision. Cross builds run the
+same protocol and concurrency checks through Nixpkgs' user-mode QEMU.
+The TCP library is an optional component alongside the runtime: application Nix
+recipes explicitly include both packages, and the runtime does not depend on
+TCP. Shared callouts, safe reclamation and the host interfaces live in the
+TCP package; the emulator supplies raw packet transport and domain deadlines.
+
+Develop the FreeBSD userspace TCP library against the emulation backend. Implement
 the proposed native-TCP transport and domain timer interfaces in the emulator,
 and integrate callable packet/timer processing with the shared runtime. Use
-one stack per application with one to four workers and stack-owned RX/TX copies.
+one stack per application with one to four workers. RX is copied once into
+stack-owned mbufs because reassembly and unread data can outlive the transport
+borrow. TX is filled directly in the current worker’s 2F2F reservation and
+committed synchronously; there is no shared packet staging queue.
 
 Exercise TCP independently of memcached with a normal TCP link partner:
 connection establishment, bidirectional stream transfer, ACK-only traffic,
@@ -169,28 +296,90 @@ during sleep entry. Require timer-only activation with all workers parked and
 TCP progress while another worker runs a long handler. Validate stream contents,
 connection lifetime, readiness delivery and ownership at DESCHED/yield boundaries.
 
-### Phase 3: Lauberhorn integration and Enzian end-to-end validation
+Keep established connections open in two applications while alternating bursts
+force each application to lose all worker assignments. Verify the zero-worker
+intervals explicitly, then require both applications to resume stream progress
+on the same connections. Include an outstanding retransmission whose deadline
+expires while its application has no workers and receives no new packets.
+Expiry must remain pending and make the domain eligible for activation; after
+the scheduler grants a worker, dispatch must service the overdue timer. This
+requires eventual worker service, not execution at the exact deadline while
+the application has no workers. Bound the test's preemption intervals below
+the configured connection timeout and check progress under competing load when
+an eligible donor or idle core is available. Separately verify accepted deferral
+when every donor is above the watermark.
+
+### Phase 3: TCP memcached port and validation in the VM
+
+The existing memcached tree includes the shared Lauberhorn TCP stack alongside
+its UDP adapter. One source-owned Nix recipe optionally includes TCP beside the
+runtime; each process selects TCP or UDP. The upstream stream parser and response
+machinery run under per-connection parser locks, outside transport locks. Parser
+buffers and response objects can survive worker changes. A readiness generation
+prevents concurrent input from being stranded behind a busy parser.
+
+The NixOS VM suite compares normal Linux clients against upstream memcached:
+ASCII/binary commands, partial command headers and bodies, pipelining,
+backpressure, concurrent streams, closes and resets. UDP regression checks use
+the same native binary. A separate clean guest workload colocates four instances,
+each with four threads, on four workers. It retains 128 connections through
+separate bursts, full preemption, fixed-rate traffic below measured burst service
+and cache expiry; distinct values test domain isolation. Filtering a response's
+ACK checks timer-only wakeup and retransmission after full preemption. These are
+bounded functional workloads, not a stress campaign or hardware performance
+results. See the [application contract](../applications/memcached.md) for ownership
+and unsupported administration/teardown operations.
+
+The port uses FreeBSD's send low watermark for WRITABLE readiness. Its Make build
+also adapts SYN-cache publication to synchronous TX: the existing bucket lock
+covers SYN-ACK output and insertion so another worker cannot reject an early ACK.
+The imported source files remain pristine; the adaptation is applied to a build
+copy. Deterministic negative tests cover both boundaries.
+
+### Phase 4: Lauberhorn integration and TCP/memcached validation on Enzian
 
 Implement the native-TCP classification, descriptors, RX/TX transport, endpoint
-validation and domain timer/wakeup mechanisms in Lauberhorn hardware, kernel
-module and runtime. Connect the VM-developed stack through the real backend;
-this phase includes the missing Lauberhorn functionality, not just deployment
-of the library onto Enzian. Regenerate ABI collateral and deploy matching
-hardware/software artifacts.
+validation and the VM-designed DEADLINE mechanisms in Lauberhorn hardware, kernel
+module and runtime. Connect the VM-developed stack and the memcached port from
+phase 3 through the real backend. This phase includes the missing Lauberhorn
+functionality, not just deployment of the library onto Enzian. Regenerate ABI
+collateral and deploy matching hardware/software artifacts.
 
-Build with the real runtime/kernel backend and repeat the stack-level functional
-and concurrency cases end to end on Enzian with a normal TCP link partner.
-Validate real buffer ownership, scheduling handoff, timer-only wakeups and
-transport progress, while preserving existing application transports. VM
-results do not substitute for these hardware integration checks.
+Implement the agreed [DEADLINE policy](#deadline-execution-and-scheduling):
+`SET_DEADLINE`, minimum-lead-time rejection, reserved payload-free RX notification,
+single-worker delivery and generation-safe acknowledgement/rearm. Remove the
+legacy hardware wake scaffolding. The runtime already removes `KICK_PROCESS`
+and replaces per-RX RPC clock polling and sweep-election CAS with DEADLINE-driven
+timeout processing; implement the required ECI device path before merging this
+branch. There is no polling fallback.
+Deadline-only allocation is strictly zero-to-one, using idle cores first and
+otherwise RX-ready donors at or below the watermark. Retain overdue work when
+no donor qualifies; overload delay and long cooperative execution are accepted
+limitations.
 
-### Phase 4: TCP memcached integration and evaluation
+Clean up the reclaim policy in `Scheduler.scala` as part of this integration.
+The current `idle`/`ready` victim classes are not a complete policy specification.
+Define each allocation/reclaim reason explicitly: initial packet activation,
+packet-backlog scaling, background discovery of unassigned domains, and DEADLINE
+activation. For each, specify recipient eligibility and core limits, donor
+readiness and watermark conditions, arbitration/priority, reservation and grant
+rechecks, and behavior when no donor qualifies. Centralize shared predicates
+and arbitration instead of accumulating special cases in packet and background
+paths. Keep failure fencing and legacy `force`/kill handling separate from normal
+reclaim. Preserve cooperative DESCHED/yield and document any deliberate changes
+to existing packet-driven rules. Validate simultaneous reasons, in-flight
+reservations, donor watermark transitions and protected-donor deferral in the VM
+and RTL before board acceptance; update the scheduler contract to the implemented
+rule set.
 
-Integrate memcached's stream parser, response buffering and readiness handling
-with the validated shared stack. Keep application parsing separate from TCP
-critical sections and preserve readiness while a connection's parser is busy.
-Test against upstream memcached behavior with normal clients, including partial
-commands, pipelining, backpressure and concurrent connections. Evaluate on
-Lauberhorn after stack-level acceptance, reporting throughput, latency and total
-CPU costs, including any helper work, within the application's existing
-maintenance and lifecycle scope.
+Build with the real runtime/kernel backend and repeat both the stack-level
+functional/concurrency cases from phase 2 and the memcached application cases
+from phase 3 end to end on Enzian with normal TCP peers and clients. Validate
+real buffer ownership, scheduling handoff, timer-only wakeups and transport
+progress, while preserving existing application transports, including
+Lauberhorn UDP memcached. VM results do not substitute for these hardware
+integration checks.
+
+After functional acceptance, evaluate TCP memcached throughput, latency and
+total CPU costs on Lauberhorn, including any helper work, within the
+application's existing maintenance and lifecycle scope.

@@ -53,8 +53,7 @@ class IpDecoder extends Decoder[IpRxMeta] {
 
     val metadata = Stream(IpRxMeta())
 
-    val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8)() // IPv4 without options
-    // TODO: chain output with secondary decoder to decode IP options
+    val decoder = AxiStreamExtractHeader(macIf.axisConfig, IpHeader().getBitsWidth / 8)() // fixed base header; options stay on bypass
 
     val drop = Bool()
     produce(metadata, decoder.io.output, decoder.io.outputAck, priority = 100, drop)
@@ -65,8 +64,42 @@ class IpDecoder extends Decoder[IpRxMeta] {
       .clearWhen(ethernetHeader.fire)
       .setWhen(decoder.io.header.fire)
 
-    ethernetPayload >> decoder.io.input
-    metadata << decoder.io.header.map { hdr =>
+    // IPv4 headers are at most 60 bytes; the MAC already requires a beat at
+    // least that wide. Align once so the entire header (including options) is
+    // available without buffering a whole packet.
+    require(macIf.axisConfig.dataWidth >= 60)
+    val aligner = AxiStreamAligner(macIf.axisConfig)
+    aligner.io.input << ethernetPayload
+    decoder.io.input << aligner.io.output
+    val firstBeat = RegInit(True)
+    when(decoder.io.input.fire) { firstBeat := decoder.io.input.last }
+    val incoming = IpHeader()
+    incoming.assignFromBits(decoder.io.input.data(159 downto 0))
+    val headerBytes = incoming.ihl.asUInt.resize(7) |<< 2
+    val totalBytes = EndiannessSwap(incoming.len).asUInt
+    val badShape = incoming.version =/= 4 || incoming.ihl.asUInt < 5 ||
+      totalBytes < headerBytes || totalBytes > lastEthMeta.getPayloadSize ||
+      CountOne(decoder.io.input.keep) < headerBytes
+    val words = (0 until 30).map { i =>
+      Mux(U(i * 2, 7 bits) < headerBytes,
+        EndiannessSwap(decoder.io.input.data(i * 16 + 15 downto i * 16)).asUInt,
+        U(0, 16 bits))
+    }
+    // Register each reduction level; do not recreate a long checksum cone.
+    val sum = words.reduceBalancedTree((a, b) => {
+      val wide = a +^ b
+      (wide(15 downto 0) + wide.msb.asUInt).resize(16)
+    }, (stage, level) => RegNext(stage))
+    val checkLatency = LatencyAnalysis(incoming.ihl, sum)
+    val checkReady = RegInit(False)
+    val headerInvalid = RegInit(False)
+    when(Delay(decoder.io.input.fire && firstBeat && CountOne(decoder.io.input.keep) >= 20, checkLatency, init = False)) {
+      headerInvalid := Delay(badShape, checkLatency) || sum =/= 65535
+      checkReady := True
+    }
+    when(decoder.io.header.fire) { checkReady := False }
+
+    metadata << decoder.io.header.haltWhen(!checkReady).map { hdr =>
       new Composite(this, "remap") {
         val meta = IpRxMeta()
         meta.hdr.assignFromBits(hdr)
@@ -78,8 +111,8 @@ class IpDecoder extends Decoder[IpRxMeta] {
         val isBroadcast = isLocalBroadcast || isDirectedBroadcast
         val isMulticast = meta.hdr.daddr(7 downto 4) === 0xe // 224.0.0.0/4
 
-        // TODO: verify header checksum, version, etc.
-        drop := meta.hdr.daddr =/= ipAddress && !isBroadcast && !isMulticast && !isPromisc
+        drop := headerInvalid ||
+          (meta.hdr.daddr =/= ipAddress && !isBroadcast && !isMulticast && !isPromisc)
       }.meta
     }
 

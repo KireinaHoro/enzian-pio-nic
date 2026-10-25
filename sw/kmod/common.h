@@ -27,12 +27,16 @@
 #include <linux/irqdomain.h>
 
 #include <asm/io.h>
+#if !LH_BACKEND_VM
 #include <asm/arch_gicv3.h>
+#endif
 
 #include "config.h"
 
+#if !LH_BACKEND_VM
 #include "lauberhorn_eci_desched_dev.h"
 #include "lauberhorn_eci_worker_dev.h"
+#endif
 
 // Always print module name in pr_info, pr_err, etc.
 #ifdef pr_fmt
@@ -107,9 +111,13 @@ struct thr_def {
 struct proc_def {
     bool enabled, failed;
     u64 lifetime;
+    u64 deadline_ns; /* last successful publication, CLOCK_MONOTONIC */
     u32 idx, domain_code, declared_workers, num_rdy_thrs;
     pid_t tgid;
     struct task_struct *leader;
+#if LH_BACKEND_VM
+    void *vm_buffers;
+#endif
     struct thr_def thr_defs[LAUBERHORN_NUM_WORKER_CORES];
     struct srv_def *srvs[LAUBERHORN_NUM_SERVICES];
     wait_queue_head_t claims;
@@ -123,7 +131,9 @@ int check_ownership_abi(void);
 extern spinlock_t claim_lock;
 
 struct worker_fpi_data {
+#if !LH_BACKEND_VM
     lauberhorn_eci_desched_t desched_dev;
+#endif
     struct thr_def *thr;
     int index, cpu;
     struct mutex reader;

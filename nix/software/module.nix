@@ -24,7 +24,7 @@ stdenv.mkDerivation {
     export CROSS_COMPILE=aarch64-unknown-linux-gnu-
     export KDIR=${kernelBuildTree}
     cd sw/kmod
-    make V=1 KERNELRELEASE=${kernelRelease} \
+    make V=1 LH_BACKEND_VM=0 KERNELRELEASE=${kernelRelease} \
       MACKEREL_DEV_HDRS=${devHdrs} \
       HW_CFG_HDRS=${genVerilog.headers}
     # Cross derivations can skip checkPhase; validate the target ELF here.

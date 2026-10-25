@@ -98,16 +98,16 @@
     "memcached": {
       "flake": false,
       "locked": {
-        "lastModified": 1791663922,
-        "narHash": "sha256-MlsLus5uXO/7H3qhu3U8pP/cnPUOdW2KuDhGX9wQtmE=",
-        "ref": "lauberhorn",
-        "rev": "b376490d303da13ba15ed0295190893c64d1d324",
-        "revCount": 2233,
+        "lastModified": 1792822180,
+        "narHash": "sha256-k4SdBqkVj2ABD4lwcBJWNu8+AKOMYq8JufT+8ig+024=",
+        "ref": "userspace-tcp-phase-three",
+        "rev": "13f9e9af42a73f6153d39f7b5d7c437636464784",
+        "revCount": 2238,
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       },
       "original": {
-        "ref": "lauberhorn",
+        "ref": "userspace-tcp-phase-three",
         "type": "git",
         "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/benchmarking/memcached.git"
       }
@@ -194,6 +194,7 @@
         "microbenchmarks": "microbenchmarks",
         "mill-ivy-fetcher": "mill-ivy-fetcher",
         "nixpkgs": "nixpkgs",
+        "tcp": "tcp",
         "thunderx-ptp": "thunderx-ptp"
       }
     },
@@ -210,6 +211,23 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "tcp": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792921872,
+        "narHash": "sha256-21sCenrOU+z7X2Ae+tektRpJ7xb5BezObA1p7Feh+Z0=",
+        "ref": "userspace-tcp-phase-three",
+        "rev": "77b7567425e3ec772a2830f860dc7d530d54193e",
+        "revCount": 15,
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
+      },
+      "original": {
+        "ref": "userspace-tcp-phase-three",
+        "type": "git",
+        "url": "ssh://git@gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/lauberhorn-tcp.git"
       }
     },
     "thunderx-ptp": {

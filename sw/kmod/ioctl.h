@@ -25,6 +25,11 @@
 // https://www.kernel.org/doc/Documentation/ioctl/ioctl-number.txt
 #define LAUBERHORN_IOCTL_MAGIC 'L'
 
+/* Compile-time transport identity. Query before mapping transport storage. */
+#define LAUBERHORN_IOCTL_BACKEND _IOR(LAUBERHORN_IOCTL_MAGIC, 14, u32)
+#define LAUBERHORN_BACKEND_ECI 0
+#define LAUBERHORN_BACKEND_VM 1
+
 // Register / deregister an application
 // These are implemented as open and close on the device
 
@@ -98,7 +103,8 @@ typedef struct {
 typedef struct { u32 limit_us; u32 reserved; } lauberhorn_watchdog_t;
 #define LAUBERHORN_IOCTL_WATCHDOG _IOW(LAUBERHORN_IOCTL_MAGIC, 8, lauberhorn_watchdog_t)
 
-/* Internal runtime deadline wakeup, not a public service/timer API. */
-#define LAUBERHORN_IOCTL_KICK_PROCESS _IO(LAUBERHORN_IOCTL_MAGIC, 9)
+/* Number 9 (the removed KICK_PROCESS operation) is not reused. */
+#include "lauberhorn/deadline.h"
+#include "lauberhorn/tcp_transport.h"
 
 #endif // LAUBERHORN_IOCTL_H

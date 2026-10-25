@@ -1,6 +1,7 @@
 # Software runtime and datapath
 
-The runtime dispatches managed requests over ECI and uses cooperative fibers for
+The runtime dispatches managed requests over ECI or the compile-time
+[VM backend](vm-backend.md) and uses cooperative fibers for
 explicitly deferred work. Applications use the [programming model](programming-model.md);
 Linux activation and failure fencing belong to [scheduler integration](scheduler.md).
 The [cache-line interface](../architecture/hw-sw-interface.md) defines transport
@@ -14,6 +15,7 @@ names do not imply PCIe or DPDK feature parity.
 | Public API | `sw/include/lauberhorn.h`, `lauberhorn/{rpc,future}.h` | Managed outcomes, endpoint registration, bounded codecs, futures |
 | Dispatch | `sw/rt/{rpc,future,worker}.c` | Inline dispatch, deferral ownership, forwarding, completion and timeout processing |
 | Pending operations | `sw/rt/pending_call_table.*`, `fiber/` | Generation-tagged operations, cooperative fiber scheduling |
+| VM transport | `sw/core/vm/core.h`, `sw/kmod/vm.c` | Mapped buffers, transport ioctls and kernel-thread device emulation |
 | ECI transport | `sw/core/eci/core.h` | Descriptor/payload transfer, parity/barriers and TX acknowledgement |
 | Kernel control | `sw/kmod/chrdev.c`, `ioctl.h`, `endpoints.h` | Service/endpoint registration, protected resources and mappings |
 | Hardware | `DmaControlPlugin`, `OncRpcReplyDecoder`, ECI routers | Admission, descriptor translation, completion retirement, host protocol |
@@ -34,23 +36,24 @@ handler retains borrowed argument ownership until encoding and cleanup finish.
 
 ## Request and transport ownership
 
-The core RX API is `core_eci_rx_acquire[_traced]` / `core_eci_rx_release`.
+The core RX API is `core_rx_acquire[_traced]` / `core_rx_release`.
 `rx_view` holds the single contiguous mutable payload pointer, its length and
 whether the borrow is outstanding. This is private transport state, not an
 application-owned view. UDP exposes a const pointer to a worker-owned datagram
 view (protocol metadata plus the borrowed payload address); callers retain only
 that pointer. Release invalidates the UDP view and the payload together. There
 is no separate RX buffer. Release
-invalidates the pointer in software; the next acquisition retires the hardware
+invalidates the pointer in software; on ECI the next acquisition retires the hardware
 slot. Acquisition and assignment-releasing yield are rejected while borrowed.
 Consumers must finish using the bytes, or copy them into owned storage, before
 release. This includes pointers retained by codecs or deferred work.
 
-TX uses `core_eci_tx_get_buffer` / `core_eci_tx_commit` / `core_eci_tx_cancel`.
+TX uses `core_tx_get_buffer` / `core_tx_commit` / `core_tx_cancel`.
 The boolean `inline_payload` chooses 64-byte inline storage or full-MTU
 overflow storage. The committed length may be smaller; it cannot exceed the
 selected storage capacity. Submission
-consumes the reservation even when rejected. Cancel finishes the transaction
+consumes the reservation even when rejected. The following cache-line details
+apply to ECI; VM operations use ioctls. Cancel finishes the transaction
 without emitting a packet. It is available in both kernel and userspace: worker
 control requests receive success; bypass control requests receive an authorization
 error acknowledgement that still completes the transaction without DMA. Cancel
@@ -126,10 +129,23 @@ hardware incoming context generations wrap and are not an authentication
 mechanism. Whole-process shutdown and abnormal exit fail closed and require
 reset; complete reclamation is deferred.
 
-Workers sweep timeouts and drain ready fibers before polling RX. Hardware RX
-NACK timing lets an assigned worker regain control. Parked-domain deadline
-activation and execution-watchdog integration are deferred; the former deadline
-housekeeping thread is removed. HOST_WORK (formerly proposed as HOST_WAKE) and
+Workers drain ready fibers before RX. RPC timeout sweeps run only on a delivered
+DEADLINE; ordinary RX iterations perform no timeout clock read or sweep-election
+CAS. Submission, reply completion and cancellation publish the earliest pending
+call deadline with generation-checked acknowledgement/rearm. Near or overdue
+software deadlines retain their original due time and get a legal future device
+retry when the minimum lead time prevents immediate arming. The RPC runtime owns
+the domain timer; independent TCP/application publishers require a shared timer
+broker before mixing them in one domain.
+
+The [VM backend](vm-backend.md#deadline-control-and-delivery) and ECI ABI 4
+implement this interface and zero-to-one activation subject to donor protection.
+Nested submission returns `EOPNOTSUPP` before transmitting when the device lacks
+the interface. There is no timeout-polling fallback. Long handlers and unbounded
+ready-fiber draining retain the cooperative progress limitation.
+The former deadline housekeeping thread remains removed. Execution-watchdog
+integration is deferred.
+HOST_WORK (formerly proposed as HOST_WAKE) and
 its interface are not implemented. The [failure policy](scheduler.md#failure-and-reset-boundary)
 retains unresolved resources. The [Go toward etcd design](../proposals/go-runtime.md)
 records the next runtime/HOST_WORK direction, currently documentation only.

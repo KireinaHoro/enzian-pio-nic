@@ -16,6 +16,12 @@ case class EciHostTxCtrlInfo() extends Bundle {
   val ty = HostReqType() // 4 bits
   val len = PacketLength() // 16 bits
   val data = new Union {
+    case class NativeTcpBundle() extends Bundle {
+      val execution = Bits(2 bits)
+      val padding = Bits(10 bits)
+      val endpoint = Bits(32 bits)
+    }
+    val nativeTcp = newElement(NativeTcpBundle())
     case class NativeUdpBundle() extends Bundle {
       val execution = Bits(2 bits)
       val padding = Bits(10 bits)
@@ -26,8 +32,8 @@ case class EciHostTxCtrlInfo() extends Bundle {
     }
     val nativeUdp = newElement(NativeUdpBundle())
     case class BypassBundle() extends Bundle {
-      val ty = PacketDescType() // 3 bits
-      val xb9 = Bits(9 bits) /* make sure header is word aligned */
+      val ty = PacketDescType() // 4 bits
+      val xb9 = Bits((12 - PKT_DESC_TY_WIDTH.get) bits) /* make sure header is word aligned */
       val hdr = Bits(BYPASS_HDR_WIDTH bits)
     }
     val bypass = newElement(BypassBundle())
@@ -61,15 +67,20 @@ case class EciHostTxCtrlInfo() extends Bundle {
     val oncRpcCallTx = newElement(OncRpcCallTxBundle())
   }
 
-  // Common bit 23: bypass header type occupies bits 20..22. Other variants
-  // reserve bit 22 and use bits 20..21 for execution notifications.
-  def inlinePayload: Bool = data.asBits(3)
+  // Bypass placement follows its internal header discriminator. Application
+  // variants retain bit 23; their reply status begins at byte 3.
+  def inlinePayload: Bool = Mux(ty === HostReqType.bypass,
+    data.asBits(PKT_DESC_TY_WIDTH.get), data.asBits(3))
 
   /** Convert an [[EciHostTxCtrlInfo]] to a [[HostReq]], to send out to the encoder pipeline. */
   def unpackTo(desc: HostReq, addr: PacketAddr) = {
     desc.ty := ty
     desc.data.assignDontCare()
     switch (ty) {
+      is (HostReqType.nativeTcpTx) {
+        desc.data.nativeTcp.endpoint := data.nativeTcp.endpoint
+        desc.buffer.size := len
+      }
       is (HostReqType.nativeUdpTx) {
         desc.data.nativeUdp.endpoint := data.nativeUdp.endpoint
         desc.data.nativeUdp.daddr := EndiannessSwap(data.nativeUdp.daddr)
@@ -121,6 +132,16 @@ object EciHostTxCtrlInfo {
          |  _ 40 rsvd;
          |};
          |
+         |datatype host_ctrl_info_native_tcp_tx lsbfirst(64) "Native TCP TX" {
+         |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_tcp_tx";
+         |  len ${PKT_BUF_LEN_WIDTH.get} "Complete IPv4/TCP packet bytes";
+         |  execution 2 "Execution interval";
+         |  _ 1 rsvd;
+         |  inline_payload 1 "Payload resides in control CL upper half";
+         |  _ 8 rsvd;
+         |  endpoint 32 "Kernel endpoint handle";
+         |};
+         |
          |datatype host_ctrl_info_native_udp_tx lsbfirst(64) "Native UDP TX" {
          |  ty ${HOST_REQ_TY_WIDTH.get} type(host_req_type) "native_udp_tx";
          |  len ${PKT_BUF_LEN_WIDTH.get} "UDP payload bytes";
@@ -139,7 +160,7 @@ object EciHostTxCtrlInfo {
          |  len      ${PKT_BUF_LEN_WIDTH.get} "Length of packet";
          |  hdr_ty   ${PKT_DESC_TY_WIDTH.get} type(packet_desc_type) "Type of bypass header";
          |  inline_payload 1 "Payload resides in control CL upper half";
-         |  _        8 rsvd;
+         |  _        ${11 - PKT_DESC_TY_WIDTH.get} rsvd;
          |  // hdr follows -- need to calculate address manually
          |};
          |

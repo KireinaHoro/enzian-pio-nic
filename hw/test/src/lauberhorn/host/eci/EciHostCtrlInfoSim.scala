@@ -40,7 +40,7 @@ object EciHostCtrlInfoSim {
         RxBypassCtrlInfoSim(
           len.toInt,
           dp.pop(PKT_DESC_TY_WIDTH),
-          dp.pop(BYPASS_HDR_WIDTH, skip = 8))
+          dp.pop(BYPASS_HDR_WIDTH, skip = 11 - PKT_DESC_TY_WIDTH.get))
       case 2 =>
         TxNeighborMissSim(
           len.toInt,
@@ -56,6 +56,8 @@ object EciHostCtrlInfoSim {
           dp.pop(64),
           token,
           dp.pop(ONCRPC_INLINE_BYTES*8))
+      case 11 => RxNativeTcpSim(len.toInt, dp.pop(32, skip = 11))
+      case 10 => RxDeadlineSim(dp.pop(64, skip = 43))
       case 8 => RxNativeUdpSim(len.toInt, dp.pop(32, skip = 11), dp.pop(32), dp.pop(32), dp.pop(16), dp.pop(16), dp.pop(16))
       case 4 => throw new RuntimeException("not expecting a onc_rpc_reply")
       case 6 =>
@@ -81,7 +83,7 @@ trait BypassCtrlInfoSim extends EciHostCtrlInfoSim with BypassPacketDescSim {
   override def encode: BigInt = {
     (new BigIntBuilder)
       .push(PKT_DESC_TY_WIDTH, packetType)
-      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 9)
+      .push(BYPASS_HDR_WIDTH, packetHdr, skip = 12 - PKT_DESC_TY_WIDTH.get)
       .toBigInt
   }
 
@@ -197,4 +199,20 @@ case class TxNativeUdpSim(len: Int, endpoint: BigInt, daddr: BigInt, dport: BigI
   def ty = 9
   def encode: BigInt = (new BigIntBuilder).push(32, endpoint, skip = 12)
     .push(32, daddr).push(16, dport).push(16, relatedRx).toBigInt
+}
+
+case class RxDeadlineSim(generation: BigInt) extends EciHostCtrlInfoSim {
+  def len = 0
+  def ty = 10
+  def encode: BigInt = generation << 43
+}
+
+case class RxNativeTcpSim(len: Int, endpoint: BigInt) extends EciHostCtrlInfoSim {
+  def ty = 11
+  def encode: BigInt = endpoint << 11
+}
+
+case class TxNativeTcpSim(len: Int, endpoint: BigInt) extends EciHostCtrlInfoSim {
+  def ty = 12
+  def encode: BigInt = endpoint << 12
 }
