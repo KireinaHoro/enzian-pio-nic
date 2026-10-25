@@ -2,12 +2,12 @@
 
 Active branches: `userspace-tcp-phase-three` in platform, `../memcached` and
 `../lauberhorn-tcp`. TCP is pinned to `226fc21`; memcached to `13f9e9a`.
-The active goal is phase 4: clean up Scheduler.scala; implement hardware
-DEADLINE and native TCP listen-port steering; align VM and RTL policy; prepare
-matching AArch64 TCP/memcached test artifacts; launch a manual blade bitstream
-build and schedule a callback to collect it and begin hardware testing. Completion
-is the build running with the callback scheduled and tests ready, not board
-acceptance itself. CI is unavailable; use the maintained Docker bundle workflow.
+Phase-four DEADLINE/native TCP integration and VM/RTL policy agreement are
+implemented. The first routed build failed setup timing; the user authorized
+simplifying/pipelining that logic and launching one replacement manual build.
+The replacement is running with matched tests/image staged and a callback
+scheduled; final timing and hardware acceptance remain pending. CI is unavailable;
+use the maintained Docker bundle workflow.
 Keep build selection, CPU flags, VM configuration and kernel options in Nix.
 Push incremental commits to the private GitLab remotes with `-o ci.skip`.
 Do not merge until hardware DEADLINE is implemented. Stop at major blockers.
@@ -223,7 +223,48 @@ it before validation. Public ABI and scheduling policy remain unchanged.
 Nix checks: scheduler-policy retains C/RTL stateful agreement; transport-pipeline
 covers checksum bubbles/drain/reseed, complete TCP/UDP/DEADLINE integration,
 cooperative allocation and disabled-process RPC queue/context reclamation.
-Final-source checks are running; no replacement hardware build launched yet.
+All final-source checks passed: scheduler-policy ran three tests, including
+4096 stateful C/RTL vectors; transport-pipeline ran six tests plus the separately
+selected disabled-process RPC reclamation test, all passing with none canceled.
+Evidence: `out/phase4-timing-final-checks{,-1}`,
+`/tmp/lh-phase4-timing-final-checks.log`, and
+`/tmp/lh-phase4-timing-transport-results.log`. Derivations:
+`gm7gdmqr0h8rizmkwwy5v3lz964igd00` (policy),
+`hhbd6v3nbpjh1nikr7i9d2vdxf4fkhxw` (transport). An earlier local validation
+snapshot was explicitly interrupted after finalizing the queue reservation logic;
+only the final check results above establish acceptance.
+
+Replacement artifact revision: **73c3dc764e4d6cc641f730a1cf1be4f83f1d8798**.
+Both Nix outputs built successfully (`/tmp/lh-phase4-73c3dc76-artifacts.log`):
+`out/phase4-73c3dc76-artifacts{,-1}`. The bundle passes generated NIC/trace/ILA
+port checks; the image embeds this clean revision. Image SHA256:
+`9941d7111ce88758218df3d68a302ff45c6cc353bfcd97eb17b6e5a2aca915dd`.
+
+- Manual build: enzian-ba2, `/tmp/lauberhorn-phase4-73c3dc76-20261025`.
+  Launcher **425586**, container **62a776299bb9**, live Vivado processes
+  **425671/425720** verified. No exit status at launch. Read `build.exit` and
+  the exact process/container before judging completion; never relaunch merely
+  because a status observation times out.
+- Immutable record and prepared seven-case acceptance:
+  `out/phase4-manual-73c3dc76/{record.json,cases.json,program.json}`.
+  Matching image/client/manifest staged under `/scratch/pengxu/phase4-73c3dc76/`.
+  All nine input hashes, image SHA256 and three test/provenance hashes verified
+  remotely. Gateway home access reported an expired key, but scratch transfers
+  and hash verification succeeded; board access was not attempted.
+- Follow-up timer `lauberhorn-manual-73c3dc76-20261025-results.timer` verified
+  active for **2026-10-25 07:38:07 CET**, receipt
+  `out/phase4-manual-73c3dc76/callback-receipt.log`. If still running, its
+  `schedule.py --delay 30m --recheck` schedules the next observation after
+  checking existing timer/service state.
+- Collect matched reports and compare the maintained digest against preserved
+  ed902d66 before hardware acceptance. Do not claim improved timing until final
+  post-route STA exists. Revalidate the copied 07/14 topology, reservations,
+  active campaigns and preserved failures before the seven cases with two repeats.
+  No board access or benchmark claim accompanies this launch.
+
+Use `/tmp/lauberhorn-tcp-followup` for feature sources and documentation. The main
+checkout contains unrelated work. The branch remains deliberately unmerged;
+implementation and continuation commits are pushed with CI skipped.
 
 ## TCP second-stage build
 
