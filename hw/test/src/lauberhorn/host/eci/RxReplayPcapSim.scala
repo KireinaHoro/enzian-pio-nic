@@ -21,6 +21,11 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
   type ToCheckPkts = mutable.ArrayDeque[TaggedPkt]
   type NextPkt = () => Option[TaggedPkt]
 
+  // Some historical captures end before the IPv4 total length. Shared IPv4
+  // validation must drop these even in promiscuous mode.
+  def truncatedIpv4(packet: Packet): Boolean =
+    Option(packet.get(classOf[IpV4Packet])).exists(ip => ip.getHeader.getTotalLengthAsInt > ip.length())
+
   def checkRxPacket(toCheck: ToCheckPkts, desc: BypassCtrlInfoSim, data: List[Byte]): Unit = {
     // XXX: occasionally the packet received is out of order
     //      e.g. receiving Ethernet after Udp.  Udp takes longer to go through the pipeline,
@@ -29,6 +34,7 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
       .zipWithIndex.dropWhile(!_._1).headOption match {
       case Some((_, idx)) =>
         println(s"Found expected packet as #$idx in queue")
+        assert(!truncatedIpv4(toCheck(idx)._1), "truncated IPv4 packet reached the host")
         toCheck.remove(idx)
       case None => fail("failed to find received packet in expect queue")
     }
@@ -108,7 +114,7 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
         Some(Pcaps.openDead(DataLinkType.EN10MB, 65535).dumpOpen((workspace(testName) / "packets.pcap").toString))
       } else None
 
-      def filtered() = if (!doPromisc) {
+      def filtered() = {
         def addrToInt(addr: Inet4Address) = addr.getAddress.map(_.toInt).reduceLeft { (v, acc: Int) =>
           (acc << 8) + v
         }
@@ -131,14 +137,21 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
             ipForUs = ipDst == myIp
           }
 
-          !(macForUs || ipForUs || isMulticast)
+          truncatedIpv4(pkt) || (!doPromisc && !(macForUs || ipForUs || isMulticast))
         }
-      } else 0
+      }
 
       val received = bypassStandardRecv(dcsMaster, toCheck)
       val (doneSending, sent) = bypassStandardSend(axisMaster, toCheck, nextPacket, dumper)
 
       waitUntil(doneSending() && received() + filtered() == sent())
+      if (doPromisc) {
+        val expectedDrops = toCheck.count { case (pkt, _) => truncatedIpv4(pkt) }
+        def ipDrops = csrMaster.read(ALLOC.readBack("IpDecoder")("stat", "dropCount"), 8).bytesToBigInt
+        var dropped = ipDrops
+        while (dropped < expectedDrops) { sleepCycles(100); dropped = ipDrops }
+        assert(dropped == expectedDrops, "IPv4 drops differ from truncated capture count")
+      }
     } }
 
   def loadRandomPackets(numPackets: Int) = {
@@ -198,6 +211,7 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
       var done = false
       fork {
         while (!done) {
+          val ipDropCount = csrMaster.read(ALLOC.readBack("IpDecoder")("stat", "dropCount"), 8).bytesToBigInt
           val overflowCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacOverflowCount"), 8).bytesToBigInt
           val ingressCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacIngressCount"), 8).bytesToBigInt
           val afterCdcCount = csrMaster.read(ALLOC.readBack("macIf")("stat", "rxMacIngressAfterCdcCount"), 8).bytesToBigInt
@@ -214,11 +228,11 @@ class RxReplayPcapSim extends NicSim with RxHelpers {
           //    - Ethernet decoder ingress is stalled
           // - 2F2F message passing locked up:
           //    - hostRx stalled, bypass queue full
-          println(s"Sent $snd, received $rcvd, dropped $overflowCount; ingress $ingressCount, afterCdc: $afterCdcCount")
+          println(s"Sent $snd, received $rcvd, MAC drops $overflowCount, IPv4 drops $ipDropCount; ingress $ingressCount, afterCdc: $afterCdcCount")
 
           assert(snd == ingressCount)
-          assert(rcvd + overflowCount <= snd)
-          done = snd == rcvd + overflowCount
+          assert(rcvd + overflowCount + ipDropCount <= snd)
+          done = snd == rcvd + overflowCount + ipDropCount
 
           sleepCycles(2000)
         }

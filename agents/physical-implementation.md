@@ -47,7 +47,7 @@ Plan and coverage (counts are the bounded endpoint sample, not total failures):
   against current source; retain transport regression coverage for the shared IP
   validation replacement.
 
-Implemented source changes, still uncommitted pending validation:
+Implemented source changes in hardware candidate `1ebe5c26`:
 
 - Ownership captures the trusted slot alongside the lifetime; sticky-fault lookup
   selects that slot without delaying fencing. Installation asserts slot/code agreement.
@@ -72,68 +72,72 @@ Implemented source changes, still uncommitted pending validation:
   hierarchical-shell warnings: this flow requires hard pblocks. Current source
   sets IS_SOFT false explicitly; final probe established sites and primitive capacity.
 
-Evidence / live work:
+Evidence and launch preparation:
 
-- `out/app-timing-20261025/` contains one-off probes and the draft callback helper.
-  Initial placement probe completed, `placement.tsv` remote basename copied as
-  `app-timing-placement.tsv`; all 1000 baseline endpoints were mapped including
-  the small CSR, packet-memory and top-level read-enable groups.
-- Initial group check (session 42361) completed. Reports in `groups/` include
-  soft-property warnings and zero reported availability for nested worker groups;
-  these are NOT accepted validation of the final hard constraints.
-- Final disjoint hard-group probe completed with
-  `APP_TIMING_GROUPS_DISJOINT_READY`. All 15 selectors matched with nonempty slice
-  sites and expected SLR/hostif parents; no peer nesting. Reports and resource
-  checks are in `out/app-timing-20261025/groups-disjoint/`. Primitive capacities
-  fit (maximum LUT 57.13%, packet RAM 32/36 BRAM). Baseline occupied CLB footprint
-  exceeds several new regions, requiring repacking; this is not a placement proof.
-  Global clock availability is excluded by report_utilization; its BUFG rows
-  cannot establish clock capacity. New placement/clock feasibility remains a build gate.
-- Current bulk Nix regression/input build exec session `98362` is live, log
-  `/tmp/app-timing-validated-checks.log`, links `out/app-timing-validated-checks*`.
-  Includes fast-tests-eci, transport-pipeline, scheduler-policy, trace-tests and
-  eciVivadoInputs. Its source is `/nix/store/7w909zb4ispg1d8ll0r24yvm3i0azb84-source`.
-  All current Scala matches it EXCEPT final DeadlineRegisters response forwarding
-  and the added DeadlineRegistersSim. Final constraints also postdate this bundle.
-- Final CSR/policy check passed all four tests (session 93693), log
-  `/tmp/app-timing-csr-check-fixed.log`, output `out/app-timing-csr-check-fixed`.
-  It covers final response forwarding and stalled-read regression, including
-  successful, stale and invalid commands. The first fixture used two slots
-  and failed elaboration; corrected to three slots, matching production shape.
-  Snapshot comparison and current RTL hashes are recorded in
-  `out/app-timing-20261025/validation-snapshots.json`.
-- Earlier ownership/rtl/final jobs (12196, 59762, 5933) were explicitly interrupted
-  as source changes accumulated. Snapshot 75141 exposed an actual IPv4 TX checksum
-  failure: the extra checksum stage let the injector accept a header with checksum
-  zero. Fixed by checksumReady gating and header.fire advancement. Its four TX
-  failures are preserved in `/tmp/app-timing-complete-checks.log`; it was stopped.
-  Current 98362 includes that fix. No interrupted run is a passing gate.
-- RpcLocalRouteSim checks both routes under metadata/payload stalls and changes
-  IP address/input metadata after acceptance. It is staged so Nix includes it.
-- DeadlineRegistersSim checks success/stale generation readback and holds an
-  unrelated AXI read stalled while a command executes; valid/data must persist.
-- No hardware build launched, no callback scheduled. `schedule.py` is a draft
-  one-off helper for this thread (`01a1729c-f2e1-7f00-a2b4-5dbef0da662b`), with
-  30-minute preflight, then five-hour results, then 30-minute rechecks. It requires
-  final `record.json`. `codex queue --help` and local user timers were checked;
-  no Lauberhorn timers were active. Callback scope is timing/artifact collection,
-  no automatic rebuild or board access.
+- Hardware candidate `1ebe5c26e8d5b4e137c7716427da1a34b860953f` is committed.
+  Follow-up `38126dde` only initializes packet-type widths in four standalone
+  router fixtures; all four pass. Branch is pushed privately with CI skipped.
+- Final hard-region probe completed with `APP_TIMING_GROUPS_DISJOINT_READY`.
+  All 15 selectors matched, with nonempty slice sites and expected parents;
+  no peer nesting. Reports: `out/app-timing-20261025/groups-disjoint/`.
+  Primitive capacities fit (maximum LUT 57.13%, packet RAM 32/36 BRAM).
+  Baseline occupied CLB footprint exceeds several new regions and needs repacking;
+  global clock capacity is not represented by report_utilization. Placement and
+  clock feasibility must be established by the new build.
+- Final CSR/policy regression passes all four tests, including success/stale/
+  invalid commands and an AXI read held stalled across a command. Log:
+  `/tmp/app-timing-csr-check-fixed.log`.
+- Standalone GSYNC, RX payload isolation, RX writeback and TX payload isolation
+  pass (four tests): `/tmp/app-timing-router-fixtures.log`.
+- Recovery stream/in-flight, execution watchdog and reply contexts pass (four
+  tests): `/tmp/app-timing-recovery-checks.log`.
+- Trace buffers and Ethernet trace dump pass all 17 tests:
+  `/tmp/app-timing-transport-trace.log`.
+- Bulk ECI check completed: 52 passed, one ignored, four standalone fixture
+  aborts (corrected run above passed), and one `pipelined-lockup` replay timeout.
+  Log: `/tmp/app-timing-validated-checks.log`. Its frozen source is
+  `/nix/store/7w909zb4ispg1d8ll0r24yvm3i0azb84-source`; RTL differs only in the
+  final DeadlineRegisters forwarding, covered by final CSR tests. Exact hashes
+  and comparison: `out/app-timing-20261025/validation-snapshots.json`.
+- Replay diagnosis: candidate and parent c95de205 send 107 packets, receive 104,
+  and retain exactly indices 75,80,104. Each is a 256-byte captured frame with
+  IPv4 length 283 (requiring 297 frame bytes). Existing shared IPv4 validation
+  correctly drops these; the old replay test expected all captures returned.
+  Evidence: `out/app-timing-20261025/replay-diagnosis.json`. Same-seed diagnostics
+  both completed with the same timeout: exec 37262/26271, logs
+  `/tmp/app-timing-replay-{candidate,parent}.log`, setupSeed=-1219094768,
+  simSeed=-2062986175. The corrected test asserts truncations never reach the
+  host and checks IPv4 drop accounting. All nine corrected replay cases passed
+  with that seed: `/tmp/app-timing-replay-corrected.log`, output
+  `out/app-timing-replay-corrected`.
+- Independent transport/trace check passed: eight transport/RPC tests and 17
+  trace tests, `/tmp/app-timing-transport-trace.log`. No new RTL change was
+  needed for these tests or replay expectations.
+- Earlier superseded snapshots are not passing gates. One exposed zero IPv4 TX
+  checksums after the extra stage; checksumReady/header.fire gating fixes that.
+  The final bulk and transport snapshots include that fix. No hardware run was
+  launched while these simulation issues were being resolved.
+- Clean matching bundle and validation image built successfully from `1ebe5c26`:
+  `out/app-timing-clean-inputs` and `out/app-timing-clean-inputs-1`.
+  Embedded image manifest has the exact revision and local=false; its RTL matches
+  the bundle. Generated NIC/trace ports and all debug probes match the wrapper.
+  All 1183 bundle hashes were verified after staging on ba2 at
+  `/tmp/lauberhorn-app-timing-1ebe5c26-20261025/inputs`.
+- Exact artifact hashes, baseline, paths and callback scope are in
+  `out/app-timing-20261025/record.json`. The one-off `launch.sh` uses the maintained
+  Docker runner. `schedule.py` was dry-run reviewed for this thread
+  (`01a1729c-f2e1-7f00-a2b4-5dbef0da662b`): preflight after 30 minutes, then results
+  five hours from that check, then 30-minute rechecks if live. No replacement
+  build, board access or further optimization is authorized by the callback.
 
-Remaining: finish checks/fix failures, prove final group selector/capacity validity,
-review all source/docs, commit/merge/push per AGENTS with CI skipped, build clean
-matching eciVivadoInputs and tcpValidationImage, verify hashes/provenance, stage
-and launch exactly one Docker hardware build, verify actual Vivado start, schedule
-and verify 30-minute callback, record launch evidence, stop. Preserve baseline
-and experiment refs; no toolkit source has changed.
+Remaining: merge/push with CI skipped; launch the staged candidate exactly once, verify actual Vivado start,
+install and verify the 30-minute callback, record evidence and stop. Hardware has
+not launched and no callback is installed yet. Preserve the timing ref until all
+build processes terminate. Do not change toolkit master.
 
-Operational notes: SSH and Nix require sandbox escalation (sandbox SSH reports
-config ownership, Nix cannot connect to daemon); escalated SSH successfully
-read ba2. Git metadata is read-only in sandbox; escalated git switch created the
-branch. Use maintained Docker bundle workflow because the TCP continuation
-records CI unavailable; recheck relevant state before launching. Existing manual
-launch and callback examples live in `out/phase4-manual-73c3dc76/`. Keep one-off
-analysis under ignored out/ or /tmp, and complete matched clean-revision artifact
-preparation and callback verification before ending the launch task.
+SSH, Nix, Git metadata and systemd user operations require sandbox escalation.
+Use the maintained Docker bundle workflow because CI is unavailable. One-off
+analysis and raw reports remain under ignored `out/` or `/tmp`.
 
 ## Retained September scope
 
