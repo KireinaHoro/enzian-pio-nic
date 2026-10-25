@@ -143,11 +143,16 @@ Launch complete; stop active work:
   container `113bac7e8358`, actual Vivado PID 801977 verified live with the exact
   `/bundle` and `/work` mounts. Status will be in `build.exit`, log in
   `build/vivado-build.log`, routed reports in `build/physical/`.
-- Verified active callback:
-  `lauberhorn-app-timing-1ebe5c26-20261025-preflight.timer`, due **13:29:17 CET
-  October 25**. It queues this thread, checks the same run after 30 minutes, then
-  schedules collection five hours from that check if still running. The prepared
-  helper supports 30-minute rechecks; it must not launch another build.
+- Preflight at **12:29:35 UTC October 25** confirmed the same launcher and
+  container live, main Vivado PID 801977 and `synth_1` Vivado PID 808990 running.
+  `build.exit` and `build/physical/COMPLETE` were absent. All staged bundle hashes
+  and the exact revision matched; recorded CSR, router, recovery, transport,
+  trace and corrected replay passing logs were rechecked.
+- Verified active results callback:
+  `lauberhorn-app-timing-1ebe5c26-20261025-results.timer`, due **18:29:41 CET
+  October 25**, five hours from the preflight check. Stop polling until then.
+  If still running at collection, use the prepared 30-minute recheck; never
+  restart the five-hour wait or launch a replacement build.
 - Callback reads the maintained timing digest first, collects exact artifacts and
   hashes, compares all clock results and the bounded app-path families against
   73c3dc76, and checks new pblock memberships/resource use. Report actual timing;
