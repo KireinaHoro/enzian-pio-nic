@@ -66,15 +66,22 @@ naturally aligned and payload bytes wire-native:
 | Bytes | Proposed contents |
 | --- | --- |
 | `0..7` | Executable entry pointer |
-| `8..15` | Optional TLS/context pointer |
+| `8..11` | Opaque 32-bit request token |
+| `12..15` | Reserved; completes the 8-byte token slot |
 | `16..127` | Fourteen 8-byte words of RPC payload (112 bytes) |
 
-If the entry can obtain its context from existing thread state, omit the second
-pointer and use bytes `8..127` for fifteen payload words (120 bytes). Decide the
-context convention at registration/entry specialization time; do not add a
-generic optional-field test before jumping. A TLS/context pointer here is an
-entry argument; whether it denotes runtime state or a language TLS base remains
-an ABI decision.
+The second word reserves eight bytes for the current 32-bit request token and
+future metadata, keeping payload naturally aligned at byte 16. No TLS pointer
+is carried: worker TLS is already available on the executing OS thread, and
+fiber stack switches do not install a separate TLS base. Any additional
+application-context convention remains part of entry specialization.
+
+The token selects the hardware reply context retaining the original client XID
+and return address; it is not the wire XID or an outgoing nested-call cookie.
+The entry retains it through reply submission. Deferred/forwarded requests must
+save it in owned request state before later receives, preserving the existing
+[reply-context lifetime](../software/reply-contexts.md). All remaining fourteen
+words are RPC payload; no generic type or length word is added.
 
 Do not spend cache-line space on a generic payload-length field. The specialized
 codec knows fixed field sizes, and variable-length fields carry their lengths
@@ -91,12 +98,8 @@ must specify codec-aware hardware validation, bounded decoding with a supplied
 or derivable end, or an explicit restriction on accepted inputs. None requires
 committing to a generic length word in this proposed line.
 
-The packed line also omits the current request token. Specify how reply
-submission identifies the current request, for example through an implicit
-per-worker current-request context; deferred/forwarded work needs a way to retain
-that identity across later receives. Payload overflow beyond 112/120 bytes and
-its addressing remain open. Resolve both without silently taking words from
-the stated inline capacity. The existing 64-byte descriptor/64-byte payload
+Payload overflow beyond 112 bytes and its addressing remain open. Resolve this
+without taking words from the stated inline capacity. The existing 64-byte descriptor/64-byte payload
 split remains the implemented ABI until matched hardware/software changes.
 
 ## Measurement plan
