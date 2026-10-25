@@ -122,7 +122,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // storage or interpret descriptor-field stores as commands.
   val shadowWords = 4 + EciAddressMap.overflow_lines * 2
   val shadow = Mem(Bits(512 bits), shadowWords)
-  val shadowMask = Vec.fill(shadowWords)(Reg(Bits(64 bits)) init 0)
+  val shadowMask = Vec.fill(shadowWords)(Reg(Bits(64 bits)))
+  // Invalidate one bit per word instead of clearing the entire byte-mask bank.
+  // A first write replaces stale mask bits; only valid words can replay data.
+  val shadowValid = Vec.fill(shadowWords)(RegInit(False))
   val writeWord = Reg(UInt(log2Up(shadowWords) bits))
   val writeInRange = Reg(Bool())
   val clearShadow = Bool()
@@ -140,7 +143,12 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val shadowWrite = dcsQ.w.fire && writeInRange && writeWord < shadowWords &&
     (writeWord === 1 || writeWord === 3 || writeWord >= 4)
   shadow.write(writeWord, dcsQ.w.data, shadowWrite, dcsQ.w.strb)
-  when(shadowWrite) { shadowMask(writeWord) := shadowMask(writeWord) | dcsQ.w.strb }
+  for (word <- 0 until shadowWords) {
+    when(shadowWrite && writeWord === word) {
+      shadowMask(word) := Mux(shadowValid(word), shadowMask(word), B(0, 64 bits)) | dcsQ.w.strb
+      shadowValid(word) := True
+    }
+  }
   when(dcsQ.w.fire) {
     writeWord := writeWord + 1
     assert(dcsQ.w.last === writeSecondBeat, "RX writeback must contain two beats")
@@ -182,6 +190,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val secondBody = Reg(Bits(512 bits)) init 0
   val alignedBody = Reg(Bits(512 bits))
   val responseBody = Reg(Bits(512 bits))
+  val responseKeep = Reg(Bits(64 bits))
   val sourceOffset = Reg(pktBufAxi.ar.addr.clone)
   val sourceShift = Reg(UInt(6 bits))
   val sourceSecond = RegInit(False)
@@ -198,7 +207,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val savedControl = Reg(Flow(Bits(512 bits)))
   savedControl.valid init False
 
-  when(clearShadow || doDesched) { shadowMask.foreach(_ := 0) }
+  when(clearShadow || doDesched) { shadowValid.foreach(_ := False) }
   val newPayload = RegInit(False)
   when (doDesched) {
     newPayload := False
@@ -388,6 +397,12 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     // final R handshake; response data cannot change under backpressure.
     val alignPktData: State = new State {
       whenIsActive {
+        // One shared subtraction replaces 64 address-plus-byte comparators.
+        // Register the byte bounds before the replay/data mux stage.
+        val remaining = payloadBytes.resize(pktBufReadOff.getWidth) - pktBufReadOff
+        for (byte <- 0 until 64) {
+          responseKeep(byte) := pktBufReadOff < payloadBytes && remaining > byte
+        }
         alignedBody := ((secondBody ## firstBody) |>> (sourceShift * 8)).resize(512)
         when(pktBufReadOff === 0) {
           alignedBody := (firstBody |<< (prefixBytes * 8)).resize(512) | prefixData
@@ -402,10 +417,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         word := ((readOffset >> 6) + (2 - pktBufReadBeats)).resized
         val replay = shadow.readAsync(word)
         for(byte <- 0 until 64) {
-          when(word < shadowWords && shadowMask(word)(byte)) {
+          when(word < shadowWords && shadowValid(word) && shadowMask(word)(byte)) {
             responseBody(byte * 8, 8 bits) := replay(byte * 8, 8 bits)
           }
-          when(pktBufReadOff + byte >= payloadBytes) { responseBody(byte * 8, 8 bits) := 0 }
+          when(!responseKeep(byte)) { responseBody(byte * 8, 8 bits) := 0 }
         }
         goto(sendPktData)
       }

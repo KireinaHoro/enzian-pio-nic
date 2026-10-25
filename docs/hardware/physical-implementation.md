@@ -120,16 +120,16 @@ terms before payload accumulation. Packet-memory AXI slices isolate arbitration
 from RAM address/write-enable decode. Deadline command responses separate slot
 selection from generation increment and forward the pending result to CSR reads.
 
-Fine-grained placement groups in `floorplan.xdc` cluster each physical
-datapath's RX/TX protocol and replay storage, the scheduler with ownership state,
-the DCS AXI crossbar, DMA and IP/RPC logic. The main CMAC control registers and
-their reset synchronizer share an SLR0 region. The network trace dump parser,
-injector and aligner share an SLR1 region; trace capture DDR logic remains in
-SLR2. Only the DCS response pipeline is tightened within each DCS SLR, rather
-than restricting the full DCS implementation. Selectors fail on empty matches
-and print their match counts. The hierarchical shell requires hard pblocks;
-the groups do not reserve routing or exclude unrelated cells. Check available
-resources after hierarchical snapping, and measure their effect by post-route timing.
+RX replay masks update locally per word. A validity bit invalidates each word
+on packet retirement/descheduling, and the first subsequent write replaces its
+old byte mask. This keeps stale replay bytes inaccessible without clearing the
+whole byte-mask bank. Payload bounds use one remaining-length calculation and
+register the byte-valid mask before replay merging.
+
+Placement retains the coarse SLR/host-interface regions and established ECI
+crossing constraints. Worker, scheduler, crossbar and packet-memory logic are
+not divided into additional disjoint hard regions. Primitive capacity alone
+does not establish routing capacity for their wide interconnect.
 
 `vivado/eci/xdc/floorplan.xdc` assigns decoders/encoders to SLR0, host-interface
 logic to a region spanning CLOCKREGION Y5–Y9, DCS halves to separated regions,

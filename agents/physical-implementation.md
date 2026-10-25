@@ -1,13 +1,60 @@
 # Physical implementation continuation
 
-## Application-clock build failed routing: work stopped
+## RTL congestion follow-up: no hardware launch
+
+The follow-up user request authorizes reverting the restrictive application
+floorplan and simplifying/pipelining RTL further. It does not authorize another
+hardware build, board access, or toolkit-master changes. Work branch:
+`timing/20261025-rtl-congestion`, based on `57fc0bc1`; the unrelated
+`rx-trampoline-instruction-audit` checkout is preserved.
+
+- Restored `vivado/eci/xdc/floorplan.xdc` exactly to `c95de205`, removing all
+  15 added application hard pblocks while retaining the earlier coarse placement
+  and September ECI crossing constraints. Retained the candidate's RTL stages
+  and subsequent regression-fixture fixes.
+- RX replay-mask updates are local to each word, eliminating the dynamic
+  read/modify/write mux feeding the whole mask bank. Per-word validity replaces
+  clearing 1,792 mask bits with clearing 28 bits per router. First writes replace
+  stale masks; descriptor turnover and descheduling still invalidate replay.
+- RX byte bounds use a shared remaining-length subtraction and 64 registered
+  byte-valid bits in the existing alignment stage. Replay/masking consumes those
+  bits in the next stage, with no additional latency or ownership/drain changes.
+- Validation: targeted Nix/Mill `RxPayloadIsolationSim`, `RxWritebackSim` and
+  `GsyncReleaseSim` pass (3 tests). The expanded isolation test covers partial
+  write accumulation, zero strobes, new-packet/deschedule invalidation, lengths
+  0/1/2/63/64/65/66/127/128 and stalled AXI responses. Full `eciVivadoInputs`
+  elaboration passes NIC/trace/ILA/debug port checks. Generated Verilog confirms
+  bank-local mask updates. No physical timing or congestion improvement has yet
+  been measured for this RTL.
+
+- Read-only placed-checkpoint review of `1ebe5c26` completed on ba2 with
+  `tools/physical/checkpoint.tcl`; read its maintained digest before details.
+  Evidence and validation logs: `out/rtl-congestion-20261025/` in the main
+  checkout (`physical/summary.json`, `physical/high-fanout.rpt`, `validation/`).
+  RX write-address bits drive 3,097–3,247 loads and replay selection reaches
+  1,472–1,477 loads in that old netlist; bank-local mask updates target one
+  contributor, but the wide replay RAM remains. Other hotspots include the
+  trace FIFO control (10,314), CMAC reset logic (4,233), and aligner ready nets
+  (1,396). Do not duplicate/reset-delay these controls without transaction and
+  CDC analysis. The three largest reset nets already use BUFGCE resources.
+- The old placed checkpoint has estimated WNS -7.719 ns and WHS -0.250 ns;
+  it is mostly unrouted and is not comparable to the final `73c3dc76` baseline.
+  Worst sampled logic includes reply-context retirement and scheduler deadline
+  selection. Further pipelining there changes allocation/retirement or claim
+  timing and is deferred rather than delaying immediate fault fencing. Neither
+  these estimates nor the high-fanout report measures the new RTL. No new
+  implementation run was started; routing benefit requires a separately
+  authorized build.
+
+## Previous application-clock build: failed routing
 
 The October 25 user request resumes application timing work after the TCP
 simplification merged into master. Implement all remaining sampled path-family
 fixes and finer placement, validate, launch **one** hardware build on ba2 with a
 scheduled callback, then stop. Changes are merged; the one build failed routing.
-No further optimization or rebuild is authorized by this handoff. No board acceptance or toolkit-master changes are
-part of this launch task. Branch: `timing/20261025-app-closure`, based on
+That launch authorization is exhausted; the subsequent RTL-only request is
+recorded above. No board acceptance or toolkit-master changes were part of
+this launch task. Branch: `timing/20261025-app-closure`, based on
 `c95de205`. Earlier paused-scope notes describe the September experiments only.
 
 Baseline: `73c3dc76`, final checkpoint under
@@ -70,8 +117,8 @@ Implemented source changes in hardware candidate `1ebe5c26`:
 - Floorplan groups cover workers, ownership/scheduler, crossbar plus wrapper read
   pipeline, packet RAM, CSR, DMA, IP/Ethernet, UDP, RPC, TCP/dispatch, CMAC control,
   trace dump, and each DCS response pipeline. Initial soft-group probe exposed
-  hierarchical-shell warnings: this flow requires hard pblocks. Current source
-  sets IS_SOFT false explicitly; final probe established sites and primitive capacity.
+  hierarchical-shell warnings: this flow requires hard pblocks. The failed candidate
+  set IS_SOFT false explicitly; final probe established sites and primitive capacity.
 
 Evidence and launch preparation:
 
@@ -160,9 +207,9 @@ Terminal result (checked October 25 at 17:30 UTC):
 - Source and test fixes were merged through `6f79fc35`; subsequent handoffs do
   not alter that candidate. The merged timing branch can now be removed because
   all its processes have terminated. Preserve unrelated experiment/audit refs.
-- Scope is finished: report the failure and stop. No RTL/constraint changes,
-  replacement build, board programming or acceptance are authorized. A new user
-  request is required for another optimization iteration.
+- The original launch scope is finished. The follow-up request above authorizes
+  RTL/constraint changes only; no replacement build, board programming or
+  acceptance is authorized.
 
 SSH, Nix, Git metadata and systemd user operations require sandbox escalation.
 Use the maintained Docker bundle workflow because CI is unavailable. One-off

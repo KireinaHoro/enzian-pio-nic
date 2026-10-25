@@ -16,6 +16,7 @@ case class RxPayloadIsolationFixture() extends Component {
   val axi = slave(Axi4(cfg))
   val memory = master(Axi4(cfg))
   val length = in UInt(16 bits)
+  val desched = in Bool()
   val router = DcsRxAxiRouter(cfg, cfg)
   router.rxTraceId := 0
   router.dcsAxi <> axi
@@ -31,7 +32,7 @@ case class RxPayloadIsolationFixture() extends Component {
   router.cancelRxDesc := False
   router.blockCycles := 100
   router.currCl := 0
-  router.doDesched := False
+  router.doDesched := desched
   router.yieldRequested := False
   router.fatalRelease := False
   router.gsyncRelease := False
@@ -43,12 +44,13 @@ class RxPayloadIsolationSim extends DutSimFunSuite[RxPayloadIsolationFixture] {
   db on { Global.initDatabase(2, 1); Global.HOST_REQ_WIDTH.set(512) }
   val dut = Config.sim.compile(db on RxPayloadIsolationFixture())
   test("RX masks stale allocation padding across short packet reuse and overflow") { implicit dut =>
-    SimTimeout(100000)
+    SimTimeout(300000)
     dut.clockDomain.forkStimulus(10)
     val a = dut.axi
     val m = dut.memory
     val poison = (0 until 64).foldLeft(BigInt(0))((v, i) => v | (BigInt(0x5a) << (8*i)))
     dut.length #= 65
+    dut.desched #= false
     a.ar.valid #= false; a.aw.valid #= false; a.w.valid #= false
     a.r.ready #= false; a.b.ready #= true
     for (c <- Seq(a.ar, a.aw)) {
@@ -91,8 +93,46 @@ class RxPayloadIsolationSim extends DutSimFunSuite[RxPayloadIsolationFixture] {
     assert(read(0x300)(1) == 0) // large payload never occupies the control half
     assert(read(0x400) == List(poison, BigInt(0x5a)))
     assert(read(0x480) == List(BigInt(0), BigInt(0)))
+    def writeback(data: Seq[BigInt], masks: Seq[BigInt]): Unit = {
+      a.aw.addr #= 0x400; a.aw.valid #= true
+      dut.clockDomain.waitSamplingWhere(a.aw.ready.toBoolean)
+      a.aw.valid #= false
+      a.b.ready #= false
+      for (i <- 0 until 2) {
+        step(3)
+        a.w.data #= data(i); a.w.strb #= masks(i)
+        a.w.last #= (i == 1); a.w.valid #= true
+        dut.clockDomain.waitSamplingWhere(a.w.ready.toBoolean)
+        a.w.valid #= false
+      }
+      dut.clockDomain.waitSamplingWhere(a.b.valid.toBoolean)
+      step(5)
+      assert(a.b.valid.toBoolean && a.b.id.toInt == 3)
+      a.b.ready #= true; step()
+    }
+    writeback(Seq(BigInt(0xa5), BigInt(0xcc)), Seq(BigInt(1), BigInt(1)))
+    assert(read(0x400) == List((poison & ~BigInt(255)) | 0xa5, BigInt(0xcc)))
+    writeback(Seq(BigInt(0xb6) << 8, BigInt(0)), Seq(BigInt(2), BigInt(0)))
+    assert(read(0x400) == List((poison & ~BigInt(65535)) | 0xb6a5, BigInt(0xcc)))
+    // New packet invalidates both masks, without clearing the replay RAM.
+    assert(read(0x380)(1) == 0)
+    assert(read(0x400) == List(poison, BigInt(0x5a)))
+    // Its first partial write must replace, rather than revive, old mask bits.
+    writeback(Seq(BigInt(0xe7) << 16, BigInt(0)), Seq(BigInt(4), BigInt(0)))
+    assert(read(0x400) == List((poison & ~(BigInt(255) << 16)) | (BigInt(0xe7) << 16), BigInt(0x5a)))
+    dut.desched #= true; step(); dut.desched #= false
     dut.length #= 1
     assert(read(0x380)(1) == 0x5a)
     assert(read(0x400) == List(BigInt(0), BigInt(0)))
+    for (length <- Seq(0, 2, 63, 64, 65, 66, 127, 128)) {
+      dut.length #= length
+      def bytes(n: Int): BigInt = poison & ((BigInt(1) << (8 * n)) - 1)
+      val control = read(0x380)
+      assert(control(1) == (if (length <= 64) bytes(length) else BigInt(0)))
+      val body = read(0x400)
+      assert(body == (if (length <= 64) List(BigInt(0), BigInt(0))
+        else List(poison, bytes(length - 64))))
+      assert(read(0x480) == List(BigInt(0), BigInt(0)))
+    }
   }
 }
