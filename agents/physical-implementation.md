@@ -1,11 +1,12 @@
 # Physical implementation continuation
 
-## Active application-clock closure round
+## Application-clock build running: follow-up only
 
 The October 25 user request resumes application timing work after the TCP
 simplification merged into master. Implement all remaining sampled path-family
 fixes and finer placement, validate, launch **one** hardware build on ba2 with a
-scheduled callback, then stop. No board acceptance or toolkit-master changes are
+scheduled callback, then stop. Changes are merged and the one build is running.
+No further optimization or rebuild is authorized by this handoff. No board acceptance or toolkit-master changes are
 part of this launch task. Branch: `timing/20261025-app-closure`, based on
 `c95de205`. Earlier paused-scope notes describe the September experiments only.
 
@@ -130,10 +131,29 @@ Evidence and launch preparation:
   five hours from that check, then 30-minute rechecks if live. No replacement
   build, board access or further optimization is authorized by the callback.
 
-Remaining: merge/push with CI skipped; launch the staged candidate exactly once, verify actual Vivado start,
-install and verify the 30-minute callback, record evidence and stop. Hardware has
-not launched and no callback is installed yet. Preserve the timing ref until all
-build processes terminate. Do not change toolkit master.
+Launch complete; stop active work:
+
+- Changes merged and pushed to private master through `6f79fc35` with CI skipped.
+  Build revision is the clean `1ebe5c26`; subsequent commits change tests and
+  handoff only, with identical RTL/constraints. Keep
+  `timing/20261025-app-closure` until all build processes finish, then remove this
+  merged branch locally and privately; preserve unrelated experiment refs.
+- Exactly one maintained Docker build launched on ba2 at 11:58 UTC October 25.
+  Root `/tmp/lauberhorn-app-timing-1ebe5c26-20261025`; launcher PID 801843,
+  container `113bac7e8358`, actual Vivado PID 801977 verified live with the exact
+  `/bundle` and `/work` mounts. Status will be in `build.exit`, log in
+  `build/vivado-build.log`, routed reports in `build/physical/`.
+- Verified active callback:
+  `lauberhorn-app-timing-1ebe5c26-20261025-preflight.timer`, due **13:29:17 CET
+  October 25**. It queues this thread, checks the same run after 30 minutes, then
+  schedules collection five hours from that check if still running. The prepared
+  helper supports 30-minute rechecks; it must not launch another build.
+- Callback reads the maintained timing digest first, collects exact artifacts and
+  hashes, compares all clock results and the bounded app-path families against
+  73c3dc76, and checks new pblock memberships/resource use. Report actual timing;
+  launch success and baseline resource fit are not timing closure. No board access.
+- Canonical local record: `out/app-timing-20261025/record.json`; scheduler command
+  and prompt are saved alongside it. There is no pending local regression run.
 
 SSH, Nix, Git metadata and systemd user operations require sandbox escalation.
 Use the maintained Docker bundle workflow because CI is unavailable. One-off
