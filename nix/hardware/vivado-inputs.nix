@@ -24,7 +24,7 @@ runCommand "lauberhorn-eci-vivado-inputs" { nativeBuildInputs = [ python3 ]; } '
   cp -r ${dcsRom}/. $out/generated/dcs-rom/
   printf '%s\n' '${builtins.unsafeDiscardStringContext dcsRom.drvPath}' > $out/dcs-rom-derivation
   cp ${staticShell} $out/static-shell/static_shell_routed.dcp
-  cp ${source}/tools/physical/checkpoint.tcl $out/tools/physical/
+  cp ${source}/tools/physical/{checkpoint.tcl,trace_latency.tcl,trace_latency.py} $out/tools/physical/
   cp -r ${source}/tools/hardware/. $out/tools/hardware/
   cp ${source}/flake.lock $out/flake.lock
   printf '%s\n' '${gitRev}' > $out/git-revision

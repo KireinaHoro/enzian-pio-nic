@@ -15,7 +15,7 @@ PROJECT = urllib.parse.quote('project-openenzian/applications/lauberhorn/platfor
 ARTIFACTS = {
     'shell_lauberhorn-eci.bit': 'out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit',
     'shell_lauberhorn-eci.ltx': 'out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx',
-    'lauberhorn_trace_dma_map.json': 'out/eci/generateVerilog.dest/lauberhorn_trace_dma_map.json',
+    'lauberhorn_trace_dma_map.json': 'out/eci/vivadoProject.dest/lauberhorn_trace_dma_map.json',
 }
 
 

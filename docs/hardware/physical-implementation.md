@@ -148,6 +148,15 @@ placement from SLR1 host logic. These broad assignments add no fine-grained
 application pblocks. The application `ila_app` and its manual helper are removed;
 CMAC ILAs, other debug cores and the static ECI edge ILA remain.
 
+Trace event transport uses reset-free, enable-free register banks with payload
+and valid in one `AUTOPIPELINE_GROUP` per source, and bounded stage insertion.
+Separate source/sink hierarchies use named soft `USER_SLR_ASSIGNMENT` groups;
+receiving banks share the existing SLR2 collector region. Startup masking flushes
+the maximum possible transport depth before accepting valid events. Pipeline
+latency is measured from final source-to-sink register chains by the Tcl flow,
+not inferred from the configured insertion limit. This follows
+[AMD UG904 auto-pipelining guidance](https://docs.amd.com/r/2025.1-English/ug904-vivado-implementation/Using-Auto-Pipelining-on-Custom-Interfaces).
+
 For routed experiments, first copy the DCP and change a small placement hypothesis;
 never overwrite the baseline or the static-shell release. A path ending in fixed
 static transport may require an application boundary stage or a rebuilt shell;

@@ -44,6 +44,10 @@ foreach type {max min} {
 close $f
 # Full CDC can be expensive; retained on disk, never emit it into agent context.
 report_cdc -details -file "$output/cdc.rpt"
+if {[info exists env(TRACE_MAP_TEMPLATE)]} {
+    source [file join [file dirname [info script]] trace_latency.tcl]
+    trace_latency::extract $env(TRACE_MAP_TEMPLATE) $env(TRACE_MAP_OUTPUT) $env(TRACE_MAP_REVISION) $dcp
+}
 set done [open "$output/COMPLETE" w]
 puts $done "CHECKPOINT_REPORTS_READY"
 close $done

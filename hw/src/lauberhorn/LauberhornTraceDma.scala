@@ -434,7 +434,21 @@ object LauberhornTraceDma {
           ("lauberhorn_event" -> lauberhornEventFormat(lauberhornEvents).json)
       ),
       "trace_correlation" -> traceCorrelation,
-      "sources" -> Arr.from(layout.sources.map(_.json)),
+      "pipeline_resolution" -> "implementation_required",
+      "sources" -> Arr.from(layout.sources.map { source =>
+        val info = source.json
+        if (info("type").str != "lost") {
+          val limit = info("pipeline_stages").num.toInt
+          info("pipeline_stages") = ujson.Null
+          info("autopipeline") = Obj(
+            "instance" -> s"i_app/i_trace_dma/traceAuto_${info("source").num.toInt}",
+            "limit" -> limit,
+            "base_stages" -> 2,
+            "width" -> (PayloadWidth + 1),
+          )
+        }
+        info
+      }),
     )
   }
 
@@ -705,13 +719,18 @@ case class LauberhornTraceDma(
     out.payload := tracePayload
   }.out
 
+  def transport(event: Flow[Bits], source: Int, limit: Int): Unit = {
+    val pipe = TraceAutoPipeline(payloadWidth, limit, source).setName(s"traceAuto_$source")
+    pipe.input << event
+    traceDma.traceIn(source) << pipe.output
+  }
+
   for (idx <- 0 until appDcsSourceCount) {
-    traceDma.traceIn(idx) := appDcsTraceIn(idx).delay(LauberhornTraceDma.AppDcsPipelineStages(idx))
+    transport(appDcsTraceIn(idx), idx, LauberhornTraceDma.AppDcsPipelineStages(idx))
   }
 
   for (idx <- 0 until appEciSourceCount) {
-    traceDma.traceIn(appDcsSourceCount + idx) :=
-      traceEciFrame(appEciTraceIn(idx)).delay(LauberhornTraceDma.AppEciPipelineStages(idx))
+    transport(traceEciFrame(appEciTraceIn(idx)), appDcsSourceCount + idx, LauberhornTraceDma.AppEciPipelineStages(idx))
   }
 
   for (idx <- 0 until sysEciSourceCount) {
@@ -725,7 +744,7 @@ case class LauberhornTraceDma(
     val sysTraceToDma = Flow(Bits(payloadWidth bits))
     sysTraceToDma.valid := fifo.masterPort.valid
     sysTraceToDma.payload := fifo.masterPort.payload
-    traceDma.traceIn(appSourceCount + idx) := sysTraceToDma.delay(LauberhornTraceDma.SysEciPipelineStages(idx))
+    transport(sysTraceToDma, appSourceCount + idx, LauberhornTraceDma.SysEciPipelineStages(idx))
     fifo.masterPort.ready := True
   }
 
@@ -739,13 +758,11 @@ case class LauberhornTraceDma(
     val sysTraceToDma = Flow(Bits(payloadWidth bits))
     sysTraceToDma.valid := fifo.masterPort.valid
     sysTraceToDma.payload := fifo.masterPort.payload
-    traceDma.traceIn(appSourceCount + sysEciSourceCount + idx) :=
-      sysTraceToDma.delay(LauberhornTraceDma.SysCreditReturnPipelineStages(idx))
+    transport(sysTraceToDma, appSourceCount + sysEciSourceCount + idx, LauberhornTraceDma.SysCreditReturnPipelineStages(idx))
     fifo.masterPort.ready := True
   }
 
   for (idx <- 0 until lauberhornSourceCount) {
-    traceDma.traceIn(appSourceCount + sysSourceCount + idx) :=
-      lauberhornTraceIn(idx).delay(lauberhornTracePorts(idx).pipelineStages)
+    transport(lauberhornTraceIn(idx), appSourceCount + sysSourceCount + idx, lauberhornTracePorts(idx).pipelineStages)
   }
 }

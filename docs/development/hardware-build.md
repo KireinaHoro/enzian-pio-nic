@@ -62,6 +62,10 @@ Under the chosen output root:
 - `vivado-build.log`: combined build output.
 - `eci/vivadoProject.dest/`: project and, after a successful full build,
   `shell_lauberhorn-eci.bit`, `.ltx` and `shell_lauberhorn-eci_routed.dcp`.
+- `eci/vivadoProject.dest/lauberhorn_trace_dma_map.json`: implemented trace map,
+  with measured per-source auto-pipeline depths and checkpoint/bitstream hashes.
+  The adjacent `.depths.tsv` is the per-bit extraction evidence. The generated
+  input map is an unresolved template and must not be used for capture analysis.
 - `physical-vivado.log` and `physical/`: checkpoint reports; `physical/COMPLETE`
   marks complete collection. Use the [physical guide](../hardware/physical-implementation.md)
   to summarize and interpret them.
@@ -82,3 +86,10 @@ The [CI guide](ci.md) records the stable artifact paths and report gate.
 Project creation validates input portability and tool setup. It does not prove
 implementation success, timing closure or board functionality. Use the
 [hardware-test routine](validation.md#board-validation) for matching-artifact board validation.
+
+The Tcl build entry point reopens the final routed checkpoint and runs
+`tools/physical/trace_latency.tcl` before declaring build completion. The report
+runner invokes the same extraction before writing `physical/COMPLETE`, including
+when collecting a routed checkpoint from a failed build. Missing endpoints,
+non-register transport logic, unequal payload/valid depths or out-of-range
+latency fail extraction. No manual stage-count editing is supported.

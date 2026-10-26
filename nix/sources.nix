@@ -45,6 +45,8 @@ in
         "deps/blocks/deps/verilog-axis"
         "deps/blocks/deps/verilog-axi"
         "tools/physical/checkpoint.tcl"
+        "tools/physical/trace_latency.tcl"
+        "tools/physical/trace_latency.py"
         "tools/hardware"
         "flake.lock"
       ]

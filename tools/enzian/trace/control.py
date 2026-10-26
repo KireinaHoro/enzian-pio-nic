@@ -62,6 +62,13 @@ class Control:
         from tools.enzian.console import require_reservation
         for machine in (c['dut'],c['peer']):require_reservation(c['gateway'],machine)
         if digest(c['trace_map'])!=c['trace_map_sha256']:raise ValueError('Trace map hash mismatch')
+        mapping=json.loads(Path(c['trace_map']).read_text())
+        if any(src.get('autopipeline') for src in mapping.get('sources', [])):
+            if mapping.get('pipeline_resolution')!='implemented':
+                raise ValueError('Trace auto-pipeline latency is unresolved')
+            bits={sha for path,sha in c['remote_artifacts'].items() if path.endswith('.bit')}
+            if mapping.get('implementation',{}).get('bitstream_sha256') not in bits:
+                raise ValueError('Implemented trace map does not match the bitstream')
         for path,sha in c['remote_artifacts'].items():
             actual=subprocess.check_output(['ssh',c['programmer'],shlex.join(['sha256sum',path])],text=True,timeout=120).split()[0]
             if actual!=sha:raise ValueError('Remote artifact hash mismatch: '+path)

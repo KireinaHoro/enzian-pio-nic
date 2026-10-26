@@ -23,6 +23,10 @@ project="$output/eci/vivadoProject.dest"
 if [[ $mode == report ]]; then
   [[ -f $project/shell_lauberhorn-eci_routed.dcp ]] || { echo 'No routed checkpoint to report' >&2; exit 1; }
   [[ ! -e $output/physical && ! -e $output/physical-vivado.log ]] || { echo 'Report outputs already exist; use a fresh report destination' >&2; exit 1; }
+  export TRACE_MAP_TEMPLATE="$bundle/generated/lauberhorn_trace_dma_map.json"
+  export TRACE_MAP_OUTPUT="$project/lauberhorn_trace_dma_map.json"
+  TRACE_MAP_REVISION="$(cat "$bundle/git-revision")"
+  export TRACE_MAP_REVISION
   "$vivado_root/bin/vivado" -mode batch -nojournal -nolog \
     -source "$bundle/tools/physical/checkpoint.tcl" \
     -tclargs "$project/shell_lauberhorn-eci_routed.dcp" "$output/physical" \

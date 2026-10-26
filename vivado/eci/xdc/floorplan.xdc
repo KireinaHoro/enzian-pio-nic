@@ -198,3 +198,11 @@ foreach {link ranges} {
 # south of the previous region. Keep the link2 buffers west of that decode;
 # constrain the whole payload/size/valid set together, leaving the static shell.
 set_property IS_SOFT false [get_pblocks pblock_eci_tx_link2]
+
+# Trace auto-pipeline endpoints: source clustering is a soft RTL attribute;
+# only the receiving banks belong beside the SLR2 collector. Do not constrain
+# the entire trace wrapper or its source banks to SLR2.
+set trace_sinks [get_cells -hierarchical -filter {NAME =~ i_app/i_trace_dma/traceAuto_*/sink}]
+if {[llength $trace_sinks] == 0} {error "Trace auto-pipeline sink selector matched no cells"}
+puts "TRACE_AUTO_PIPELINE_SINKS [llength $trace_sinks]"
+add_cells_to_pblock $dcs_even_pblock $trace_sinks

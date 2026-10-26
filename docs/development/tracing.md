@@ -6,6 +6,13 @@ for FPGA preservation, or the [trace tools README](../../data/eci/sys_trace/READ
 for low-level exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
 
+Trace auto-pipeline delays are resolved from the final implemented netlist.
+Use `eci/vivadoProject.dest/lauberhorn_trace_dma_map.json` from the same hardware
+artifact set as the bitstream. Generated RTL maps contain unresolved latency;
+analysis rejects them. Capture setup checks the resolved map's bitstream hash.
+Timestamp correction subtracts the measured source-specific transport depth;
+it does not recover variable latency through system-clock asynchronous FIFOs.
+
 ## Default agent capture pipeline
 
 Use the [lauberhorn-trace skill](../../tools/enzian/skills/lauberhorn-trace/SKILL.md)

@@ -4,12 +4,14 @@
   python3,
   bash,
   shellcheck,
+  tcl,
 }:
 let
   source = lib.fileset.toSource {
     root = ../..;
     fileset = lib.fileset.unions [
       (lib.fileset.fileFilter (f: f.hasExt "sh" || f.hasExt "py") ../../tools/ci)
+      ../../tools/physical
       ../../tools/hardware
       ../../tools/enzian/boot.py
       ../../tools/enzian/console.py
@@ -43,11 +45,14 @@ runCommand "lauberhorn-workflow-tools-tests"
       (python3.withPackages (ps: [ ps.pexpect ]))
       bash
       shellcheck
+      tcl
     ];
   }
   ''
     cp -r ${source}/. .
     shellcheck -x tools/ci/*.sh tools/ci/image/*.sh tools/hardware/*.sh
+    tclsh tools/physical/tests/test_trace_latency.tcl
+    python3 -m unittest discover -s tools/physical/tests -v
     python3 -m unittest discover -s tools/ci/tests -v
     python3 -m unittest discover -s tools/enzian/tests -p test_boot.py -v
     python3 -m unittest discover -s tools/enzian/tests -p test_run.py -v

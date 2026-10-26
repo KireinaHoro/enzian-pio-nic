@@ -1,6 +1,6 @@
 # Physical implementation continuation
 
-## Pending source changes before the next implementation
+## Source changes awaiting implementation
 
 User authorized F_MAC3 trace relocation and app ILA removal, but explicitly
 prohibited a hardware launch pending an application-clock pipelining/fanout pass.
@@ -24,19 +24,32 @@ on zuestoll14, not established on zuestoll07. No board test or hardware build
 has been run for these source changes. Next: review long application-clock logic
 and high fanout before requesting/launching implementation.
 
-Validation: `nix build .#eciVivadoInputs --no-link` passed (log
-`/tmp/trace-slr2-inputs.log`); generated 354 NIC / 497 trace ports and five
-21-bit debug bundles match the wrapper. Tcl completeness and diff checks pass.
-No Vivado project/implementation or board run was launched. Physical selector
-matching, routing and timing remain checks for the next authorized build.
+Validation: `nix build .#eciVivadoInputs` and
+`.#checks.x86_64-linux.trace-autopipeline` / `.#checks.x86_64-linux.workflow-tools`
+passed (`--no-link`). Simulation checks every 0..10 inserted-stage case with
+payload/valid gaps and repeated reset. Five Python tests cover resolution,
+artifact hashes, rejected maps and timestamp wrap; the Tcl walker fixture checks
+inserted stages and rejection of logic/cycles/excessive depth. Generated RTL
+has all 135 map endpoints and expected attributes; 354 NIC / 497 trace ports
+and five 21-bit bundles match the wrapper. Logs: `/tmp/trace-autopipeline-final.log`
+and Nix derivation logs (simulation `7wf6yajb`, workflow `36lnz2dh`, bundle
+`nacvl1pd`). No Vivado project/implementation or board run was launched.
 
-Trace events already converge on SLR2 traceDma. App payload/valid delays are
-five stages per SLR hop (SLR1: five, SLR0: ten); system sources first cross
-async FIFOs. Those logical delays can infer SRLs, so they do not guarantee
-registers distributed across physical SLR boundaries. Preserve this issue for
-the next timing pass: the old routed sample includes deadline-to-trace paths
-at -1.229 ns. The new placement selectors do not constrain the whole
-`i_trace_dma` wrapper or move its source-side event delay chains.
+Trace event transport now uses resetless source/sink FF banks with payload and
+valid in one Vivado auto-pipeline group (limits 0/5/10 additional stages).
+Source banks have distinct soft USER_SLR_ASSIGNMENT groups; sink banks join
+SLR2. KEEP hierarchy and SHREG_EXTRACT=NO preserve extraction endpoints and
+prevent SRL transport. A downstream startup mask flushes uninitialized valid
+bits. The whole i_trace_dma wrapper remains unconstrained.
+
+The generated map is explicitly unresolved. The build Tcl and checkpoint-report
+flow traverse final source-to-sink FF chains, require equal surviving bit depths
+including valid, and emit the final map plus per-bit depth TSV beside the
+bitstream. Maps include checkpoint/template/evidence/bitstream hashes; decoding
+rejects unresolved maps and capture checks the bitstream match. Correction
+covers this app-clock transport only, not variable async-FIFO delay. Actual
+Vivado insertion, selector matching and the measured map remain unvalidated
+until the next authorized implementation; no hardware run is authorized now.
 
 ## Native UDP checksum removal: routed, setup timing fails
 

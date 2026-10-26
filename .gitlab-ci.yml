@@ -170,6 +170,7 @@ build-hw-eci:
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
       - out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
+      - out/eci/vivadoProject.dest/lauberhorn_trace_dma_map.json*
 
 report-hw-eci:
   extends: .nix
@@ -211,3 +212,5 @@ publish:
       out/eci/vivadoProject.dest/shell_lauberhorn-eci_routed.dcp
       out/eci/vivadoProject.dest/shell_lauberhorn-eci.bit
       out/eci/vivadoProject.dest/shell_lauberhorn-eci.ltx
+      out/eci/vivadoProject.dest/lauberhorn_trace_dma_map.json
+      out/eci/vivadoProject.dest/lauberhorn_trace_dma_map.json.depths.tsv

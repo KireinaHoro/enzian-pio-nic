@@ -89,6 +89,9 @@ in
   blocks-tests = check "blocks-tests" ''
     mill --no-daemon --offline 'blocks[2.13.12].test'
   '';
+  trace-autopipeline = check "trace-autopipeline" ''
+    mill --no-daemon --offline gen.test.testOnly lauberhorn.TraceAutoPipelineSim
+  '';
   trace-tests = check "trace-tests" ''
     mill --no-daemon --offline 'blocks[2.13.12].test.testOnly' jsteward.blocks.misc.TraceBufferDMATests
     mill --no-daemon --offline gen.test.testOnly lauberhorn.LauberhornTraceDumpTests

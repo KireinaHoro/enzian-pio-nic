@@ -15,7 +15,7 @@ except ImportError:
 def default_map_path() -> Path:
     candidates = [
         Path(__file__).with_name("lauberhorn_trace_dma_map.json"),
-        platform_root() / "out" / "eci" / "generateVerilog.dest" / "lauberhorn_trace_dma_map.json",
+        platform_root() / "out" / "eci" / "vivadoProject.dest" / "lauberhorn_trace_dma_map.json",
         Path.cwd() / "lauberhorn_trace_dma_map.json",
     ]
     for candidate in candidates:
@@ -27,6 +27,11 @@ def default_map_path() -> Path:
 def load_map(path: Path) -> Dict[str, Any]:
     with path.open() as f:
         trace_map = json.load(f)
+    if trace_map.get("pipeline_resolution") == "implementation_required":
+        raise ValueError("Trace map has unresolved auto-pipeline latency; use the implemented map beside the bitstream")
+    if any(src.get("autopipeline") and (trace_map.get("pipeline_resolution") != "implemented" or type(src.get("pipeline_stages")) is not int)
+           for src in trace_map.get("sources", [])):
+        raise ValueError("Trace map is missing implemented per-source latency")
     # Historical captures retain their original maps on disk. Normalize only
     # symbolic handoff names; IDs, field offsets and widths stay untouched.
     def desched_names(value):

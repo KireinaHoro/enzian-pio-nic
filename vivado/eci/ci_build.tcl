@@ -33,6 +33,15 @@ if {[catch {
         if {$suffix eq "routed.dcp"} {set name "shell_lauberhorn-eci_routed.dcp"}
         if {![file isfile "$ci_output/$name"]} {error "Vivado did not produce $name"}
     }
+    open_checkpoint "$ci_output/shell_lauberhorn-eci_routed.dcp"
+    source "$ci_bundle/tools/physical/trace_latency.tcl"
+    set revfile [open "$ci_bundle/git-revision" r]
+    set revision [string trim [read $revfile]]
+    close $revfile
+    trace_latency::extract "$ci_bundle/generated/lauberhorn_trace_dma_map.json" \
+        "$ci_output/lauberhorn_trace_dma_map.json" $revision \
+        "$ci_output/shell_lauberhorn-eci_routed.dcp"
+    close_design
     puts "VIVADO_BUILD_COMPLETE $ci_output"
 } ci_error ci_options]} {
     puts stderr "VIVADO_BUILD_FAILED: $ci_error"
