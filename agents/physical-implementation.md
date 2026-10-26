@@ -1,51 +1,60 @@
 # Physical implementation continuation
 
-## Native UDP checksum removal: implementation running
+## Native UDP checksum removal: routed, setup timing fails
 
-The user authorized one new implementation run after checksum removal.
-Exact revision: `68ec9af8185b1d833dc10cca7c587db2817c1765`; retained build ref
-`timing/20261026-udp-no-checksum-impl`, pushed privately with CI skipped.
-This is one manual Docker build on ba2, not GitLab CI. No automatic replacement,
-board operation, toolkit-master edit or further optimization is authorized.
+The one authorized manual Docker run used exact revision
+`68ec9af8185b1d833dc10cca7c587db2817c1765`. Terminal state verified October 26
+at 14:28 CET: `build.exit=0`, physical `CHECKPOINT_REPORTS_READY`, original
+launcher 1304519 and build/report Vivado processes gone, both containers gone.
+Supplemental read-only analysis also completed and its Vivado 1633524 exited.
+No timers remain. No replacement build, board operation, toolkit-master edit
+or further optimization was performed or authorized. The merged build ref
+`timing/20261026-udp-no-checksum-impl` can now be removed.
 
-Launch verified October 26 at 07:56 CET:
-
-- Remote root `/tmp/lauberhorn-udp-no-checksum-68ec9af8-20261026`, launcher
-  PID 1304519, Docker `3f0b9434c5be`, Vivado PID 1304655. Project generation
-  is active; `build.exit` and `build/physical/COMPLETE` are absent.
-- Clean ECI bundle and matching microbenchmarks image built from the exact
-  revision. Manifest has `local=false`; all 1,183 staged input hashes match.
-  Source hashes match the passed native UDP regression. Generated RTL differs
-  from its tested snapshot only in the committed revision CSR and contains no
-  native UDP checksum pipeline. The obsolete selector is absent too.
-- Preflight October 26 at 08:26 CET confirmed the exact launcher, container
-  and main Vivado live; synthesis PID 1311596 is active in final netlist cleanup.
-  `build.exit` and `physical/COMPLETE` remain absent. Reverified all 1,183 remote
-  input hashes, the passing NativeUdpSim evidence and tested source hashes,
-  generated RTL correspondence, image hash, checksum-pipeline removal and
-  absence of both the experimental groups and obsolete floorplan selector.
-- Recheck October 26 at 13:57 CET: launcher 1304519 remains live. Original
-  build Vivado/container have exited after successful bitstream and debug-probe
-  generation (`VIVADO_BUILD_COMPLETE`, Vivado exit 0). The same launcher is
-  automatically reporting the routed DCP in Docker `35fcc169e52b`, Vivado
-  PID 1630752, with matching input/output mounts. `build.exit` and
-  `physical/COMPLETE` remain absent. Final timing has not yet been assessed;
-  bitstream generation does not establish timing closure.
-- Main checkout record: `out/udp-no-checksum-impl-20261026/record.json` contains
-  exact paths, hashes, test scope and baseline references. Inspected the old
-  recheck timer/service (inactive; service result success) before scheduling.
-  The 30-minute `lauberhorn-udp-no-checksum-68ec9af8-20261026-recheck.timer`
-  is verified active, due **14:27:53 CET** October 26. Stop polling until then.
-  If still live, use that directory's `schedule.py --stage recheck` after
-  inspecting old timer/service state. Collect immediately if terminal; never
-  restart the five-hour wait. No replacement build was started.
-- On completion preserve bitstream/probes/routed DCP/trace map/reports and hashes,
-  including failed-stage evidence. Read the maintained timing digest first and
-  compare to final `73c3dc76`; inspect all clocks, setup/hold/pulse width,
-  constraints/CDC, routing completion, application top-1000 paths, coarse-region
-  utilization and fanout. No timing-closure claim from build success. Keep the
-  build ref until all processes terminate. Preserve the main audit checkout;
-  update this handoff on master in `/tmp/lauberhorn-rtl-congestion`.
+- Preserved full/partial bitstreams and probes, seven top-level checkpoints,
+  generated trace map, logs and final reports under the main checkout's
+  `out/udp-no-checksum-impl-20261026/collected/`. All eleven bit/probe/checkpoint
+  hashes match ba2. `SHA256SUMS` covers collected and supplemental evidence;
+  `record.json` retains exact inputs, tests, provenance and baseline paths.
+  Remote root remains `/tmp/lauberhorn-udp-no-checksum-68ec9af8-20261026`.
+- Read the maintained digest first: final Physopt postRoute WNS **-1.232 ns**,
+  TNS **-22953.258 ns**, **65842** failing setup endpoints. Compared with final
+  `73c3dc76`: WNS worsened by 0.113 ns; TNS improved by 9059.002 ns and failures
+  fell by 16418. WHS +0.001 ns and WPWS +0.039 ns, zero hold/pulse failures.
+  All 1045128 routable nets are routed, zero routing errors. Build success is
+  not timing closure and no functional acceptance was attempted.
+- All-clock tables: application 200 MHz WNS -1.232 ns, TNS -18663.656 ns,
+  46662 failing endpoints; clk_sys WNS -0.597 ns, TNS -4289.601 ns, 19180
+  failures; clk_gt -> clk_sys WNS -0.003 ns, TNS -0.011 ns, four failures.
+  Other reported clock pairs have no setup violations. Internal unconstrained
+  endpoints are zero; one missing output-delay constraint remains as in baseline.
+  Bus-skew checks pass. CDC structural counts remain 288/75/11/12/8461/1971
+  for CDC-1/6/10/11/15/26; these are not proved functional defects. Exceptions:
+  811 false paths, three clock groups, no multicycles; max-delay datapath-only
+  constraints increased from 246 to 247. Zero unconstrained endpoints does not
+  establish exception correctness.
+- `app-top1000/` uses the same application-clock from/to selection and one path
+  per endpoint as baseline. Candidate endpoint-family sample counts: scheduler
+  321, TX routers 245, DCS 148, trace 108, other 79, RX routers 54, DMA 32,
+  crossbar 11, RPC 2. These are bounded sample counts, not total failures/TNS.
+  Worst trace-DMA saved-port-valid -> frame FIFO path: -1.232 ns, 22 levels,
+  5.894 ns data delay (1.341 logic, 4.553 routing). Baseline/new sample comparison
+  is in `app-top1000/family-counts.json`; exact paths are retained.
+- Verified absence of APP_TIMING_FLOORPLAN markers in inputs/build log and all
+  15 experimental pblocks in the actual checkpoint; 11 shell/coarse pblocks
+  remain. Native UDP checksum pipeline/module and obsolete EciThreadClRouter
+  selector are absent from exact inputs. Actual membership counts/ranges and
+  per-pblock reports are in `app-top1000/regions.tsv` and `pblock-*.rpt`.
+  Host-interface region: 44.46% LUT, 17.42% registers. SLR0/1/2 CLB occupancy:
+  65.50/89.67/47.78%; LUT utilization 35.31/57.49/27.41%. SLR1 remains crowded.
+- High-fanout report: three reset nets (38456/38453/34211) and trace FIFO control
+  (10179) already use BUFGCE. CMAC reset net reaches 4232 loads; RX writeWord
+  reaches 3107; trace frame-FIFO nextPort reaches 2523. RTL cleanup did not
+  eliminate these fanout hotspots. No further intervention is authorized.
+- Launch/preflight verified NativeUdpSim, full ECI elaboration, matching image,
+  all 1183 input hashes, and clean RTL correspondence (only revision CSR differed
+  from the tested snapshot). Preserve the unrelated audit checkout. This handoff
+  is maintained on master in `/tmp/lauberhorn-rtl-congestion`.
 
 Implemented checksum removal:
 
