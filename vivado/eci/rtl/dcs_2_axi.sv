@@ -502,7 +502,7 @@ module dcs_2_axi #
       d2a_p_axi_rd.rlast    = p_axi_rlast;
       d2a_p_axi_rd.rvalid    = p_axi_rvalid;
    end : DC2AXIRD_IP_ASSIGN
-   axi_rd_cl #
+   lauberhorn_axi_rd_cl #
      (
       .DESC_ID_WIDTH(MAX_DCU_ID_WIDTH),
       .DESC_ADDR_WIDTH(DS_ADDR_WIDTH),

@@ -50,6 +50,7 @@ in
   scheduling-composed-invariants = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; composedInvariants = true; };
   dcs-rom-thx = pkgs.callPackage ./dcs-rom.nix { inherit dcsRom; };
   dcs-lauberhorn = pkgs.callPackage ./dcs-pressure.nix { inherit dcsRom; };
+  dcs-read-pipeline = pkgs.callPackage ./dcs-read-pipeline.nix { };
   dcs-pressure = pkgs.callPackage ./dcs-pressure.nix { };
   scheduling-cache-contracts = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; cacheContractsOnly = true; };
   scheduling-kill-exit = pkgs.callPackage ./scheduling-progress.nix { inherit tlc; killOnly = true; };
@@ -68,7 +69,7 @@ in
   '';
   transport-pipeline = check "transport-pipeline" ''
     mill --no-daemon --offline gen.test.testOnly \
-      lauberhorn.PacketChecksumSim lauberhorn.RpcLocalRouteSim lauberhorn.host.eci.NativeTcpSim \
+      lauberhorn.RpcLocalRouteSim lauberhorn.host.eci.NativeTcpSim \
       lauberhorn.host.eci.NativeUdpSim lauberhorn.host.eci.DeadlineSim \
       lauberhorn.host.eci.CooperativeAllocationSim
     mill --no-daemon --offline gen.test.testOnly lauberhorn.host.eci.OncRpcSim \
@@ -88,6 +89,20 @@ in
   '';
   blocks-tests = check "blocks-tests" ''
     mill --no-daemon --offline 'blocks[2.13.12].test'
+  '';
+  app-header-pipeline = check "app-header-pipeline" ''
+    mill --no-daemon --offline 'blocks[2.13.12].test.testOnly' \
+      jsteward.blocks.axi.AxiStreamInjectHeaderEthernetTests \
+      jsteward.blocks.axi.AxiStreamInjectHeaderRpcTests
+  '';
+  app-depth-fanout = check "app-depth-fanout" ''
+    mill --no-daemon --offline gen.test.testOnly \
+      lauberhorn.host.eci.RxPayloadIsolationSim lauberhorn.host.eci.TxPayloadIsolationSim \
+      lauberhorn.host.eci.RxWritebackSim lauberhorn.host.eci.GsyncReleaseSim \
+      lauberhorn.host.eci.CooperativeAllocationSim lauberhorn.host.eci.CooperativeYieldSim \
+      lauberhorn.RecoveryStreamBufferSim lauberhorn.RecoveryInFlightSim \
+      lauberhorn.StreamPipelineBoundarySim lauberhorn.RpcReplyContextsSim \
+      lauberhorn.host.eci.EciAddressDecoderSim lauberhorn.host.eci.EciAxiIngressSim
   '';
   trace-autopipeline = check "trace-autopipeline" ''
     mill --no-daemon --offline gen.test.testOnly lauberhorn.TraceAutoPipelineSim

@@ -8,6 +8,7 @@ import spinal.lib._
 import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis._
 import spinal.lib.fsm._
+import spinal.lib.misc.pipeline._
 
 /** Buffer before admission: invalid lengths never become host work.
   * The buffer holds one datagram, trims Ethernet padding, and drains malformed
@@ -33,7 +34,23 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
     // Header extractors leave a gap at the low byte lanes of the first beat.
     val aligner = jsteward.blocks.axi.AxiStreamAligner(config)
     aligner.io.input << ingress
-    val input = aligner.io.output
+    // Count/validate byte lanes before packet-state arithmetic. A local adjacent
+    // transition check recognizes a low-lane contiguous mask without rebuilding
+    // that mask through popcount, subtraction and a variable shift.
+    val ingressPipe = new StagePipeline
+    ingressPipe.node(0).arbitrateFrom(aligner.io.output)
+    val capture = new ingressPipe.Area(0) {
+      val BEAT = insert(aligner.io.output.payload)
+      val COUNT = insert(CountOne(aligner.io.output.keep).resize(17))
+      val CONTIGUOUS = insert(!Vec((1 until config.dataWidth).map { lane =>
+        aligner.io.output.keep(lane) && !aligner.io.output.keep(lane - 1)
+      }).asBits.orR)
+    }
+    val input = Axi4Stream(config)
+    ingressPipe.node(1).driveTo(input) { case (payload, node) => payload := node(capture.BEAT) }
+    val count = ingressPipe.node(1)(capture.COUNT)
+    val contiguous = ingressPipe.node(1)(capture.CONTIGUOUS)
+    ingressPipe.build()
     val metadata = Stream(UdpRxMeta())
     val output = Axi4Stream(config)
     val ack = Bool()
@@ -47,6 +64,7 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
     val saved = Reg(UdpRxMeta())
     val length = Reg(UInt(16 bits))
     val received = Reg(UInt(17 bits)) init 0
+    val remaining = Reg(UInt(17 bits)) init 0
     val malformed = RegInit(False)
     val headerErrors = Reg(Bits(5 bits)) init 0
     val lastReject = Reg(Bits(8 bits)) init 0
@@ -62,10 +80,8 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
 
     val keep = Bits(config.dataWidth bits)
     for (lane <- 0 until config.dataWidth) {
-      keep(lane) := input.keep(lane) && received + lane < length.resize(17)
+      keep(lane) := input.keep(lane) && remaining > lane
     }
-    val count = CountOne(input.keep).resize(17)
-    val contiguous = input.keep === (B((BigInt(1) << config.dataWidth) - 1, config.dataWidth bits) |>> (config.dataWidth - count))
 
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
@@ -77,6 +93,7 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
             val udpLen = EndiannessSwap(header.hdr.len).asUInt
             val ipLen = EndiannessSwap(ip.len).asUInt
             length := udpLen - 8
+            remaining := (udpLen - 8).resize(17)
             received := 0
             val errors = Bits(5 bits)
             errors(0) := ip.version =/= 4 || ip.ihl =/= 5 ||
@@ -101,8 +118,9 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
           fifo.io.push.valid := input.valid && keep.orR && !malformed
           fifo.io.push.data := input.data
           fifo.io.push.keep := keep
-          fifo.io.push.last := received + count >= length.resize(17)
+          fifo.io.push.last := count >= remaining
           when(input.fire) {
+            remaining := Mux(count >= remaining, U(0, 17 bits), remaining - count)
             when(received < 65536) { received := (received + count).resized }
             when(!contiguous || (!input.last && !input.keep.andR) ||
                 (keep.orR && !malformed && !fifo.io.push.ready)) { malformed := True }

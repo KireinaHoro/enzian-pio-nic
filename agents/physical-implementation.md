@@ -1,5 +1,93 @@
 # Physical implementation continuation
 
+## Active application logic-depth/fanout pass
+
+The October 26 user goal authorizes addressing the application-clock offenders,
+then launching ONE manual implementation and stopping. This supersedes the
+previous no-launch pause. No board operation or toolkit-master change is allowed.
+Work in `/tmp/lauberhorn-rtl-congestion`, branch `timing/app-depth-fanout` from
+`fae8474e`; preserve the main checkout's unrelated audit branch. Blocks dependency
+is committed at `3d68e376`, published only to private platform ref
+`deps/blocks-app-depth-fanout`. Platform candidate is being committed on the feature branch; final gates remain pending.
+
+Baseline evidence is the `68ec9af8` final digest and bounded app top-1000 in the
+main checkout's `out/udp-no-checksum-impl-20261026`. Final WNS -1.232 ns,
+TNS -22953.258 ns; app WNS -1.232 ns. No measured improvement yet. Keep 200 MHz
+and existing timing exceptions; no restrictive fine-grained floorplan.
+
+Implemented interventions (counts are bounded-sample categories):
+
+- Scheduler lookup (309): Spinal S2MLink/StageLink boundary; in-flight capacity
+  accounts for two new lookup records and two DMA input records.
+- Trace (57 serializer endpoints plus scheduler/event cones up to 26 levels):
+  eight-source local selection, StagePipeline, balanced masked OR, no global
+  binary port mux/CountOne feedback. Scheduler allocation also uses parallel
+  one-hot selection and factors common donor availability outside priority.
+- TX handoff (245): byte-valid logical clear replaces wide data clear. RX length
+  retirement uses logical validity (16); immediate zero visibility retained.
+- RX replay (32 plus routing-heavy selects): synchronous block RAM and explicit
+  byte-strobe collision forwarding. Bounds arithmetic occurs during RAM fetch,
+  before response byte masking. Transaction FSM retains AXI/ownership sequencing.
+- DMA (33): RX elastic admission and separate classification; TX uses the same
+  Spinal boundary, with parallel resident-slot/owner selection.
+- Reply identity/context: local per-slot comparisons and consume, avoiding
+  wide selected identities and hit-reduction feedback into active-bit enables.
+  Invalid/stale context consumption cannot retire a live generation.
+- Native UDP (33 including 18-level mask path): StagePipeline count/mask capture,
+  adjacent-bit contiguity check, saturating remaining-byte trim counter.
+- Header injection (9): StagePipeline separates arithmetic and wide assembly.
+- Packet-memory arbiter (17): registered AW-route FIFO; original address/error
+  decoding retained. DCS R/B crossbar outputs use skid slices.
+- DCS read (72) and local elastic stages (77): platform wrappers use standard
+  AXIS registered-output skid slices, isolating recipient decode and ready.
+  ECI AR/AW admission uses Spinal forward/backward boundaries and parallel owner
+  comparisons; ownership includes buffered accepted commands until response.
+
+Fanout disposition: replay RAM, trace banking and registered DCS controls address
+ordinary high-fanout selectors. App resets, trace snapshot control and several
+wide aligner controls already use BUFGCE; retain their global distribution and
+existing AggressiveFanoutOpt/AlternateReplication passes, not blanket MAX_FANOUT.
+Read-only old-DCP query confirms CMAC reset loads are clk_io/rxoutclk/txoutclk,
+not app clock. Evidence: main `out/app-depth-fanout-review/fanout-domains.tsv`.
+Remote analysis `/tmp/app-depth-fanout-review` produced COMPLETE; verify its
+launcher 1647887/container `app-depth-fanout-review` has exited before cleanup.
+No experiment ref/artifact cleanup is needed.
+
+Validation and current next action:
+
+- Earlier source: scheduler-policy (`hapcz8ii`), header (`zf3c6p87`), trace tests
+  (`blymxvml`) passed. Router suite plus full RTL/bundle passed session 96251,
+  router output `kr4xbh5s`; these snapshots predate final ingress/UDP/RPC changes.
+- DCS standalone tests passed (`bngr1k3b` output): 256 cache lines with stalls and
+  ID wrap, plus 1000 1091-bit beats under sustained stalls.
+- UDP candidate had five transport tests pass but NativeUdpSim failed at line129:
+  packets delivered, `EciTxSubmit` trace events absent. Mux construction occurred
+  before FSM event declarations completed. Fixed by constructing the balanced
+  TracePlugin mux in addPrePopTask; retain the trace assertion and validate it.
+- Current consolidated candidate: `/tmp/app-depth-tracefix-final.log`, session
+  77487, Nix `--max-jobs 1` for transport, app-depth-fanout and eciVivadoInputs.
+  This includes the trace fix, stale-consume test and all source changes above.
+  Do not launch from older passing snapshots. Superseded test clients were
+  explicitly canceled, not classified as failures or observation timeouts.
+- One candidate stopped before testing with ENOSPC. Removed only six unreferenced,
+  no-GC-root Nix source cache snapshots from this goal (~52 GiB); exact list
+  `/tmp/app-depth-removed-source-cache.json`. Original datasets, experiment refs,
+  hardware artifacts and test results remain intact. Repeated Nix flake snapshots
+  copy the large tracked paper archives; avoid unnecessary source-changing runs.
+
+All 1000 sampled paths now have a source intervention or explicit disposition
+in main `out/app-depth-fanout-review/offenders.json` (26 categories). This is a
+review record, not post-change timing evidence. VIO paths use SLR2 colocation;
+remaining shallow local PID/CSR muxes retain their logic behind new boundaries.
+
+Prepared build record/callback: main `out/app-depth-impl-20261026/`; state
+`prepared_not_launched`, no revision/launcher yet, no timer installed.
+
+Remaining: collect final gates and diagnose any failure; merge/push with CI skipped; produce clean
+matched bundle/image with hashes; launch ONE manual run on enzian-ba2 and verify
+its scheduled 30-minute preflight. Keep build ref until every process terminates.
+Do not claim timing closure before routed results. No new hardware run has started.
+
 ## Source changes awaiting implementation
 
 User authorized F_MAC3 trace relocation and app ILA removal, but explicitly
@@ -49,7 +137,7 @@ bitstream. Maps include checkpoint/template/evidence/bitstream hashes; decoding
 rejects unresolved maps and capture checks the bitstream match. Correction
 covers this app-clock transport only, not variable async-FIFO delay. Actual
 Vivado insertion, selector matching and the measured map remain unvalidated
-until the next authorized implementation; no hardware run is authorized now.
+until the next implementation authorized by the active goal above.
 
 ## Native UDP checksum removal: routed, setup timing fails
 

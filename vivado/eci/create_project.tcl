@@ -83,7 +83,7 @@ add_files -fileset [get_filesets sources_1] -norecurse \
     "$dcs_src_dir/dcs/dcu/arb_4_ecih/rtl/arb_2_ecih.sv" \
     "$dcs_src_dir/common/axis_comb_rr_arb/rtl/axis_comb_rr_arb.sv" \
     "$dcs_src_dir/common/axis_comb_router/rtl/axis_comb_router.sv" \
-    "$dcs_src_dir/common/axis_pipeline_stage/rtl/axis_pipeline_stage.sv" \
+    "$src_dir/rtl/dcs_axis_pipeline_stage.sv" \
     "$dcs_src_dir/common/vr_pipe_stage/rtl/vr_pipe_stage.sv" \
     "$dcs_src_dir/dcs/dcs_data_path/dp_data_store/rtl/dp_data_store.sv" \
     "$dcs_src_dir/dcs/dcs_data_path/dp_gate/rtl/dp_gate.sv" \
@@ -120,6 +120,7 @@ add_files -fileset [get_filesets sources_1] -norecurse \
 
 # Add sources from us
 add_files -fileset [get_filesets sources_1] -norecurse \
+    "$src_dir/rtl/lauberhorn_axi_rd_cl.sv" \
     "$src_dir/rtl/dcs_2_axi.sv" \
     "$src_dir/rtl/dcs_cdc.sv" \
     "$src_dir/rtl/gsync_release_cdc.vhd" \

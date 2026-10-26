@@ -24,6 +24,8 @@ class SchedulerAllocation(domains: Int, cores: Int, capacity: Int) extends Compo
     // Arrival occupancy is pre-enqueue, as in the existing packet policy.
     val arrival = slave Flow(UInt(slotWidth bits))
     val arrivalFill = in UInt(log2Up(capacity + 1) bits)
+    // Preserve the one-hot decision for wide downstream metadata selection.
+    val grantMask = out Bits(domains + 1 bits)
     val grant = master Flow(new Bundle {
       val slot = UInt(slotWidth bits)
       val core = UInt(log2Up(cores) max 1 bits)
@@ -52,30 +54,35 @@ class SchedulerAllocation(domains: Int, cores: Int, capacity: Int) extends Compo
   // the selected recipient. Build each donor mask once, not once per domain.
   val timerVictims = victims(U(0, slotWidth bits), True, protectDonor = true)
   val timerRequests = (1 to domains).map(d => io.deadlines(d) && eligible(U(d, slotWidth bits)) &&
-    count(d) === 0 && timerVictims.orR).asBits
+    count(d) === 0).asBits
   val timerPriority = Reg(Bits(domains bits)) init 1
   val timerSelected = OHMasking.roundRobin(timerRequests, timerPriority)
-  val timerSlot = (OHToUInt(timerSelected).resize(slotWidth) + 1).resize(slotWidth)
-  val timer = timerRequests.orR
+  val timerMask = timerSelected ## B(0, 1 bit)
+  val timerSlot = OHToUInt(timerMask).resize(slotWidth)
+  val timer = timerRequests.orR && timerVictims.orR
 
   val backgroundVictims = victims(U(0, slotWidth bits), True, emptyDonor = true)
   val backgroundRequests = (1 to domains).map(d => io.fill(d) =/= 0 && eligible(U(d, slotWidth bits)) &&
-    count(d) === 0 && backgroundVictims.orR).asBits
+    count(d) === 0).asBits
   val backgroundSelected = OHMasking.firstV2(backgroundRequests)
-  val backgroundSlot = (OHToUInt(backgroundSelected).resize(slotWidth) + 1).resize(slotWidth)
+  val backgroundMask = backgroundSelected ## B(0, 1 bit)
+  val backgroundSlot = OHToUInt(backgroundMask).resize(slotWidth)
   val preferTimer = RegInit(False)
   val selectedVictims = Bits(cores bits)
-  io.grant.valid := packet || timer || backgroundRequests.orR
+  io.grant.valid := packet || timer || (backgroundRequests.orR && backgroundVictims.orR)
+  io.grantMask := backgroundMask
   io.grant.slot := backgroundSlot
   io.grant.reason := AllocationReason.background
   selectedVictims := backgroundVictims
   when(packet && (!timer || !preferTimer)) {
     io.grant.slot := io.arrival.payload
+    io.grantMask := UIntToOh(io.arrival.payload, domains + 1)
     io.grant.reason := Mux(backlog, AllocationReason.packetBacklog, AllocationReason.initialPacket)
     selectedVictims := packetVictims
     preferTimer := True
   } elsewhen(timer) {
     io.grant.slot := timerSlot
+    io.grantMask := timerMask
     io.grant.reason := AllocationReason.deadline
     selectedVictims := timerVictims
     timerPriority := timerSelected.rotateLeft(1)

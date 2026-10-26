@@ -122,6 +122,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // storage or interpret descriptor-field stores as commands.
   val shadowWords = 4 + EciAddressMap.overflow_lines * 2
   val shadow = Mem(Bits(512 bits), shadowWords)
+  shadow.setTechnology(ramBlock)
   val shadowMask = Vec.fill(shadowWords)(Reg(Bits(64 bits)))
   // Invalidate one bit per word instead of clearing the entire byte-mask bank.
   // A first write replaces stale mask bits; only valid words can replay data.
@@ -178,11 +179,13 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val readOffset = readCmd.addr(12 downto 0) - EciAddressMap.rx_control
 
   // packet buffer slot that the descriptor carried
-  val currentPktBuf = Reg(new Bundle {
+  val currentPktBufData = Reg(new Bundle {
     val addr = PacketAddr()
     val validBytes = UInt(PKT_BUF_LEN_WIDTH bits)
   })
-  currentPktBuf.validBytes init 0
+  val currentPktPresent = RegInit(False)
+  val currentPktBuf = CombInit(currentPktBufData)
+  when(!currentPktPresent) { currentPktBuf.validBytes := 0 }
   val prefixBytes = Reg(UInt(PKT_BUF_LEN_WIDTH bits)) init 0
   val prefixData = Reg(Bits(512 bits)) init 0
   val payloadBytes = currentPktBuf.validBytes + prefixBytes
@@ -191,6 +194,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val alignedBody = Reg(Bits(512 bits))
   val responseBody = Reg(Bits(512 bits))
   val responseKeep = Reg(Bits(64 bits))
+  val responseRemaining = Reg(UInt(pktBufAxi.ar.addr.getWidth bits))
   val sourceOffset = Reg(pktBufAxi.ar.addr.clone)
   val sourceShift = Reg(UInt(6 bits))
   val sourceSecond = RegInit(False)
@@ -199,6 +203,22 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   // length will be filtered to fit to packet buffer slot
   val pktBufReadOff = Reg(pktBufAxi.ar.addr.clone)
   val pktBufReadBeats = Reg(UInt(2 bits)) // we will read at most 2 beats at a time
+
+  // The read address is held throughout RAM fetch/alignment. A synchronous
+  // replay RAM replaces thousands of distributed-RAM address/write-enable
+  // loads. Forward a simultaneous write explicitly, including byte strobes,
+  // so replay retains the previous asynchronous RAM's newest-byte behavior.
+  val replayWord = ((readOffset >> 6) + (2 - pktBufReadBeats)).resize(log2Up(shadowWords))
+  val replayRam = shadow.readSync(replayWord, readUnderWrite = readFirst)
+  val replayForward = RegNext(shadowWrite && writeWord === replayWord) init False
+  val replayWriteData = RegNextWhen(dcsQ.w.data, shadowWrite)
+  val replayWriteMask = RegNextWhen(dcsQ.w.strb, shadowWrite)
+  val replayData = CombInit(replayRam)
+  for (byte <- 0 until 64) {
+    when(replayForward && replayWriteMask(byte)) {
+      replayData(byte * 8, 8 bits) := replayWriteData(byte * 8, 8 bits)
+    }
+  }
 
   // timer for blocking requests
   val blockTimer = Counter(blockCycles.getWidth bits)
@@ -211,7 +231,7 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
   val newPayload = RegInit(False)
   when (doDesched) {
     newPayload := False
-    currentPktBuf.validBytes := 0
+    currentPktPresent := False
     prefixBytes := 0
     prefixData := 0
     savedControl.valid := False
@@ -282,16 +302,17 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
 
           // when a packet is present, read from slot in packet buffer
           when (rxDesc.fire) {
-            currentPktBuf.addr := rxDesc.buffer.addr
+            currentPktBufData.addr := rxDesc.buffer.addr
+            currentPktPresent := True
             // Allocation size includes stale padding; only DMA-written bytes
             // from this packet may be returned to its owner.
-            currentPktBuf.validBytes := rxDesc.len.bits
+            currentPktBufData.validBytes := rxDesc.len.bits
             prefixBytes := EciHostRxCtrlInfo.prefixLength(rxDesc.payload)
             prefixData := EciHostRxCtrlInfo.prefixData(rxDesc.payload)
           } otherwise {
             // clear buffer length so we don't leak the previous
             // packet (already freed) on a NACK
-            currentPktBuf.validBytes := 0
+            currentPktPresent := False
             prefixBytes := 0
             prefixData := 0
           }
@@ -335,6 +356,8 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
         firstBody := 0
         secondBody := 0
         sourceSecond := False
+        // Compute bounds while fetching, before the per-byte mask stage.
+        responseRemaining := payloadBytes.resize(pktBufReadOff.getWidth) - pktBufReadOff
         val relative = pktBufReadOff - prefixBytes.resized
         sourceOffset := relative & U(~BigInt(63) & ((BigInt(1) << sourceOffset.getWidth) - 1), sourceOffset.getWidth bits)
         sourceShift := relative.resize(6)
@@ -397,11 +420,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     // final R handshake; response data cannot change under backpressure.
     val alignPktData: State = new State {
       whenIsActive {
-        // One shared subtraction replaces 64 address-plus-byte comparators.
-        // Register the byte bounds before the replay/data mux stage.
-        val remaining = payloadBytes.resize(pktBufReadOff.getWidth) - pktBufReadOff
+        // readPktBuf only enters this path for an in-range packet offset.
+        // Bounds arithmetic has already crossed a register during RAM fetch.
         for (byte <- 0 until 64) {
-          responseKeep(byte) := pktBufReadOff < payloadBytes && remaining > byte
+          responseKeep(byte) := currentPktPresent && responseRemaining > byte
         }
         alignedBody := ((secondBody ## firstBody) |>> (sourceShift * 8)).resize(512)
         when(pktBufReadOff === 0) {
@@ -413,12 +435,10 @@ case class DcsRxAxiRouter(dcsConfig: Axi4Config, pktBufConfig: Axi4Config) exten
     val mergePktData: State = new State {
       whenIsActive {
         responseBody := alignedBody
-        val word = UInt(log2Up(shadowWords) bits)
-        word := ((readOffset >> 6) + (2 - pktBufReadBeats)).resized
-        val replay = shadow.readAsync(word)
+        val word = replayWord
         for(byte <- 0 until 64) {
           when(word < shadowWords && shadowValid(word) && shadowMask(word)(byte)) {
-            responseBody(byte * 8, 8 bits) := replay(byte * 8, 8 bits)
+            responseBody(byte * 8, 8 bits) := replayData(byte * 8, 8 bits)
           }
           when(!responseKeep(byte)) { responseBody(byte * 8, 8 bits) := 0 }
         }

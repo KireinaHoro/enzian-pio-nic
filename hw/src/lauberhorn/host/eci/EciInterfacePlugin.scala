@@ -343,12 +343,26 @@ class EciInterfacePlugin extends FiberPlugin {
     }.setCompositeName(this, "bindProtoToCoreCtrl")
     }
 
-    // No need to use full crossbar with parallelism since DCS routers issue
-    // request one at a time
-    Axi4CrossbarFactory()
-      .addSlave(memNode, SizeMapping(0, PKT_BUF_SIZE.get))
-      .addConnections(allMasterNodes.map(_.fullPipe() -> Seq(memNode)).toSeq: _*)
-      .build()
+    // Retain per-master address decoding/error responses, then arbitrate the
+    // single packet RAM. Register the write-route FIFO: the factory's default
+    // fall-through route joined AW arbitration to the 512-bit W selection mux.
+    val checkedMemoryMasters = allMasterNodes.map { master =>
+      val checked = Axi4(master.config)
+      Axi4CrossbarFactory()
+        .addSlave(checked, SizeMapping(0, PKT_BUF_SIZE.get))
+        .addConnections(master.fullPipe() -> Seq(checked))
+        .build()
+      checked
+    }
+    val memoryReadArbiter = Axi4ReadOnlyArbiter(memNode.config, checkedMemoryMasters.size)
+    val memoryWriteArbiter = Axi4WriteOnlyArbiter(memNode.config, checkedMemoryMasters.size,
+      routeBufferSize = 4, routeBufferLatency = 1)
+    memoryReadArbiter.io.output >> memNode
+    memoryWriteArbiter.io.output >> memNode
+    for ((master, idx) <- checkedMemoryMasters.zipWithIndex) {
+      memoryReadArbiter.io.inputs(idx) << master.toReadOnly()
+      memoryWriteArbiter.io.inputs(idx) << master.toWriteOnly()
+    }
 
     val numMasters = translatedDcsAxi.length
     val numConcurrentReqs = NUM_WORKER_CORES.get + 2 // every worker has one thread, bypass has RX and TX
@@ -362,6 +376,10 @@ class EciInterfacePlugin extends FiberPlugin {
         readFromSlaves = Seq.fill(numMasters)(true),
         writeFromSlaves = Seq.fill(numMasters)(true),
         concurrentOps = 1,  // Rx/Tx router as well as descheduling control can handle one concurrent request
+        // Isolate endpoint response selection from crossbar arbitration and
+        // DCS backpressure. External ownership counts retain buffered replies.
+        rRegType = AxiCrossbarRegType.SkidBuffer,
+        bRegType = AxiCrossbarRegType.SkidBuffer,
       ) }.toSeq,
     )
     dcsXbar.s_axi zip translatedDcsAxi foreach { case (sp, m) => m >> sp }

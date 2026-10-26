@@ -105,7 +105,7 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
 
     contexts.io.replyToken := md.requestToken
     contexts.io.replyOwner := md.owner
-    contexts.io.retire := False
+    contexts.io.consume := False
     md.ready := False
     val lastWasReject = RegInit(False)
 
@@ -149,10 +149,12 @@ class OncRpcReplyEncoder extends Encoder[OncRpcReplyTxMeta] {
             lastWasReject := False
             nextRpcId := nextRpcId + 1
             overflowPldPresent := md.replyLen.bits =/= 0
+            // Each context validates/consumes locally, without reducing a hit
+            // and broadcasting that reduction back to all active-bit enables.
+            contexts.io.consume := True
             when(contexts.io.replyValid) {
               // Capture all routing state before releasing the slot. The output
               // registers own it through any subsequent transport backpressure.
-              contexts.io.retire := True
               val route = contexts.io.replyContext
               tp.trace("OncRpcReplyEncode", RpcID(nextRpcId)) := True
               outHdr.xid := route.xid

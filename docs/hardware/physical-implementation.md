@@ -91,6 +91,29 @@ one transaction; exercise sustained traffic, random stalls and reset. A bare
 `RegNext(payload)` is not a ready/valid pipeline. Refer to [validation](../development/validation.md)
 for ECI, bypass, replay and nested RPC suites.
 
+The application datapath uses `StreamPipelineBoundary` (Spinal `S2MLink` plus
+`StageLink`) where both payload and ready need registration. Scheduler lookup
+and DMA metadata admission retain ownership for the boundary's two record slots.
+Trace selection and header injection use `StagePipeline` to separate local
+selection/arithmetic from wide payload muxing. Native UDP registers byte count
+and mask validity before updating packet counters; a remaining-byte counter
+provides constant-lane trim comparisons.
+
+RX replay uses synchronous block RAM with explicit byte-strobe forwarding for
+read/write collisions. TX capture clears byte-valid state instead of wide data
+banks; RX packet-length retirement similarly uses logical validity. These
+changes retain immediate zero visibility at ownership handoff. Address and
+reply ownership checks compare slots locally before reduction, avoiding a wide
+identity mux followed by comparison.
+
+The platform supplies the DCS `axis_pipeline_stage` interface using the standard
+AXIS registered-output skid slice, and adds a separate DCS read-response slice.
+This isolates destination selection and downstream ready from saved-data enables.
+Packet-memory write arbitration registers its route FIFO; DCS crossbar R/B paths
+use skid slices. These buffers are part of transaction ownership until responses
+reach the upstream interface. Existing transaction FSMs retain packet retirement
+and AXI sequencing; their state transitions are not ordinary payload pipelines.
+
 In SV, `rtl/dcs_cdc.sv::cross_chan` already chooses pipeline-before-CDC versus
 CDC-before-pipeline with `FIRST_CDC`. That also chooses the clock domain and
 physical side of its registers. Coordinate changes with the `slr_auto_src/dest`

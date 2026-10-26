@@ -347,10 +347,16 @@ class Scheduler extends FiberPlugin {
       Reg(ProcTblIdx) init 0
     }
 
-    val (pushLookup, pushResult, pushLookupCapacity) = procDb.makePort(PID(), HostReqWithTrace(),
+    val (pushLookup, lookupResult, pushLookupCapacity) = procDb.makePort(PID(), HostReqWithTrace(),
       "rxPush", singleMatch = true) { (v, q, _) =>
       v.enabled && v.pid === q
     }
+    // Live admission/full checks must not feed ready through every lookup
+    // stage and its wide user-data registers. Retain ownership across both
+    // records of this boundary until pushResult fires.
+    val lookupBoundary = StreamPipelineBoundary(cloneOf(lookupResult.payload))
+    lookupBoundary.input << lookupResult
+    val pushResult = lookupBoundary.output
 
     def requestPid(req: HostReq): PID = new Composite(req, "requestPid") {
       val ret = PID()
@@ -506,9 +512,10 @@ class Scheduler extends FiberPlugin {
       host[lauberhorn.net.udp.NativeUdpDecoder].logic.admission,
       host[lauberhorn.net.tcp.NativeTcpDecoder].logic.admission)
     // DecoderSink has one FULL (two-record) stage for each RPC decoder,
-    // DmaControl has one active record, and LookupTable exports its stage count.
+    // DmaControl has a two-record input boundary plus one active record;
+    // LookupTable exports its stage count, followed by a two-record boundary.
     // One additional record covers a departure waiting in the accounting stage.
-    val inTransitCapacity = 2 * admissions.size + 1 + pushLookupCapacity + 1
+    val inTransitCapacity = 2 * admissions.size + 2 + 1 + pushLookupCapacity + 2 + 1
     val inTransitBusy = Vec.fill(NUM_PROCS + 1)(Bool())
     inTransitBusy(0) := False
     for(i <- 1 to NUM_PROCS.get) {
@@ -548,7 +555,7 @@ class Scheduler extends FiberPlugin {
     allocation.io.arrivalFill := packetArrival.fill
     val coreIdleMap = corePidMap.map(_ === 0).asBits
     val allocationGrant = allocation.io.grant
-    val allocationPid = processPids(allocationGrant.slot)
+    val allocationPid = MuxOH.or(allocation.io.grantMask, processPids)
     val allocationTrace = UInt(HostMsgID.width bits)
     allocationTrace := invalidTraceId(HostMsgID.width)
     when(allocationGrant.reason === AllocationReason.initialPacket ||
@@ -661,7 +668,7 @@ class Scheduler extends FiberPlugin {
                 DeschedCommand(Mux(coreIdleMap(idx), DeschedCmdType.idle, DeschedCmdType.ready).asBits),
                 DeschedOutOfIdle(coreIdleMap(idx)),
                 QueueIndex(allocationGrant.slot),
-                QueueFill(queueMetas(allocationGrant.slot).fill))
+                QueueFill(MuxOH.or(allocation.io.grantMask, queueMetas.map(_.fill))))
               when(allocationGrant.reason === AllocationReason.deadline) {
                 deadlineTp.trace("SchedulerDeadlineActivation", coreTd, QueueIndex(allocationGrant.slot))
               }

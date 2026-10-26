@@ -96,10 +96,11 @@ class TracePlugin extends FiberPlugin {
     val name: String = Option(rawName).filter(_.nonEmpty).getOrElse(s"trace_${tracePorts.length}")
     val pipelineStages: Int = LauberhornTraceDma.pipelineStagesToTraceBufferDma(sourceSlr)
     val traceEventValids = mutable.ArrayBuffer[(String, Bool)]()
+    val traceEventPayloads = mutable.ArrayBuffer[Bits]()
 
     /** Trace a given event.  On every cycle this port can emit at most
-     * one event; if multiple `trace` return values have been assigned to True,
-     * only the last one will survive due to the last when statement having priority.
+     * one event. Multiple simultaneous events violate the asserted contract;
+     * payload selection is a parallel one-hot mux, not a priority chain.
      *
      * The trigger condition honors the current conditional context: you can
      * leave the return value unassigned, if the trace call is inside `when`
@@ -117,13 +118,11 @@ class TracePlugin extends FiberPlugin {
       val realCond = ConditionalContext.isTrue && cond
       realCond.setName(s"trace_${name}_${eventName}_${traceEventValids.length}_cond")
 
-      when (realCond) {
-        out.valid := True
-
-        // data will be padded with zero after resize
-        val allData = td.reverse.map(_.data).foldLeft(B(0, 0 bits))(_ ## _)
-        out.payload := (allData ## B(myID, LauberhornTraceDma.EventIdSlotWidth bits)).resized
-      }
+      // Keep event payloads independent of their trigger paths. A one-hot
+      // reduction at build time avoids a priority mux for every trace call.
+      val allData = td.reverse.map(_.data).foldLeft(B(0, 0 bits))(_ ## _)
+      traceEventPayloads += (allData ## B(myID, LauberhornTraceDma.EventIdSlotWidth bits))
+        .resize(LauberhornTraceDma.PayloadWidth)
 
       // need to check if only one event is valid at a time
       traceEventValids.append(eventName -> realCond)
@@ -132,8 +131,6 @@ class TracePlugin extends FiberPlugin {
     }
 
     val out = Flow(Bits(LauberhornTraceDma.PayloadWidth bits))
-    out.valid := False
-    out.payload.assignDontCare()
   }
 
   def makePort(name: String = "", sourceSlr: Int = LauberhornTraceDma.TraceBufferDmaSlr): TracePort = {
@@ -153,6 +150,16 @@ class TracePlugin extends FiberPlugin {
       to := tp.out
 
       Component.current.addPrePopTask { () =>
+        // FSM bodies can register events after this plugin's build fiber.
+        // Freeze the mux only once every event declaration has elaborated.
+        if (tp.traceEventValids.isEmpty) {
+          tp.out.valid := False
+          tp.out.payload := 0
+        } else {
+          val selected = tp.traceEventValids.map(_._2).asBits
+          tp.out.valid := selected.orR
+          tp.out.payload := MuxOH.or(selected, tp.traceEventPayloads.toSeq)
+        }
         println(s"Trace port ${tp.name} has ${tp.traceEventValids.length} events")
         if (tp.traceEventValids.length > 1) {
           val allConds = tp.traceEventValids.map(_._2).asBits()

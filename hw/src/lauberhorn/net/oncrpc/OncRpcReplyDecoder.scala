@@ -265,9 +265,12 @@ class OncRpcReplyDecoder extends Decoder[OncRpcReplyRxMeta] {
 
     val lookupMiss = Counter(REG_WIDTH bits)
     val dropped = Counter(REG_WIDTH bits)
-    val currentIdentity = identities(dbResult.idx)
-    val validReply = dbResult.matched && currentIdentity.active &&
-      currentIdentity.pid === dbResult.value.pid && currentIdentity.cookie === dbResult.value.cookie
+    // Compare in each slot before reducing one-bit results. Selecting a wide
+    // cookie/PID first put a large mux before comparison and drain accounting.
+    val validReply = dbResult.matched && identities.zipWithIndex.map { case (id, idx) =>
+      dbResult.idx === idx && id.active && id.pid === dbResult.value.pid &&
+        id.cookie === dbResult.value.cookie
+    }.asBits.orR
     val drop = !validReply
     droppedReply := dbResult.fire && drop
 

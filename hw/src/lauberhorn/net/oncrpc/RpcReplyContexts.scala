@@ -32,7 +32,8 @@ class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
     val replyOwner = in UInt(ownerWidth bits)
     val replyValid = out Bool()
     val replyContext = out(UdpReplyContext())
-    val retire = in Bool()
+    // Consume the lookup result. Invalid/stale attempts do not modify a slot.
+    val consume = in Bool()
     val readIndex = in UInt(slotBits bits)
     val readContext = out(UdpReplyContext())
     val readActive = out Bool()
@@ -65,9 +66,8 @@ class RpcReplyContexts(count: Int, ownerWidth: Int = 16) extends Component {
   }
   io.replyValid := replyMatches.asBits.orR
   io.replyContext := contexts(replySlot)
-  when(io.retire) {
-    assert(io.replyValid, "invalid reply context retired")
-    active(replySlot) := False
+  for (i <- 0 until count) {
+    when(io.consume && replyMatches(i)) { active(i) := False }
   }
   val discardSlot = io.discard.payload(slotBits - 1 downto 0).asUInt
   // Validate retirement against each local slot, rather than muxing a

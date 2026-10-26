@@ -68,6 +68,11 @@ class DmaControlPlugin extends FiberPlugin {
 
     /** Incoming packet descriptors from decoder pipeline */
     val incomingDesc = Stream(RxPacketDescWithSource())
+    // Break decoder arbitration/ready from descriptor classification and the
+    // allocation state machine. Ownership accounting includes both records.
+    val rxBoundary = StreamPipelineBoundary(RxPacketDescWithSource())
+    rxBoundary.input << incomingDesc
+    val rxInput = rxBoundary.output
 
     /** Outgoing packet descriptors to encoder pipeline */
     val outgoingDesc = Stream(PacketDesc())
@@ -116,7 +121,7 @@ class DmaControlPlugin extends FiberPlugin {
     sched.logic.rxMeta.setIdle()
 
     outgoingDesc.setIdle()
-    incomingDesc.setBlocked()
+    rxInput.setBlocked()
 
     // details of packet to enqueue
     val pktToEnqueue = Reg(HostReq())
@@ -135,36 +140,36 @@ class DmaControlPlugin extends FiberPlugin {
     val rxFsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
-          incomingDesc.ready := True
-          when(incomingDesc.valid) {
-            val len = incomingDesc.desc.getPayloadSize
+          rxInput.ready := True
+          when(rxInput.valid) {
+            val len = rxInput.desc.getPayloadSize
             pktToEnqueue.len.bits := len
-            rxTracePacketId := incomingDesc.desc.packetId
-            rxTraceRpcId := incomingDesc.desc.rpcId
+            rxTracePacketId := rxInput.desc.packetId
+            rxTraceRpcId := rxInput.desc.rpcId
             rxTraceHostMsgId := nextRxHostMsgId
             nextRxHostMsgId := nextRxHostMsgId + 1
             rxEnqueueTraceEmitted := False
 
-            when (incomingDesc.desc.ty === PacketDescType.neighborMiss) {
+            when (rxInput.desc.ty === PacketDescType.neighborMiss) {
               pktToEnqueue.ty := HostReqType.neighborMiss
-              pktToEnqueue.data.neighborMiss.ipAddr := incomingDesc.desc.metadata.neighborMissRx.ipAddr
-              pktToEnqueue.data.neighborMiss.neighTblIdx := incomingDesc.desc.metadata.neighborMissRx.neighTblIdx
-              pktToEnqueue.data.neighborMiss.saddr := incomingDesc.desc.metadata.neighborMissRx.saddr
-              pktToEnqueue.data.neighborMiss.proto := incomingDesc.desc.metadata.neighborMissRx.proto
-            } elsewhen (incomingDesc.isBypass) {
+              pktToEnqueue.data.neighborMiss.ipAddr := rxInput.desc.metadata.neighborMissRx.ipAddr
+              pktToEnqueue.data.neighborMiss.neighTblIdx := rxInput.desc.metadata.neighborMissRx.neighTblIdx
+              pktToEnqueue.data.neighborMiss.saddr := rxInput.desc.metadata.neighborMissRx.saddr
+              pktToEnqueue.data.neighborMiss.proto := rxInput.desc.metadata.neighborMissRx.proto
+            } elsewhen (rxInput.isBypass) {
               pktToEnqueue.ty := HostReqType.bypass
-              pktToEnqueue.data.bypassMeta.ty := incomingDesc.desc.ty
-              pktToEnqueue.data.bypassMeta.hdr := incomingDesc.desc.collectHeaders
+              pktToEnqueue.data.bypassMeta.ty := rxInput.desc.ty
+              pktToEnqueue.data.bypassMeta.hdr := rxInput.desc.collectHeaders
             } otherwise {
-              switch (incomingDesc.desc.ty) {
+              switch (rxInput.desc.ty) {
                 is (PacketDescType.nativeTcp) {
-                  val tcp = incomingDesc.desc.metadata.nativeTcpRx
+                  val tcp = rxInput.desc.metadata.nativeTcpRx
                   pktToEnqueue.ty := HostReqType.nativeTcpRx
                   pktToEnqueue.data.nativeTcp.pid := tcp.pid
                   pktToEnqueue.data.nativeTcp.endpoint := tcp.endpoint
                 }
                 is (PacketDescType.udp) {
-                  val udp = incomingDesc.desc.metadata.udpRx
+                  val udp = rxInput.desc.metadata.udpRx
                   pktToEnqueue.ty := HostReqType.nativeUdpRx
                   pktToEnqueue.data.nativeUdp.pid := udp.pid
                   pktToEnqueue.data.nativeUdp.endpoint := udp.endpoint
@@ -176,22 +181,22 @@ class DmaControlPlugin extends FiberPlugin {
                 is (PacketDescType.oncRpcCallRx) {
                   pktToEnqueue.ty := HostReqType.oncRpcCallRx
 
-                  pktToEnqueue.data.oncRpcCallRx.funcPtr := incomingDesc.desc.metadata.oncRpcCallRx.funcPtr
-                  pktToEnqueue.data.oncRpcCallRx.pid := incomingDesc.desc.metadata.oncRpcCallRx.pid
-                  pktToEnqueue.data.oncRpcCallRx.requestToken := incomingDesc.desc.metadata.oncRpcCallRx.requestToken
-                  pktToEnqueue.data.oncRpcCallRx.data := incomingDesc.desc.metadata.oncRpcCallRx.args
+                  pktToEnqueue.data.oncRpcCallRx.funcPtr := rxInput.desc.metadata.oncRpcCallRx.funcPtr
+                  pktToEnqueue.data.oncRpcCallRx.pid := rxInput.desc.metadata.oncRpcCallRx.pid
+                  pktToEnqueue.data.oncRpcCallRx.requestToken := rxInput.desc.metadata.oncRpcCallRx.requestToken
+                  pktToEnqueue.data.oncRpcCallRx.data := rxInput.desc.metadata.oncRpcCallRx.args
                 }
                 is (PacketDescType.oncRpcReplyRx) {
                   pktToEnqueue.ty := HostReqType.oncRpcReplyRx
 
-                  pktToEnqueue.data.oncRpcReplyRx.pid := incomingDesc.desc.metadata.oncRpcReplyRx.pid
-                  pktToEnqueue.data.oncRpcReplyRx.cookie := incomingDesc.desc.metadata.oncRpcReplyRx.cookie
-                  pktToEnqueue.data.oncRpcReplyRx.status := incomingDesc.desc.metadata.oncRpcReplyRx.status
-                  pktToEnqueue.data.oncRpcReplyRx.xid := incomingDesc.desc.metadata.oncRpcReplyRx.xid
-                  pktToEnqueue.data.oncRpcReplyRx.saddr := incomingDesc.desc.metadata.oncRpcReplyRx.saddr
-                  pktToEnqueue.data.oncRpcReplyRx.sport := incomingDesc.desc.metadata.oncRpcReplyRx.sport
-                  pktToEnqueue.data.oncRpcReplyRx.dport := incomingDesc.desc.metadata.oncRpcReplyRx.dport
-                  pktToEnqueue.data.oncRpcReplyRx.data := incomingDesc.desc.metadata.oncRpcReplyRx.data
+                  pktToEnqueue.data.oncRpcReplyRx.pid := rxInput.desc.metadata.oncRpcReplyRx.pid
+                  pktToEnqueue.data.oncRpcReplyRx.cookie := rxInput.desc.metadata.oncRpcReplyRx.cookie
+                  pktToEnqueue.data.oncRpcReplyRx.status := rxInput.desc.metadata.oncRpcReplyRx.status
+                  pktToEnqueue.data.oncRpcReplyRx.xid := rxInput.desc.metadata.oncRpcReplyRx.xid
+                  pktToEnqueue.data.oncRpcReplyRx.saddr := rxInput.desc.metadata.oncRpcReplyRx.saddr
+                  pktToEnqueue.data.oncRpcReplyRx.sport := rxInput.desc.metadata.oncRpcReplyRx.sport
+                  pktToEnqueue.data.oncRpcReplyRx.dport := rxInput.desc.metadata.oncRpcReplyRx.dport
+                  pktToEnqueue.data.oncRpcReplyRx.data := rxInput.desc.metadata.oncRpcReplyRx.data
                 }
                 default {
                   pktToEnqueue.ty := HostReqType.error
@@ -200,13 +205,17 @@ class DmaControlPlugin extends FiberPlugin {
               }
             }
 
-            when (len === 0) {
-              // no payload -- enqueue directly
-              pktToEnqueue.buffer.clearAll()
-              goto(enqueuePkt)
-            } otherwise {
-              goto(allocatePkt)
-            }
+            goto(classifyPayload)
+          }
+        }
+      }
+      val classifyPayload: State = new State {
+        whenIsActive {
+          when(pktToEnqueue.len.bits === 0) {
+            pktToEnqueue.buffer.clearAll()
+            goto(enqueuePkt)
+          } otherwise {
+            goto(allocatePkt)
           }
         }
       }
@@ -312,8 +321,11 @@ class DmaControlPlugin extends FiberPlugin {
 
     // A queued descriptor still owns its worker's TX buffer until completeTx.
     // Cut arbitration away from owner/type validation and metadata capture.
-    val txReqMuxed = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin
-      .on(dps.map(_.hostTxAck)).pipelined(FULL).setBlocked()
+    val txReqArbitrated = StreamArbiterFactory(s"${getName()}_txReqMux").roundRobin
+      .on(dps.map(_.hostTxAck))
+    val txBoundary = StreamPipelineBoundary(cloneOf(txReqArbitrated.payload))
+    txBoundary.input << txReqArbitrated
+    val txReqMuxed = txBoundary.output.setBlocked()
     // A waiting sender may remain valid while another transaction owns DMA.
     // Capture only acceptance, or its buffer address/cookie can replace the
     // in-flight identity and send the acknowledgement to the wrong worker.
@@ -334,13 +346,15 @@ class DmaControlPlugin extends FiberPlugin {
     val bufferedTxCore = txCoreId(txReqBuffered.req)
     // The buffer address is installed by the physical datapath, not supplied in
     // its host descriptor. Capture the trusted owner with accepted metadata.
-    val trustedTxOwner = UInt(PID_WIDTH.get bits)
-    trustedTxOwner := 0
-    for (worker <- 0 until NUM_WORKER_CORES.get) {
-      when(acceptedTxCore === worker + 1) {
-        trustedTxOwner := sched.logic.processPids(sched.logic.coreResident(worker)).bits
-      }
+    // Select the resident slot first, then use a balanced one-hot payload OR.
+    // Avoid a PID mux per worker followed by a second wide worker mux.
+    val txOwnerSlots = Bits(sched.logic.processPids.size bits)
+    for (slot <- 0 until sched.logic.processPids.size) {
+      txOwnerSlots(slot) := (0 until NUM_WORKER_CORES.get).map { worker =>
+        acceptedTxCore === worker + 1 && sched.logic.coreResident(worker) === slot
+      }.reduce(_ || _)
     }
+    val trustedTxOwner = MuxOH.or(txOwnerSlots, sched.logic.processPids.map(_.bits))
     // A valid trigger may precede a fatal access on another worker PA. Dirty
     // cache-line collection can finish after that fault, before kernel SIGKILL.
     // Recheck the sticky hardware fence at metadata admission; already accepted

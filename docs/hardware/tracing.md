@@ -28,10 +28,11 @@ elaborates:
   bit width.  The emitted payload packs the event ID in the low bits, followed by
   the event's declared trace data in order.
 
-`TracePlugin` also records each port's source SLR.  It converts that source SLR
-to a pipeline-stage count using the same five-stages-per-SLR-crossing rule used
-by the trace DMA.  The final per-port pipeline-stage list is passed to
-`LauberhornTraceDma` when the separate trace DMA RTL is elaborated.
+`TracePlugin` also records each port's source SLR. The trace transport uses
+that declaration to choose an auto-pipeline insertion limit of five registers
+per SLR crossing toward the SLR2 collector. This limit is not a measured latency.
+Event payload selection uses a balanced one-hot OR; events sharing a source
+must remain mutually exclusive, as checked by the generated assertions.
 
 ### LauberhornTraceDma
 
@@ -49,11 +50,13 @@ Its role is to adapt all trace sources to `TraceBufferDMA`:
 - Returned-credit pulses from the static shell back into the dynamic gateway.
 - Lauberhorn event trace sources produced by `TracePlugin`.
 
-It assigns source IDs, inserts source-specific `Flow.delay(...)` pipeline stages
-before `TraceBufferDMA`, and records the latency in the trace map as
-`pipeline_stages`.  Fixed DCS/ECI sources derive their stage count from the
-floorplan.  Lauberhorn event sources inherit stage counts from the `makePort`
-source SLR declarations.
+It assigns source IDs and inserts `TraceAutoPipeline` source/sink register banks
+before `TraceBufferDMA`. Payload and valid share an auto-pipeline group. Vivado
+may insert additional registers within the declared limit; source banks remain
+distributed and receiving banks belong to SLR2. The generated map is unresolved
+until build Tcl walks the final routed register chains. That extraction requires
+equal payload/valid depths and records actual `pipeline_stages`, per-bit evidence
+and artifact hashes. Decoding rejects unresolved maps.
 
 `LauberhornTraceDma` also writes `lauberhorn_trace_dma_map.json`.  This map is
 the contract between hardware and software.  It contains:
@@ -213,6 +216,11 @@ or PHY serialization. Keep packet sizes and clocks fixed; these markers do not
 establish first-bit wire latency or exact transceiver delay.
 
 ## Timestamp capture point and legacy queue bias
+
+Trace selection groups sources into banks of eight and uses Spinal
+`StagePipeline` to register local candidates before selecting the final bank.
+These stages are after the ingress timestamp and therefore require no additional
+source timestamp correction. Backpressure preserves event order and payload.
 
 Current `TraceBufferDMA` captures the timestamp together with each input batch
 before the batch queue and carries it through serialization. The generated map

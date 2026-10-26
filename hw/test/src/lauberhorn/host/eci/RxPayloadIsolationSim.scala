@@ -37,6 +37,12 @@ case class RxPayloadIsolationFixture() extends Component {
   router.fatalRelease := False
   router.gsyncRelease := False
   router.invDone := True
+  val replayReading = out Bool()
+  replayReading := router.rework {
+    val probe = out Bool()
+    probe := router.fsm.isActive(router.fsm.alignPktData)
+    probe
+  }
 }
 
 class RxPayloadIsolationSim extends DutSimFunSuite[RxPayloadIsolationFixture] {
@@ -114,6 +120,24 @@ class RxPayloadIsolationSim extends DutSimFunSuite[RxPayloadIsolationFixture] {
     assert(read(0x400) == List((poison & ~BigInt(255)) | 0xa5, BigInt(0xcc)))
     writeback(Seq(BigInt(0xb6) << 8, BigInt(0)), Seq(BigInt(2), BigInt(0)))
     assert(read(0x400) == List((poison & ~BigInt(65535)) | 0xb6a5, BigInt(0xcc)))
+    // Write a partial beat on exactly the synchronous replay-read edge.
+    // Unwritten bytes must retain prior replay data, not RAM collision garbage.
+    val collide = fork {
+      a.aw.addr #= 0x400; a.aw.valid #= true
+      dut.clockDomain.waitSamplingWhere(a.aw.ready.toBoolean)
+      a.aw.valid #= false
+      dut.clockDomain.waitFallingEdgeWhere(dut.replayReading.toBoolean)
+      a.w.data #= 0xd9; a.w.strb #= 1; a.w.last #= false; a.w.valid #= true
+      dut.clockDomain.waitSamplingWhere(a.w.ready.toBoolean)
+      a.w.valid #= false
+      step()
+      a.w.data #= 0; a.w.strb #= 0; a.w.last #= true; a.w.valid #= true
+      dut.clockDomain.waitSamplingWhere(a.w.ready.toBoolean)
+      a.w.valid #= false
+    }
+    assert(read(0x400) == List((poison & ~BigInt(65535)) | 0xb6d9, BigInt(0xcc)))
+    collide.join()
+    step(8)
     // New packet invalidates both masks, without clearing the replay RAM.
     assert(read(0x380)(1) == 0)
     assert(read(0x400) == List(poison, BigInt(0x5a)))

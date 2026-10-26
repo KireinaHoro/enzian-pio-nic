@@ -33,18 +33,19 @@ case class EciAddressDecoder(workers: Int = EciAddressMap.default_workers) exten
   val decodedBase = EciAddressMap.domainBasis.zipWithIndex.foldLeft(block) {
     case (value, (vector, bit)) => value ^ Mux(io.domain(bit), U(vector, 64 bits), U(0, 64 bits))
   }
-  io.known := False
-  io.bypass := io.address < EciAddressMap.block_bytes
-  io.worker := 0
-  val ownerMatches = Bool()
-  ownerMatches := False
+  // Worker bases are distinct: compare ownership locally and OR the matches.
+  // A priority-selected owner mux needlessly serializes address and lifetime
+  // decoding on the admission/fault path.
+  val workerMatches = Bits(workers bits)
+  val admittedWorkers = Bits(workers bits)
   for (w <- 0 until workers) {
-    when(decodedBase === U(EciAddressMap.workerBases(w), 64 bits)) {
-      io.known := True
-      io.worker := w
-      ownerMatches := io.enabled(w) && io.owners(w) === io.domain
-    }
+    workerMatches(w) := decodedBase === U(EciAddressMap.workerBases(w), 64 bits)
+    admittedWorkers(w) := workerMatches(w) && io.enabled(w) && io.owners(w) === io.domain
   }
+  io.known := workerMatches.orR
+  io.bypass := io.address < EciAddressMap.block_bytes
+  io.worker := (if (workers == 1) U(0, 1 bits) else OHToUInt(workerMatches))
+  val ownerMatches = admittedWorkers.orR
   val rxLine = io.offset >= EciAddressMap.rx_control &&
     io.offset < EciAddressMap.rx_overflow + 128 * EciAddressMap.overflow_lines
   val txLine = io.offset >= EciAddressMap.tx_control &&

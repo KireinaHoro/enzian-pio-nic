@@ -15,7 +15,7 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     dut.io.reclaim.payload #= 0
     dut.io.discard.valid #= false
     dut.io.discard.payload #= 0
-    dut.io.retire #= false
+    dut.io.consume #= false
     dut.io.replyToken #= 0
     dut.io.replyOwner #= 42
     dut.io.readIndex #= 0
@@ -54,28 +54,32 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     var previous = tokens(7)
     for (_ <- 0 until 1024) {
       check(previous, true)
-      dut.io.retire #= true
+      dut.io.consume #= true
       dut.clockDomain.waitSampling()
-      dut.io.retire #= false
+      dut.io.consume #= false
       check(previous, false)
       val next = allocate(54321)
       assert((next & 15) == (previous & 15) && next != previous)
       check(previous, false)
+      // A stale consume must not retire the newly allocated generation.
+      dut.io.consume #= true
+      dut.clockDomain.waitSampling()
+      dut.io.consume #= false
       check(next, true)
       previous = next
     }
     // Concurrent allocation and retirement affect different slots.
     check(tokens(0), true)
-    dut.io.retire #= true
+    dut.io.consume #= true
     dut.clockDomain.waitSampling()
-    dut.io.retire #= false
+    dut.io.consume #= false
     sleep(1)
     val next = dut.io.token.toBigInt
     check(tokens(1), true)
-    dut.io.retire #= true
+    dut.io.consume #= true
     dut.io.allocate.valid #= true
     dut.clockDomain.waitSampling()
-    dut.io.retire #= false
+    dut.io.consume #= false
     dut.io.allocate.valid #= false
     check(tokens(1), false)
     check(next, true)
@@ -85,9 +89,9 @@ class RpcReplyContextsSim extends DutSimFunSuite[RpcReplyContexts] {
     dut.io.allocateOwner #= 99
     val other = allocate(4567)
     check(tokens(2), true)
-    dut.io.retire #= true
+    dut.io.consume #= true
     dut.clockDomain.waitSampling()
-    dut.io.retire #= false
+    dut.io.consume #= false
     sleep(1)
     val concurrent = dut.io.token.toBigInt
     dut.io.allocate.valid #= true

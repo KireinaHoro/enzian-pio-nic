@@ -82,10 +82,20 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
 
   // save the control separately to allow re-reads from host
   // packet data will be read from packet buffer
-  val savedControl = Reg(Bits(512 bits)) init 0
+  val savedControlData = Reg(Bits(512 bits))
+  val savedControlValid = Reg(Bits(64 bits)) init 0
+  val savedControl = Bits(512 bits)
+  for (byte <- 0 until 64) {
+    savedControl(byte * 8, 8 bits) := Mux(savedControlValid(byte), savedControlData(byte * 8, 8 bits), B(0, 8 bits))
+  }
   // Control may be evicted before the doorbell. Retain its payload independently
   // of overflow aliases, then restore it after the control invalidation completes.
-  val savedInline = Reg(Bits(512 bits)) init 0
+  val savedInlineData = Reg(Bits(512 bits))
+  val savedInlineValid = Reg(Bits(64 bits)) init 0
+  val savedInline = Bits(512 bits)
+  for (byte <- 0 until 64) {
+    savedInline(byte * 8, 8 bits) := Mux(savedInlineValid(byte), savedInlineData(byte * 8, 8 bits), B(0, 8 bits))
+  }
   val inlinePending = RegInit(False)
   val inlineCommitted = RegInit(False)
   val invalidLayout = Bool()
@@ -117,8 +127,10 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
   }
 
   when (doDesched) {
-    savedControl.clearAll()
-    savedInline.clearAll()
+    // Invalidate immediately without driving a 1024-bit data-bank clear.
+    // Unwritten bytes remain logically zero after partial writes or handoff.
+    savedControlValid := 0
+    savedInlineValid := 0
     inlineCommitted := False
     inlinePending := False
   }
@@ -242,7 +254,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
       }
     }
 
-    def captureWrite(dest: Bits) = {
+    def captureWrite(dest: Bits, valid: Bits) = {
+      valid := valid | dcsQ.w.strb
       dest.subdivideIn(8 bits) zip
         dcsQ.w.data.subdivideIn(8 bits) zip
         dcsQ.w.strb.asBools foreach { case ((buf, byte), en) =>
@@ -256,7 +269,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         when (dcsQ.w.valid) {
           assert(!dcsQ.w.last, "not expecting last yet")
           when (pktBufWriteBeats === 1) {
-            captureWrite(savedControl)
+            captureWrite(savedControlData, savedControlValid)
           }
 
           goto(writePktBufCmd)
@@ -293,7 +306,7 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
         }
 
         when (pktBufAxi.w.fire) {
-          when(writeAddr === 0 || writeAddr === 0x80) { captureWrite(savedInline) }
+          when(writeAddr === 0 || writeAddr === 0x80) { captureWrite(savedInlineData, savedInlineValid) }
           assert(dcsQ.w.last === (pktBufWriteBeats === 1))
           goto(writePktBufResp)
         }
@@ -460,7 +473,8 @@ case class DcsTxAxiRouter(dcsConfig: Axi4Config,
           resultPending := False
           inlineCommitted := False
           // Preserve the acknowledgement across voluntary eviction/reload.
-          savedControl := resultStatus.resize(512)
+          savedControlData := resultStatus.resize(512)
+          savedControlValid.setAll()
           goto(sendDesc)
         }
       }

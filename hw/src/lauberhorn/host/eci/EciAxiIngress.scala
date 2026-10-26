@@ -1,5 +1,6 @@
 package lauberhorn.host.eci
 
+import lauberhorn.StreamPipelineBoundary
 import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.amba4.axi._
@@ -60,7 +61,11 @@ case class EciAxiIngress(config: Axi4Config, workers: Int) extends Component {
   arCapture.addr.allowOverride
   arCapture.addr := route(io.input.ar.addr, ar, readAllowed)
   arCapture.user := io.input.ar.addr.asBits
-  io.routed.ar << arCapture.m2sPipe()
+  // Ownership is charged at input acceptance and retained through the final
+  // response, including both records in these forward/backward boundaries.
+  val arBoundary = StreamPipelineBoundary(Axi4Ar(routedConfig))
+  arBoundary.input << arCapture
+  io.routed.ar << arBoundary.output
 
   val awCapture = Stream(Axi4Aw(routedConfig))
   awCapture.arbitrationFrom(io.input.aw)
@@ -68,7 +73,9 @@ case class EciAxiIngress(config: Axi4Config, workers: Int) extends Component {
   awCapture.addr.allowOverride
   awCapture.addr := route(io.input.aw.addr, aw, writeAllowed)
   awCapture.user := io.input.aw.addr.asBits
-  io.routed.aw << awCapture.m2sPipe()
+  val awBoundary = StreamPipelineBoundary(Axi4Aw(routedConfig))
+  awBoundary.input << awCapture
+  io.routed.aw << awBoundary.output
   io.routed.w << io.input.w
   io.input.r << io.routed.r
   io.input.b << io.routed.b
