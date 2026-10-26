@@ -9,7 +9,7 @@ import spinal.lib._
 import scala.collection.mutable
 
 class NativeUdpSim extends NicSim {
-  testWithDB("native-udp-lengths-checksums-ownership-and-segmentation", timeout = 1500000000)(Rx, Tx) { implicit dut =>
+  testWithDB("native-udp-lengths-unchecked-checksums-ownership-and-segmentation", timeout = 1500000000)(Rx, Tx) { implicit dut =>
     val (csr, input, output, dcs) = commonDutSetup(1000)
     csr.write(ALLOC.readBack("macIf")("ctrl", "rxDropAll"), 0.toBytesLE)
     val proc = mkRandomProc(1)
@@ -60,10 +60,10 @@ class NativeUdpSim extends NicSim {
         (23, true), (63, true), (64, true), (65, true), (127, true), (128, true), (129, true), (1024, true), (1472, true)) ++ Seq.fill(66)((8, true))) {
       val bytes = List.tabulate(size)(i => (i * 7).toByte)
       val wire = packet(bytes).getBuilder.paddingAtBuild(padding).build().getRawData.toList
-      // Corrupt UDP checksum, IP checksum, fragmentation and lengths. None may
+      // Corrupt IP checksum, fragmentation and lengths. None may
       // escape into host scheduling; the following valid packet checks recovery.
       if (size == 65) {
-        for (offset <- Seq(24, 40, 38)) {
+        for (offset <- Seq(24, 38)) {
           input.send(wire.updated(offset, (wire(offset) ^ 1).toByte))
           if (offset != 24) expectedDrops += 1
         }
@@ -77,8 +77,12 @@ class NativeUdpSim extends NicSim {
         lastTraceId = None
       }
       println(s"Native UDP test size=$size")
-      // IPv4 permits a zero UDP checksum; check that path as well.
-      input.send(if (size == 7) wire.updated(40, 0.toByte).updated(41, 0.toByte) else wire)
+      // UDP checksum validation is disabled: accept zero and corrupt nonzero
+      // checksums as well as the correctly calculated checksums on other sizes.
+      val unchecked = if (size == 7) wire.updated(40, 0.toByte).updated(41, 0.toByte)
+        else if (size == 65) wire.updated(40, (wire(40) ^ 1).toByte)
+        else wire
+      input.send(unchecked)
       sleepCycles(1000)
       val dropped = csr.read(ALLOC.readBack("NativeUdpDecoder")("stat", "dropCount"), 8).bytesToBigInt
       val reason = csr.read(ALLOC.readBack("NativeUdpDecoder")("stat", "lastReject"), 8).bytesToBigInt
@@ -129,6 +133,7 @@ class NativeUdpSim extends NicSim {
         assert(raw.length == scala.math.max(60, 42 + size), s"invalid Ethernet frame length ${raw.length} for UDP payload $size")
         assert(raw.drop(42 + size).forall(_ == 0), "Ethernet padding must not disclose stale data")
         val result = EthernetPacket.newPacket(raw.toArray, 0, raw.length).get(classOf[UdpPacket])
+        assert(result.getHeader.getChecksum == 0, "native UDP TX checksum must remain disabled")
         assert(result.getHeader.getSrcPort.valueAsInt() == 11211)
         assert(result.getHeader.getDstPort.valueAsInt() == 32123)
         val data = Option(result.getPayload).map(_.getRawData.toList).getOrElse(Nil)

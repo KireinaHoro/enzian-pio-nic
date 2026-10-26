@@ -69,9 +69,9 @@ trigger automatic retry. TX success means local admission, not remote delivery.
 Backpressure must settle before another blocking RX.
 
 The native RX buffer validates IPv4 version, fixed header length, header checksum,
-fragment flags/offset, destination, UDP/IP lengths and nonzero UDP checksums before
-host admission. IPv4 UDP checksum zero is permitted. Payloads are 0–1472 bytes;
-Ethernet padding is removed. Malformed/oversized input is drained and rejected.
+fragment flags/offset, destination and UDP/IP lengths before host admission.
+UDP checksums are not validated: zero, valid nonzero and invalid nonzero fields
+are accepted. Payloads are 0–1472 bytes; Ethernet padding is removed. Malformed/oversized input is drained and rejected.
 No IP reassembly or options are supported. Unmatched UDP ports retain bypass;
 ONC-RPC listeners retain their existing path. UDP TX checksum is zero, as allowed
 for IPv4. Zero-length datagrams still transmit a UDP header. Short Ethernet TX
@@ -159,8 +159,9 @@ another notification ABI here.
 
 ## Evaluation methodology
 
-Require native UDP ownership, length/checksum, zero-length, malformed-input,
-backpressure and repeated-response tests plus ONC-RPC/bypass regressions. Compare
+Require native UDP ownership, length validation, unchecked UDP checksums,
+zero-length, malformed-input, backpressure and repeated-response tests plus
+ONC-RPC/bypass regressions. Compare
 commands with the pinned upstream server: GET/SET, expiration, CAS,
 append/prepend, no-reply and segmented responses. Check hash scope before and
 after every run. Board results require matched CI artifacts and fresh reservation

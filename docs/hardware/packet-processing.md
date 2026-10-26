@@ -24,9 +24,10 @@ TCP-header validation. Software trims padding and validates TCP before processin
 connections. Unmatched ports follow kernel bypass. There is no TCP connection
 table or whole-packet validation FIFO in hardware.
 
-Native UDP RX uses a checksum accumulator with balanced, registered partial-sum
-and beat-sum stages. Only accepted beats enter it; validation waits for both
-stages to drain before using the final sum.
+Native UDP RX buffers and validates datagram lengths before admission. It does
+not validate UDP checksums, including nonzero checksum fields. Shared IPv4
+header validation remains enabled.
+
 Scheduler queue reads likewise register the selected address before BRAM.
 The selected slot stays occupied until the read edge, preventing an enqueue
 from overwriting it; another reader cannot select that same head meanwhile.
@@ -65,7 +66,7 @@ Paths below are relative to `hw/src/lauberhorn/`:
 | `MacInterface.scala` | CMAC clock crossings, frame boundaries/lengths and network AXI-Stream |
 | `net/Decoder.scala`, `net/ProtoState.scala` | Decoder registration, metadata and final/bypass output |
 | `net/ethernet/`, `net/ip/`, `net/udp/` | Header parsing/encoding and listener-based protocol selection |
-| `net/udp/NativeUdpDecoder.scala` | Buffers one datagram, checks lengths/checksum and supported IPv4 shape before admission, trims Ethernet padding and drains malformed input |
+| `net/udp/NativeUdpDecoder.scala` | Buffers one datagram, checks lengths and supported IPv4 shape before admission, trims Ethernet padding and drains malformed input |
 | `net/tcp/NativeTcpDecoder.scala`, `NativeTcpEncoder.scala` | Destination-port steering, complete IPv4 host payloads and opaque TCP TX |
 | `net/oncrpc/OncRpcCallDecoder.scala` | Service lookup, enabled-state check, reply-context reservation and extraction of RPC argument bytes |
 | `net/oncrpc/OncRpcReplyEncoder.scala`, `RpcReplyContexts.scala` | Per-invocation routing tokens, owner/generation validation, reply retirement and bounded full-table rejection |

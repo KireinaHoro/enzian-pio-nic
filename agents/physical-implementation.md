@@ -1,5 +1,31 @@
 # Physical implementation continuation
 
+## Native UDP checksum removal
+
+The user authorized removing native UDP checksum calculation and retaining the
+stale floorplan-selector cleanup. Work branch:
+`timing/20261026-remove-udp-checksum`, based on `b2e72295`.
+No replacement implementation or board operation is part of this change.
+
+- Removed the native UDP pseudo-header/payload checksum accumulator and its
+  seed/drain FSM stages, plus the now-unused `PacketChecksum` component/test.
+  RX accepts UDP checksum fields without validation; TX continues emitting zero.
+  IPv4 header checksums and native UDP length/shape/admission checks remain.
+  Reserved rejection bit 7 remains zero, preserving diagnostic field positions.
+- Removed only the obsolete `EciThreadClRouter_logic_*` floorplan selector that
+  matched no cells. No placement regions were added.
+- Updated native UDP integration coverage for corrupted nonzero checksum
+  acceptance, zero checksum acceptance and zero TX checksum; malformed IP/UDP
+  lengths and bad IPv4-header checksum remain rejection cases.
+
+- Validation passed: `NativeUdpSim` end-to-end regression (one test covering
+  datagram lengths 0–1472, malformed input, unchecked checksum acceptance,
+  ownership, replay and segmented replies), plus full `eciVivadoInputs`
+  elaboration and wrapper/debug-port checks. Generated RTL has no
+  `NativeUdpDecoder_logic_checksumPipeline` or `PacketChecksum` module.
+  Evidence: main checkout `out/udp-no-checksum-20261026/validation.json`,
+  `test-report.xml` and logs. No implementation run was launched.
+
 ## RTL congestion implementation: failed initial routing
 
 The user subsequently authorized one implementation run and timing collection

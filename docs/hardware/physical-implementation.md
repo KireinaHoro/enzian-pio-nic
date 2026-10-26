@@ -115,8 +115,8 @@ construction is registered before checksum reduction, with the acceptance pulse
 delayed by the same checksum latency. Worker fault routing uses the immutable
 scheduler slot captured with the lifetime at installation, preserving immediate
 sticky-fault fencing without repeated lifetime comparisons.
-Native UDP relies on shared IPv4 validation and registers pseudo-header checksum
-terms before payload accumulation. Packet-memory AXI slices isolate arbitration
+Native UDP relies on shared IPv4 validation and does not calculate UDP checksums.
+Packet-memory AXI slices isolate arbitration
 from RAM address/write-enable decode. Deadline command responses separate slot
 selection from generation increment and forward the pending result to CSR reads.
 

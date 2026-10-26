@@ -9,9 +9,10 @@ import spinal.lib.bus.amba4.axilite.{AxiLite4, AxiLite4SlaveFactory}
 import spinal.lib.bus.amba4.axis._
 import spinal.lib.fsm._
 
-/** Buffer before admission: invalid checksums/lengths never become host work.
+/** Buffer before admission: invalid lengths never become host work.
   * The buffer holds one datagram, trims Ethernet padding, and drains malformed
-  * input through its last beat. It has no peer or response-session state. */
+  * input through its last beat. UDP checksums are not validated.
+  * It has no peer or response-session state. */
 class NativeUdpDecoder extends Decoder[UdpRxMeta] {
   def driveControl(bus: AxiLite4, alloc: RegBlockAlloc): Unit = {
     val control = AxiLite4SlaveFactory(bus)
@@ -49,11 +50,6 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
     val malformed = RegInit(False)
     val headerErrors = Reg(Bits(5 bits)) init 0
     val lastReject = Reg(Bits(8 bits)) init 0
-    val checksumPipeline = new lauberhorn.net.PacketChecksum(config.dataWidth)
-    checksumPipeline.io.seed.valid := False
-    checksumPipeline.io.seed.payload := 0
-    checksumPipeline.io.beat.valid := False
-    val sum = checksumPipeline.io.sum
     val fifo = StreamFifo(Axi4Stream.Axi4StreamBundle(config), (1472 + config.dataWidth - 1) / config.dataWidth)
     fifo.io.push.setIdle()
     fifo.io.pop.setBlocked()
@@ -64,32 +60,13 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
     output.setIdle()
     dropped := False
 
-    def wordSum(raw: Bits): UInt = raw.subdivideIn(16 bits)
-      .map(x => EndiannessSwap(x).asUInt.resize(32)).reduceBalancedTree(_ + _)
-    def folded(value: UInt): UInt = {
-      val first = value(15 downto 0).resize(17) + value(31 downto 16).resize(17)
-      val second = first(15 downto 0).resize(17) + first(16).asUInt.resize(17)
-      (second(15 downto 0).resize(17) + second(16).asUInt.resize(17)).resize(16)
-    }
-
-    // Capture pseudo-header terms alongside the accepted metadata. Seed the
-    // accumulator on the following cycle, before admitting payload beats.
-    val seedIp = RegNext(wordSum(header.ipMeta.hdr.saddr ## header.ipMeta.hdr.daddr))
-    val seedUdp = RegNext(wordSum(header.hdr.asBits))
-    val seedLength = RegNext(EndiannessSwap(header.hdr.len).asUInt.resize(32) + 17)
-
     val keep = Bits(config.dataWidth bits)
-    val terms = (0 until config.dataWidth).map { i =>
-      val lane = i
-      val wanted = received + i < length.resize(17)
-      keep(lane) := input.keep(lane) && wanted
-      val byte = input.data(lane * 8 + 7 downto lane * 8).asUInt
-      Mux(keep(lane), byte.resize(16) |<< (if (i % 2 == 0) 8 else 0), U(0, 16 bits))
+    for (lane <- 0 until config.dataWidth) {
+      keep(lane) := input.keep(lane) && received + lane < length.resize(17)
     }
     val count = CountOne(input.keep).resize(17)
     val contiguous = input.keep === (B((BigInt(1) << config.dataWidth) - 1, config.dataWidth bits) |>> (config.dataWidth - count))
 
-    checksumPipeline.io.beat.payload := Vec(terms)
     val fsm = new StateMachine {
       val idle: State = new State with EntryPoint {
         whenIsActive {
@@ -113,15 +90,8 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
             errors(4) := header.ipMeta.ethMeta.getPayloadSize < ipLen
             headerErrors := errors
             malformed := errors.orR
-            goto(seedChecksum)
+            when(header.ipMeta.getPayloadSize === 8) { goto(validate) } otherwise { goto(collect) }
           }
-        }
-      }
-      val seedChecksum: State = new State {
-        whenIsActive {
-          checksumPipeline.io.seed.valid := True
-          checksumPipeline.io.seed.payload := seedIp + seedUdp + seedLength
-          when(saved.ipMeta.getPayloadSize === 8) { goto(drainChecksum) } otherwise { goto(collect) }
         }
       }
       val collect: State = new State {
@@ -134,22 +104,17 @@ class NativeUdpDecoder extends Decoder[UdpRxMeta] {
           fifo.io.push.last := received + count >= length.resize(17)
           when(input.fire) {
             when(received < 65536) { received := (received + count).resized }
-            checksumPipeline.io.beat.valid := True
             when(!contiguous || (!input.last && !input.keep.andR) ||
                 (keep.orR && !malformed && !fifo.io.push.ready)) { malformed := True }
-            when(input.last) { goto(drainChecksum) }
+            when(input.last) { goto(validate) }
           }
         }
       }
-      val drainChecksum: State = new State {
-        whenIsActive { when(!checksumPipeline.io.busy) { goto(validate) } }
-      }
       val validate: State = new State {
         whenIsActive {
-          lastReject := ((saved.hdr.csum =/= 0 && folded(sum) =/= 65535) ##
+          lastReject := (False ##
             (received < length.resize(17)) ## malformed ## headerErrors)
-          when(malformed || received < length.resize(17) ||
-              (saved.hdr.csum =/= 0 && folded(sum) =/= 65535)) { goto(discard) } otherwise { goto(describe) }
+          when(malformed || received < length.resize(17)) { goto(discard) } otherwise { goto(describe) }
         }
       }
       val discard: State = new State {
