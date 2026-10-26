@@ -1,6 +1,6 @@
 # Physical implementation continuation
 
-## Application depth/fanout candidate: implementation running
+## Application depth/fanout candidate: failed before placement
 
 The requested application-clock pass is complete and ONE manual implementation
 has been launched. Source commit `44552a841b482f872466f65a1c892c23b3bfbf4d` is on
@@ -12,17 +12,28 @@ is retained at private platform ref `deps/blocks-app-depth-fanout`.
 Exact record: main `out/app-depth-impl-20261026/record.json`. On enzian-ba2,
 remote root `/tmp/lauberhorn-app-depth-44552a84-20261026`, launcher **1651683**,
 Docker **55d8b40c5b066482c852479181d2527a83820851947775193faab65214077220**,
-Vivado **1651821**. Preflight October 26 at **17:23:56 UTC** verified the
-exact launcher/container/Vivado still running, loading implementation constraints
-through `NicEngine.xdc`; `build.exit` and physical COMPLETE are absent. All 1186
-remote input hashes reverified; recorded passing gates/source-match evidence checked.
-Old preflight timer/service were inactive. Results timer
-`lauberhorn-app-depth-44552a84-20261026-results.timer` verified active, due
-**23:24:04 CET** (22:24:04 UTC), five hours from this check. Polling stopped.
-Recheck these exact processes/container and completion markers; observation timeout
-is not failure.
-Never launch a replacement automatically. Keep build/feature refs until all their
-processes terminate. No board operation or toolkit-master change is authorized.
+Vivado **1651821**. Results check October 26 at **22:24:19 UTC** confirmed
+launcher/Vivado exited, exact container removed, no remaining Vivado processes,
+`build.exit=1` and no physical COMPLETE. Build failed at 17:51:28 UTC before
+placement: **DRC NTCN-7**, `traceAuto_71/source/data[10]` has limit 10 while
+`traceAuto_72/source/data[9]` has limit 5 in the same `AUTOPIPELINE_GROUP event`.
+`TracePipelineBank` uses that shared group name; the enclosing module annotation
+did not isolate these groups as intended. This is an autopipeline constraint
+failure, not evidence of congestion or timing regression. No fix/relaunch authorized.
+
+Failed output tree, synthesis/linked/optimized checkpoints and logs are preserved
+under main `out/app-depth-impl-20261026/collected`, with file hashes. No bitstream,
+probes, routed checkpoint, implemented trace map/depth TSV or final physical reports
+were produced. The maintained digest requires final timing/metadata, which are absent;
+no routed comparison to `73c3dc76` or `68ec9af8`, top-1000, all-clock STA/CDC,
+actual placement/utilization or routed high-fanout conclusions are possible.
+The input trace template remains unresolved and is not a deployable map.
+
+Log confirms 135 trace pipeline sinks and coarse SLR2 assignments for trace
+processing/FIFOs, CMAC and status VIO (including 6376 VIO cells), before placement.
+These are constraint assignments, not actual placed membership. Results/recheck
+timers are inactive; no new callback scheduled. Build/dependency refs and all
+remote artifacts retained. Main audit checkout preserved; no board operations.
 
 Changes target the 200 MHz app clock without relaxed timing exceptions or fine
 floorplanning. Every one of the preserved `68ec9af8` app top-1000 paths has an
@@ -72,14 +83,10 @@ unchanged UDP assertion now passes. A disk-full attempt stopped before validatio
 only six unreferenced/no-root Nix source-cache copies from this task were removed.
 Original data, artifacts and refs were preserved. No failed hardware run/relaunch.
 
-Next results callback: inspect exact processes/completion markers; if still running,
-inspect the timer/service and schedule a 30-minute `schedule.py --stage recheck`.
-If terminal, preserve/diagnose immediately. Collect final artifacts, hashes,
-implemented trace-map/depth evidence, all-clock STA/CDC/constraints, coarse SLR
-membership/utilization, fanout and comparable app top-1000. Compare both `73c3dc76`
-and `68ec9af8`; build success is not timing closure. No further optimization or
-implementation without a new request. DUT remains zuestoll07; separately authorized
-board acceptance must test F_MAC3 trace link/FEC and complete frozen UDP export.
+Next action requires a new user request: correct autopipeline group scoping before
+another implementation. Keep the final-artifact/trace-depth and timing checks pending
+for a future authorized build. DUT remains zuestoll07; separately authorized board
+acceptance must test F_MAC3 trace link/FEC and complete frozen UDP export.
 
 ## Relocation and trace transport included in the running build
 
