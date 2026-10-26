@@ -1,11 +1,39 @@
 # Physical implementation continuation
 
-## Native UDP checksum removal
+## Native UDP checksum removal: implementation running
 
-The user authorized removing native UDP checksum calculation and retaining the
-stale floorplan-selector cleanup. Work branch:
-`timing/20261026-remove-udp-checksum`, based on `b2e72295`.
-No replacement implementation or board operation is part of this change.
+The user authorized one new implementation run after checksum removal.
+Exact revision: `68ec9af8185b1d833dc10cca7c587db2817c1765`; retained build ref
+`timing/20261026-udp-no-checksum-impl`, pushed privately with CI skipped.
+This is one manual Docker build on ba2, not GitLab CI. No automatic replacement,
+board operation, toolkit-master edit or further optimization is authorized.
+
+Launch verified October 26 at 07:56 CET:
+
+- Remote root `/tmp/lauberhorn-udp-no-checksum-68ec9af8-20261026`, launcher
+  PID 1304519, Docker `3f0b9434c5be`, Vivado PID 1304655. Project generation
+  is active; `build.exit` and `build/physical/COMPLETE` are absent.
+- Clean ECI bundle and matching microbenchmarks image built from the exact
+  revision. Manifest has `local=false`; all 1,183 staged input hashes match.
+  Source hashes match the passed native UDP regression. Generated RTL differs
+  from its tested snapshot only in the committed revision CSR and contains no
+  native UDP checksum pipeline. The obsolete selector is absent too.
+- Main checkout record: `out/udp-no-checksum-impl-20261026/record.json` contains
+  exact paths, hashes, test scope and baseline references. The preflight timer
+  `lauberhorn-udp-no-checksum-68ec9af8-20261026-preflight.timer` is verified
+  active, due **08:26:04 CET**. Stop polling until then. Use that directory's
+  `schedule.py --stage results` five hours from confirmed running preflight;
+  later live runs use `--stage recheck` after 30 minutes. Inspect old services
+  and exact run processes/markers first; timeout is not failure.
+- On completion preserve bitstream/probes/routed DCP/trace map/reports and hashes,
+  including failed-stage evidence. Read the maintained timing digest first and
+  compare to final `73c3dc76`; inspect all clocks, setup/hold/pulse width,
+  constraints/CDC, routing completion, application top-1000 paths, coarse-region
+  utilization and fanout. No timing-closure claim from build success. Keep the
+  build ref until all processes terminate. Preserve the main audit checkout;
+  update this handoff on master in `/tmp/lauberhorn-rtl-congestion`.
+
+Implemented checksum removal:
 
 - Removed the native UDP pseudo-header/payload checksum accumulator and its
   seed/drain FSM stages, plus the now-unused `PacketChecksum` component/test.
@@ -24,7 +52,7 @@ No replacement implementation or board operation is part of this change.
   elaboration and wrapper/debug-port checks. Generated RTL has no
   `NativeUdpDecoder_logic_checksumPipeline` or `PacketChecksum` module.
   Evidence: main checkout `out/udp-no-checksum-20261026/validation.json`,
-  `test-report.xml` and logs. No implementation run was launched.
+  `test-report.xml` and logs. The separately authorized run is recorded above.
 
 ## RTL congestion implementation: failed initial routing
 
