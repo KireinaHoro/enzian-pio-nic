@@ -12,11 +12,15 @@ is retained at private platform ref `deps/blocks-app-depth-fanout`.
 Exact record: main `out/app-depth-impl-20261026/record.json`. On enzian-ba2,
 remote root `/tmp/lauberhorn-app-depth-44552a84-20261026`, launcher **1651683**,
 Docker **55d8b40c5b066482c852479181d2527a83820851947775193faab65214077220**,
-Vivado **1651821**. Verified full-build project creation October 26 at 16:51 UTC;
-no `build.exit` or physical COMPLETE then. Preflight timer
-`lauberhorn-app-depth-44552a84-20261026-preflight.timer` verified active, due
-**18:21:19 CET** (17:21:19 UTC). Stop polling until callback. Recheck these exact
-processes/container and completion markers; observation timeout is not failure.
+Vivado **1651821**. Preflight October 26 at **17:23:56 UTC** verified the
+exact launcher/container/Vivado still running, loading implementation constraints
+through `NicEngine.xdc`; `build.exit` and physical COMPLETE are absent. All 1186
+remote input hashes reverified; recorded passing gates/source-match evidence checked.
+Old preflight timer/service were inactive. Results timer
+`lauberhorn-app-depth-44552a84-20261026-results.timer` verified active, due
+**23:24:04 CET** (22:24:04 UTC), five hours from this check. Polling stopped.
+Recheck these exact processes/container and completion markers; observation timeout
+is not failure.
 Never launch a replacement automatically. Keep build/feature refs until all their
 processes terminate. No board operation or toolkit-master change is authorized.
 
@@ -68,8 +72,8 @@ unchanged UDP assertion now passes. A disk-full attempt stopped before validatio
 only six unreferenced/no-root Nix source-cache copies from this task were removed.
 Original data, artifacts and refs were preserved. No failed hardware run/relaunch.
 
-Next callback: verify gates/input hashes and Vivado start; if running, schedule
-results five hours from that check using this run's `schedule.py --stage results`.
+Next results callback: inspect exact processes/completion markers; if still running,
+inspect the timer/service and schedule a 30-minute `schedule.py --stage recheck`.
 If terminal, preserve/diagnose immediately. Collect final artifacts, hashes,
 implemented trace-map/depth evidence, all-clock STA/CDC/constraints, coarse SLR
 membership/utilization, fanout and comparable app top-1000. Compare both `73c3dc76`
