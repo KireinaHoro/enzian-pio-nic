@@ -18,13 +18,20 @@ Launch verified October 26 at 07:56 CET:
   Source hashes match the passed native UDP regression. Generated RTL differs
   from its tested snapshot only in the committed revision CSR and contains no
   native UDP checksum pipeline. The obsolete selector is absent too.
+- Preflight October 26 at 08:26 CET confirmed the exact launcher, container
+  and main Vivado live; synthesis PID 1311596 is active in final netlist cleanup.
+  `build.exit` and `physical/COMPLETE` remain absent. Reverified all 1,183 remote
+  input hashes, the passing NativeUdpSim evidence and tested source hashes,
+  generated RTL correspondence, image hash, checksum-pipeline removal and
+  absence of both the experimental groups and obsolete floorplan selector.
 - Main checkout record: `out/udp-no-checksum-impl-20261026/record.json` contains
-  exact paths, hashes, test scope and baseline references. The preflight timer
-  `lauberhorn-udp-no-checksum-68ec9af8-20261026-preflight.timer` is verified
-  active, due **08:26:04 CET**. Stop polling until then. Use that directory's
-  `schedule.py --stage results` five hours from confirmed running preflight;
-  later live runs use `--stage recheck` after 30 minutes. Inspect old services
-  and exact run processes/markers first; timeout is not failure.
+  exact paths, hashes, test scope and baseline references. The old preflight
+  service completed successfully and no results timer was already active.
+  Results timer `lauberhorn-udp-no-checksum-68ec9af8-20261026-results.timer`
+  is verified active, due **13:26:39 CET**, five hours from this check.
+  Stop polling until then. If still live, use that directory's
+  `schedule.py --stage recheck` for 30 minutes after inspecting old timer/service
+  state. Collect immediately if terminal; never restart the five-hour wait.
 - On completion preserve bitstream/probes/routed DCP/trace map/reports and hashes,
   including failed-stage evidence. Read the maintained timing digest first and
   compare to final `73c3dc76`; inspect all clocks, setup/hold/pulse width,
