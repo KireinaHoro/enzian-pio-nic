@@ -1,6 +1,6 @@
 # Physical implementation continuation
 
-## RTL congestion implementation: running
+## RTL congestion implementation: failed initial routing
 
 The user subsequently authorized one implementation run and timing collection
 for the floorplan revert and RTL simplifications. Exact hardware revision:
@@ -12,36 +12,40 @@ replacement build is authorized by the callback. Preserve the unrelated
 `rx-trampoline-instruction-audit` main checkout; maintain this handoff on master
 in `/tmp/lauberhorn-rtl-congestion`.
 
-Launch verified October 25 at 22:27 CET:
+Terminal result verified October 26 at 03:58 CET:
 
-- ba2 root `/tmp/lauberhorn-rtl-impl-fdc689c5-20261025`; launcher PID 1022093,
-  Docker `1e072f3746a8`, Vivado PID 1022226. Project generation is active;
-  `build.exit` and `build/physical/COMPLETE` are absent. Recheck exact processes
-  and completion markers before declaring terminal status; timeout is not failure.
-- Clean `eciVivadoInputs` and matching `microbenchmarksImage` passed from the
-  exact revision. Image manifest has `local=false` and matching generated RTL.
-  All 1,183 bundle hashes passed on ba2. Compared with the tested snapshot,
-  generated `NicEngine.v` differs only in the committed git-version CSR.
-- Record: main checkout `out/rtl-impl-20261025/record.json`, with bundle/image
-  paths, hashes, baseline paths and validation scope. The prior focused tests
-  are reused after checking exact source hashes; they were not rerun.
-- Preflight at 22:58 CET confirmed the exact launcher/container/main Vivado
-  still live and `synth_1` active (PID 1029152, rebuilding user hierarchy).
-  Both completion markers remain absent. Reverified all 1,183 remote input
-  hashes, test-source hashes, the three passing test results, generated RTL
-  correspondence, image hash and absence of the experimental floorplan groups.
-- Results timer `lauberhorn-rtl-impl-fdc689c5-20261025-results.timer` is verified
-  active, due October 26 at **03:58:01 CET**, five hours from this check.
-  The old preflight service finished successfully; no prior results timer was
-  active. Stop polling until this callback. If still live then, use the record
-  directory's `schedule.py --stage recheck` for 30 minutes after inspecting old
-  timer/service state. If terminal, collect immediately; never restart a five-hour wait.
-- On completion, preserve bitstream/probes/routed DCP/trace map/reports and hashes,
-  or all failed-stage evidence. Read `tools/physical/summarize.py` digest first;
-  compare all-clock setup/hold/pulse width and application top-1000 families to
-  routed `73c3dc76`. Check routing completion, constraints/CDC, coarse placement
-  and fanout. The 15 experimental hard groups must be absent. Build success is
-  not timing closure; do not launch another implementation automatically.
+- The exact run exited 1 at 00:39:43 CET during `route_design -directive
+  AggressiveExplore`. Launcher 1022093, main Vivado 1022226 and synthesis
+  1029152 are gone; Docker `1e072f3746a8` no longer exists and no Vivado
+  process remains. `build.exit=1`; `physical/COMPLETE` is absent. No timers
+  remain, and no replacement build was launched.
+- Initial route verification found one unroutable native UDP checksum carry
+  connection: `partials_3_reg[15]_i_20/CO[7]` to
+  `partials_3_reg[18]_i_21/CI`, `SLICE_X101Y135/COUT` to `SLICE_X101Y136/AX`.
+  Vivado reports that the driver cannot reach interconnect within five hops.
+  This is a placement/carry-connectivity failure, not evidence of a logical
+  checksum defect. Global congestion is level 6 (64x64), timing congestion
+  level 7 (128x128); the placer also warned of high congestion.
+- The 15 experimental APP_TIMING_FLOORPLAN groups are absent from inputs and
+  build output. The older floorplan selector at line 153 for
+  `EciThreadClRouter_logic_*` is empty (Vivado 12-1433); execution continued
+  through placement. Its causal relationship to the carry failure is unproved.
+- No routed DCP, bitstream, probes or final physical reports were produced.
+  Thus there is no final all-clock setup/hold/pulse/CDC or app top-1000 result
+  to compare with baseline `73c3dc76` (digest re-read: WNS -1.119 ns,
+  TNS -32012.260 ns, WHS +0.001 ns, WPWS +0.039 ns). Intermediate slack is
+  not a legal routed result. Actual region utilization and high-fanout reports
+  were not generated; retained placed checkpoints permit later diagnosis.
+- Preserved 212 files in the main checkout's `out/rtl-impl-20261025/collected/`,
+  including logs, reports, five top-level checkpoints and the matching trace
+  map. All five checkpoint hashes match ba2; `SHA256SUMS` and
+  `failure-summary.json` record evidence. Original remote root remains
+  `/tmp/lauberhorn-rtl-impl-fdc689c5-20261025`; preserve all artifacts.
+- Clean bundle/image provenance and the three targeted simulations were verified
+  at launch/preflight; all 1,183 remote hashes matched. Exact paths and validation
+  scope remain in `out/rtl-impl-20261025/record.json`. The merged build ref can
+  be removed now that every process terminated. Stop; no optimization, rebuild
+  or board operation is authorized by this results callback.
 
 Implemented RTL-only follow-up (merged as `fdc689c5`):
 
@@ -79,8 +83,8 @@ Implemented RTL-only follow-up (merged as `fdc689c5`):
   Worst sampled logic includes reply-context retirement and scheduler deadline
   selection. Further pipelining there changes allocation/retirement or claim
   timing and is deferred rather than delaying immediate fault fencing. Neither
-  these estimates nor the high-fanout report measures the new RTL. The authorized
-  implementation above will supply the next physical result.
+  these estimates nor the high-fanout report measures the new RTL. The implementation
+  above failed before producing a routed result.
 
 ## Previous application-clock build: failed routing
 
