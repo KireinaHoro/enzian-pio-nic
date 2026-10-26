@@ -1,5 +1,43 @@
 # Physical implementation continuation
 
+## Pending source changes before the next implementation
+
+User authorized F_MAC3 trace relocation and app ILA removal, but explicitly
+prohibited a hardware launch pending an application-clock pipelining/fanout pass.
+Trace CMAC uses SLR2 GT quad 233, CMACE4_X0Y8, polarity 1100. Dump processing,
+RX/TX FIFOs, resets and trace-status VIO join trace DMA/DDR in SLR2. Packet-buffer
+aligner, DMA and RAM/controller move together to the existing broad SLR0 region.
+No new fine-grained pblocks; source-side trace sampling remains distributed.
+
+`ila_app`, its dedicated counter/BD monitor ports and manual `app_ila.tcl` are
+removed. Recover their archived source from `dc6ba3ef:vivado/eci/tcl/app_ila.tcl`
+and `dc6ba3ef:vivado/eci/bd/design_1.tcl`. Other ILAs/VIO and DDR tracing remain.
+Port checks retain generated NIC/trace correspondence and state packing, and
+reject reintroduction of the retired application ILA. Logical trace MAC/IP
+defaults remain unchanged; use board-specific overrides at deployment.
+
+**DUT is now zuestoll07.** After a future authorized build, test F_MAC3 link/FEC
+and a complete frozen UDP trace export with matching bitstream/probes/trace map,
+plus bounded JTAG integrity comparison. Confirm its switch port and identity;
+do not reuse zuestoll14 mappings. Historical F_MAC3 intermittency was observed
+on zuestoll14, not established on zuestoll07. No board test or hardware build
+has been run for these source changes. Next: review long application-clock logic
+and high fanout before requesting/launching implementation.
+
+Validation: `nix build .#eciVivadoInputs --no-link` passed (log
+`/tmp/trace-slr2-inputs.log`); generated 354 NIC / 497 trace ports and five
+21-bit debug bundles match the wrapper. Tcl completeness and diff checks pass.
+No Vivado project/implementation or board run was launched. Physical selector
+matching, routing and timing remain checks for the next authorized build.
+
+Trace events already converge on SLR2 traceDma. App payload/valid delays are
+five stages per SLR hop (SLR1: five, SLR0: ten); system sources first cross
+async FIFOs. Those logical delays can infer SRLs, so they do not guarantee
+registers distributed across physical SLR boundaries. Preserve this issue for
+the next timing pass: the old routed sample includes deadline-to-trace paths
+at -1.229 ns. The new placement selectors do not constrain the whole
+`i_trace_dma` wrapper or move its source-side event delay chains.
+
 ## Native UDP checksum removal: routed, setup timing fails
 
 The one authorized manual Docker run used exact revision

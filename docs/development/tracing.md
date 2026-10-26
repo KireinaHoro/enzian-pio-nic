@@ -14,7 +14,7 @@ unattended benchmark capture share `tools/enzian/trace_capture.py` and its sessi
 API. They reuse the existing CMAC receiver and JTAG reader rather than maintaining
 separate paper-specific capture scripts or per-run Tcl.
 
-Full capture uses F_MAC1 CMAC/UDP. JTAG is restricted to independent bounded
+Full capture uses F_MAC3 CMAC/UDP. JTAG is restricted to independent bounded
 head/tail checks after successful Ethernet capture; Ethernet failure preserves
 partial evidence and stops without reset or full JTAG fallback. Capture checks
 current reservations and matching bitstream/LTX/map hashes, saves original VIO
@@ -174,7 +174,7 @@ space is also reachable from the Vivado debug path: the block design connects
 `jtag_axi_0/M_AXI` through the AXI smartconnect to the DDR4 memory map.
 
 Readout is independent of the host driver and the normal ECI/NIC datapath.
-Use F_MAC1 UDP for the full frozen buffer. The JTAG AXI connection supports
+Use F_MAC3 UDP for the full frozen buffer. The JTAG AXI connection supports
 bounded independent head/tail integrity reads after successful Ethernet capture;
 it is not a full-dump fallback. The
 [shared capture workflow](tracing.md) owns freezing,
@@ -190,10 +190,11 @@ issues one aligned DMA read, then injects one combined Ethernet/IPv4/UDP
 response header.  An AXI stream aligner is placed before the trace CMAC TX path
 so partial `TKEEP` beats are only presented at packet end.
 
-The trace CMAC is wired to `F_MAC1`, whose package pins are GTY quad 124 in SLR1
-(`X0Y20` through `X0Y23`) and use CMAC site `CMACE4_X0Y3`.  This is separate
-from the normal `NicEngine` CMAC on `F_MAC0`.  The trace-status VIO controls
-the responder's local identity, next-hop MAC, and dump-capture server address.
+The trace CMAC is wired to `F_MAC3`, whose package pins are GTY quad 233 in SLR2
+(`X1Y56` through `X1Y59`) and use CMAC site `CMACE4_X0Y8`. This is separate
+from the normal `NicEngine` CMAC on `F_MAC0`. Trace dump processing, FIFOs,
+reset synchronizers and trace-status VIO share SLR2 with trace DMA and DDR.
+The VIO controls the responder's local identity, next-hop MAC and capture server.
 With all override-valid bits left at zero, the hardware defaults are:
 
 - self MAC: `0c:53:31:03:01:cc`
@@ -203,16 +204,13 @@ With all override-valid bits left at zero, the hardware defaults are:
 - dump server IPv4 address: `129.132.102.8`
 - dump server UDP port: `55555`
 
-Both active ports use GT RX/TX polarity mask `0011`: F_MAC0 for RPC and
-F_MAC1 for trace. This matches the engineer's
-[interfaces-stub reference, revision 331c57c](https://gitlab.inf.ethz.ch/project-openenzian/fpga-stack/applications/interfaces-stub/-/blob/331c57ccf68f8db97c3ab0ed6f9a263a64aa1a12/bd/design_1.tcl#L549).
-The recorded zuestoll14 mapping is leaf1 Ethernet100 (ZS14-FPGA2); its main
-RPC identity is `0c:53:31:03:01:c8` / `192.168.129.200`. Select peer addresses
-and confirm port mappings for the actual board reservation.
-
-Historical F_MAC3 images used `0c:53:31:03:01:d4` / `192.168.129.201` and
-polarity `1100`. Use the address and port for the actual bitstream; do not
-apply old F_MAC3 capture filters or neighbor overrides to an F_MAC1 image.
+F_MAC0 uses GT RX/TX polarity mask `0011`; F_MAC3 uses `1100`, matching the
+board lane wiring. The logical defaults above are retained across this port
+move; they do not encode the physical port or identify the current DUT.
+Confirm the board-specific switch mapping and set VIO identity overrides before
+capture. Historical F_MAC1 validation was on zuestoll14; it does not validate
+F_MAC3 on another board. Older F_MAC3 images used MAC `0c:53:31:03:01:d4` and
+IP `192.168.129.201`; use the matching image's defaults/overrides, not old filters.
 
 The VIO exposes a six-bit override-valid mask plus the six override values, a
 `dump over network` boolean output, and a `trace stop` boolean output:

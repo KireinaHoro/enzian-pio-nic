@@ -116,7 +116,7 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   State which checks actually ran. Historical logs are not current test results.
 - If a hardware test fails in `probe_versions`, preserve the failure before
   resetting or restoring another image: freeze tracing, record VIO status, and
-  dump trace DDR over the dedicated F_MAC1 CMAC with the matching trace map
+  dump trace DDR over the dedicated trace CMAC with the matching trace map
   and bitstream provenance; follow the [capture procedure](docs/development/tracing.md#default-agent-capture-pipeline).
   If Ethernet is unavailable or a bounded dump fails, preserve the partial output
   and stop without a full JTAG fallback or reset. Never reset merely to recover the capture link.

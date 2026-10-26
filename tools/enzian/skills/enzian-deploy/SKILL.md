@@ -103,7 +103,7 @@ Use the shared reservation/console helpers; never steal an attached console.
 
 A failure before FPGA power-up/programming may leave no accessible recorder;
 record that limitation instead of claiming a capture exists. For module/probe
-failures on a programmed FPGA, freeze and preserve VIO plus a matched F_MAC1
+failures on a programmed FPGA, freeze and preserve VIO plus a matched trace-CMAC
 Ethernet trace before reset. Follow explicit campaign restrictions: the echo
 campaign treats a failed Ethernet dump as terminal, with no full JTAG fallback.
 Small integrity spot checks are separate from a full fallback dump.

@@ -127,12 +127,13 @@ whole byte-mask bank. Payload bounds use one remaining-length calculation and
 register the byte-valid mask before replay merging.
 
 Placement retains the coarse SLR/host-interface regions and established ECI
-crossing constraints. Worker, scheduler, crossbar and packet-memory logic are
+crossing constraints. Worker, scheduler and crossbar logic are
 not divided into additional disjoint hard regions. Primitive capacity alone
 does not establish routing capacity for their wide interconnect.
 
 `vivado/eci/xdc/floorplan.xdc` assigns decoders/encoders to SLR0, host-interface
-logic to a region spanning CLOCKREGION Y5–Y9, DCS halves to separated regions,
+logic to a region spanning CLOCKREGION Y5–Y9, packet-buffer alignment/DMA/RAM
+to SLR0, DCS halves to separated regions,
 and selected crossing registers to source/destination regions. The name
 `eci_gateway_pblock` does not imply the entire gateway is assigned: inspect the
 actual `add_cells_to_pblock` selectors. Check utilization, actual LOCs, pblock
@@ -140,10 +141,12 @@ membership and fixed cells before tightening regions. Overconstraining a crowded
 region can turn a local improvement into routing congestion elsewhere.
 Check wildcard matches when adding ports. The old `i_app/*x_rst_sync` selector
 also captured `trace_dump_tx_rst_sync` into SLR0. Current constraints use exact
-main/trace instances and place trace resets with the TX FIFO in the trace CMAC SLR (now SLR1 for
-F_MAC1; historical F_MAC3 trials used SLR2). The
-[September comparison](physical-implementation.md#september-15-prewarmed-nix-comparison)
-shows positive trace TX slack and remaining ECI gateway/transport bottlenecks.
+main/trace instances. F_MAC3 trace CMAC, dump processing, FIFOs, resets and
+status VIO share SLR2 with trace DMA and DDR; source-side sampling stages remain
+near their producers. Packet-memory AXI pipeline boundaries separate its SLR0
+placement from SLR1 host logic. These broad assignments add no fine-grained
+application pblocks. The application `ila_app` and its manual helper are removed;
+CMAC ILAs, other debug cores and the static ECI edge ILA remain.
 
 For routed experiments, first copy the DCP and change a small placement hypothesis;
 never overwrite the baseline or the static-shell release. A path ending in fixed
@@ -345,7 +348,7 @@ The September 10 candidates isolate output-FIFO enable, priority-mask logic and
 trace-TX placement against a shared extractor-corrected baseline. The priority
 variant changes lowest-set-bit selection in `TraceBufferDMA`; the placement
 variant constrains the trace TX FIFO near the historical F_MAC3 CMAC in SLR2.
-Those coordinates are not a placement prescription for today's F_MAC1 path.
+Those historical coordinates are not a prescription for the current broad SLR2 placement.
 
 | Experiment | Platform commit | Pipeline | Hardware job |
 | --- | --- | --- | --- |

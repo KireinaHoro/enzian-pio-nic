@@ -34,8 +34,6 @@ resize_pblock [get_pblocks pblock_slr1] -add {BUFGCTRL_X0Y72:BUFGCTRL_X1Y79}
 resize_pblock [get_pblocks pblock_slr1] -add {BUFG_GT_X0Y216:BUFG_GT_X1Y239}
 resize_pblock [get_pblocks pblock_slr1] -add {BUFG_GT_SYNC_X0Y135:BUFG_GT_SYNC_X1Y149}
 resize_pblock [get_pblocks pblock_slr1] -add {CMACE4_X0Y5:CMACE4_X0Y5}
-# F_MAC1 trace CMAC and its local GT quad.
-resize_pblock [get_pblocks pblock_slr1] -add {CMACE4_X0Y3:CMACE4_X0Y3}
 resize_pblock [get_pblocks pblock_slr1] -add {GTYE4_CHANNEL_X0Y20:GTYE4_CHANNEL_X0Y23}
 resize_pblock [get_pblocks pblock_slr1] -add {GTYE4_COMMON_X0Y5:GTYE4_COMMON_X0Y5}
 resize_pblock [get_pblocks pblock_slr1] -add {DSP48E2_X0Y216:DSP48E2_X18Y239}
@@ -148,7 +146,7 @@ add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=
 
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*makeAccessPorts_*Router"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/Scheduler_logic_*"]
-add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/PacketBuffer_logic_*"]
+add_cells_to_pblock $nic_decoders_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/PacketBuffer_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/EciInterfacePlugin_logic_*"]
 add_cells_to_pblock $nic_hostif_pblock [get_cells -hierarchical -filter "NAME=~i_app/NicEngine_inst/*EciDecoupledRxTxProtocol*"]
 
@@ -159,16 +157,15 @@ add_cells_to_pblock $dcs_even_pblock [get_cells -hierarchical -filter {
     NAME=~i_app/i_trace_dma/traceDma/*
 }]
 
-# Main CMAC is in SLR0; the F_MAC1 trace CMAC is in SLR1. A wildcard matching
-# *x_rst_sync also captured the trace reset synchronizers and forced a long
-# synchronous reset path across SLRs.
+# Keep trace processing and its physical F_MAC3 endpoint beside DDR in SLR2.
+# Source-side trace sampling stages remain close to their producers.
 foreach {region instances} [list \
     $nic_decoders_pblock {i_app/rx_rst_sync i_app/tx_rst_sync} \
-    $eci_gateway_pblock {i_app/trace_dump_rx_rst_sync i_app/trace_dump_tx_rst_sync i_app/i_trace_dma/traceDumpTxFifo}] {
+    $dcs_even_pblock {i_app/trace_dump_rx_rst_sync i_app/trace_dump_tx_rst_sync i_app/i_trace_dma/traceDump i_app/i_trace_dma/traceDumpTxAligner i_app/i_trace_dma/traceDumpRxFifo i_app/i_trace_dma/traceDumpTxFifo i_app/design_1_i/vio_trace_status i_app/design_1_i/cmac_usplus_1 i_app/design_1_i/hier_trace_cmac_ctrl_stat}] {
     foreach instance $instances {
         set cells [get_cells -hierarchical -filter "NAME == $instance || NAME =~ $instance/*"]
         if {[llength $cells] == 0} {
-            error "CMAC floorplan selector matched no cells: $instance"
+            error "Trace/CMAC floorplan selector matched no cells: $instance"
         }
         puts "CMAC_FLOORPLAN $instance $region [llength $cells]"
         add_cells_to_pblock $region $cells

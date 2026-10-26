@@ -20,18 +20,13 @@ for module in ('NicEngine', 'lauberhorn_trace_dma'):
     assert not any('unlock' in port.lower() for port in ports), module
     print(f'{module}: {len(ports)} ports match VHDL; no unlock ports')
 
-# Keep the hand-maintained ILA declarations and connections in agreement too.
+# The retired application ILA must not reappear in the block design.
 tcl = (a.vhdl.parent.parent / 'bd/design_1.tcl').read_text()
-ila = tcl.split('# Create instance: ila_app,', 1)[1].split('# Create instance: app_clock', 1)[0]
-count = int(re.search(r'C_NUM_OF_PROBES \{(\d+)\}', ila)[1])
-widths = set(map(int, re.findall(r'C_PROBE(\d+)_WIDTH', ila)))
-connections = list(map(int, re.findall(r'ila_app/probe(\d+)\]', tcl)))
-assert widths == set(range(count)) and sorted(connections) == list(range(count))
+assert not re.search(r'\bila_app\b|hier_ilas/core[0-4]_states|dcs_(?:even|odd)_mon', tcl)
 assert not re.search(r'\bul_(?:even|odd)\b', tcl)
-print(f'ILA: {count} probe declarations match connections; no unlock probes')
+print('Application ILA absent; no unlock probes')
 
-# Debug FSM encodings can grow when states are added. Check every packed bit
-# against the generated RTL and both levels of the block-design ILA wiring.
+# Retain width/packing checks for generated NIC debug outputs.
 source = (a.generated / 'NicEngine.v').read_text().split('module NicEngine', 1)[1].split(');', 1)[0]
 port_widths = {}
 for hi, lo, name in re.findall(r'\boutput\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*(\w+)', source):
@@ -47,8 +42,4 @@ for core in range(5):
         assert not used & bits, (port, 'overlapping debug bits')
         used |= bits
     assert used == set(range(state_hi + 1)), (core, 'incomplete debug packing')
-    bd_widths = re.findall(rf'create_bd_(?:pin|port) -dir I -from (\d+) -to 0 -type data core{core}_states', tcl)
-    assert len(bd_widths) == 2 and all(int(hi) == state_hi for hi in bd_widths), (core, 'BD debug width')
-    probe_width = int(re.search(rf'C_PROBE{core}_WIDTH \{{(\d+)\}}', ila)[1])
-    assert probe_width == state_hi + 1, (core, 'ILA debug width', probe_width)
-print(f'Debug: five {state_hi + 1}-bit state probes match generated RTL, packing and BD ports')
+print(f'Debug: five {state_hi + 1}-bit state bundles match generated RTL and wrapper packing')
