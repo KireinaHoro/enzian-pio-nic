@@ -24,14 +24,19 @@ Launch verified October 26 at 07:56 CET:
   input hashes, the passing NativeUdpSim evidence and tested source hashes,
   generated RTL correspondence, image hash, checksum-pipeline removal and
   absence of both the experimental groups and obsolete floorplan selector.
+- Results check October 26 at 13:27 CET: exact launcher 1304519, Docker
+  `3f0b9434c5be` and main Vivado 1304655 remain live with matching mounts.
+  Synthesis child has exited; physical synthesis is in Phase 2 Critical Path
+  Optimization. `build.exit` and `physical/COMPLETE` are absent; no terminal
+  timing result exists yet.
 - Main checkout record: `out/udp-no-checksum-impl-20261026/record.json` contains
-  exact paths, hashes, test scope and baseline references. The old preflight
-  service completed successfully and no results timer was already active.
-  Results timer `lauberhorn-udp-no-checksum-68ec9af8-20261026-results.timer`
-  is verified active, due **13:26:39 CET**, five hours from this check.
-  Stop polling until then. If still live, use that directory's
-  `schedule.py --stage recheck` for 30 minutes after inspecting old timer/service
-  state. Collect immediately if terminal; never restart the five-hour wait.
+  exact paths, hashes, test scope and baseline references. Inspected the old
+  results service (inactive, success) and recheck timer/service (inactive).
+  The 30-minute `lauberhorn-udp-no-checksum-68ec9af8-20261026-recheck.timer`
+  is verified active, due **13:57:11 CET** October 26. Stop polling until then.
+  If still live, use that directory's `schedule.py --stage recheck` after
+  inspecting old timer/service state. Collect immediately if terminal; never
+  restart the five-hour wait. No replacement build was started.
 - On completion preserve bitstream/probes/routed DCP/trace map/reports and hashes,
   including failed-stage evidence. Read the maintained timing digest first and
   compare to final `73c3dc76`; inspect all clocks, setup/hold/pulse width,
