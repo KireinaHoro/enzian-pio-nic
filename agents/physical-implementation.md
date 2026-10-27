@@ -17,11 +17,17 @@ Exact new record: main `out/autopipeline-fix-impl-20261027/record.json`.
 Host enzian-ba2, root `/tmp/lauberhorn-autopipeline-fix-99fb5fed-20261027`;
 launcher **1701024**, Docker
 **0265d834b6a0670f3e7acf5375bfaa284d91b6f079f7d936962229cd68210006**,
-Vivado **1701178**. Started October 27 **05:04:25 UTC**; verified project creation
-in full build mode. All 1186 staged input hashes matched. Preflight timer
-`lauberhorn-autopipeline-fix-99fb5fed-20261027-preflight.timer` active, due
-**06:34:44 CET**. Stop polling until callback; verify exact processes and markers.
-If running then schedule results five hours from that check; no automatic replacement.
+Vivado **1701178**. Started October 27 **05:04:25 UTC**. Preflight at
+**05:34:59 UTC** verified exact launcher/container/Vivado alive, deriving generated
+clocks; `build.exit` and physical COMPLETE absent. All 1186 remote input hashes,
+image hash/revision and recorded application/transport/focused simulation PASSED
+markers reverified. Timing 38-439 clock-name collision warnings in static-shell
+`eci_link2.xdc` remain for final constraint review; no terminal failure observed.
+Old preflight and results timer/services were inactive. Results timer
+`lauberhorn-autopipeline-fix-99fb5fed-20261027-results.timer` verified active, due
+**11:35:06 CET** (10:35:06 UTC), five hours from this check. Polling stopped.
+At results callback inspect exact processes and markers; if still running, inspect
+existing timer/service then schedule a 30-minute recheck. No automatic replacement.
 No board operation or toolkit-master change. Retain build refs until processes end.
 
 Previous 44552a84 run failed before placement with NTCN-7: shared group `event`
@@ -79,7 +85,8 @@ loss marker and correctly remains unresolved until routed-checkpoint extraction.
 A prior test snapshot exposed missing late-declared trace events; fixed and the
 unchanged UDP assertion now passes. A disk-full attempt stopped before validation;
 only six unreferenced/no-root Nix source-cache copies from this task were removed.
-Original data, artifacts and refs were preserved. No failed hardware run/relaunch.
+Original data, artifacts and refs were preserved. The later hardware failure and
+explicitly authorized corrected run are recorded above.
 
 Results collection must compare 73c3dc76 and 68ec9af8, preserve final artifacts
 and hashes, verify resolved trace map/depths, all-clock STA/CDC/constraints,
