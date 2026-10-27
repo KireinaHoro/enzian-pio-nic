@@ -12,9 +12,14 @@ Capture MAC/IP override/restoration support is committed (`eb398b9e`). Exact
 routed-checkpoint probing proves sources 11,24,77 have GND-driven output-valid;
 `63fb1867` retains them as explicitly inactive with null latency and rejects
 captured events for those IDs. Eighteen Python tests and the Tcl chain-walker
-fixture passed. The maintained extractor is running read-only on enzian-ba2,
-remote `/tmp/autopipeline-99fb5fed-analysis/resolve.tcl` and `resolve.log`;
-collect `implemented-trace-map.json` and `.depths.tsv` when it finishes. Original
+fixture passed. The first corrected extraction finished, but its map is NOT approved for capture:
+it reports two stages for all 132 active sources although source2 has 357 FFs
+versus 51 sink FFs. The walker likely stops at inserted source/data_reg* names.
+A bounded valid-chain probe is now running read-only on enzian-ba2:
+`/tmp/autopipeline-99fb5fed-analysis/chain.tcl`, `chain.log`, `valid-chains.tsv`.
+Inspect that result, fix exact original-register matching with a regression,
+and rerun maintained extraction before using the map. The preliminary map and
+TSV remain preserved under the new run root as failure evidence. Original
 failed-build evidence stays intact. This supersedes the earlier need for separate
 permission to fix extraction, but not its historical failure status.
 
