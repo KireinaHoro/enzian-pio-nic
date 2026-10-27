@@ -12,16 +12,13 @@ Capture MAC/IP override/restoration support is committed (`eb398b9e`). Exact
 routed-checkpoint probing proves sources 11,24,77 have GND-driven output-valid;
 `63fb1867` retains them as explicitly inactive with null latency and rejects
 captured events for those IDs. Eighteen Python tests and the Tcl chain-walker
-fixture passed. The first corrected extraction finished, but its map is NOT approved for capture:
-it reports two stages for all 132 active sources although source2 has 357 FFs
-versus 51 sink FFs. The walker likely stops at inserted source/data_reg* names.
-A bounded valid-chain probe is now running read-only on enzian-ba2:
-`/tmp/autopipeline-99fb5fed-analysis/chain.tcl`, `chain.log`, `valid-chains.tsv`.
-Inspect that result, fix exact original-register matching with a regression,
-and rerun maintained extraction before using the map. The preliminary map and
-TSV remain preserved under the new run root as failure evidence. Original
-failed-build evidence stays intact. This supersedes the earlier need for separate
-permission to fix extraction, but not its historical failure status.
+fixture passed. Exact netlist chains exposed Vivado's `_psap*` inserted-register
+suffixes inside source/data_reg names; `68ea7dc1` fixes the walker to stop only
+at the original register. Final `implemented-trace-map-v2.json` and its depth TSV
+are collected in the run root: 14 active sources at2,66 at4,26 at6,26 at8;
+three inactive sources plus the loss marker remain represented. DCP/bit hashes
+match the original implementation; decoder validation passed. Preserve the
+rejected first map as diagnostic evidence. No new hardware build occurred.
 
 Matched `99fb5fed` TCP validation image built and was staged/hash verified at
 `/scratch/pengxu/tcp-fmac3-acceptance-20261027/tcp-validation-99fb5fed.img`, SHA256
@@ -30,14 +27,21 @@ Both boards are currently reserved to pengxu. Shared-harness preflights confirme
 DUT07 and peer14 kernel 6.8.0-146, neither with /nix/store mounted. Their root
 hostnames are stale (`zuestoll14` and `localhost`); kernel iSCSI initiator and
 console targets identify the actual boards. Structured summaries are in the run
-root. No reset/programming occurred. Generated `cases.json` is not executed.
+root. The first `memcached-first.json` case is now running via test.py, session30646,
+with compact evidence in `memcached-first/summary.json`. Inspect that same run;
+never reset a failed programmed board before trace preservation.
 
-Next: finish and validate the resolved trace map; confirm actual DUT07 F_MAC3
-switch mapping/identity; stage capture service/client image and programmer Tcl;
-perform F_MAC3 full frozen capture/integrity acceptance and TCP/memcached tests
-through the shared harness, preserving any failure before reset. Switch helper
-requested agg0 authentication; user was asked for an existing authenticated SSH
-socket, not credentials. The waiting query was terminated without switch changes.
+Next: inspect the running memcached test, then preserve a full F_MAC3 capture
+through trace-config.json (use /dev/shm for acquisition if local disk space is
+insufficient, then persist/hash it on ba2). Local disks have only ~2.3GiB free;
+ba2 /tmp has678GiB, local /dev/shm32GiB and peer RAM117GiB. Transfer service is
+live on gateway192.168.255.254:18879, root/tmp/tcp-fmac3-transfer-20261027,
+local session1404; stop after acceptance. Peer capture image hash verified.
+Existing authenticated socket /tmp/echo-unloaded-shared-20261019-switch serves
+leaf0, so switch authentication is resolved. F_MAC3 is Ethernet108/ZS7-FPGA4,
+100G RS-FEC. Selected trace MAC0c:53:31:03:00:f4/IP192.168.128.244 use VIO
+overrides. Preserve failures; continue TCP/protocol/burst acceptance after
+successful capture. No board acceptance result exists yet.
 
 ## Application depth/fanout candidate: routed, trace extraction failed
 

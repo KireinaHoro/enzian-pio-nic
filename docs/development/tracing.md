@@ -341,6 +341,11 @@ The helper handles the gateway/agg0/leaf1 SSH chain; credentials remain outside
 this repository. Identify the port for the actual board and bitstream before
 querying counters. On zuestoll14, F_MAC1 maps to Ethernet100 / front-panel 26/0;
 the historical F_MAC3 path maps to Ethernet108 / front-panel 28/0.
+For zuestoll07, inspect **leaf0**: F_MAC0 is Ethernet96 (`ZS7-FPGA1`) and
+F_MAC3 is Ethernet108 (`ZS7-FPGA4`), both configured for 100G RS-FEC.
+The current test configuration selects trace identity `0c:53:31:03:00:f4` /
+`192.168.128.244`; set it through `trace_mac` and `trace_ip`, leaving the
+bitstream's default identity unchanged.
 
 SONiC FEC counters reported as N/A are unavailable, not zero. Vendor diagnostics
 are accessible through `docker exec -it syncd /opt/bfn/install/bin/bfshell`,
