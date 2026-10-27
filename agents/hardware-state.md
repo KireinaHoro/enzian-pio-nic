@@ -9,34 +9,26 @@ bitstream, trace map, headers and deployment image.
 
 ## October 27 TCP acceptance and frozen trace failure
 
-zuestoll07 was programmed with exact `99fb5fed` and matched TCP-validation
-software; peer zuestoll14. One first-attempt cold boot and memcached TCP suite
-passed, including 16 clients, binary/text commands, pipelining, backpressure
-and connection-reset recovery. The memcached process remains running.
+zuestoll07 is now held at BDK after the authorized calibration-gated retry.
+The harness verified CPU/FPGA rails off, then all three programming attempts
+reached startup HIGH but failed DDR calibration at DQS gate, rank 0, nibble 17
+(no preamble, GT_STATUS samples all one). It stopped before releasing BDK.
+Memcached and trace capture did not run on this retry. No further reset or
+programming followed exhaustion. The temporary capture transfer service stopped.
+Evidence and hashes: main `out/tcp-fmac3-retry-20261027/`, with a second copy on
+ba2 `/tmp/tcp-fmac3-retry-20261027/`. The identical repeated failure needs
+DDR/DIMM/interface investigation; the underlying physical cause is not isolated.
 
-The following F_MAC3 export received metadata and ARP but stalled on the first
-DMA read. Trace stop remains asserted, original VIO configuration restored,
-writeSlot=19, wrapped=0, sampleLost=1, DMAerror=0. No full trace or JTAG fallback,
-and no reset after this failure. Preserve the programmed board for DMA/DDR
-read-stall diagnosis. Read-only MIG diagnosis confirms CAL FAIL at DQS gate,
-rank 0, nibble 17: no preamble detected, GT_STATUS samples all one. Full report
-and properties are `trace-ddr-calibration.{report,properties}.txt` in the local
-evidence directory. The MIG remains in its original SLR2 region and on F_D4;
-the trace relocation did not change its region or DDR configuration. The
-underlying board/DIMM/design cause is not isolated. Boot now gates calibration
-PASS alongside startup HIGH and retries explicit failures at most three times
-while CPU is held. Ten boot unit tests passed; no live retry/reset was performed.
-Bounded AXI ILA evidence shows stationary outstanding
-reads/writes across 1024 samples. The trace MAC is learned on leaf0 Ethernet108;
-SONiC reports down/no-transceiver despite demonstrated bidirectional packets,
-so do not infer a missing cable from that status alone.
-
-Local evidence: main `out/tcp-fmac3-acceptance-20261027/`; second copy on ba2
-at `/tmp/tcp-fmac3-acceptance-20261027/`, all copied SHA256 hashes verified.
-See [physical continuation](physical-implementation.md) for exact artifacts and
-capture configuration. The temporary gateway transfer service has stopped.
-Recheck reservations before board access; the failed frozen recorder is not
-permission to reset or reprogram.
+The preceding exact `99fb5fed` memcached TCP test passed with peer zuestoll14,
+including 16 clients, binary/text commands, pipelining, backpressure and reset
+recovery. Its F_MAC3 export received metadata and ARP but stalled on the first
+DMA read. That frozen live state was superseded by the explicitly authorized
+retry; all original evidence remains in `out/tcp-fmac3-acceptance-20261027/`
+and ba2 `/tmp/tcp-fmac3-acceptance-20261027/`. No full trace was captured.
+The MIG remains in its original SLR2 region and on F_D4. The relocation did not
+change its region or DDR configuration. Trace MAC learning on leaf0 Ethernet108
+and bidirectional packets contradict SONiC's down/no-transceiver report; do not
+infer a missing cable. Recheck reservations before board access.
 
 ## October 22 generator reservation recovery
 
