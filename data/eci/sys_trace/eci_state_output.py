@@ -324,6 +324,8 @@ class _CreditCsvSpool:
 def _eci_state_pipeline_stages(trace_map: Dict[str, Any]) -> set[int]:
     stages = set()
     for src in trace_map.get("sources", []):
+        if src.get("implementation_status") == "inactive_constant_valid":
+            continue
         if _is_sys_eci_source(src) or _is_credit_return_source(src):
             stages.add(int(src.get("pipeline_stages", 0)))
     return stages

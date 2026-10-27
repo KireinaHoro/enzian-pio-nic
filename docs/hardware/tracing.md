@@ -30,7 +30,11 @@ elaborates:
 
 `TracePlugin` also records each port's source SLR. The trace transport uses
 that declaration to choose an auto-pipeline insertion limit of five registers
-per SLR crossing toward the SLR2 collector. This limit is not a measured latency.
+per SLR crossing toward the SLR2 collector. This limit is not a measured latency. Final-checkpoint extraction measures the
+surviving register chains. A source removed by synthesis is retained in the map
+as `inactive_constant_valid` only when its output-valid net has exactly one GND
+driver; its latency is null. The decoder rejects a captured event from such a
+source. Missing endpoints without that proof remain an extraction error.
 Event payload selection uses a balanced one-hot OR; events sharing a source
 must remain mutually exclusive, as checked by the generated assertions.
 

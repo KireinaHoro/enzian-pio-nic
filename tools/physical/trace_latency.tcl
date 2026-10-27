@@ -22,6 +22,14 @@ proc trace_latency::depth {sink sourcePrefix maxDepth} {
         set cell [get_cells -of_objects $pin]
     }
 }
+proc trace_latency::inactive {instance} {
+    set valid [get_pins -quiet -hierarchical -filter "NAME == ${instance}/output_valid"]
+    if {[llength $valid] != 1} {return false}
+    set nets [get_nets -quiet -segments -of_objects $valid]
+    set drivers [get_pins -quiet -leaf -of_objects $nets -filter {DIRECTION == OUT}]
+    if {[llength $drivers] != 1} {return false}
+    return [expr {[get_property REF_NAME [get_cells -of_objects $drivers]] eq "GND"}]
+}
 proc trace_latency::extract {template destination revision checkpoint} {
     variable python_helper
     set helper $python_helper
@@ -32,7 +40,11 @@ proc trace_latency::extract {template destination revision checkpoint} {
     foreach row [split $plan \n] {
         lassign [split $row \t] id instance limit width
         set sinks [get_cells -quiet -hierarchical -filter "NAME =~ ${instance}/sink/data_reg*"]
-        if {[llength $sinks] == 0} {error "missing trace sink: $instance"}
+        if {[llength $sinks] == 0} {
+            if {![inactive $instance]} {error "missing trace sink without constant-low valid: $instance"}
+            puts $f "$id\t$instance\tinactive\tGND"
+            continue
+        }
         set validSeen false
         foreach sink $sinks {
             if {![regexp {data_reg\[([0-9]+)\]$} $sink -> bit]} {error "unexpected trace sink name: $sink"}

@@ -29,7 +29,7 @@ def load_map(path: Path) -> Dict[str, Any]:
         trace_map = json.load(f)
     if trace_map.get("pipeline_resolution") == "implementation_required":
         raise ValueError("Trace map has unresolved auto-pipeline latency; use the implemented map beside the bitstream")
-    if any(src.get("autopipeline") and (trace_map.get("pipeline_resolution") != "implemented" or type(src.get("pipeline_stages")) is not int)
+    if any(src.get("autopipeline") and (trace_map.get("pipeline_resolution") != "implemented" or (type(src.get("pipeline_stages")) is not int and not (src.get("implementation_status") == "inactive_constant_valid" and src.get("autopipeline", {}).get("valid_driver") == "GND")))
            for src in trace_map.get("sources", [])):
         raise ValueError("Trace map is missing implemented per-source latency")
     # Historical captures retain their original maps on disk. Normalize only
@@ -79,7 +79,10 @@ def source_info(trace_map: Dict[str, Any], source: int) -> Dict[str, Any]:
 
 
 def source_pipeline_stages(source: int, trace_map: Dict[str, Any]) -> int:
-    return int(source_info(trace_map, source).get("pipeline_stages", 0))
+    info = source_info(trace_map, source)
+    if info.get("implementation_status") == "inactive_constant_valid":
+        raise ValueError(f"Trace event from implemented inactive source {source}")
+    return int(info.get("pipeline_stages", 0))
 
 
 def raw_sample_timestamp(sample: int, trace_map: Dict[str, Any]) -> int:

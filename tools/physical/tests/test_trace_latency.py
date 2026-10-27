@@ -38,6 +38,18 @@ class TraceLatencyTests(unittest.TestCase):
             rows = self.rows(3); rows[0][field] = value
             with self.assertRaises(ValueError): latency.resolve(self.template(), rows, 'r', 'h')
 
+    def test_constant_inactive_source_has_no_invented_latency(self):
+        row = dict(source='0', instance='traceAuto_0', bit='inactive', stages='GND')
+        result = latency.resolve(self.template(), [row], 'r', 'h')
+        self.assertIsNone(result['sources'][0]['pipeline_stages'])
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'map.json'; p.write_text(json.dumps(result))
+            loaded = dma_decode.load_map(p)
+            with self.assertRaisesRegex(ValueError, 'inactive source'):
+                dma_decode.source_pipeline_stages(0, loaded)
+        for rows in ([row, row], [row] + self.rows(4), self.rows(4) + [row], [dict(row, stages='VCC')]):
+            with self.assertRaises(ValueError): latency.resolve(self.template(), rows, 'r', 'h')
+
     def test_unresolved_map_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'map.json'; p.write_text(json.dumps(self.template()))

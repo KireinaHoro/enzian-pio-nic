@@ -24,7 +24,17 @@ def sources(mapping):
 def resolve(mapping, rows, revision, checkpoint_hash):
     expected = sources(mapping)
     observed = {key: {} for key in expected}
+    inactive = set()
     for row in rows:
+        key = int(row['source'])
+        if row['bit'] == 'inactive':
+            if (key not in expected or key in inactive or observed[key] or row['stages'] != 'GND'
+                    or row['instance'] != expected[key]['autopipeline']['instance']):
+                raise ValueError(f'invalid inactive source evidence: {key}')
+            inactive.add(key)
+            continue
+        if key in inactive:
+            raise ValueError(f'inactive source also has registers: {key}')
         key, bit, stages = (int(row[k]) for k in ('source', 'bit', 'stages'))
         if key not in expected:
             raise ValueError(f'unexpected source {key}')
@@ -36,6 +46,12 @@ def resolve(mapping, rows, revision, checkpoint_hash):
         observed[key][bit] = stages
     for key, src in expected.items():
         spec, bits = src['autopipeline'], observed[key]
+        if key in inactive:
+            src['implementation_status'] = 'inactive_constant_valid'
+            src['pipeline_stages'] = None
+            spec['measured_bits'] = []
+            spec['valid_driver'] = 'GND'
+            continue
         if spec['width'] - 1 not in bits or len(set(bits.values())) != 1:
             raise ValueError(f'missing valid or unequal payload/valid depth for source {key}')
         src['pipeline_stages'] = next(iter(bits.values()))
