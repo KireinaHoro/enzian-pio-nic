@@ -12,7 +12,7 @@ proc trace_latency::depth {sink sourcePrefix maxDepth} {
         if {![regexp {^FD} $ref]} {error "non-FF trace transport cell $cell ($ref)"}
         incr stages
         if {$stages > $maxDepth} {error "trace pipeline exceeds limit: $sink"}
-        if {[string match "${sourcePrefix}/data_reg*" $cell]} {return $stages}
+        if {[file dirname $cell] eq $sourcePrefix && [regexp {^data_reg\[[0-9]+\]$} [file tail $cell]]} {return $stages}
         set d [get_pins -quiet -of_objects $cell -filter {REF_PIN_NAME == D}]
         set nets [get_nets -quiet -segments -of_objects $d]
         set drivers [get_pins -quiet -leaf -of_objects $nets -filter {DIRECTION == OUT}]
