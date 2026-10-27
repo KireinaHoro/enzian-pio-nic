@@ -254,11 +254,13 @@ Programming acceptance requires both Vivado `End of startup status: HIGH` and
 `TRACE_DDR_CALIBRATION_PASS` for `i_app/design_1_i/ddr4_4`. The programmer waits
 up to 30 seconds for calibration; an explicit failure preserves the MIG report
 and properties in its log and returns exit 43. Missing MIG or success evidence
-fails closed. Startup LOW or exit 43 triggers up to three programming attempts
-with the same image while the CPU stays held at BDK. Other programmer errors
-stop immediately. Attempts retain `program.log`, `program-02.log`, etc., plus
-`program-summary.json`; exhaustion leaves the CPU held. These retries apply
-only during programming, never automatically to a running failed capture.
+fails closed. Startup LOW or exit 43 triggers another full verified CPU/FPGA
+power cycle, re-holds BDK, and programs the same image. There is one programming
+attempt per power cycle and at most three startup/calibration failures per run
+(also bounded by `--boot-attempts`). Other programmer errors stop immediately.
+Each cold attempt retains its own `program.log` and `program-summary.json` under
+`retry-02/`, etc.; exhaustion leaves the CPU held. These retries apply only during
+boot, never automatically to a running failed capture.
 
 The BMC remains powered. Use `boot.py --cold-start --hold-only` only for recovery
 from a confirmed already-off board; normal comparison trials require full resets.

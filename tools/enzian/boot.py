@@ -93,9 +93,14 @@ def expect_eci_bringup(cpu):
     return validate_eci_bringup(cpu.before), cpu.after == 'login:'
 
 
+class ProgrammingBringupError(RuntimeError):
+    """Explicit startup/calibration failure requiring a verified cold reset."""
+
+
 def run_attempts(args, command):
     args.logs.mkdir(parents=True, exist_ok=False)
     results = []
+    programming_failures = 0
     for number in range(1, args.boot_attempts + 1):
         attempt = copy.copy(args)
         if number > 1:
@@ -110,6 +115,13 @@ def run_attempts(args, command):
             result['eci'] = boot_once(attempt, command, logs)
             result['status'] = 'pass'
             return
+        except ProgrammingBringupError as exc:
+            programming_failures += 1
+            result.update(status='programming_bringup_failed', error=str(exc))
+            print(f'PROGRAMMING_BRINGUP_FAILED attempt={number}: {exc}', flush=True)
+            if programming_failures >= 3 or number == args.boot_attempts:
+                raise
+            print('RETRYING_FULL_COLD_RESET', flush=True)
         except EciBringupError as exc:
             result.update(status='eci_bringup_failed', error=str(exc))
             print(f'ECI_BRINGUP_FAILED attempt={number}: {exc}', flush=True)
@@ -123,30 +135,27 @@ def run_attempts(args, command):
             (args.logs / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')
 
 
-def program_held(command, logs, attempts=3):
-    """Retry only explicit startup/calibration failures while CPU stays at BDK."""
+def program_held(command, logs):
+    """Program once; run_attempts owns all retries and verified power cycling."""
     results = []
-    for number in range(1, attempts + 1):
-        path = logs / ('program.log' if number == 1 else f'program-{number:02d}.log')
-        with path.open('w') as log:
-            result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
-                                    timeout=600)
-        transcript = path.read_text()
-        low = bool(re.search(r'End of startup status:\s*LOW', transcript))
-        high = bool(re.search(r'End of startup status:\s*HIGH', transcript))
-        calibrated = 'TRACE_DDR_CALIBRATION_PASS cell=i_app/design_1_i/ddr4_4' in transcript
-        passed = result.returncode == 0 and high and not low and calibrated
-        results.append(dict(attempt=number, log=str(path), returncode=result.returncode,
-                            startup_high=high, calibration_pass=calibrated,
-                            status='pass' if passed else 'failed'))
-        (logs / 'program-summary.json').write_text(json.dumps(results, indent=2) + '\n')
-        if passed:
-            print('PROGRAM_AND_TRACE_DDR_VERIFIED', flush=True)
-            return
-        retryable = low or result.returncode == 43
-        if not retryable or number == attempts:
-            raise RuntimeError(f'FPGA programming/calibration failed; CPU remains held; see {path}')
-        print(f'RETRYING_PROGRAM_HELD attempt={number + 1}', flush=True)
+    path = logs / 'program.log'
+    with path.open('w') as log:
+        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
+                                timeout=600)
+    transcript = path.read_text()
+    low = bool(re.search(r'End of startup status:\s*LOW', transcript))
+    high = bool(re.search(r'End of startup status:\s*HIGH', transcript))
+    calibrated = 'TRACE_DDR_CALIBRATION_PASS cell=i_app/design_1_i/ddr4_4' in transcript
+    passed = result.returncode == 0 and high and not low and calibrated
+    results.append(dict(attempt=1, log=str(path), returncode=result.returncode,
+                        startup_high=high, calibration_pass=calibrated,
+                        status='pass' if passed else 'failed'))
+    (logs / 'program-summary.json').write_text(json.dumps(results, indent=2) + '\n')
+    if passed:
+        print('PROGRAM_AND_TRACE_DDR_VERIFIED', flush=True)
+        return
+    error = ProgrammingBringupError if low or result.returncode == 43 else RuntimeError
+    raise error(f'FPGA programming/calibration failed; CPU remains held; see {path}')
 
 
 def boot_once(args, command, logs):

@@ -21,9 +21,9 @@ class BootTests(unittest.TestCase):
         good = 'End of startup status: HIGH\nTRACE_DDR_CALIBRATION_PASS cell=i_app/design_1_i/ddr4_4\n'
         cases = [
             ([(0, good)], True, 1),
-            ([(1, 'End of startup status: LOW'), (0, good)], True, 2),
-            ([(43, 'End of startup status: HIGH'), (0, good)], True, 2),
-            ([(43, 'CAL FAIL')] * 3, False, 3),
+            ([(1, 'End of startup status: LOW')], False, 1),
+            ([(43, 'End of startup status: HIGH')], False, 1),
+            ([(43, 'CAL FAIL')], False, 1),
             ([(0, 'End of startup status: HIGH')], False, 1),
             ([(0, good.split('\n', 1)[1])], False, 1),
             ([(1, 'SSH failed')], False, 1),
@@ -47,6 +47,25 @@ class BootTests(unittest.TestCase):
                 self.assertEqual(summary[-1]['status'], 'pass' if passed else 'failed')
                 for item in summary:
                     self.assertTrue(Path(item['log']).is_file())
+
+    def test_programming_failure_retries_cold_and_stops_at_three(self):
+        for failures in (1, 3):
+            with self.subTest(failures=failures), tempfile.TemporaryDirectory() as root:
+                args = self.args(root, resume_held=True, cold_start=True)
+                args.boot_attempts = 10
+                outcomes = [boot.ProgrammingBringupError('CAL FAIL')] * failures + [{'ok': True}]
+                with patch.object(boot, 'boot_once', side_effect=outcomes) as once:
+                    if failures == 3:
+                        with self.assertRaises(boot.ProgrammingBringupError):
+                            boot.run_attempts(args, ['program'])
+                    else:
+                        boot.run_attempts(args, ['program'])
+                self.assertEqual(once.call_count, 3 if failures == 3 else 2)
+                for call in once.call_args_list[1:]:
+                    self.assertFalse(call.args[0].resume_held)
+                    self.assertFalse(call.args[0].cold_start)
+                summary = json.loads((args.logs / 'summary.json').read_text())
+                self.assertEqual(summary[0]['status'], 'programming_bringup_failed')
 
     def test_tcl_calibration_gate(self):
         source = (Path(__file__).resolve().parents[3] / 'vivado/eci/program_fpga.tcl').read_text()
