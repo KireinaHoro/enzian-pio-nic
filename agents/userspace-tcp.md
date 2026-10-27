@@ -1,9 +1,16 @@
 # Userspace TCP
 
 Platform TCP/DEADLINE integration and the TCP simplification are merged into
-master. TCP is pinned to `77b7567`; memcached to `13f9e9a`. The latest routed
-revision remains `73c3dc76`, with setup violations; hardware acceptance has not
-started. The active application-clock timing round and its one-build/callback
+master. TCP is pinned to `77b7567`; memcached to `13f9e9a`. Exact routed revision `99fb5fed` passed the first real-board memcached-over-TCP
+trial on zuestoll07 (peer zuestoll14), including binary/text commands, 16 clients,
+pipelining, backpressure and reset recovery. Module/version and boot gates passed;
+post-test server health passed without reported kernel faults. Evidence: main
+`out/tcp-fmac3-acceptance-20261027/memcached-first/summary.json`.
+F_MAC3 metadata and ARP passed, but full capture stalled waiting for DMA read
+data (responder sendData, no readData.valid). The trace MAC is learned on leaf0
+Ethernet108 despite contradictory SONiC down/no-transceiver status. Tracing is
+frozen; preserve the board while diagnosing the DMA/DDR read path.
+Additional protocol/burst/repeat tests have not run. Timing still has setup violations. The active application-clock timing round and its one-build/callback
 boundary are tracked in [physical implementation](physical-implementation.md).
 The phase-four build records below retain provenance for those earlier runs.
 CI is unavailable; use the maintained Docker bundle workflow. Keep build
@@ -23,7 +30,7 @@ The VM mirrors this split, subject to Linux IP ingress validation/offload handli
 TCP adapter commit `77b7567` handles padding and drops malformed packet errors
 without terminating the runtime worker; pushed with CI skipped.
 
-Latest routed evidence remains `73c3dc76`, not this source change. Its application
+The earlier `73c3dc76` timing result predates this source change. Its application
 clock top-1000 report is `out/phase4-manual-73c3dc76/app-top1000/` (exact DCP,
 Vivado 2025.1, launch/capture application clock, one path per endpoint). Slack
 ranges −1.119..−1.063 ns. Destination-family counts: RX routers 415, crossbar

@@ -1,47 +1,63 @@
 # Physical implementation continuation
 
-## Active TCP/F_MAC3 hardware acceptance
+## TCP hardware acceptance: memcached passed, trace DMA read stalled
 
-The user authorized updating capture identity and testing TCP/memcached on real
-Enzian hardware. Work is on `hardware/tcp-fmac3-acceptance` in
-`/tmp/lauberhorn-rtl-congestion`; preserve the main audit checkout. No new FPGA
-implementation is needed or launched. Run evidence is main
-`out/tcp-fmac3-acceptance-20261027/record.json`.
+The user authorized capture updates and real TCP/memcached acceptance. Changes
+are on `hardware/tcp-fmac3-acceptance` in `/tmp/lauberhorn-rtl-congestion`;
+preserve the unrelated main audit checkout. Evidence lives in main
+`out/tcp-fmac3-acceptance-20261027/`, especially `result.json`, `record.json`
+and `memcached-first/summary.json`. No replacement implementation was launched.
 
-Capture MAC/IP override/restoration support is committed (`eb398b9e`). Exact
-routed-checkpoint probing proves sources 11,24,77 have GND-driven output-valid;
-`63fb1867` retains them as explicitly inactive with null latency and rejects
-captured events for those IDs. Eighteen Python tests and the Tcl chain-walker
-fixture passed. Exact netlist chains exposed Vivado's `_psap*` inserted-register
-suffixes inside source/data_reg names; `68ea7dc1` fixes the walker to stop only
-at the original register. Final `implemented-trace-map-v2.json` and its depth TSV
-are collected in the run root: 14 active sources at2,66 at4,26 at6,26 at8;
-three inactive sources plus the loss marker remain represented. DCP/bit hashes
-match the original implementation; decoder validation passed. Preserve the
-rejected first map as diagnostic evidence. No new hardware build occurred.
+Exact `99fb5fed` hardware and matching TCP-validation image passed one cold-boot
+memcached TCP test on zuestoll07 with peer zuestoll14: all QLM8–13 locks and
+24 CCPI lanes, module/version gates, binary/text commands, 16 concurrent clients,
+split writes, pipelined requests, backpressure and reset recovery. Client and
+post-server checks exited zero; no kernel faults reported. Total 326 s. This is
+one successful trial, not timing closure or the complete protocol/burst suite.
 
-Matched `99fb5fed` TCP validation image built and was staged/hash verified at
+Trace capture then failed receiving the first read response. The peer received
+metadata from 192.168.128.244; FPGA counters recorded one ARP request, one read
+command and two transmitted responses (metadata/ARP). State 0xa040 is sendData,
+readDesc.ready and TX.ready asserted, readData.valid absent. No trace data arrived.
+leaf0 learned 0c:53:31:03:00:f4 on Ethernet108, confirming F_MAC3 mapping. SONiC
+simultaneously reports linkdown/no-transceiver, so that status must not be used
+to claim a missing cable: real bidirectional packets contradict that diagnosis.
+The earlier user cable request is withdrawn; no physical cause is established.
+
+Preserve the programmed board: memcached remains running, trace_stop=1, original
+VIO settings restored, writeSlot 19 (1216 bytes), wrapped 0, sampleLost 1, DMA error 0.
+No full trace was received, no JTAG fallback and no reset occurred. Local evidence:
+`capture-failure/`, `peer-capture-failure.tar` (hash verified),
+`trace-diagnostics.json`, `result.json`. Peer originals remain preserved too.
+The maintained programmer's existing --capture-ila mode collected a 1024-sample
+trace-memory AXI snapshot, with no reset or trace-memory reads. All samples are
+stalled: AR count1/address0/len0x12, R count1, AW/B count2; ARctrl2/Rctrl2,
+AWctrl1/Wctrl5/Bctrl2. This supports a memory-path nonprogress diagnosis rather
+than a disconnected trace link; exact DDR/calibration cause is not established.
+See `memcached-trace-axi.csv` and `axi-summary.json`. Full trace recovery needs
+DMA/DDR diagnosis; do not retry capture or reset merely on receive timeout.
+
+Capture config selects MAC `0c:53:31:03:00:f4` / IP `192.168.128.244` through
+VIO overrides and restores the original identity after capture. The maintained
+capture helpers and exact-source register walker fixes are committed. Vivado's
+inserted `_psap*` registers must not terminate the source-register walk.
+The final implemented map-v2 accounts for 14 active sources at 2 cycles, 66 at 4,
+26 at 6, 26 at 8, plus inactive sources 11/24/77 and loss marker 255. The inactive
+sources have proved GND output-valid and null latency; decoder rejects their
+events. DCP/bit hashes match; retain the rejected first map as failure evidence.
+Twenty Python tests plus Tcl walker/naming regressions passed.
+
+Matched image is staged at
 `/scratch/pengxu/tcp-fmac3-acceptance-20261027/tcp-validation-99fb5fed.img`, SHA256
 `6b9cb90f103c3f2a7d5b85c3997cdc567b1c7bfe6ba18da0787a48490de3bb00`.
-Both boards are currently reserved to pengxu. Shared-harness preflights confirmed
-DUT07 and peer14 kernel 6.8.0-146, neither with /nix/store mounted. Their root
-hostnames are stale (`zuestoll14` and `localhost`); kernel iSCSI initiator and
-console targets identify the actual boards. Structured summaries are in the run
-root. The first `memcached-first.json` case is now running via test.py, session30646,
-with compact evidence in `memcached-first/summary.json`. Inspect that same run;
-never reset a failed programmed board before trace preservation.
-
-Next: inspect the running memcached test, then preserve a full F_MAC3 capture
-through trace-config.json (use /dev/shm for acquisition if local disk space is
-insufficient, then persist/hash it on ba2). Local disks have only ~2.3GiB free;
-ba2 /tmp has678GiB, local /dev/shm32GiB and peer RAM117GiB. Transfer service is
-live on gateway192.168.255.254:18879, root/tmp/tcp-fmac3-transfer-20261027,
-local session1404; stop after acceptance. Peer capture image hash verified.
-Existing authenticated socket /tmp/echo-unloaded-shared-20261019-switch serves
-leaf0, so switch authentication is resolved. F_MAC3 is Ethernet108/ZS7-FPGA4,
-100G RS-FEC. Selected trace MAC0c:53:31:03:00:f4/IP192.168.128.244 use VIO
-overrides. Preserve failures; continue TCP/protocol/burst acceptance after
-successful capture. No board acceptance result exists yet.
+Both boards were reserved to pengxu and run kernel 6.8.0-146; stale root hostnames
+are not board identity. The current authenticated leaf0 socket is
+`/tmp/echo-unloaded-shared-20261019-switch`. The stopped transfer service used gateway
+192.168.255.254:18879, root `/tmp/tcp-fmac3-transfer-20261027` (session 1404);
+stopped after preserving receiver failure (PID 3158134). Restart explicitly on the same
+recorded endpoint if needed after the cable is connected. The requested memcached TCP test is complete. Broader protocol, competing-domain
+and repeat-boot validation was not run; it requires preservation of the current
+failed trace state first. Do not claim full trace export acceptance.
 
 ## Application depth/fanout candidate: routed, trace extraction failed
 
@@ -59,9 +75,9 @@ creation completed. The failure is automatic final-checkpoint trace-depth extrac
 hit the same failure after writing STA/CDC reports. Final-netlist diagnostics find
 no surviving source/sink FFs for declared sources **11, 24, 77** (even/odd
 `lcl_rsp_wod_i`, `scheduler_deadline0`); 132 other sources retain valid sinks.
-No implemented trace map or complete depth TSV exists. Preserve `.depths.tsv.tmp`
-as partial failure evidence; never substitute the unresolved input template or
-claim all declared events validated. Fixing extraction needs a new user request.
+The original build produced no implemented map or complete depth TSV. Preserve
+`.depths.tsv.tmp` as failure evidence. The later authorized read-only recovery
+and matched map are recorded above; the original build remains failed.
 
 All 2715 original output files are copied under `collected/` and hashed in
 `collected.sha256`; bitstream/probes/routed-DCP hashes match the remote originals.
