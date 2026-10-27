@@ -7,6 +7,29 @@ follow [AGENTS.md](../AGENTS.md) and the [capture procedure](../docs/development
 Do not substitute vulnerable pipeline 515944 for corrected artifacts. Match
 bitstream, trace map, headers and deployment image.
 
+## October 27 TCP acceptance and frozen trace failure
+
+zuestoll07 was programmed with exact `99fb5fed` and matched TCP-validation
+software; peer zuestoll14. One first-attempt cold boot and memcached TCP suite
+passed, including 16 clients, binary/text commands, pipelining, backpressure
+and connection-reset recovery. The memcached process remains running.
+
+The following F_MAC3 export received metadata and ARP but stalled on the first
+DMA read. Trace stop remains asserted, original VIO configuration restored,
+writeSlot=19, wrapped=0, sampleLost=1, DMAerror=0. No full trace or JTAG fallback,
+and no reset after this failure. Preserve the programmed board for DMA/DDR
+read-stall diagnosis. Bounded AXI ILA evidence shows stationary outstanding
+reads/writes across 1024 samples. The trace MAC is learned on leaf0 Ethernet108;
+SONiC reports down/no-transceiver despite demonstrated bidirectional packets,
+so do not infer a missing cable from that status alone.
+
+Local evidence: main `out/tcp-fmac3-acceptance-20261027/`; second copy on ba2
+at `/tmp/tcp-fmac3-acceptance-20261027/`, all copied SHA256 hashes verified.
+See [physical continuation](physical-implementation.md) for exact artifacts and
+capture configuration. The temporary gateway transfer service has stopped.
+Recheck reservations before board access; the failed frozen recorder is not
+permission to reset or reprogram.
+
 ## October 22 generator reservation recovery
 
 After an accidental release, EMG reacquired zuestoll14 on the existing

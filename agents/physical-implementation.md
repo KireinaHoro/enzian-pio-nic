@@ -3,7 +3,7 @@
 ## TCP hardware acceptance: memcached passed, trace DMA read stalled
 
 The user authorized capture updates and real TCP/memcached acceptance. Changes
-are on `hardware/tcp-fmac3-acceptance` in `/tmp/lauberhorn-rtl-congestion`;
+are merged into master in `/tmp/lauberhorn-rtl-congestion`;
 preserve the unrelated main audit checkout. Evidence lives in main
 `out/tcp-fmac3-acceptance-20261027/`, especially `result.json`, `record.json`
 and `memcached-first/summary.json`. No replacement implementation was launched.
