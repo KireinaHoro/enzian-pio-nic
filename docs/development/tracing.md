@@ -191,6 +191,18 @@ it is not a full-dump fallback. The
 [shared capture workflow](tracing.md) owns freezing,
 readout, persistence and restoration.
 
+For a stalled DDR read, inspect MIG calibration before blaming the Ethernet
+path. The maintained programmer supports a read-only diagnostic:
+
+```sh
+vivado -mode batch -source vivado/eci/program_fpga.tcl -tclargs SERVER Digilent/SERIAL --report-mig MATCHED.ltx i_app/design_1_i/ddr4_4 OUTPUT_PREFIX
+```
+
+This saves `.report.txt` and `.properties.txt` without programming, resetting,
+or reading trace memory. Successful report collection does not mean calibration
+passed. Normal programming requires calibration PASS before releasing BDK;
+see the [boot acceptance gate](validation.md).
+
 ### UDP Readout
 
 Full trace dumps use the lightweight UDP readout path.  `lauberhorn_trace_dma` reuses the read side of the same AXI

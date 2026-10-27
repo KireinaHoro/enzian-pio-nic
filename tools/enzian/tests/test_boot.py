@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import subprocess
 import pexpect
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,46 @@ LANES = 'N0.CCPI Lanes([] is good):' + ''.join(f'[{i}]' for i in range(24)) + '\
 
 
 class BootTests(unittest.TestCase):
+    def test_program_gate_and_bounded_retries(self):
+        good = 'End of startup status: HIGH\nTRACE_DDR_CALIBRATION_PASS cell=i_app/design_1_i/ddr4_4\n'
+        cases = [
+            ([(0, good)], True, 1),
+            ([(1, 'End of startup status: LOW'), (0, good)], True, 2),
+            ([(43, 'End of startup status: HIGH'), (0, good)], True, 2),
+            ([(43, 'CAL FAIL')] * 3, False, 3),
+            ([(0, 'End of startup status: HIGH')], False, 1),
+            ([(0, good.split('\n', 1)[1])], False, 1),
+            ([(1, 'SSH failed')], False, 1),
+        ]
+        for outcomes, passed, count in cases:
+            with self.subTest(outcomes=outcomes), tempfile.TemporaryDirectory() as root:
+                remaining = iter(outcomes)
+                def run(command, **kwargs):
+                    code, text = next(remaining)
+                    kwargs['stdout'].write(text)
+                    return subprocess.CompletedProcess(command, code)
+                with patch.object(boot.subprocess, 'run', side_effect=run) as runner:
+                    if passed:
+                        boot.program_held(['program'], Path(root))
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'CPU remains held'):
+                            boot.program_held(['program'], Path(root))
+                self.assertEqual(runner.call_count, count)
+                summary = json.loads((Path(root) / 'program-summary.json').read_text())
+                self.assertEqual(len(summary), count)
+                self.assertEqual(summary[-1]['status'], 'pass' if passed else 'failed')
+                for item in summary:
+                    self.assertTrue(Path(item['log']).is_file())
+
+    def test_tcl_calibration_gate(self):
+        source = (Path(__file__).resolve().parents[3] / 'vivado/eci/program_fpga.tcl').read_text()
+        definitions = source.split('proc main', 1)[0]
+        for status, expected in [('CAL PASS', 0), ('CAL FAIL', 1)]:
+            script = definitions + '\nproc get_hw_migs {args} {return mig0}\nproc get_property {args} {return i_app/design_1_i/ddr4_4}\nproc refresh_hw_mig {args} {}\nproc report_property {args} {}\nproc report_hw_mig {args} {return "Overall Status: STATUS"}\nset code [catch {require_trace_calibration dev0} message options]\nputs "RESULT=$code"\nif {$code && [dict get $options -errorcode] ne "LAUBERHORN CALIBRATION"} {exit 2}\n'.replace('STATUS', status)
+            result = subprocess.run(['tclsh'], input=script, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f'RESULT={expected}', result.stdout)
+
     def test_firmware_clock_declarations_are_preserved(self):
         self.assertEqual(boot.clock_report('Boot menu\r\n RCLK=2000MHz SCLK=800MHz\r\nClock source: reference\r\n'),
                          ['RCLK=2000MHz SCLK=800MHz', 'Clock source: reference'])

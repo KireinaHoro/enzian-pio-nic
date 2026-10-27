@@ -18,7 +18,15 @@ The following F_MAC3 export received metadata and ARP but stalled on the first
 DMA read. Trace stop remains asserted, original VIO configuration restored,
 writeSlot=19, wrapped=0, sampleLost=1, DMAerror=0. No full trace or JTAG fallback,
 and no reset after this failure. Preserve the programmed board for DMA/DDR
-read-stall diagnosis. Bounded AXI ILA evidence shows stationary outstanding
+read-stall diagnosis. Read-only MIG diagnosis confirms CAL FAIL at DQS gate,
+rank 0, nibble 17: no preamble detected, GT_STATUS samples all one. Full report
+and properties are `trace-ddr-calibration.{report,properties}.txt` in the local
+evidence directory. The MIG remains in its original SLR2 region and on F_D4;
+the trace relocation did not change its region or DDR configuration. The
+underlying board/DIMM/design cause is not isolated. Boot now gates calibration
+PASS alongside startup HIGH and retries explicit failures at most three times
+while CPU is held. Ten boot unit tests passed; no live retry/reset was performed.
+Bounded AXI ILA evidence shows stationary outstanding
 reads/writes across 1024 samples. The trace MAC is learned on leaf0 Ethernet108;
 SONiC reports down/no-transceiver despite demonstrated bidirectional packets,
 so do not infer a missing cable from that status alone.

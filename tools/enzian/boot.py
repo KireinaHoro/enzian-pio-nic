@@ -123,6 +123,32 @@ def run_attempts(args, command):
             (args.logs / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')
 
 
+def program_held(command, logs, attempts=3):
+    """Retry only explicit startup/calibration failures while CPU stays at BDK."""
+    results = []
+    for number in range(1, attempts + 1):
+        path = logs / ('program.log' if number == 1 else f'program-{number:02d}.log')
+        with path.open('w') as log:
+            result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
+                                    timeout=600)
+        transcript = path.read_text()
+        low = bool(re.search(r'End of startup status:\s*LOW', transcript))
+        high = bool(re.search(r'End of startup status:\s*HIGH', transcript))
+        calibrated = 'TRACE_DDR_CALIBRATION_PASS cell=i_app/design_1_i/ddr4_4' in transcript
+        passed = result.returncode == 0 and high and not low and calibrated
+        results.append(dict(attempt=number, log=str(path), returncode=result.returncode,
+                            startup_high=high, calibration_pass=calibrated,
+                            status='pass' if passed else 'failed'))
+        (logs / 'program-summary.json').write_text(json.dumps(results, indent=2) + '\n')
+        if passed:
+            print('PROGRAM_AND_TRACE_DDR_VERIFIED', flush=True)
+            return
+        retryable = low or result.returncode == 43
+        if not retryable or number == attempts:
+            raise RuntimeError(f'FPGA programming/calibration failed; CPU remains held; see {path}')
+        print(f'RETRYING_PROGRAM_HELD attempt={number + 1}', flush=True)
+
+
 def boot_once(args, command, logs):
     require_reservation(args.gateway, args.machine, args.owner)
     stack = contextlib.ExitStack()
@@ -135,12 +161,12 @@ def boot_once(args, command, logs):
         cpu = console('console')
         firmware_clocks = []
         def program_and_boot():
-            with (logs / 'program.log').open('w') as log:
-                if args.negative_no_bitstream:
-                    log.write(('CPU-ONLY PEER' if args.cpu_only else 'NEGATIVE TEST') + ': FPGA power-cycled; programming deliberately skipped\n')
-                else:
-                    subprocess.run(command, stdout=log, stderr=subprocess.STDOUT,
-                                   check=True, timeout=600)
+            if args.negative_no_bitstream:
+                (logs / 'program.log').write_text(
+                    ('CPU-ONLY PEER' if args.cpu_only else 'NEGATIVE TEST') +
+                    ': FPGA power-cycled; programming deliberately skipped\n')
+            else:
+                program_held(command, logs)
             cpu.send('n')
             evidence = None
             if not args.negative_no_bitstream:
