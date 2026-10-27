@@ -1,39 +1,37 @@
 # Physical implementation continuation
 
-## Application depth/fanout candidate: failed before placement
+## Application depth/fanout candidate: autopipeline fix running
 
-The requested application-clock pass is complete and ONE manual implementation
-has been launched. Source commit `44552a841b482f872466f65a1c892c23b3bfbf4d` is on
-private master; build ref `timing/20261026-app-depth-impl` pins that exact revision.
-Worktree: `/tmp/lauberhorn-rtl-congestion` on master. Preserve the main checkout's
-unrelated audit branch. Blocks dependency `3d68e3767b6f4b90edcd668bf843504e3738829d`
-is retained at private platform ref `deps/blocks-app-depth-fanout`.
+User authorized correcting the pre-placement DRC failure and one new implementation.
+Fix `99fb5fed7757b0b9ae26ce7f3910f51a1f93f595` is on private master, with build ref
+`timing/20261027-autopipeline-fix-impl`. Each trace source now has a unique
+AUTOPIPELINE_GROUP; implementation XDC explicitly scopes all transport hierarchies.
+Focused trace simulation passed. Read-only correction of the preserved optimized
+checkpoint selected 135 transports and 118 tagged sources; NTCN DRC reported zero
+errors. Evidence: main `out/autopipeline-fix-20261027/`. Clean generated collateral
+matches tested inputs except revision CSR; matching image manifest is clean99fb5fed.
+Prior application/transport gates remain applicable: only TraceAutoPipeline.scala
+and floorplan.xdc changed in hardware source since 44552a84.
 
-Exact record: main `out/app-depth-impl-20261026/record.json`. On enzian-ba2,
-remote root `/tmp/lauberhorn-app-depth-44552a84-20261026`, launcher **1651683**,
-Docker **55d8b40c5b066482c852479181d2527a83820851947775193faab65214077220**,
-Vivado **1651821**. Results check October 26 at **22:24:19 UTC** confirmed
-launcher/Vivado exited, exact container removed, no remaining Vivado processes,
-`build.exit=1` and no physical COMPLETE. Build failed at 17:51:28 UTC before
-placement: **DRC NTCN-7**, `traceAuto_71/source/data[10]` has limit 10 while
-`traceAuto_72/source/data[9]` has limit 5 in the same `AUTOPIPELINE_GROUP event`.
-`TracePipelineBank` uses that shared group name; the enclosing module annotation
-did not isolate these groups as intended. This is an autopipeline constraint
-failure, not evidence of congestion or timing regression. No fix/relaunch authorized.
+Exact new record: main `out/autopipeline-fix-impl-20261027/record.json`.
+Host enzian-ba2, root `/tmp/lauberhorn-autopipeline-fix-99fb5fed-20261027`;
+launcher **1701024**, Docker
+**0265d834b6a0670f3e7acf5375bfaa284d91b6f079f7d936962229cd68210006**,
+Vivado **1701178**. Started October 27 **05:04:25 UTC**; verified project creation
+in full build mode. All 1186 staged input hashes matched. Preflight timer
+`lauberhorn-autopipeline-fix-99fb5fed-20261027-preflight.timer` active, due
+**06:34:44 CET**. Stop polling until callback; verify exact processes and markers.
+If running then schedule results five hours from that check; no automatic replacement.
+No board operation or toolkit-master change. Retain build refs until processes end.
 
-Failed output tree, synthesis/linked/optimized checkpoints and logs are preserved
-under main `out/app-depth-impl-20261026/collected`, with file hashes. No bitstream,
-probes, routed checkpoint, implemented trace map/depth TSV or final physical reports
-were produced. The maintained digest requires final timing/metadata, which are absent;
-no routed comparison to `73c3dc76` or `68ec9af8`, top-1000, all-clock STA/CDC,
-actual placement/utilization or routed high-fanout conclusions are possible.
-The input trace template remains unresolved and is not a deployable map.
-
-Log confirms 135 trace pipeline sinks and coarse SLR2 assignments for trace
-processing/FIFOs, CMAC and status VIO (including 6376 VIO cells), before placement.
-These are constraint assignments, not actual placed membership. Results/recheck
-timers are inactive; no new callback scheduled. Build/dependency refs and all
-remote artifacts retained. Main audit checkout preserved; no board operations.
+Previous 44552a84 run failed before placement with NTCN-7: shared group `event`
+mixed limits 10 and 5. All processes terminated; 2665 failed-build files including
+synthesis/linked/optimized checkpoints and logs preserved and hashed under main
+`out/app-depth-impl-20261026/collected`. No bitstream/routed timing/resolved map
+was produced. This failure provides no timing or congestion comparison.
+Preserve main checkout's unrelated audit branch and all earlier artifacts/refs.
+Blocks dependency remains `3d68e3767b6f4b90edcd668bf843504e3738829d`, retained at
+private platform ref `deps/blocks-app-depth-fanout`.
 
 Changes target the 200 MHz app clock without relaxed timing exceptions or fine
 floorplanning. Every one of the preserved `68ec9af8` app top-1000 paths has an
@@ -83,10 +81,11 @@ unchanged UDP assertion now passes. A disk-full attempt stopped before validatio
 only six unreferenced/no-root Nix source-cache copies from this task were removed.
 Original data, artifacts and refs were preserved. No failed hardware run/relaunch.
 
-Next action requires a new user request: correct autopipeline group scoping before
-another implementation. Keep the final-artifact/trace-depth and timing checks pending
-for a future authorized build. DUT remains zuestoll07; separately authorized board
-acceptance must test F_MAC3 trace link/FEC and complete frozen UDP export.
+Results collection must compare 73c3dc76 and 68ec9af8, preserve final artifacts
+and hashes, verify resolved trace map/depths, all-clock STA/CDC/constraints,
+coarse placement/utilization/fanout and bounded app top-1000. Build success alone
+is not timing closure. DUT zuestoll07 still needs separately authorized F_MAC3
+trace link/FEC and full export acceptance after a matching bitstream exists.
 
 ## Relocation and trace transport included in the running build
 
