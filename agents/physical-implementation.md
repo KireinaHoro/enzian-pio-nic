@@ -1,38 +1,66 @@
 # Physical implementation continuation
 
-## Application depth/fanout candidate: autopipeline fix running
+## Application depth/fanout candidate: routed, trace extraction failed
 
-User authorized correcting the pre-placement DRC failure and one new implementation.
-Fix `99fb5fed7757b0b9ae26ce7f3910f51a1f93f595` is on private master, with build ref
-`timing/20261027-autopipeline-fix-impl`. Each trace source now has a unique
-AUTOPIPELINE_GROUP; implementation XDC explicitly scopes all transport hierarchies.
-Focused trace simulation passed. Read-only correction of the preserved optimized
-checkpoint selected 135 transports and 118 tagged sources; NTCN DRC reported zero
-errors. Evidence: main `out/autopipeline-fix-20261027/`. Clean generated collateral
-matches tested inputs except revision CSR; matching image manifest is clean99fb5fed.
-Prior application/transport gates remain applicable: only TraceAutoPipeline.scala
-and floorplan.xdc changed in hardware source since 44552a84.
+Exact build revision `99fb5fed7757b0b9ae26ce7f3910f51a1f93f595`; record and
+preserved artifacts: main `out/autopipeline-fix-impl-20261027/`. Build ref
+`timing/20261027-autopipeline-fix-impl` retained. On enzian-ba2 the root remains
+`/tmp/lauberhorn-autopipeline-fix-99fb5fed-20261027`. October 27 **11:36:02 UTC**:
+launcher 1701024 and Vivado 1701178 terminated, exact container
+0265d834b6a0670f3e7acf5375bfaa284d91b6f079f7d936962229cd68210006 removed,
+`build.exit=1`, physical COMPLETE absent. No new callback or build scheduled.
 
-Exact new record: main `out/autopipeline-fix-impl-20261027/record.json`.
-Host enzian-ba2, root `/tmp/lauberhorn-autopipeline-fix-99fb5fed-20261027`;
-launcher **1701024**, Docker
-**0265d834b6a0670f3e7acf5375bfaa284d91b6f079f7d936962229cd68210006**,
-Vivado **1701178**. Started October 27 **05:04:25 UTC**. Preflight at
-**05:34:59 UTC** verified exact launcher/container/Vivado alive, deriving generated
-clocks; `build.exit` and physical COMPLETE absent. All 1186 remote input hashes,
-image hash/revision and recorded application/transport/focused simulation PASSED
-markers reverified. Timing 38-439 clock-name collision warnings in static-shell
-`eci_link2.xdc` remain for final constraint review; no terminal failure observed.
-Recheck October 27 **11:05:40 UTC** verified the same launcher, container and
-Vivado still alive (6h01 elapsed). `phys_opt_design` completed successfully with
-zero errors; Vivado is writing the routed checkpoint. `build.exit` and physical
-COMPLETE remain absent, so final artifact/trace-depth/timing validation is pending.
-Old recheck timer/service were inactive. Recheck timer
-`lauberhorn-autopipeline-fix-99fb5fed-20261027-recheck.timer` verified active, due
-**12:35:47 CET** (11:35:47 UTC), 30 minutes from this check. Polling stopped.
-At callback inspect exact processes and markers; if still running, inspect existing
-timer/service then schedule another 30-minute recheck. No automatic replacement.
-No board operation or toolkit-master change. Retain build refs until processes end.
+Placement/autopipelining, routing, post-route physical optimization and bitstream
+creation completed. The failure is automatic final-checkpoint trace-depth extraction:
+`missing trace sink: i_app/i_trace_dma/traceAuto_11`. The after-build report flow
+hit the same failure after writing STA/CDC reports. Final-netlist diagnostics find
+no surviving source/sink FFs for declared sources **11, 24, 77** (even/odd
+`lcl_rsp_wod_i`, `scheduler_deadline0`); 132 other sources retain valid sinks.
+No implemented trace map or complete depth TSV exists. Preserve `.depths.tsv.tmp`
+as partial failure evidence; never substitute the unresolved input template or
+claim all declared events validated. Fixing extraction needs a new user request.
+
+All 2715 original output files are copied under `collected/` and hashed in
+`collected.sha256`; bitstream/probes/routed-DCP hashes match the remote originals.
+Bit SHA256 `6b7975e8ae8540436aa825b1cac8fb396274eb28804b6e7d1d838cb4e38e7e17`;
+routed DCP `b4082669b336bc5e2600a427cbb69b68a1e8f664f728456447f66d7461e3bcca`.
+Read `digest.txt`, `result.json`, `baseline-comparison.json` and supplemental
+`app-top1000/` reports. The maintained digest was read before detailed STA analysis.
+
+Final overall WNS **-0.891 ns**, TNS **-12095.535 ns**, **46732** failing setup
+endpoints; WHS **0.000 ns**, WPWS **+0.039 ns**, no hold/pulse violations.
+All 1005015 routable nets fully routed, zero route errors. Versus 73c3dc76:
+WNS improves 0.228 ns, TNS improves 19916.725 ns, 35528 fewer failing endpoints.
+Versus 68ec9af8: WNS improves 0.341 ns, TNS improves 10857.723 ns, 19110 fewer.
+Timing is NOT closed. Failing intra-clock domains: app -0.891/-9677.508 ns
+(30479 endpoints), clk_sys -0.399/-1730.644 (11699), main CMAC RX
+-0.396/-687.385 (4554). Other clock rows have no setup/hold/pulse violations.
+
+Comparable app-clock top-1000 uses same from/to clock, max_paths=1000,nworst=1.
+Largest sampled families: odd-DCS internal 544; ONCRPC reply retire/request DB 82;
+IP decoder aligner 60; even-DCS AXI to worker0 RX router 52; ownership domainCodes
+into traceAuto96/97 65 combined; even-DCS AXI to worker0 TX router 32. Worst path
+is reply identity cookie to Scheduler processDraining, -0.891 ns, 12 logic levels.
+These are bounded sample counts, not all failing endpoints.
+
+Actual placed cells: trace dump 30700, trace VIO 6315 and trace CMAC 5860 in SLR2;
+packet buffer 14997 in SLR0 (nonplaced primitives listed separately). SLR0/1/2
+CLB occupancy is 74.00/79.37/66.65%; LUT usage 38.11/44.83/34.81%. Trace CMAC
+is CMACE4_X0Y8, GTYE4_CHANNEL_X1Y56..59, matching F_MAC3. Experimental fine
+APP_TIMING_FLOORPLAN selectors absent; application ILA and EciThreadClRouter absent.
+Native UDP checksum logic absent from exact generated RTL. Other checksum logic
+remains (e.g. IP), so a generic checksum-name count is not an absence test.
+
+Constraint checks: no unclocked or unconstrained internal endpoints, no multiple
+clocks/invalid generated clocks/loops; F_D4_RESET_N lacks output delay. Bus-skew
+minimum reported slack +1.274 ns. Clock-name collision warnings remain, as do 98
+soft USER_SLR_ASSIGNMENT partition warnings. CDC critical counts: CDC-1 192,
+CDC-10 11, CDC-11 19; warnings CDC-6 73, CDC-15 8311, CDC-26 1971. CDC-11 is
+7 higher than both baselines; these are structural findings, not functional proof.
+High fanout includes app BUFG reset 30231; DCS even/odd resets 8809/8807;
+trace FIFO LUT control 6819; IP aligner ready 1399. Full reports retained.
+All read-only analysis processes also terminated; build refs remain retained.
+No board operation, toolkit-master change, optimization or replacement authorized.
 
 Previous 44552a84 run failed before placement with NTCN-7: shared group `event`
 mixed limits 10 and 5. All processes terminated; 2665 failed-build files including
@@ -92,13 +120,11 @@ only six unreferenced/no-root Nix source-cache copies from this task were remove
 Original data, artifacts and refs were preserved. The later hardware failure and
 explicitly authorized corrected run are recorded above.
 
-Results collection must compare 73c3dc76 and 68ec9af8, preserve final artifacts
-and hashes, verify resolved trace map/depths, all-clock STA/CDC/constraints,
-coarse placement/utilization/fanout and bounded app top-1000. Build success alone
-is not timing closure. DUT zuestoll07 still needs separately authorized F_MAC3
+Results and both baseline comparisons are recorded above. The unresolved trace
+map/depths remain an artifact blocker; timing still fails. DUT zuestoll07 still needs separately authorized F_MAC3
 trace link/FEC and full export acceptance after a matching bitstream exists.
 
-## Relocation and trace transport included in the running build
+## Relocation and trace transport in the collected build
 
 The F_MAC3 relocation and app ILA removal are included after completion of the
 application-clock pipelining/fanout pass described above.
@@ -118,8 +144,8 @@ defaults remain unchanged; use board-specific overrides at deployment.
 and a complete frozen UDP trace export with matching bitstream/probes/trace map,
 plus bounded JTAG integrity comparison. Confirm its switch port and identity;
 do not reuse zuestoll14 mappings. Historical F_MAC3 intermittency was observed
-on zuestoll14, not established on zuestoll07. No board test has run for these changes. Implementation is running as recorded
-above; further builds require a new request.
+on zuestoll14, not established on zuestoll07. No board test has run for these changes. The collected implementation failed trace extraction as recorded above; further
+builds require a new request.
 
 Source-only validation before this implementation: `nix build .#eciVivadoInputs` and
 `.#checks.x86_64-linux.trace-autopipeline` / `.#checks.x86_64-linux.workflow-tools`
@@ -135,8 +161,8 @@ and Nix derivation logs (simulation `7wf6yajb`, workflow `36lnz2dh`, bundle
 Trace event transport now uses resetless source/sink FF banks with payload and
 valid in one Vivado auto-pipeline group (limits 0/5/10 additional stages).
 Source banks have distinct soft USER_SLR_ASSIGNMENT groups; sink banks join
-SLR2. KEEP hierarchy and SHREG_EXTRACT=NO preserve extraction endpoints and
-prevent SRL transport. A downstream startup mask flushes uninitialized valid
+SLR2. KEEP hierarchy and SHREG_EXTRACT=NO request FF transport preservation, but
+the final optimizer removed three endpoint banks as recorded above. A downstream startup mask flushes uninitialized valid
 bits. The whole i_trace_dma wrapper remains unconstrained.
 
 The generated map is explicitly unresolved. The build Tcl and checkpoint-report
@@ -144,9 +170,8 @@ flow traverse final source-to-sink FF chains, require equal surviving bit depths
 including valid, and emit the final map plus per-bit depth TSV beside the
 bitstream. Maps include checkpoint/template/evidence/bitstream hashes; decoding
 rejects unresolved maps and capture checks the bitstream match. Correction
-covers this app-clock transport only, not variable async-FIFO delay. Actual
-Vivado insertion, selector matching and the measured map await the running
-implementation results.
+covers this app-clock transport only, not variable async-FIFO delay. Actual insertion and placement are recorded above; automatic map extraction
+failed and produced only partial depth evidence.
 
 ## Native UDP checksum removal: routed, setup timing fails
 
