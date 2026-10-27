@@ -23,11 +23,14 @@ clocks; `build.exit` and physical COMPLETE absent. All 1186 remote input hashes,
 image hash/revision and recorded application/transport/focused simulation PASSED
 markers reverified. Timing 38-439 clock-name collision warnings in static-shell
 `eci_link2.xdc` remain for final constraint review; no terminal failure observed.
-Old preflight and results timer/services were inactive. Results timer
-`lauberhorn-autopipeline-fix-99fb5fed-20261027-results.timer` verified active, due
-**11:35:06 CET** (10:35:06 UTC), five hours from this check. Polling stopped.
-At results callback inspect exact processes and markers; if still running, inspect
-existing timer/service then schedule a 30-minute recheck. No automatic replacement.
+Results check October 27 **10:35:21 UTC** verified the same launcher, container
+and Vivado still alive (5h30 elapsed), in physical synthesis Phase 2 Critical Path
+Optimization. `build.exit` and physical COMPLETE remain absent. Old results and
+recheck timer/services were inactive. Recheck timer
+`lauberhorn-autopipeline-fix-99fb5fed-20261027-recheck.timer` verified active, due
+**12:05:26 CET** (11:05:26 UTC), 30 minutes from this check. Polling stopped.
+At callback inspect exact processes and markers; if still running, inspect existing
+timer/service then schedule another 30-minute recheck. No automatic replacement.
 No board operation or toolkit-master change. Retain build refs until processes end.
 
 Previous 44552a84 run failed before placement with NTCN-7: shared group `event`
