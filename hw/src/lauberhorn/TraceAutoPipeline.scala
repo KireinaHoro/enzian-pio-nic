@@ -15,7 +15,8 @@ case class TracePipelineBank(width: Int, group: String, limit: Int) extends Comp
   data.addAttribute("SHREG_EXTRACT", "NO")
   data.addAttribute("KEEP", "TRUE")
   if (limit > 0) {
-    data.addAttribute("AUTOPIPELINE_GROUP", "event")
+    // Keep each source independent even if synthesis flattens a namespace.
+    data.addAttribute("AUTOPIPELINE_GROUP", s"${group}_event")
     data.addAttribute("AUTOPIPELINE_LIMIT", limit)
   }
   output := data

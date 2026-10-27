@@ -206,3 +206,12 @@ set trace_sinks [get_cells -hierarchical -filter {NAME =~ i_app/i_trace_dma/trac
 if {[llength $trace_sinks] == 0} {error "Trace auto-pipeline sink selector matched no cells"}
 puts "TRACE_AUTO_PIPELINE_SINKS [llength $trace_sinks]"
 add_cells_to_pblock $dcs_even_pblock $trace_sinks
+
+# Apply namespace properties to synthesized hierarchical cells explicitly. RTL
+# instance attributes alone did not establish independent namespaces in Vivado.
+set trace_transports [get_cells -hierarchical -filter {NAME =~ i_app/i_trace_dma/traceAuto_* && REF_NAME =~ *TraceAutoPipeline*}]
+if {[llength $trace_transports] != [llength $trace_sinks]} {
+    error "Trace auto-pipeline transport/sink count mismatch"
+}
+set_property AUTOPIPELINE_MODULE TRUE $trace_transports
+puts "TRACE_AUTO_PIPELINE_MODULES [llength $trace_transports]"

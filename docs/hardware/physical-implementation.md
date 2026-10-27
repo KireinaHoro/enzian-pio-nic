@@ -172,7 +172,9 @@ application pblocks. The application `ila_app` and its manual helper are removed
 CMAC ILAs, other debug cores and the static ECI edge ILA remain.
 
 Trace event transport uses reset-free, enable-free register banks with payload
-and valid in one `AUTOPIPELINE_GROUP` per source, and bounded stage insertion.
+and valid in one uniquely named `AUTOPIPELINE_GROUP` per source, and bounded stage
+insertion. Implementation XDC explicitly sets `AUTOPIPELINE_MODULE` on every
+transport hierarchy and checks its count against the receiving banks.
 Separate source/sink hierarchies use named soft `USER_SLR_ASSIGNMENT` groups;
 receiving banks share the existing SLR2 collector region. Startup masking flushes
 the maximum possible transport depth before accepting valid events. Pipeline
