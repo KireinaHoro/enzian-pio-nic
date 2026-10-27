@@ -18,6 +18,16 @@ programming followed exhaustion. The temporary capture transfer service stopped.
 Evidence and hashes: main `out/tcp-fmac3-retry-20261027/`, with a second copy on
 ba2 `/tmp/tcp-fmac3-retry-20261027/`. The identical repeated failure needs
 DDR/DIMM/interface investigation; the underlying physical cause is not isolated.
+Read-only exact `99fb5fed` DCP analysis (`out/mig-checkpoint-99fb5fed-20261027/`)
+found DDR/UI WNS +0.003 ns, WHS +0.010 ns, no setup/hold/pulse failures;
+visible MIG incoming/outgoing worst setup +0.008 ns and hold +0.010 ns.
+Fresh default DRC has no errors/critical warnings. Relevant warnings are
+BIIVRC-1 (bank70 nominal 0.600 V versus POD12_DCI 0.840 V) and methodology
+LUTAR-1 (PHY PLL reset logic). AMD PG150 documents the nominal Vref/initial
+POD reference distinction; the warning alone does not establish a voltage bug.
+All 45,013 MIG primitives with an SLR assignment are in SLR2 (1,441 have none).
+These results do not establish external DQS signal integrity or calibration.
+
 
 The preceding exact `99fb5fed` memcached TCP test passed with peer zuestoll14,
 including 16 clients, binary/text commands, pipelining, backpressure and reset
