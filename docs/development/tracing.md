@@ -62,6 +62,10 @@ to SHA256), `trace_map`, `trace_map_sha256`, `pipeline` (provenance), `peer_ip`,
 `peer_mac`, `peer_management_ip`, `export_port`, `peer_image`, `peer_image_sha256`, `transfer_root`,
 and `transfer_url`. `cable` accepts an exact `Digilent/SERIAL` ID or bare
 alphanumeric serial; the shared controller normalizes it once. Select addresses and artifacts for the actual reservation.
+For a board-specific trace identity, supply both `trace_ip` and `trace_mac`.
+The controller applies these VIO overrides alongside the capture destination,
+saves the original identity and restores it after capture. Omitting both uses
+the bitstream defaults; a physical CMAC move alone does not change that identity.
 The transfer endpoint must be running and reachable from the peer, with adequate
 space. The existing `tools/paper/transfer_results.py` service supplies this during
 campaigns; do not provision another server on an occupied endpoint. `tools/enzian/image.py` verifies the staged Nix image hash and mounts it read-only

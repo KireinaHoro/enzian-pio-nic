@@ -11,7 +11,7 @@ proc status {v prefix} {
  }
 }
 proc main {} {
- lassign $::argv mode server cable ltx snapshot ip mac helper head tail size
+ lassign $::argv mode server cable ltx snapshot ip mac helper head tail size localIp localMac
  if {$mode ni {status freeze configure trigger preserve check}} {error "Unknown control operation"}
  if {[string match "Digilent/*" $cable]} {set cable [string range $cable 9 end]}
  if {![regexp {^[A-Za-z0-9]+$} $cable]} {error "Invalid Digilent cable serial"}
@@ -39,7 +39,14 @@ proc main {} {
   }
   set_property OUTPUT_VALUE 1 [probe $v trace_stop]
   if {$mode eq "configure"} {
-   foreach {n value} [list trace_dump_gateway_mac $mac trace_dump_server_ip $ip trace_dump_override_valid 18 trace_dump_over_network 0] {
+   set mask 18
+   if {$localIp ne "" && $localIp ne "-"} {
+    if {![regexp {^[0-9a-fA-F]{8}$} $localIp] || ![regexp {^[0-9a-fA-F]{12}$} $localMac]} {error "Invalid trace identity"}
+    set_property OUTPUT_VALUE $localIp [probe $v trace_dump_local_ip]
+    set_property OUTPUT_VALUE $localMac [probe $v trace_dump_local_mac]
+    set mask 1b
+   }
+   foreach {n value} [list trace_dump_gateway_mac $mac trace_dump_server_ip $ip trace_dump_override_valid $mask trace_dump_over_network 0] {
     set_property OUTPUT_VALUE $value [probe $v $n]
    }
   }

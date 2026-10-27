@@ -100,10 +100,16 @@ class Control:
 
     def _call(self,mode,output=None,size=0):
         self.setup();c=self.config
+        if bool(c.get('trace_ip')) != bool(c.get('trace_mac')):
+            raise ValueError('Supply both trace_ip and trace_mac for a trace identity override')
+        if c.get('trace_mac') and not re.fullmatch(r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}',c['trace_mac']):
+            raise ValueError('Invalid trace MAC address')
         argv=[c['vivado'],'-mode','batch','-nolog','-nojournal','-source',self.remote+'/control.tcl','-tclargs',mode,
               c['hw_server'],c['cable'],c['ltx'],self.remote+'/snapshot.txt',
               ipaddress.IPv4Address(c['peer_ip']).packed.hex(),c['peer_mac'].replace(':',''),
-              self.remote+'/dump_trace_hw_axi.tcl',self.remote+'/head.bin',self.remote+'/tail.bin',str(size)]
+              self.remote+'/dump_trace_hw_axi.tcl',self.remote+'/head.bin',self.remote+'/tail.bin',str(size),
+              ipaddress.IPv4Address(c['trace_ip']).packed.hex() if c.get('trace_ip') else '-',
+              c.get('trace_mac','-').replace(':','')]
         attempts=[]
         for attempt in range(3):
             log=self.directory/f'operation-{len(list(self.directory.glob("operation-*.log")))+1:03d}-{mode}.log'

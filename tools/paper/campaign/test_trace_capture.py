@@ -65,11 +65,12 @@ class Trigger(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             harness=Path(directory)/'test.tcl'
             harness.write_text("""
-set values [dict create trace_stop 0 trace_dump_over_network 0 trace_dump_gateway_mac 0 trace_dump_server_ip 0 trace_dump_override_valid 0 x1 0 x2 0 x3 0 x4 0]
+set values [dict create trace_stop 0 trace_dump_over_network 0 trace_dump_gateway_mac 0 trace_dump_server_ip 0 trace_dump_override_valid 0 trace_dump_local_ip 0 trace_dump_local_mac 0 x3 0 x4 0]
 set edges 0
 proc get_hw_probes {args} {
  global values
  set filter [lindex $args end]
+ if {[string match {NAME == *} $filter]} {return [lindex $filter end]}
  if {[lsearch $args -filter]>=0} {return [lindex [split $filter /] end]}
  return [dict keys $values]
 }
@@ -94,8 +95,9 @@ proc get_hw_targets {args} {return target}
 proc get_hw_devices {args} {return device}
 proc get_hw_vios {args} {return vio}
 """ + source.read_text().split('if {[catch {main}')[0] + """
-set argv [list configure server cable ltx SNAPSHOT ip mac helper head tail 4096]
+set argv [list configure server cable ltx SNAPSHOT ip mac helper head tail 4096 c0a880eb 0c53310300eb]
 main
+if {[dict get $values trace_dump_local_ip] ne "c0a880eb" || [dict get $values trace_dump_local_mac] ne "0c53310300eb" || [dict get $values trace_dump_override_valid] ne "1b"} {error "identity override missing"}
 set f [open SNAPSHOT r];set original [read $f];close $f
 main
 set f [open SNAPSHOT r];set repeated [read $f];close $f
@@ -104,6 +106,9 @@ set argv [lreplace $argv 0 0 trigger]
 main
 main
 if {$edges!=1} {error "dump retriggered"}
+set argv [lreplace $argv 0 0 preserve]
+main
+if {[dict get $values trace_dump_local_mac] ne "0" || [dict get $values trace_dump_local_ip] ne "0" || [dict get $values trace_stop] ne "1"} {error "identity restoration failed"}
 """.replace('SNAPSHOT',str(Path(directory)/'snapshot')))
             result=subprocess.run(['tclsh',str(harness)],capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
