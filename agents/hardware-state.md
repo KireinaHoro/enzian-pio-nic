@@ -9,15 +9,17 @@ bitstream, trace map, headers and deployment image.
 
 ## October 27 TCP acceptance and frozen trace failure
 
-zuestoll07 is now held at BDK after the authorized calibration-gated retry.
-The harness verified CPU/FPGA rails off, then all three programming attempts
-reached startup HIGH but failed DDR calibration at DQS gate, rank 0, nibble 17
-(no preamble, GT_STATUS samples all one). It stopped before releasing BDK.
-Memcached and trace capture did not run on this retry. No further reset or
-programming followed exhaustion. The temporary capture transfer service stopped.
-Evidence and hashes: main `out/tcp-fmac3-retry-20261027/`, with a second copy on
-ba2 `/tmp/tcp-fmac3-retry-20261027/`. The identical repeated failure needs
-DDR/DIMM/interface investigation; the underlying physical cause is not isolated.
+zuestoll07 is held at BDK after three independently power-cycled attempts.
+Each attempt verified CPU/FPGA rails off (VDD_CORE 0/0.00390625 V,
+VCCINT_FPGA 0 V), programmed exact `99fb5fed`, reached startup HIGH and failed
+DQS-gate calibration at rank 0, nibble 17 (preamble missing, all samples one).
+The revised harness `81639e1a` cold-cycles before every LOW/CAL FAIL retry,
+with at most three programming failures; eleven boot tests passed. The live run
+exhausted that limit. No memcached test or trace capture ran, and no further
+reset or programming followed. The physical failure persists across cold starts.
+Evidence: main `out/tcp-fmac3-cold-retry-20261027/` and ba2
+`/tmp/tcp-fmac3-cold-retry-20261027/`, with verified hashes. The earlier in-place
+programming retry remains under `out/tcp-fmac3-retry-20261027/`.
 Read-only exact `99fb5fed` DCP analysis (`out/mig-checkpoint-99fb5fed-20261027/`)
 found DDR/UI WNS +0.003 ns, WHS +0.010 ns, no setup/hold/pulse failures;
 visible MIG incoming/outgoing worst setup +0.008 ns and hold +0.010 ns.
