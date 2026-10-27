@@ -1,5 +1,39 @@
 # Physical implementation continuation
 
+## Active TCP/F_MAC3 hardware acceptance
+
+The user authorized updating capture identity and testing TCP/memcached on real
+Enzian hardware. Work is on `hardware/tcp-fmac3-acceptance` in
+`/tmp/lauberhorn-rtl-congestion`; preserve the main audit checkout. No new FPGA
+implementation is needed or launched. Run evidence is main
+`out/tcp-fmac3-acceptance-20261027/record.json`.
+
+Capture MAC/IP override/restoration support is committed (`eb398b9e`). Exact
+routed-checkpoint probing proves sources 11,24,77 have GND-driven output-valid;
+`63fb1867` retains them as explicitly inactive with null latency and rejects
+captured events for those IDs. Eighteen Python tests and the Tcl chain-walker
+fixture passed. The maintained extractor is running read-only on enzian-ba2,
+remote `/tmp/autopipeline-99fb5fed-analysis/resolve.tcl` and `resolve.log`;
+collect `implemented-trace-map.json` and `.depths.tsv` when it finishes. Original
+failed-build evidence stays intact. This supersedes the earlier need for separate
+permission to fix extraction, but not its historical failure status.
+
+Matched `99fb5fed` TCP validation image built and was staged/hash verified at
+`/scratch/pengxu/tcp-fmac3-acceptance-20261027/tcp-validation-99fb5fed.img`, SHA256
+`6b9cb90f103c3f2a7d5b85c3997cdc567b1c7bfe6ba18da0787a48490de3bb00`.
+Both boards are currently reserved to pengxu. Shared-harness preflights confirmed
+DUT07 and peer14 kernel 6.8.0-146, neither with /nix/store mounted. Their root
+hostnames are stale (`zuestoll14` and `localhost`); kernel iSCSI initiator and
+console targets identify the actual boards. Structured summaries are in the run
+root. No reset/programming occurred. Generated `cases.json` is not executed.
+
+Next: finish and validate the resolved trace map; confirm actual DUT07 F_MAC3
+switch mapping/identity; stage capture service/client image and programmer Tcl;
+perform F_MAC3 full frozen capture/integrity acceptance and TCP/memcached tests
+through the shared harness, preserving any failure before reset. Switch helper
+requested agg0 authentication; user was asked for an existing authenticated SSH
+socket, not credentials. The waiting query was terminated without switch changes.
+
 ## Application depth/fanout candidate: routed, trace extraction failed
 
 Exact build revision `99fb5fed7757b0b9ae26ce7f3910f51a1f93f595`; record and
