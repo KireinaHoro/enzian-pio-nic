@@ -76,10 +76,13 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   paper charts, or maintained regression tests for supported functionality.
 
 - Create agent worktrees under the repository's persistent, ignored `out/`
-  directory, for example `out/worktrees/echo-cold`. Never put worktrees in
-  `/tmp` or another temporary directory: reboot or cleanup can erase uncommitted
-  work. This applies to sibling repositories as well; use each repository's
-  own `out/` directory.
+  directory, for example `out/worktrees/echo-cold`. Keep all task clones and
+  checkouts there too. Never put them in `/tmp` or another temporary directory:
+  reboot or cleanup can erase uncommitted work. This applies to sibling
+  repositories as well; use each repository's own `out/` directory. After a
+  reboot or Nix garbage collection, recover from these persistent checkouts and
+  rebuild missing dependencies; do not assume temporary files or unrooted Nix
+  store paths survived.
 
 - Keep measurement datasets in the sibling `../data` repository. Run plotting
   and analysis inside `nix develop`, reading archives from that checkout at
