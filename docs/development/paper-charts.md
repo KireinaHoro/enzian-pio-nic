@@ -159,7 +159,9 @@ Experiment archives at `../data/paper/APPLICATION/EXPERIMENT.tar.gz` use Git LFS
 downloads; fetch only the needed archive with
 `git -C ../data lfs pull --include="paper/echo/hot-unloaded-20261021.tar.gz" --exclude=""`.
 Echo plotters accept the archive directly, verify its complete SHA-256 inventory,
-and unpack into a temporary directory. Live JSON inputs remain supported for
+and unpack into a temporary directory. The chart inventory pins the data repository
+revision and input SHA-256; plotters reject a named inventory archive whose
+bytes do not match that checksum. Live JSON inputs remain supported for
 in-progress acquisition under ignored `out/`.
 
 `archive_echo_unloaded.py --input INPUT.json ... --output DATASET.tar.gz`

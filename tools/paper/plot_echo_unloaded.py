@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import paper_chart as chart
-from datasets import resolve_input, paper_directory
+from datasets import verified_input, paper_directory
 import numpy as np
 from campaign.experiment import input_file
 from campaign.import_unloaded import validate_matched, correct_cpu_submission
@@ -13,7 +13,7 @@ from campaign.policy import SIZES, observed_systems, system_label
 
 
 def render(source,output, *, rehearsal=False, sizes=SIZES):
-    source = resolve_input(source)
+    source = verified_input(source)
     with input_file(source, "unloaded.json") as extracted:
         result = _render(extracted, output, rehearsal=rehearsal, sizes=sizes)
     chart.provenance(output, source, "unloaded")

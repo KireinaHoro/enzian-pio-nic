@@ -9,7 +9,7 @@ import json
 import math
 from pathlib import Path
 import paper_chart as chart
-from datasets import resolve_input, paper_directory
+from datasets import verified_input, paper_directory
 import numpy as np
 from campaign.experiment import input_file
 from campaign.policy import SYSTEMS, observed_systems, SIZES, WORKERS, aggregate, qualifying, system_label
@@ -52,7 +52,7 @@ def panels(columns=3, rows=2):
 
 
 def render(source,destination, *, rehearsal=False, partial=False):
-    source = resolve_input(source)
+    source = verified_input(source)
     with input_file(source, "loaded.json") as extracted:
         result = _render(extracted, destination, rehearsal=rehearsal, partial=partial)
     chart.provenance(destination, source, "loaded")

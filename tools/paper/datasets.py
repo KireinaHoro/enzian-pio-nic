@@ -32,6 +32,23 @@ def resolve_input(source):
     return source if source.is_absolute() else PLATFORM / source
 
 
+def verified_input(source):
+    source = resolve_input(source).resolve()
+    try:
+        relative = '../data/' + source.relative_to(data_root()).as_posix()
+    except ValueError:
+        return source
+    inventory = json.loads((Path(__file__).with_name('charts.json')).read_text())
+    expected = {c['input_sha256'] for c in inventory['charts']
+                if c['manifest'] == relative and 'input_sha256' in c}
+    if expected:
+        with source.open('rb') as stream:
+            actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+        if expected != {actual}:
+            raise ValueError('Dataset does not match charts.json checksum: ' + str(source))
+    return source
+
+
 def source_record(source):
     source = resolve_input(source).resolve()
     result = {'dataset': os.path.relpath(source, PLATFORM)}
