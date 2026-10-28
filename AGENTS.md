@@ -75,6 +75,12 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   the requirement to track data and reproduction scripts actually used by active
   paper charts, or maintained regression tests for supported functionality.
 
+- Create agent worktrees under the repository's persistent, ignored `out/`
+  directory, for example `out/worktrees/echo-cold`. Never put worktrees in
+  `/tmp` or another temporary directory: reboot or cleanup can erase uncommitted
+  work. This applies to sibling repositories as well; use each repository's
+  own `out/` directory.
+
 - Keep work organized in coherent, goal-focused commits. Simple single-commit
   changes may be committed directly on this worktree's `master`. Use separate
   branches for larger goals and independent experiments; when complete, merge
