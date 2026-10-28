@@ -5,6 +5,29 @@ matching collateral. Continue with [validation](validation.md#board-validation)
 for board provisioning, automated orchestration and interactive testing. Record
 which checks actually ran.
 
+## Choose a development flow
+
+These flows run from a terminal without an agent. `nix build` realizes a pinned
+product or check; `nix develop -c COMMAND` runs an interactive development tool
+with the repository dependencies. Replace uppercase placeholders with reviewed
+local paths or configuration values before execution.
+
+| Flow | Start here | Main command |
+| --- | --- | --- |
+| RTL simulation | [Select a suite and inspect failures](validation.md#local-checks-and-simulation) | `nix develop -c mill gen.test.testOnly lauberhorn.host.eci.OncRpcSim` |
+| Software-only VM test | [KVM prerequisites and test driver](../software/vm-backend.md#validation) | `nix build .#checks.x86_64-linux.userspace-vm -L` |
+| Build and deploy on Enzian | [Build products](#build-commands-and-outputs), then [reserve, stage and test](validation.md#board-validation) | `nix build .#microbenchmarksImage -L`, then `nix develop -c python3 tools/enzian/test.py CASES.json --logs out/board-RUN --repeats 2` |
+| Echo measurement campaign | [Configure hardware and launch](benchmark-campaign.md#terminal-use-without-an-agent) | `nix develop -c python3 tools/paper/benchmark_campaign.py launch --config CAMPAIGN.json --root out/echo-RUN` |
+
+The VM tests software transport and lifecycle; RTL simulation exercises hardware
+models. Neither substitutes for matched-image Enzian acceptance. Deployment and
+campaign commands require reserved boards and prepared configuration, not just
+a successful image build.
+
+The [maintained tools reference](tools.md) identifies the source entry points,
+Nix owners, inputs and results behind these flows. Follow the flow guides for
+operating procedures; skills are not required to invoke the tools.
+
 ## Environment and ownership
 
 - Use `nix develop` (or `nix develop -c <command>`). `.envrc` enables the same flake through direnv. Recursive submodules are required; relevant local libraries are `deps/blocks` and `deps/spinalhdl`.

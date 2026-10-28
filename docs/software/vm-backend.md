@@ -151,6 +151,10 @@ parked domain when an idle core or unprotected RX-ready donor is available.
 
 ## Validation
 
+See the [development flow entry point](../development/workflow.md#choose-a-development-flow)
+and [VM tools reference](../development/tools.md#software-only-vm-tests) for
+command selection and source ownership.
+
 The Nixpkgs `testers.runNixOSTest` recipe in `nix/checks/vm.nix` supplies a
 six-vCPU guest, four isolated worker CPUs, the matching module/runtime,
 rpcbind, native application packages and a second guest as network peer.

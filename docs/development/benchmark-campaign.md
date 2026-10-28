@@ -7,6 +7,63 @@ size and codec registration from the same schema. The ONC-RPC XID identifies cli
 requests, including size zero; existing internal RPC IDs pair FPGA events. Adder acceptance and legacy loopback
 measurements retain their original semantics and provenance.
 
+## Terminal use without an agent
+
+Use the [development environment](workflow.md#environment-and-ownership) on a
+Linux host with a working `systemd --user` manager. The detached service inherits
+the launch shell's tool paths and SSH authentication socket. Keep the checkout,
+Nix dependencies and campaign root available for the lifetime of the service.
+The [maintained campaign tools](tools.md#echo-campaigns) describe the controller,
+hardware adapter and result-processing entry points.
+
+1. Build the matching DUT/generator images and boot artifacts, reserve the boards,
+   and complete [board setup](#board-setup-and-acceptance).
+2. Prepare `HARDWARE.json` with the artifacts, hashes, reservations, endpoints and
+   budgets described below. Prepare `CAMPAIGN.json` using the
+   [controller configuration](#controller-and-adapter-boundary), with adapter
+   argv `["python3", "tools/paper/echo_hardware.py", "HARDWARE.json"]`. Use absolute configuration/artifact paths
+   when they must survive a change in working directory.
+3. Configure notifications in **both** manifests. The default controller callback
+   is `codex queue`; a terminal-only run supplies its own `notify` argv and
+   `thread` label. The hardware adapter checks actual callback execution during
+   preflight. The command receives `--thread LABEL --message TEXT`, must complete
+   within 30 seconds, and must return zero only after recording/delivering the
+   message. No Codex process is required with a custom command.
+4. Export `ENZIAN_BMC_PASSWORD` into the launch environment for unattended
+   cold boots and launch from the repository root. Keep credentials out of manifests and Git.
+
+For local-file notifications, create a writable directory outside the fresh
+campaign root, then put this fragment in both manifests, replacing the absolute
+path and run label:
+
+```json
+{
+  "thread": "echo-RUN",
+  "notify": [
+    "python3", "-c",
+    "import json,sys; from pathlib import Path; p=Path(sys.argv[1]); f=p.open('a'); f.write(json.dumps(sys.argv[2:])+'\\n'); f.close()",
+    "/absolute/path/to/out/echo-notifications/events.jsonl"
+  ]
+}
+```
+
+The file records the preflight probe and terminal messages. Monitor the campaign
+status explicitly; a local file does not send a desktop notification.
+
+```sh
+mkdir -p out/echo-notifications
+nix develop -c python3 tools/paper/benchmark_campaign.py launch --config CAMPAIGN.json --root out/echo-RUN
+nix develop -c python3 tools/paper/benchmark_campaign.py status --root out/echo-RUN
+# After diagnosing a failure, resume the same compatible configuration:
+nix develop -c python3 tools/paper/benchmark_campaign.py launch --resume --config CAMPAIGN.json --root out/echo-RUN
+```
+
+Launch prints the systemd unit and status path. Read `status.json` and
+`events.jsonl` for progress, and `notification.json` for terminal delivery status.
+Failed attempts remain evidence; follow the recovery procedure below before
+resuming. This is a configured hardware workflow, not a board-independent demo:
+there is no generic ready-to-run campaign manifest in this checkout.
+
 ## Board setup and acceptance
 
 Build the matched DUT and generator images with the [development workflow](workflow.md).
@@ -679,7 +736,7 @@ Launch after local validation and live preflight:
 
 ```sh
 python3 tools/paper/benchmark_campaign.py launch --config CAMPAIGN.json --root out/echo-CAMPAIGN
-# Only when requested by the user, or after a terminal callback:
+# Inspect current progress:
 python3 tools/paper/benchmark_campaign.py status --root out/echo-CAMPAIGN
 # Explicit compatible resume, retaining failed attempt directories:
 python3 tools/paper/benchmark_campaign.py launch --resume --config CAMPAIGN.json --root out/echo-CAMPAIGN

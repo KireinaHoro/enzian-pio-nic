@@ -4,7 +4,9 @@ Use this guide to test a Nix-built application image on an Enzian board, select
 local checks, and choose an automation flow. Build images, boot bundles and
 matching FPGA inputs with the [development workflow](workflow.md); application
 package recipes and local overrides are documented there. Run host commands
-from the repository root in the Nix development environment.
+from the repository root in the Nix development environment. See the
+[maintained tools reference](tools.md#enzian-deployment-and-acceptance) for the
+harness components, inputs and results.
 
 The [AArch64 VM/RTL co-simulation proposal](../proposals/rtl-vm-cosimulation.md)
 defines a future route for running production ECI software against RTL and
@@ -652,6 +654,9 @@ counts are errors. Only after independent instruction validation fails may
 for cycles/cache statistics. It never clamps negatives or silently drops samples.
 
 ## Local checks and simulation
+
+The [simulation tool reference](tools.md#rtl-simulation) identifies Mill and
+Nix ownership; run targeted suites through the development shell below.
 
 Select the smallest relevant check for the changed component. These checks
 complement board acceptance; they do not establish physical ECI behavior.

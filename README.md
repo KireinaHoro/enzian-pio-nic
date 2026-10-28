@@ -9,6 +9,8 @@ Start with the [system map](docs/architecture/overview.md).
 ## Using and developing Lauberhorn
 
 - [Development setup and build commands](docs/development/workflow.md)
+- [Maintained development tools](docs/development/tools.md)
+- [Echo measurement campaigns](docs/development/benchmark-campaign.md#terminal-use-without-an-agent)
 - [Nix packages and deployment products](docs/development/nix.md)
 - [Validation: local checks and board testing](docs/development/validation.md)
 - [Formal models and verification](docs/formal/README.md)
