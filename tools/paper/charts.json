@@ -13,7 +13,8 @@
         "DPDK"
       ],
       "measurement": "Software tracing disabled for LH and DPDK; paired hardware MAC timestamps retained; all measured samples; log latency axis",
-      "provenance": "../data/paper/nullrpc/lh-hot-uninstrumented/README.md"
+      "provenance": "../data/paper/nullrpc/lh-hot-uninstrumented/README.md",
+      "input_sha256": "2a9469b8bae9a8a8fc71a291eced2e884288f0cf0fdb3efce281bb95ab179289"
     },
     {
       "id": "nullrpc-cold-latency-cdf",
@@ -22,7 +23,8 @@
       "manifest": "../data/paper/nullrpc/manifest.json",
       "command": "nix develop .#paper -c python3 tools/paper/plot_nullrpc.py --charts cdf",
       "status": "archived",
-      "tex": null
+      "tex": null,
+      "input_sha256": "2a9469b8bae9a8a8fc71a291eced2e884288f0cf0fdb3efce281bb95ab179289"
     },
     {
       "id": "nullrpc-hot-throughput-latency",
@@ -31,7 +33,8 @@
       "manifest": "../data/paper/nullrpc/manifest.json",
       "command": "nix develop .#paper -c python3 tools/paper/plot_nullrpc.py --charts throughput",
       "status": "included",
-      "tex": "evaluation.tex"
+      "tex": "evaluation.tex",
+      "input_sha256": "2a9469b8bae9a8a8fc71a291eced2e884288f0cf0fdb3efce281bb95ab179289"
     },
     {
       "id": "nullrpc-hot-workers-throughput",
@@ -40,7 +43,8 @@
       "manifest": "../data/paper/nullrpc/manifest.json",
       "command": "nix develop .#paper -c python3 tools/paper/plot_nullrpc.py --charts workers",
       "status": "included",
-      "tex": "evaluation.tex"
+      "tex": "evaluation.tex",
+      "input_sha256": "2a9469b8bae9a8a8fc71a291eced2e884288f0cf0fdb3efce281bb95ab179289"
     },
     {
       "id": "nullrpc-hot-latency-breakdown",
@@ -49,7 +53,8 @@
       "manifest": "../data/paper/nullrpc/breakdown/manifest.json",
       "command": "nix develop .#paper -c python3 tools/paper/plot_nullrpc_breakdown.py",
       "status": "included",
-      "tex": "evaluation.tex"
+      "tex": "evaluation.tex",
+      "input_sha256": "d739d76f846e1f6027b4e5a220d9adbeec5f23d7d94229167ebb10f603caaa01"
     },
     {
       "id": "echo-unloaded-hot-latency-cdf",
@@ -67,7 +72,8 @@
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "resident-workers"
-      }
+      },
+      "input_sha256": "c35bfdaf81790e5582f5be653191e417bdb297bc7555a881247a023609161288"
     },
     {
       "id": "echo-unloaded-hot-latency-breakdown",
@@ -86,7 +92,8 @@
       "execution_model": {
         "CS-A64": "resident-workers"
       },
-      "measurement": "Version 4 stacks pre-publication CPU components and NIC-wire, conserving the switch total; no separate wire-total marker. Resident baseline displayed as CS-A64; execution model retained in provenance."
+      "measurement": "Version 4 stacks pre-publication CPU components and NIC-wire, conserving the switch total; no separate wire-total marker. Resident baseline displayed as CS-A64; execution model retained in provenance.",
+      "input_sha256": "c35bfdaf81790e5582f5be653191e417bdb297bc7555a881247a023609161288"
     },
     {
       "id": "echo-unloaded-8b-cdf",
@@ -96,7 +103,8 @@
       "command": "nix develop .#paper -c python3 tools/paper/plot_echo_unloaded.py --input ../data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update",
       "status": "review",
       "tex": null,
-      "manifest_member": "manifest.json"
+      "manifest_member": "manifest.json",
+      "input_sha256": "164d6681a362271f4b46c8f2d92bb534ea54751383ffe2e3b3cea870e2782603"
     },
     {
       "id": "echo-unloaded-8b-breakdown",
@@ -106,7 +114,8 @@
       "command": "nix develop .#paper -c python3 tools/paper/plot_echo_unloaded.py --input ../data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update",
       "status": "review",
       "tex": null,
-      "manifest_member": "manifest.json"
+      "manifest_member": "manifest.json",
+      "input_sha256": "164d6681a362271f4b46c8f2d92bb534ea54751383ffe2e3b3cea870e2782603"
     },
     {
       "id": "echo-loaded-hot-latency-goodput",
@@ -123,7 +132,8 @@
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "udp-spawner"
-      }
+      },
+      "input_sha256": "ad3732ed5c670169abe76021baeb81814da60fc2095f918c6b92ab9e561514d1"
     },
     {
       "id": "echo-loaded-hot-peak-throughput-workers",
@@ -137,7 +147,8 @@
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "udp-spawner"
-      }
+      },
+      "input_sha256": "ad3732ed5c670169abe76021baeb81814da60fc2095f918c6b92ab9e561514d1"
     },
     {
       "id": "echo-overload-loss",
@@ -151,8 +162,11 @@
       "manifest_member": "manifest.json",
       "execution_model": {
         "CS-A64": "udp-spawner"
-      }
+      },
+      "input_sha256": "ad3732ed5c670169abe76021baeb81814da60fc2095f918c6b92ab9e561514d1"
     }
   ],
-  "planned_charts": []
+  "planned_charts": [],
+  "data_repository": "https://gitlab.inf.ethz.ch/project-openenzian/applications/lauberhorn/data",
+  "data_revision": "6dcc622195bab9ce15c058dcc4869b35758d09f0"
 }
