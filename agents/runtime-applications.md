@@ -40,7 +40,7 @@ The [control contract](../docs/software/scheduling-control-interface.md) is the
 human-facing protocol reference. Historical source integration originated on
 `feat/cooperative-yield`; that branch name is not current work state.
 
-The [October 3 finite board record](../data/eci/board-evidence/cooperative-20261003-contention.json)
+The [October 3 finite board record](../../data/eci/board-evidence/cooperative-20261003-contention.json)
 records two cold boots at a 133.281505 ms RX hold. Its loss-free measured
 interval contains 5,926 ordinary handoffs with matching activation parities and
 zero scheduling IRQ counter change,

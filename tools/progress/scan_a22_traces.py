@@ -20,7 +20,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     result = {'scope': __doc__, 'exports': [], 'legacy_csv': [], 'dma': [], 'thx_history': []}
-    for path in sorted((ROOT / 'data/eci').rglob('events.tar.gz')):
+    for path in sorted((ROOT.parent / 'data/eci').rglob('events.tar.gz')):
         rows, members, hits = 0, 0, []
         with tarfile.open(path, 'r|gz') as archive:
             for member in archive:
@@ -37,7 +37,7 @@ def main():
         record = {'path': str(path.relative_to(ROOT)), 'rows': rows, 'members': members, 'hits': hits}
         result['exports'].append(record)
         print(record['path'], rows, 'rows;', len(hits), 'HAKS', flush=True)
-    for path in sorted((ROOT / 'data/eci').glob('dcs_trace/*/parsed/*.csv')):
+    for path in sorted((ROOT.parent / 'data/eci').glob('dcs_trace/*/parsed/*.csv')):
         rows, hits = 0, []
         with path.open() as stream:
             header = next(stream)

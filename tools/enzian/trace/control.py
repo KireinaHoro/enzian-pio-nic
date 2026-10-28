@@ -73,10 +73,10 @@ class Control:
             actual=subprocess.check_output(['ssh',c['programmer'],shlex.join(['sha256sum',path])],text=True,timeout=120).split()[0]
             if actual!=sha:raise ValueError('Remote artifact hash mismatch: '+path)
         self.command(['ssh',c['programmer'],shlex.join(['mkdir',self.remote])],self.directory/'stage-directory.log')
-        sources=[Path(__file__).with_name('control.tcl'),ROOT/'data/eci/sys_trace/dump_trace_hw_axi.tcl']
+        sources=[Path(__file__).with_name('control.tcl'),ROOT/'tools/trace/eci/sys_trace/dump_trace_hw_axi.tcl']
         self.command(['rsync',*map(str,sources),c['programmer']+':'+self.remote+'/'],self.directory/'stage-source.log')
         evidence=self.directory/'implementation';evidence.mkdir()
-        implementation=[ROOT/'tools/enzian/image.py',*sorted(Path(__file__).parent.glob('*.py')),*sources,ROOT/'data/eci/sys_trace/dump_trace_udp.py']
+        implementation=[ROOT/'tools/enzian/image.py',*sorted(Path(__file__).parent.glob('*.py')),*sources,ROOT/'tools/trace/eci/sys_trace/dump_trace_udp.py']
         for source in implementation:(evidence/source.name).write_bytes(source.read_bytes())
         atomic(self.directory/'sources.json',{str(p):digest(p) for p in sources})
         # Snapshot matching map locally so captures remain interpretable after cleanup.

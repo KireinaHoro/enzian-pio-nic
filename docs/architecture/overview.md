@@ -30,7 +30,7 @@ Raw/control exceptions → bypass datapath 0 → kernel NAPI/netdev/ARP
 - `hw/src/lauberhorn/host/eci/` implements coherent transport and preemption; `vivado/eci/rtl/lauberhorn_eci.vhd` integrates generated RTL with DCS, ECI and CMAC.
 - `sw/kmod/` manages protected resources and worker activation; `sw/rt/` dispatches inline handlers, explicitly deferred fiber work and nested-call completions. ONC-RPC codecs perform XDR in software. See the [runtime](../software/runtime.md) and [programming model](../software/programming-model.md) for ownership and API details.
 - `sw/include/`, generated configuration/Mackerel headers, and `sw/core/eci/core.h` form a coupled hardware/software ABI. Regenerate collateral after hardware layout changes.
-- `data/eci/sys_trace/` and the microbenchmark client tools explain observed behavior; the [model index](../../model/README.md) separates current resource/scheduling models from the original historical correctness model.
+- `tools/trace/eci/sys_trace/` and the microbenchmark client tools explain observed behavior; the [model index](../../model/README.md) separates current resource/scheduling models from the original historical correctness model.
 
 ## Navigation
 

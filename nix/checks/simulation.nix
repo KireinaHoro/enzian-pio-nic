@@ -29,7 +29,7 @@ stdenv.mkDerivation {
     zlib
   ];
   LD_LIBRARY_PATH = lib.makeLibraryPath [ libpcap ];
-  LAUBERHORN_PCAP_DIR = "${replayPcaps}/data/eci/iladata";
+  LAUBERHORN_PCAP_DIR = "${replayPcaps}/hw/test/fixtures";
   buildPhase = ''
     runHook preBuild
     ${commands}

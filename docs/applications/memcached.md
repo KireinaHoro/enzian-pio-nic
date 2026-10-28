@@ -604,7 +604,7 @@ ran on CPUs 0–43. The joined cohort used all worker CPUs 44–47; one-outstand
 and ordinary-send cases predominantly use CPU 44. This is a bounded latency
 experiment, not a saturation or hot/cold residency classification.
 
-[Compact results, hashes and provenance](../../data/eci/board-evidence/memcached-breakdown-518836-20261011.json)
+[Compact results, hashes and provenance](../../../data/eci/board-evidence/memcached-breakdown-518836-20261011.json)
 record the matching hardware/software artifacts. Raw evidence is under
 `out/memcached-breakdown/`. The repeated trace joins all 1,548 in-window requests
 (1,536 measured plus readiness/setup/statistics), with 1,550 software rows including
@@ -679,7 +679,7 @@ with dependency `e24f2ef`. The matching map declares
 `trace_dma_input_before_batch_queue`; system events still cross an untimestamped
 asynchronous FIFO. The 412,129,920-byte RPC trace had zero recorded loss markers.
 This is functional RPC acceptance, not corrected memcached measurement evidence.
-[Artifact hashes and acceptance](../../data/eci/board-evidence/trace-recorder-518922-board-20261011.json)
+[Artifact hashes and acceptance](../../../data/eci/board-evidence/trace-recorder-518922-board-20261011.json)
 record WNS −0.691 ns and 48,874 failing setup endpoints, not timing closure.
 Corrected memcached burst measurements and the CDC uncertainty bound remain open.
 
@@ -730,7 +730,7 @@ lost-sample markers (the live sticky loss bit was already set before this window
 The legacy recorder queue-residence timestamp bias still applies: these are
 provisional hardware intervals, not corrected-recorder precision claims.
 
-[Compact evidence](../../data/eci/board-evidence/memcached-linux-bypass-518836-20261011.json)
+[Compact evidence](../../../data/eci/board-evidence/memcached-linux-bypass-518836-20261011.json)
 records artifact hashes, upstream/binary/closure provenance, thread affinities,
 per-repeat distributions and limitations. Local `out/memcached-vanilla/` contains
 `summary.json`, `joined.json`, wire/client records, `comparison.png`/`.svg`, the

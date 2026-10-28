@@ -329,7 +329,7 @@ than adding to them. See [runtime probe boundaries](../development/runtime-traci
 Run from the repository root with matching CSVs, full trace and map:
 
 ```sh
-python3 data/eci/apps/plot_latency.py CLIENT.csv SERVER.csv \
+python3 tools/trace/eci/apps/plot_latency.py CLIENT.csv SERVER.csv \
   --worker-cpu-base 44 --trace-dump TRACE.bin --trace-map MATCHING_MAP.json \
   --audit-json NEW-audit.json --no-plots
 python3 tools/enzian/benchmark_summary.py CLIENT.csv \

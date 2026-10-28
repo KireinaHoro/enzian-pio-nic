@@ -74,6 +74,16 @@ existing source filesets) for new derivations. Do not pass the whole checkout
 as a build input: exclude generated `result`/`out` trees, captures, build
 products and unrelated submodules. Audit the actual store source contents;
 filtering a derivation cannot undo an earlier full-checkout flake snapshot.
+Measurement archives belong in the separate sibling `../data` repository, not
+in the platform Git tree, a submodule, or a flake input. Run analysis with
+`nix develop -c python3 ... --input ../data/...`: Nix supplies tools while Python
+reads evidence from the filesystem. Only the two small capture regression
+fixtures under `hw/test/fixtures/` are retained as build inputs. Trace capture
+and decoding tools live under `tools/trace/`.
+
+Use `--no-link` for checks whose outputs need no persistent result link. Named
+`out/` build links are GC roots; remove them after their experiment and any CI
+consumers finish, preserving required evidence and deployment artifacts first.
 
 The DPDK generator selects benchmark build files and shared platform RPC/tracing
 sources explicitly; its client image selects four platform Python tools and the

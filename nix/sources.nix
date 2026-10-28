@@ -36,7 +36,7 @@ in
       "sh"
     ]
   );
-  pcaps = select (f: f.hasExt "pcap") [ "data/eci/iladata" ];
+  pcaps = select (f: f.hasExt "pcap") [ "hw/test/fixtures" ];
   vivado = lib.fileset.toSource {
     inherit root;
     fileset = lib.fileset.unions (

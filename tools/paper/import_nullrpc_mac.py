@@ -16,7 +16,8 @@ import numpy as np
 from scipy.optimize import linprog
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'data/paper/nullrpc'
+from datasets import data_root
+DATA = data_root() / 'paper/nullrpc'
 EVENTS = {0, 2, 3, 6, 7, 12, 51}
 CAMPAIGN = "w1"
 

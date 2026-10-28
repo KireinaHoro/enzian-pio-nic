@@ -159,6 +159,20 @@
           }) ciCommands
         );
         devShells.default = platform.shell;
+        # Evidence is read from ../data by host-side plotters, never a build input.
+        devShells.paper = pkgs.mkShell {
+          packages = [
+            (pkgs.python3.withPackages (ps: [ ps.numpy ps.scipy ps.matplotlib ]))
+            (pkgs.texlive.combine {
+              inherit (pkgs.texlive) scheme-small acmart libertine newtx inconsolata
+                xstring totpages environ trimspaces framed zref hyperxmp
+                ifmtarg draftwatermark ncctools comment preprint
+                pbalance catchfile txfonts fontaxes mweights fvextra;
+            })
+            pkgs.poppler-utils
+            pkgs.git
+          ];
+        };
       }
     );
 }

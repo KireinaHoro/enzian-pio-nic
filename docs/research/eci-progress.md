@@ -18,11 +18,11 @@ success establishes freedom from all shared-resource blocking.
 | Controlled GSYNC after early NACK | 516232 FPGA `6f5fa076adbad2002681d3051c7056522929b7a1`, corrected module `af0f64fe` | Two fresh cold-boot baselines (200 measured + 32 warmups), then 240 controlled RPCs; one/two observed stalled peers |
 
 516112 contains TX scrub/bounds, RX tail masking and inactive-domain admission
-corrections. The [original disclosure](../../data/eci/board-evidence/cooperative-20261003-isolation-blocker.json)
+corrections. The [original disclosure](../../../data/eci/board-evidence/cooperative-20261003-isolation-blocker.json)
 was an RTL reproduction of successor-visible TX storage, not a board exploit.
-The [correction record](../../data/eci/board-evidence/cooperative-20261003-isolation-correction.json)
+The [correction record](../../../data/eci/board-evidence/cooperative-20261003-isolation-correction.json)
 records 50 passing fast ECI tests (one ignored), and the
-[matched baseline](../../data/eci/board-evidence/isolation-516112-20261004.json)
+[matched baseline](../../../data/eci/board-evidence/isolation-516112-20261004.json)
 records the two cold boots. Those functional trials do not establish adversarial
 multi-domain isolation. The implemented rules belong to the
 [cache-line interface](../architecture/hw-sw-interface.md#payload-cleanup-across-owners).
@@ -30,8 +30,8 @@ multi-domain isolation. The implemented rules belong to the
 The first 516232 module had an idle-activation failure caused by invalid per-CPU
 storage placement. Module `af0f64fe` corrected it without changing the FPGA;
 only the corrected-module results below establish the successful follow-up.
-The [failure ledger](../../data/eci/board-evidence/gsync-516232-results-20261005.json)
-and [corrected-module ledger](../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
+The [failure ledger](../../../data/eci/board-evidence/gsync-516232-results-20261005.json)
+and [corrected-module ledger](../../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
 retain original capture and artifact provenance. This is not an unresolved
 GSYNC blocker. Routed timing was not closed: 516112 had WNS −0.396 ns with
 7,227 failing setup endpoints; 516232 had WNS −0.102 ns with 893.
@@ -55,16 +55,16 @@ establish an exact acquisition time or a matched build SHA.
 
 | Evidence | Recorded failure | Provenance |
 | --- | --- | --- |
-| [March 13 iperf](../../data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/panic.txt) | LFB entry timeout, low address `0x8080` | Directory date; commit `c7a0a1bb` March 13 |
-| [March 18 link-up](../../data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/panic.txt) | LFB timeout `0x80`, then external abort and panic in `napi_poll` | Directory date |
-| [Iperf without spinlock](../../data/eci/sys_trace/iperf-tx-nospinlock-timeouts/panic.txt) | LFB timeout `0x8100`, fault in `netdev_xmit`, iperf on CPU 24 | Commit `a88148a8`, June 14 |
-| [Second iperf without spinlock](../../data/eci/sys_trace/iperf-tx-nospinlock-timeouts-2/panic.txt) | LFB timeouts `0x8380`, `0x8280`, `0x8600`, `0x8080`, `0x8180`; `netdev_xmit`, CPU 12 | Commit `9e2fbabd`, June 15 |
-| [RPC-invoked bypass](../../data/eci/sys_trace/rpc-invoked-bypass-timeout-0x8080/panic.txt) | LFB timeout `0x8080`, external abort in `netdev_xmit` | Commit `c14f2f63`, June 18 |
+| [March 13 iperf](../../../data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/panic.txt) | LFB entry timeout, low address `0x8080` | Directory date; commit `c7a0a1bb` March 13 |
+| [March 18 link-up](../../../data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/panic.txt) | LFB timeout `0x80`, then external abort and panic in `napi_poll` | Directory date |
+| [Iperf without spinlock](../../../data/eci/sys_trace/iperf-tx-nospinlock-timeouts/panic.txt) | LFB timeout `0x8100`, fault in `netdev_xmit`, iperf on CPU 24 | Commit `a88148a8`, June 14 |
+| [Second iperf without spinlock](../../../data/eci/sys_trace/iperf-tx-nospinlock-timeouts-2/panic.txt) | LFB timeouts `0x8380`, `0x8280`, `0x8600`, `0x8080`, `0x8180`; `netdev_xmit`, CPU 12 | Commit `9e2fbabd`, June 15 |
+| [RPC-invoked bypass](../../../data/eci/sys_trace/rpc-invoked-bypass-timeout-0x8080/panic.txt) | LFB timeout `0x8080`, external abort in `netdev_xmit` | Commit `c14f2f63`, June 18 |
 
 The June captures are the closest preserved examples to the original coloring
 motivation. They include compressed system traces beside the panic logs. They
 are not controlled measurements of one near-timeout application worker delaying
-another. In the [older FSM trace analysis](../../data/eci/sys_trace/remote_fsm_trace_notes.md),
+another. In the [older FSM trace analysis](../../tools/trace/eci/sys_trace/remote_fsm_trace_notes.md),
 normal RX invalidations complete in about 40–44 ticks until a final `SINV_H`
 has no visible acknowledgment; a later GSYNC response establishes that the
 capture continues beyond that point. The analysis leaves the exact blocking
@@ -102,7 +102,7 @@ The RX-hold analyzer uses corrected timestamps, not the decoder's internal
 epoch-extended raw counter: recorder bubbles can make the latter advance by an
 entire 46-bit period. It rejects half-period spans and genuine wraps; regression
 coverage includes bubbles, source-pipeline compensation and peer overlap.
-The [515944 ledger](../../data/eci/board-evidence/cooperative-20261003-contention.json)
+The [515944 ledger](../../../data/eci/board-evidence/cooperative-20261003-contention.json)
 contains reprocessed counts with unchanged capture/client/TAD provenance. Its
 all-but-one interval retains 4,656 descriptor/TX-submit pairs while three peers
 hold for at least 26,656,301 cycles. Earlier uncorrected overlap counts are not
@@ -203,7 +203,7 @@ for investigation, including barriers or translation maintenance. It does not
 prove which instruction stalls or that the peer NACK causes its release. The
 matched TX path contains `dmb sy` before its commit read; instruction/kernel
 tracing or a controlled reproduction is still needed to distinguish causes.
-The [additional evidence](../../data/eci/board-evidence/echo-outlier-516112-20261004.json)
+The [additional evidence](../../../data/eci/board-evidence/echo-outlier-516112-20261004.json)
 retains capture provenance, surrounding event counts and accepted GSYNC headers.
 
 Scanning the entire loss-free measurement range strengthens the issuer-specific
@@ -221,7 +221,7 @@ There are 5,630 GSYNC requests during fully observed near-timeout RX holds.
 Some are followed by promptly completed worker requests before a peer's held
 RX completes. Those originate from non-worker PPVIDs and do not contradict a
 stall of the issuing core. The third GSYNC inside an outlier has PPVID 42.
-The [scan evidence and reproduction script](../../data/eci/board-evidence/gsync-worker-tail-516112-20261004.json)
+The [scan evidence and reproduction script](../../../data/eci/board-evidence/gsync-worker-tail-516112-20261004.json)
 record the ID histogram and examples. Neither CPU-side global retirement nor
 the interrupt/TLB-maintenance trigger is visible in this FPGA trace. A matching
 GSYNC ID is stronger evidence than temporal proximity alone, but does not prove
@@ -236,7 +236,7 @@ prove all worker permutations, infinite stalls, adversarial isolation or the
 four-worker tail distribution. Routed timing remains open (WNS -0.396 ns,
 7,227 failing setup endpoints).
 
-The [matched ledger](../../data/eci/board-evidence/worker-hol-516112-20261004.json)
+The [matched ledger](../../../data/eci/board-evidence/worker-hol-516112-20261004.json)
 records artifact hashes, job IDs, command inputs, corrected analysis, interrupted
 attempts and limitations.
 
@@ -290,7 +290,7 @@ The 184,771,456-byte final capture has zero decoded loss during all 240 measured
 requests and exactly 240 descriptor-to-commit pairs. An earlier freeze/resume
 loss marker precedes probe activation. Matched dmesg snapshots and all eight
 TAD checks passed. The
-[evidence ledger](../../data/eci/board-evidence/gsync-reproduction-516112-20261004.json)
+[evidence ledger](../../../data/eci/board-evidence/gsync-reproduction-516112-20261004.json)
 retains binary/source hashes, distributions, capture/health records and limits;
 raw outputs remain under `out/gsync-repro-20261004/` and shared scratch.
 [Validation](../development/validation.md#controlled-gsync-and-early-nack-checks)
@@ -324,7 +324,7 @@ All 240 descriptor-to-commit spans correlate with client replies, with no decode
 loss during the experiment. The complete unwrapped **864,557,952-byte** capture
 was saved and hash-verified before resetting for latency measurements. DMA status
 was clear and pre-freeze loss status was zero. Paired kernel/TAD assessment passed.
-The [correction and GSYNC ledger](../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
+The [correction and GSYNC ledger](../../../data/eci/board-evidence/percpu-gsync-516232-20261005.json)
 records provenance, distributions and limits. Raw evidence remains in
 `out/gsync-516232-fixed/`. These socket-client results are separate from the DPDK
 latency comparison. FPGA timing remains open.

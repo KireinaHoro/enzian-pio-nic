@@ -348,7 +348,7 @@ No hardware run was made for that orchestration change. Historical unloaded
 data retains its original configuration and provenance.
 
 Full unloaded chart integration is complete in
-`data/paper/echo/hot-unloaded-20261021.tar.gz`: 18 cohorts combining historical LH/DPDK
+`../data/paper/echo/hot-unloaded-20261021.tar.gz`: 18 cohorts combining historical LH/DPDK
 and CS-A64, 10,000 measured observations per cohort, with raw evidence hashes
 verified during archive/render. Both paper PDFs include all three systems;
 fixed-column dimensions, embedded fonts, conserved breakdowns and visual review

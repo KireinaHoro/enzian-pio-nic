@@ -17,12 +17,25 @@ let
     ref = applicationBranch;
     rev = applicationRevision;
   };
+  softwareSource = pkgs.lib.fileset.toSource {
+    root = software.outPath;
+    fileset = pkgs.lib.fileset.unions [
+      (software.outPath + "/sw/rt") (software.outPath + "/sw/include")
+    ];
+  };
+  transportSource = pkgs.lib.fileset.toSource {
+    root = platform.outPath;
+    fileset = pkgs.lib.fileset.unions [
+      (platform.outPath + "/sw/core") (platform.outPath + "/sw/usr-common.mk")
+      (platform.outPath + "/sw/kmod/ioctl.h")
+    ];
+  };
   runtimeSource = pkgs.runCommand "lauberhorn-matched-runtime-source" { } ''
     mkdir -p $out/sw/kmod
-    cp -r ${software.outPath}/sw/rt ${software.outPath}/sw/include $out/sw/
-    cp -r ${platform.outPath}/sw/core $out/sw/
-    cp ${platform.outPath}/sw/usr-common.mk $out/sw/
-    cp ${platform.outPath}/sw/kmod/ioctl.h $out/sw/kmod/
+    cp -r ${softwareSource}/sw/rt ${softwareSource}/sw/include $out/sw/
+    cp -r ${transportSource}/sw/core $out/sw/
+    cp ${transportSource}/sw/usr-common.mk $out/sw/
+    cp ${transportSource}/sw/kmod/ioctl.h $out/sw/kmod/
   '';
   runtime =
     if runtimeRef == null then

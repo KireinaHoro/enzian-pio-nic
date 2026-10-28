@@ -2,7 +2,7 @@
 
 Start with [validation](validation.md)
 for test selection, [capture configuration](#capture-configuration-and-commands)
-for FPGA preservation, or the [trace tools README](../../data/eci/sys_trace/README.md)
+for FPGA preservation, or the [trace tools README](../../tools/trace/eci/sys_trace/README.md)
 for low-level exporter commands. Commands below run from the repository root. Hardware defaults
 are deployment-specific; preserve the generated trace map alongside each capture.
 
@@ -42,9 +42,9 @@ below describe particular board experiments, not implicit defaults for new runs.
 
 The workflow reuses the existing low-level implementations:
 
-- `data/eci/sys_trace/dump_trace_udp.py`: CMAC/UDP receiver, bounded retries and
+- `tools/trace/eci/sys_trace/dump_trace_udp.py`: CMAC/UDP receiver, bounded retries and
   partial output. Its readiness marker is created only after socket bind.
-- `data/eci/sys_trace/dump_trace_hw_axi.tcl`: JTAG reader, called only for two
+- `tools/trace/eci/sys_trace/dump_trace_hw_axi.tcl`: JTAG reader, called only for two
   4 KiB head/tail integrity checks after a successful full Ethernet dump.
 - `tools/enzian/trace/control.tcl`: one parameterized VIO/snapshot/trigger/check
   script staged from source, never generated per trial.
@@ -122,7 +122,7 @@ the session directory owns its snapshot, not an independently invented name.
 
 ```sh
 nix develop -c python3 -m unittest discover -s tools/enzian/tests -p test_trace_capture.py
-nix develop -c python3 -m unittest discover -s data/eci/sys_trace/tests -p test_dump_trace_udp.py
+nix develop -c python3 -m unittest discover -s tools/trace/eci/sys_trace/tests -p test_dump_trace_udp.py
 ```
 
 Normal echo campaigns freeze FPGA recording and collect unloaded wire
@@ -301,7 +301,7 @@ before triggering metadata, supplies the actual peer's next-hop MAC/IP through
 VIO overrides, and preserves the original controls. Use the
 [configuration and commands](#capture-configuration-and-commands)
 for full capture and export-only recovery. Low-level receiver options remain in
-the [trace tools reference](../../data/eci/sys_trace/README.md).
+the [trace tools reference](../../tools/trace/eci/sys_trace/README.md).
 
 Before debugging UDP, check the VIO at `hier_trace_cmac_ctrl_stat/vio_0`:
 `stat_rx_aligned` and `stat_rx_status` must be one, with local/remote faults
@@ -378,13 +378,13 @@ placement likewise do not establish serial-link health.
 For offline analysis, start with the persisted raw buffer and matching map from
 the [capture workflow](tracing.md). Convert to pcapng and
 open it with the Lua dissector using the
-[exporter and Wireshark commands](../../data/eci/sys_trace/README.md). Ethernet
+[exporter and Wireshark commands](../../tools/trace/eci/sys_trace/README.md). Ethernet
 failure leaves partial evidence and stops; it does not authorize reset or full
 JTAG readout. The exporter can also read historical JTAG-produced files.
 
 ## Python Tooling
 
-The Python code under `data/eci/sys_trace` bridges the hardware recorder and
+The Python code under `tools/trace/eci/sys_trace` bridges the hardware recorder and
 the Wireshark dissector.  For pcapng output, it handles the outer
 TraceBufferDMA stream: sample width, source ID, raw timestamp, marker records,
 circular-buffer ordering, timestamp wrap, and floorplan pipeline latency.
@@ -401,7 +401,7 @@ trace-source pipeline stages, so their raw and adjusted timestamps are the same.
 
 ## Lua Dissector
 
-`data/eci/sys_trace/lauberhorn_trace.lua` is the Wireshark/TShark dissector.  It
+`tools/trace/eci/sys_trace/lauberhorn_trace.lua` is the Wireshark/TShark dissector.  It
 owns source-specific payload interpretation for interactive viewing.  It loads
 the trace map embedded by Python, uses source metadata to pick the right
 decoder, and turns raw payload bits into DCS fields, ECI packet details, or
@@ -411,8 +411,8 @@ and remain available as raw samples.
 
 Payload schema changes must update the trace map and relevant consumers: the
 Lua dissector for interactive viewing, `eci_state_output.py` for ECI analysis,
-and `data/eci/apps/plot_latency.py` for latency correlation. Outer-envelope,
-timestamp, or transport changes additionally affect the generic Python exporter.  See [the trace parser README](../../data/eci/sys_trace/README.md) for TShark,
+and `tools/trace/eci/apps/plot_latency.py` for latency correlation. Outer-envelope,
+timestamp, or transport changes additionally affect the generic Python exporter.  See [the trace parser README](../../tools/trace/eci/sys_trace/README.md) for TShark,
 Wireshark, and profile commands.
 
 ## End-To-End Flow
@@ -441,7 +441,7 @@ decode logic in the Lua dissector.
 ## Source map
 
 - [Event declarations](../../hw/src/lauberhorn/TracePlugin.scala), [DMA/map generation](../../hw/src/lauberhorn/LauberhornTraceDma.scala), [UDP responder](../../hw/src/lauberhorn/LauberhornTraceDump.scala).
-- [UDP capture tool](../../data/eci/sys_trace/dump_trace_udp.py), [exporter](../../data/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../data/eci/sys_trace/eci_state_output.py).
+- [UDP capture tool](../../tools/trace/eci/sys_trace/dump_trace_udp.py), [exporter](../../tools/trace/eci/sys_trace/export_trace_pcap.py), [ECI analysis](../../tools/trace/eci/sys_trace/eci_state_output.py).
 - [Latency measurement and attribution](../research/hot-measurement.md).
 
 ## Cooperative activation events

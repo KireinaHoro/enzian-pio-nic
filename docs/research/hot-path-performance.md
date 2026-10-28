@@ -60,7 +60,7 @@ The October 14 analysis of pipeline 518922's one-worker hot cohort uses the
 same two requests as the paper's median-case bar (IDs 2298 and 2306): **4.145 µs
 MAC-to-MAC**, including **2.225 µs CPU–MAC**. These are averages of the component
 vectors of the two central requests, not independent component medians. See the
-[tracked data, provenance and reproduction](../../data/paper/nullrpc/breakdown/README.md)
+[tracked data, provenance and reproduction](../../../data/paper/nullrpc/breakdown/README.md)
 and [transport timestamp limitations](../hardware/tracing.md).
 Tracing/probe overhead remains included.
 
@@ -295,9 +295,9 @@ The inputs are the exact baseline app (SHA256 `9a74fff6…`), runtime from
 glibc, matching loader, and public vDSO from the DUT kernel. Full hashes and
 paths are pinned in the manifests:
 
-- [Traced path](../../data/eci/board-evidence/hot-static-516232.json)
-- [Trace-disabled path](../../data/eci/board-evidence/hot-static-516232-untraced.json)
-- [Counts and resolver validation](../../data/eci/board-evidence/hot-static-516232-summary.json)
+- [Traced path](../../../data/eci/board-evidence/hot-static-516232.json)
+- [Trace-disabled path](../../../data/eci/board-evidence/hot-static-516232-untraced.json)
+- [Counts and resolver validation](../../../data/eci/board-evidence/hot-static-516232-summary.json)
 
 The exact app was retrieved from
 `enzian-gateway:/scratch/pengxu/buffered-latency-516232/microbenchmarks`;
@@ -308,7 +308,7 @@ scratch volume. Do not substitute the current PMU runtime for these binaries.
 
 ```sh
 python3 tools/enzian/static_path_count.py \
-  data/eci/board-evidence/hot-static-516232.json \
+  ../data/eci/board-evidence/hot-static-516232.json \
   --objdump aarch64-unknown-linux-gnu-objdump \
   --output out/static-hot-count/count.json
 python3 -m unittest discover -s tools/enzian -p test_static_path_count.py
@@ -410,7 +410,7 @@ and kernel behavior remain to be isolated. Instruction counts are withheld from
 the accepted summary; raw snapshots and standalone diagnostics are preserved.
 
 
-[Summary and provenance](../../data/eci/board-evidence/hot-pmu-516232-20261005.json)
+[Summary and provenance](../../../data/eci/board-evidence/hot-pmu-516232-20261005.json)
 retain raw counter validation and accepted statistics. The
 [static executed-path baseline](#historical-exact-binary-instruction-baseline--october-5)
 uses the exact pre-PMU binaries and explicit branch assumptions independently
@@ -425,8 +425,8 @@ baseline. It compares 1,000 hot kernel-off add/null-RPC requests per revision:
 `8a1521ee` on unchanged 518689 hardware `45cbfe52`. Runtime probes and FPGA
 recording were enabled. The latter cohort comes from 4,000 measured requests
 plus 32 warmups; every measured TX has one control forward/ack and no overflow
-invalidation. [Report](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json)
-and [reproduction inputs](../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010-inputs/README.md)
+invalidation. [Report](../../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010.json)
+and [reproduction inputs](../../../data/eci/board-evidence/dpdk-inline-hot-cold-518689-20261010-inputs/README.md)
 retain artifacts and complete distributions. These old recorders retain the
 [legacy timestamp and CDC limitations](../hardware/tracing.md#timestamp-capture-point-and-legacy-queue-bias).
 
@@ -439,7 +439,7 @@ localizes the remaining difference. No timing closure is established.
 
 ### FPGA localization
 
-The [FPGA-only comparison](../../data/eci/board-evidence/nullrpc-hardware-regression-20261010/summary.json)
+The [FPGA-only comparison](../../../data/eci/board-evidence/nullrpc-hardware-regression-20261010/summary.json)
 rejoins all **1,000 hot kernel-off requests from each revision** to the actual
 DCS control messages, using each capture's own map. No CPU epoch fit is used.
 Every request conserves its MAC interval. Mean MAC latency rises **464.830 ns**:
@@ -495,7 +495,7 @@ timing optimization was performed for this analysis.
 
 ### CPU localization
 
-The [CPU-side comparison](../../data/eci/board-evidence/nullrpc-software-regression-20261010/summary.json)
+The [CPU-side comparison](../../../data/eci/board-evidence/nullrpc-software-regression-20261010/summary.json)
 uses the same 1,000 measured hot kernel-off requests per revision. Raw CPU
 intervals from RX-read unblock to TX entry increase **356.930 ns**, directly
 accounting for most of the **401.845 ns** FPGA-observed host-turnaround growth.

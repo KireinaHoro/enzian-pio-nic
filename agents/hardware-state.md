@@ -224,7 +224,7 @@ The maintainer subsequently authorized release of all boards. Reservations
 `lauberhorn-linux-6.8` retained. The active target refused deletion; no manual
 cleanup was forced. This is a dated closeout, not current reservation state.
 Evidence: `out/benchmark-zs07/release-all-final.txt` and the
-[ledger closeout](../data/eci/board-evidence/dpdk-client-20261004.json).
+[ledger closeout](../../data/eci/board-evidence/dpdk-client-20261004.json).
 
 ## Early boot and artifact evidence
 
@@ -296,9 +296,9 @@ production acceptance campaign.
 The September 28 `5cda901` comparison used PSHA/RA2 and SINV_H with HAKD dmask 0.
 TX already used data-bearing FLDX_EH/HAKD. No CPU store is required to explain
 the exclusive RX response. Evidence and excerpts:
-[lci-only trial](../data/eci/board-evidence/lci-only-20261002.json),
-[permission comparison](../data/eci/board-evidence/rx-ra3-comparison-20261002.json),
-[RTL diagnostic](../data/eci/board-evidence/rx-writeback-rtl-20261002.json).
+[lci-only trial](../../data/eci/board-evidence/lci-only-20261002.json),
+[permission comparison](../../data/eci/board-evidence/rx-ra3-comparison-20261002.json),
+[RTL diagnostic](../../data/eci/board-evidence/rx-writeback-rtl-20261002.json).
 Raw failure artifacts remain in `out/board/20261002-lci/` and its recorded
 shared/ba2 locations; later deployments supersede the frozen-live-DUT note.
 
@@ -312,7 +312,7 @@ It has no decoded loss or asserted DC errors; 144 code-6 events are the trace-on
 ERR_REQ_STALLED diagnostic. The old blocked sequence now completes WDD→WDDA/LCIA
 and the next read. Aggregate equal WDD/WDDA counts are not independent transaction
 proof. WNS −0.005 ns with one failing endpoint is not timing closure.
-[Fix ledger](../data/eci/board-evidence/rx-writeback-fix-20261002.json);
+[Fix ledger](../../data/eci/board-evidence/rx-writeback-fix-20261002.json);
 `out/board/rx-fix-515802/` and `/scratch/pengxu/rx-fix-515802/` retain raw evidence.
 This predates the scheduling/address pivot and current RX replay shadow.
 
@@ -323,7 +323,7 @@ Pipeline 516112 (`b2117e9625cca7ce256b44db34a5f2a46a952622`, jobs
 100 correct one-worker add RPCs each. Tracing and static ILA were armed through
 module load; checks found no TAD/kernel fault. This finite baseline does not
 establish adversarial isolation or full progress. WNS −0.396 ns, TNS −917.034 ns,
-7,227 failing setup endpoints. [Matched ledger](../data/eci/board-evidence/isolation-516112-20261004.json);
+7,227 failing setup endpoints. [Matched ledger](../../data/eci/board-evidence/isolation-516112-20261004.json);
 `out/board/isolation-516112/` and `out/ci-followup/516112/` retain artifacts.
 
 The follow-up passed finite three-peer contention across two cold boots at
@@ -333,7 +333,7 @@ but two approximately 124 ms echo outliers remained between promptly answered
 TX acquisition and commit. The analyzer's recorder-bubble bug was corrected
 and old ranges reprocessed. A serial setup failure was captured separately.
 [Interpretation](../docs/research/eci-progress.md) and
-[ledger](../data/eci/board-evidence/worker-hol-516112-20261004.json) retain limits.
+[ledger](../../data/eci/board-evidence/worker-hol-516112-20261004.json) retain limits.
 Do not restart the closed dedicated campaign from these dated observations.
 
 These summaries derive from `8f05507a:docs/development/hardware-test-results.md`.

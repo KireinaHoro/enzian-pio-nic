@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location('trace_latency', ROOT / 'tools/physical/trace_latency.py')
 latency = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(latency)
-sys.path.insert(0, str(ROOT / 'data/eci/sys_trace'))
+sys.path.insert(0, str(ROOT / 'tools/trace/eci/sys_trace'))
 import dma_decode
 
 

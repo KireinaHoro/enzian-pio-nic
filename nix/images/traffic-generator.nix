@@ -9,7 +9,7 @@ let
     lh-dpdk-run = "tools/enzian/dpdk_run.py";
     lh-cpu-isolation = "tools/enzian/cpu_isolation.py";
     lh-benchmark-summary = "tools/enzian/benchmark_summary.py";
-    lh-trace-dump = "data/eci/sys_trace/dump_trace_udp.py";
+    lh-trace-dump = "tools/trace/eci/sys_trace/dump_trace_udp.py";
   };
   sourceRoot = ../..;
   scriptSource = pkgs.lib.cleanSourceWith {

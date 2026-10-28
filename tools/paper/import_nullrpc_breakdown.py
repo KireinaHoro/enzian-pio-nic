@@ -10,7 +10,8 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'data/paper/nullrpc'
+from datasets import data_root
+DATA = data_root() / 'paper/nullrpc'
 EVENTS = (3, 4, 5, 6, 9, 44, 45, 2)
 
 def archive_dpdk(source):

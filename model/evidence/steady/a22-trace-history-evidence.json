@@ -2,61 +2,61 @@
   "scope": "Count retained HAKS/A22 observations; absence in captures is not unreachability.",
   "exports": [
     {
-      "path": "data/eci/sys_trace/iperf-tx-0x0-timeout/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-0x0-timeout/events.tar.gz",
       "rows": 9731311,
       "members": 29,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-0x8000-timeout/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-0x8000-timeout/events.tar.gz",
       "rows": 8374961,
       "members": 29,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-boundary-trace-0x8000-timeout/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-boundary-trace-0x8000-timeout/events.tar.gz",
       "rows": 29038960,
       "members": 29,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-fldx-0x8080-timeout/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-fldx-0x8080-timeout/events.tar.gz",
       "rows": 20780883,
       "members": 29,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-interrupt-choked/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-interrupt-choked/events.tar.gz",
       "rows": 5366430,
       "members": 29,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-invctrl-0x8080-timeout/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-invctrl-0x8080-timeout/events.tar.gz",
       "rows": 44909546,
       "members": 29,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-nospinlock-timeouts/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-nospinlock-timeouts/events.tar.gz",
       "rows": 10939646,
       "members": 41,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/iperf-tx-nospinlock-timeouts-2/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/iperf-tx-nospinlock-timeouts-2/events.tar.gz",
       "rows": 11093069,
       "members": 41,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/ping-irq-stuck-intc-2word/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/ping-irq-stuck-intc-2word/events.tar.gz",
       "rows": 10695105,
       "members": 40,
       "hits": []
     },
     {
-      "path": "data/eci/sys_trace/rpc-invoked-bypass-timeout-0x8080/events.tar.gz",
+      "path": "tools/trace/eci/sys_trace/rpc-invoked-bypass-timeout-0x8080/events.tar.gz",
       "rows": 10635357,
       "members": 106,
       "hits": []
@@ -64,427 +64,427 @@
   ],
   "legacy_csv": [
     {
-      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/boot-serror-2026-03-11/parsed/dcs.csv",
       "rows": 0,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/boot-serror-2026-03-11/parsed/even_app.csv",
       "rows": 0,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/boot-serror-2026-03-11/parsed/even_sys.csv",
       "rows": 0,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/boot-serror-2026-03-11/parsed/odd_app.csv",
       "rows": 3,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/boot-serror-2026-03-11/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/boot-serror-2026-03-11/parsed/odd_sys.csv",
       "rows": 3,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-hang-nopanic-2026-03-11/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x0-2026-03-18/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-13/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-18/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8000-2026-03-20/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2-2026-03-13/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-2026-03-13/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-0x8080-3-2026-03-13/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/even-app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/even-app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/even-sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/even-sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/odd-app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/odd-app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/odd-sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x80/parsed/odd-sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/even-app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/even-app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/even-sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/even-sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/odd-app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/odd-app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/odd-sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080/parsed/odd-sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/iperf-timeout-rd-0x8080-2026-03-11/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/dcs.csv",
       "rows": 5,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/even_app.csv",
       "rows": 2,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/even_sys.csv",
       "rows": 2,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/odd_app.csv",
       "rows": 5,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2-2026-03-18/parsed/odd_sys.csv",
       "rows": 5,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/dcs.csv",
       "rows": 4,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/even_app.csv",
       "rows": 2,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/even_sys.csv",
       "rows": 2,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/odd_app.csv",
       "rows": 4,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-16/parsed/odd_sys.csv",
       "rows": 4,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/dcs.csv",
       "rows": 5,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/even_app.csv",
       "rows": 3,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/even_sys.csv",
       "rows": 3,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/odd_app.csv",
       "rows": 5,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-2026-03-18/parsed/odd_sys.csv",
       "rows": 5,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/dcs.csv",
       "rows": 4,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/even_app.csv",
       "rows": 2,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/even_sys.csv",
       "rows": 2,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/odd_app.csv",
       "rows": 4,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/link-up-timeout-0x80-3-2026-03-18/parsed/odd_sys.csv",
       "rows": 4,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/dcs.csv",
+      "path": "tools/trace/eci/dcs_trace/ping-normal-2026-03-11/parsed/dcs.csv",
       "rows": 1024,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/even_app.csv",
+      "path": "tools/trace/eci/dcs_trace/ping-normal-2026-03-11/parsed/even_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/even_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/ping-normal-2026-03-11/parsed/even_sys.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/odd_app.csv",
+      "path": "tools/trace/eci/dcs_trace/ping-normal-2026-03-11/parsed/odd_app.csv",
       "rows": 512,
       "hits": []
     },
     {
-      "path": "data/eci/dcs_trace/ping-normal-2026-03-11/parsed/odd_sys.csv",
+      "path": "tools/trace/eci/dcs_trace/ping-normal-2026-03-11/parsed/odd_sys.csv",
       "rows": 512,
       "hits": []
     }

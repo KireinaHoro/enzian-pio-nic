@@ -1,6 +1,0 @@
-data/**/*.bin.gz filter=lfs diff=lfs merge=lfs -text
-# Individual echo evidence belongs inside experiment archives.
-data/paper/echo/** -filter -diff -merge -text
-
-# One LFS object per coherent application experiment dataset.
-data/paper/*/*.tar.gz filter=lfs diff=lfs merge=lfs -text

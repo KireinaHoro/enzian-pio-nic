@@ -77,7 +77,8 @@ def save(fig, destination):
 
 def paper_output(destination):
     """The paper repository holds figures and compact source references only."""
-    return Path(destination).resolve() == Path(__file__).resolve().parents[3] / "paper/plots"
+    from datasets import paper_directory
+    return Path(destination).resolve() == paper_directory()
 
 
 def diagnostics(destination, name, values):
@@ -94,6 +95,6 @@ def provenance(destination, source, mode):
     import json
     root = Path(__file__).resolve().parents[2]
     revision = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
-    record = dict(platform_git=revision,
-                  dataset=os.path.relpath(Path(source).resolve(), root))
+    from datasets import source_record
+    record = dict(platform_git=revision, **source_record(source))
     (Path(destination) / ("echo-" + mode + "-source.json")).write_text(json.dumps(record, indent=2) + "\n")

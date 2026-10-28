@@ -10,7 +10,8 @@ import paper_chart
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / 'data/paper/nullrpc'
+from datasets import data_root, paper_directory
+DATA = data_root() / 'paper/nullrpc'
 CATEGORIES = ('handler', 'rpc', 'network', 'cpu_mac')
 LABELS = ('Handler', 'RPC runtime', 'Network stack', 'CPU--MAC')
 
@@ -138,7 +139,7 @@ def median_bar(rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest', type=Path, default=DATA/'breakdown/manifest.json')
-    parser.add_argument('--output', type=Path, default=ROOT.parent/'paper/plots')
+    parser.add_argument('--output', type=Path, default=paper_directory())
     parser.add_argument('--summary', type=Path)
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text())

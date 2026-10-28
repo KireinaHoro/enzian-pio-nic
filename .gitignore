@@ -39,3 +39,6 @@ dev-hdrs
 *.swp
 
 **/__pycache__/
+
+# Measurement evidence lives in the sibling data repository.
+/data/

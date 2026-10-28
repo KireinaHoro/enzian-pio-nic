@@ -15,8 +15,8 @@ Invoke `python3 tools/enzian/trace_capture.py capture --config TRACE.json --outp
 NEW_DIRECTORY`. This is the same `trace.session.capture()` operation used by
 [benchmark-campaign](../../../paper/skills/benchmark-campaign/SKILL.md). It stages
 one source-controlled `control.tcl` and reuses the existing
-`data/eci/sys_trace/dump_trace_udp.py` CMAC receiver and
-`data/eci/sys_trace/dump_trace_hw_axi.tcl` JTAG reader. Never write per-run Tcl,
+`tools/trace/eci/sys_trace/dump_trace_udp.py` CMAC receiver and
+`tools/trace/eci/sys_trace/dump_trace_hw_axi.tcl` JTAG reader. Never write per-run Tcl,
 copy remote `/tmp` scripts as execution dependencies, or construct a separate
 freeze/export/restore workflow. All peer execution uses the shared Enzian expect
 and console helpers.

@@ -317,7 +317,7 @@ is resolved; do not loosen the default guard silently for a paper campaign.
 `a516e0301b85b9b5cbad/attempt-1` passed completeness, hashes, timestamp boundaries,
 failure accounting, worker activity, PDF geometry and embedded-font checks.
 All five final PNG previews passed visual review. The final mode archives are
-indexed in `data/paper/echo/manifest.json`; `tools/paper/charts.json` identifies
+indexed in `../data/paper/echo/manifest.json`; `tools/paper/charts.json` identifies
 reproduction commands. The paper PDFs were refreshed; paper presentation changes
 remain uncommitted alongside the maintainer's existing `evaluation.tex` edit.
 Caladan remains the explicitly labelled UDP-spawner variant in this archive.
@@ -523,7 +523,7 @@ new hardware measurement result is implied by service submission.
 The two unloaded paper PDFs were visually reviewed and updated on October 22
 from the completed 18-cohort version-3 dataset. Small breakdown labels and
 1432 B CDF arrows were separated. Source archive:
-`data/paper/echo/hot-unloaded-20261022.tar.gz`; previews and PDF checks:
+`../data/paper/echo/hot-unloaded-20261022.tar.gz`; previews and PDF checks:
 `out/unloaded-reviewed-20261022/`. Paper presentation changes remain uncommitted;
 colleague prose edits were untouched. Loaded figure replacement awaits completion.
 
@@ -603,7 +603,7 @@ not substitute for real-workload switch acceptance. Dated boot placement is in
 - October 5 buffered DPDK hot/cold cohorts: 4,000 measured RPCs; kernel-off RTT
   medians 12.24 µs hot / 43.36 µs cold. Hot CPU-work analysis and reproducible
   static counting are recorded in the [consolidated evidence](../docs/research/roadmap.md#evidence-and-remaining-claims)
-  and [516232 comparison](../data/eci/board-evidence/dpdk-buffered-hot-cold-516232-20261005.json).
+  and [516232 comparison](../../data/eci/board-evidence/dpdk-buffered-hot-cold-516232-20261005.json).
 - October 10 inline-TX correction on unchanged 518689 hardware: 4,000 measured
   hot/cold RPCs plus 32 warmups, one control forward/ack and no overflow
   invalidation per measured TX. Kernel-off hot RTT 12.760 µs; MAC latency
@@ -672,7 +672,7 @@ also checked exact IPv4/broadcast, MAC and MTU restoration.
 Raw CSVs, summaries and the standalone `client-calibration.pdf`/`.png` are under
 `out/benchmark-zs07/`; remote originals are under
 `/scratch/pengxu/dpdk-benchmark/`. CSV hashes and compact distributions are
-retained in the [calibration ledger](../data/eci/board-evidence/dpdk-client-20261004.json). Different sample counts and both CPU isolation
+retained in the [calibration ledger](../../data/eci/board-evidence/dpdk-client-20261004.json). Different sample counts and both CPU isolation
 and telemetry changes distinguish the initial and final configurations; this
 is not an isolated causal estimate of the effect of one kernel option.
 
@@ -703,7 +703,7 @@ counter tests. Its read-only cross-built resolver probe used the same Nix glibc;
 an initial Ubuntu-libc Python probe was rejected for libc selection, retaining
 only its public vDSO. No traffic or reset was performed for that probe. Evidence:
 `out/static-hot-count/`, shared `/scratch/pengxu/static-hot-count/`, and the
-[summary](../data/eci/board-evidence/hot-static-516232-summary.json). Full original
+[summary](../../data/eci/board-evidence/hot-static-516232-summary.json). Full original
 record: `9ece0489:docs/development/hot-static-instructions.md`.
 
 ## October 16 DPDK baseline readiness
@@ -757,7 +757,7 @@ frozen-state note.
 
 Local records: `out/pmu-hot-516232/data/{server/server.csv,per-request.csv,pmu-summary.json}`;
 independent probes and matched boot evidence: `out/pmu-hot-516232/`.
-[Tracked summary](../data/eci/board-evidence/hot-pmu-516232-20261005.json).
+[Tracked summary](../../data/eci/board-evidence/hot-pmu-516232-20261005.json).
 Before accepting instruction counts in future work, reproduce known-instruction
 loops across memory footprints and adjacent-snapshot monotonicity using both
 userspace and kernel perf reads. Isolate PMU configuration, hardware semantics

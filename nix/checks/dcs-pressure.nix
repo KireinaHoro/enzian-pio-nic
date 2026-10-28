@@ -7,7 +7,7 @@ let
       ../../tools/progress/check_dcs_pressure.py
       ../../tools/progress/check_slice_routing.py
       ../../tools/progress/check_lock_tables.py
-      ../../data/eci/sys_trace/trace_metadata.py
+      ../../tools/trace/eci/sys_trace/trace_metadata.py
       ../../tools/progress/directory_witness.py
       ../../tools/progress/capacity.py
       ../../model/data/selected-8k.json

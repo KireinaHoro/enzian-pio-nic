@@ -13,7 +13,7 @@ is tracked in `~/work-local/skills`. The installed `~/.codex/skills/paper-chart`
 links to that source. This page defines the Lauberhorn-specific chart contract.
 
 Import `tools/paper/paper_chart.py` before pyplot. Track source observations and
-provenance under `data/paper/`, plotting and acquisition scripts under
+provenance under `../data/paper/`, plotting and acquisition scripts under
 `tools/paper/`, and the active chart inventory in `tools/paper/charts.json`.
 Track emitted paper PDFs in `../paper/plots/`; retain active figures until their
 replacements are validated. Check the paper source for actual TeX inclusion.
@@ -59,16 +59,22 @@ and unloaded workloads are schema-defined 8/128/1432-byte echo RPCs.
 From the platform root:
 
 ```sh
-nix develop -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
-nix develop -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
+nix develop .#paper -c python3 tools/paper/plot_echo.py --input CAMPAIGN/loaded.json
+nix develop .#paper -c python3 tools/paper/plot_echo_unloaded.py --input CAMPAIGN/full-unloaded.json
 ```
 
 Default output is `../paper/plots/`, independent of working directory. This
 directory receives PDFs and compact `echo-{loaded,unloaded}-source.json` references
-(platform Git revision and dataset path relative to platform).
+(platform Git revision, data repository revision, dataset path and SHA-256).
 Detailed statistics and trial JSON remain in platform output directories or
 dataset archives; they are emitted only with a non-paper output destination. Use
-`--output out/paper-preview` for temporary renders. The Nix development shell
+`--output out/paper-preview` for temporary renders. Set `LAUBERHORN_DATA_ROOT` to override the sibling data checkout; worktrees
+resolve the sibling of the main platform checkout automatically. Archives are
+opened by the Python process after entering the shell, never passed to a Nix
+derivation or flake input. The data repository
+[`migration.json`](../../../data/migration.json) records original platform
+publication commits and byte hashes; acquisition revisions remain in each dataset.
+The Nix development shell
 supplies Python, NumPy and Matplotlib; TeX Live supplies `pdflatex`, `acmart`,
 `libertine` and `newtxmath`. Missing fonts or classes fail explicitly.
 
@@ -109,7 +115,7 @@ The current unloaded paper comparison uses
 8/128/1432 B, with version-4 accounting. The loaded figures retain
 `hot-loaded-spawner-20261022.tar.gz` (36 cases, one through four workers)
 while the resident-worker loaded campaign runs. These are separate acquisitions;
-see the [mode archives](../../data/paper/echo/README.md).
+see the [mode archives](../../../data/paper/echo/README.md).
 The inventory is [charts.json](../../tools/paper/charts.json). Do not replace active PDFs with
 rehearsal or synthetic inputs. Existing measurement archives retain their
 original workload and provenance; use the echo campaign for new acquisition.
@@ -126,7 +132,7 @@ Commit implementation, acquisition tooling and measurement provenance normally.
 Leave chart layout, presentation and PDF iteration uncommitted until requested.
 
 For the completed 8-byte hot rerun comparison, use
-`--input data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update`.
+`--input ../data/paper/echo/hot-unloaded-8b-20261021.tar.gz --payload 8 --output out/caladan-8b-chart-update`.
 This standalone review retains historical LH/DPDK and fresh Caladan provenance;
 it does not replace the full-payload paper figures while collection continues.
 
@@ -149,9 +155,9 @@ acquisitions/configurations remain separate datasets. Keep a readable README
 outside the archive and point the chart inventory at the archive plus its
 `manifest_member`. Individual raw files stay inside it.
 
-Experiment archives at `data/paper/APPLICATION/EXPERIMENT.tar.gz` use Git LFS. CI skips automatic LFS
+Experiment archives at `../data/paper/APPLICATION/EXPERIMENT.tar.gz` use Git LFS. CI skips automatic LFS
 downloads; fetch only the needed archive with
-`git lfs pull --include="data/paper/echo/hot-unloaded-20261021.tar.gz" --exclude=""`.
+`git -C ../data lfs pull --include="paper/echo/hot-unloaded-20261021.tar.gz" --exclude=""`.
 Echo plotters accept the archive directly, verify its complete SHA-256 inventory,
 and unpack into a temporary directory. Live JSON inputs remain supported for
 in-progress acquisition under ignored `out/`.
@@ -162,8 +168,8 @@ separate hot-loaded and hot-unloaded archives. For other applications, assemble
 a self-contained dataset directory with relative evidence references, then run:
 
 ```sh
-nix develop -c python3 -m tools.paper.campaign.experiment \
-  out/frozen-experiment data/paper/APPLICATION/EXPERIMENT.tar.gz
+nix develop .#paper -c python3 -m tools.paper.campaign.experiment \
+  out/frozen-experiment ../data/paper/APPLICATION/EXPERIMENT.tar.gz
 ```
 
 The packer preserves file bytes, records all member hashes and produces

@@ -11,8 +11,9 @@ import paper_chart
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "data/paper/nullrpc"
-OUTPUT = ROOT.parent / "paper/plots"
+from datasets import data_root, paper_directory
+DATA = data_root() / "paper/nullrpc"
+OUTPUT = paper_directory()
 
 
 def measured(path, end_field="client_call_exit_ns"):

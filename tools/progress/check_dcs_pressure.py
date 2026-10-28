@@ -73,10 +73,10 @@ def main():
     if a.trace:
         summary['interpretation'] = 'trace-only: full-miss backpressure preserved for resident and all-locked sets'
         summary['scope'] = 'Actual DCU debug outputs and shared slice address-selection helper; XPM primitive model; not full trace mux/DMA or board validation'
-        for path in [DCS/'dcs/dcs_dcus/rtl/dcs_dcus.sv', Path('data/eci/sys_trace/trace_metadata.py')]:
+        for path in [DCS/'dcs/dcs_dcus/rtl/dcs_dcus.sv', Path('tools/trace/eci/sys_trace/trace_metadata.py')]:
             summary['sources'][str(path)] = hashlib.sha256((ROOT/path).read_bytes()).hexdigest()
         import sys
-        sys.path.insert(0,str(ROOT/'data/eci/sys_trace'))
+        sys.path.insert(0,str(ROOT/'tools/trace/eci/sys_trace'))
         from trace_metadata import DCS_ERROR_CODE_NAMES
         assert DCS_ERROR_CODE_NAMES[7] == 'ERR_RTG_ALLOC_FULL'
     (out/'summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')

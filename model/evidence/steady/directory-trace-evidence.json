@@ -89,7 +89,7 @@
     "protocol": "auto_lock",
     "scope": "Actual DCU debug outputs and shared slice address-selection helper; XPM primitive model; not full trace mux/DMA or board validation",
     "sources": {
-      "data/eci/sys_trace/trace_metadata.py": "25aa2ccef3f006ffd136ae8eedec40448e9549b438cdb5f37fd490bc2e8b165f",
+      "tools/trace/eci/sys_trace/trace_metadata.py": "25aa2ccef3f006ffd136ae8eedec40448e9549b438cdb5f37fd490bc2e8b165f",
       "hw/test/rtl/dcs_pressure/DcsTraceTb.sv": "5ea538a4a7a882753e800b157127c857e70958262ebfffb1756cffb857815678",
       "hw/test/rtl/dcs_pressure/XpmTdpModel.sv": "1b412f32dc063e7cccea0008ad3085fb4a0cf4c834cf3182d0bcab96c06b7ca7",
       "vivado/eci/directory-controller-slice/dcs/dcs_dcus/rtl/dcs_dcus.sv": "6684776b9526f032cb0817bffe20384aaa59ad510286a80ec13d5fc54fa257e0",

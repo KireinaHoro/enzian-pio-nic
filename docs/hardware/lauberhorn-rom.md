@@ -314,7 +314,7 @@ protocol, decode/instrumentation, synthesis and placement contributions.
 
 ### Reproducing the evaluation
 
-[Compact evidence](../../data/eci/physical-evidence/dc-simplification-20261002.json)
+[Compact evidence](../../../data/eci/physical-evidence/dc-simplification-20261002.json)
 records checkpoint/report hashes, exact pins and hierarchy counts. Raw CI
 reports/checkpoints and the new detail reports are retained under
 `out/physical/dc-simplification/{2852730,2861585}/`; remote copies are at
@@ -519,12 +519,12 @@ behavior from the supported protocol.
 
 [scan_a22_traces.py](../../tools/progress/scan_a22_traces.py) checks:
 
-- Ten retained `data/eci/sys_trace/*/events.tar.gz` archives: **161,565,268 CSV
+- Ten retained `../data/eci/sys_trace/*/events.tar.gz` archives: **161,565,268 CSV
   event rows**, zero HAKS. These include iperf timeouts, interrupt choking,
   FLDX/invalidation-control variants and RPC/bypass failures. These are existing
   decoded exports; this scan does not regenerate them from raw data or establish
   their historical map provenance/completeness anew.
-- **85 parsed DCS/ECI CSVs**, 36,942 rows, under `data/eci/dcs_trace`: zero A22
+- **85 parsed DCS/ECI CSVs**, 36,942 rows, under `tools/trace/eci/dcs_trace`: zero A22
   request labels or HAKS wire labels. Copies/stages can overlap; these counts
   are not distinct transactions.
 - The **322,322,624-byte F_MAC1** capture from revision `5cda901` and the recovered

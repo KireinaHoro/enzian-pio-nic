@@ -9,6 +9,7 @@ import json
 import math
 from pathlib import Path
 import paper_chart as chart
+from datasets import resolve_input, paper_directory
 import numpy as np
 from campaign.experiment import input_file
 from campaign.policy import SYSTEMS, observed_systems, SIZES, WORKERS, aggregate, qualifying, system_label
@@ -51,6 +52,7 @@ def panels(columns=3, rows=2):
 
 
 def render(source,destination, *, rehearsal=False, partial=False):
+    source = resolve_input(source)
     with input_file(source, "loaded.json") as extracted:
         result = _render(extracted, destination, rehearsal=rehearsal, partial=partial)
     chart.provenance(destination, source, "loaded")
@@ -189,7 +191,7 @@ def _render(source,destination, *, rehearsal=False, partial=False):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input',type=Path,required=True)
-    p.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[3]/'paper/plots')
+    p.add_argument('--output',type=Path,default=paper_directory())
     p.add_argument('--rehearsal',action='store_true',help='Validate and render the smaller non-paper matrix')
     p.add_argument('--partial',action='store_true',help='Render completed points while collection is in progress')
     a=p.parse_args(); render(a.input,a.output,rehearsal=a.rehearsal,partial=a.partial)

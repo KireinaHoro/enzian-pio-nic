@@ -428,8 +428,8 @@ def implementation(config):
            *sorted((ROOT/'tools/enzian').glob('*.py')),
            *sorted((ROOT/'tools/enzian/trace').glob('*.py')),
            ROOT/'tools/enzian/trace/control.tcl', ROOT/'vivado/eci/program_fpga.tcl',
-           ROOT/'data/eci/sys_trace/dump_trace_udp.py',
-           ROOT/'data/eci/sys_trace/dump_trace_hw_axi.tcl', ROOT/'tools/enzian/cpu.sh',
+           ROOT/'tools/trace/eci/sys_trace/dump_trace_udp.py',
+           ROOT/'tools/trace/eci/sys_trace/dump_trace_hw_axi.tcl', ROOT/'tools/enzian/cpu.sh',
            *(Path(p).resolve() for p in config['adapter'] if Path(p).is_file())]
     code={str(p):digest(p) for p in paths}
     return code

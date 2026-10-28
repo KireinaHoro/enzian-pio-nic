@@ -32,9 +32,10 @@ let
       ../../tools/enzian/activation_breakdown.py
       ../../tools/enzian/tests/test_activation_breakdown.py
       ../../tools/enzian/tests/test_rx_holds.py
-      ../../data/eci/sys_trace/dma_decode.py
-      ../../data/eci/sys_trace/common.py
-      ../../data/eci/sys_trace/sample_window.py
+      ../../tools/trace/eci/sys_trace/dma_decode.py
+      ../../tools/trace/eci/sys_trace/common.py
+      ../../tools/trace/eci/sys_trace/sample_window.py
+      ../../vivado/eci/program_fpga.tcl
       ../../vivado/eci/container.yml
     ];
   };

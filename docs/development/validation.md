@@ -736,8 +736,8 @@ what response occurred in a historical board capture.
 - Simulation config uses Verilator, FST waves, and a `verilator-cache` path; emitted paths depend on the Mill test working directory. Use the printed workspace path instead of assuming a fixed root-level `simWorkspace`.
 - The shared `DutSimFunSuite` writes `sim_transcript.log.gz` and prints a reproducer including `-DsetupSeed=... -DsimSeed=... -DprintSimLog=true`. Preserve `simulation-seeds.txt`, `simulation-runtime.txt`, `simulation-inputs.sha256`, test name, revision/submodule revisions, Nix lock and generated config. Follow the [seed and stimulus contract](#simulation-reproducibility) when replaying.
 - `tools/ci/nix-build.sh` follows the failed directory reported by Nix rather than assuming `/tmp/nix-build-*`. This retains evidence with both old and `/nix/var/nix/builds/nix-*` layouts.
-- ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../data/eci/sys_trace/README.md).
-- PCAP replay tests load `data/eci/iladata/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
+- ECI tests using `testWithDB` emit `lauberhorn_trace.pcapng` from a `finally` block. This supports causal event inspection even on failure; load the repository Lua dissector as described in the [trace tools](../../tools/trace/eci/sys_trace/README.md).
+- PCAP replay tests load `hw/test/fixtures/rx-lockup{,-2}.pcap` and use libpcap through pcap4j. Nix configures `LD_LIBRARY_PATH`; missing native libpcap can fail before an RTL assertion.
 - For simulator changes in dependencies, inspect/update the submodule rather than copying its implementation into the platform. Blocks regression gates every pipeline; see the [CI checks](ci.md#pipeline-and-handoff).
 
 ## Coverage limits that affect claims

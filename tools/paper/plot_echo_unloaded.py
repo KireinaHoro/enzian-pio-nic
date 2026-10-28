@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import paper_chart as chart
+from datasets import resolve_input, paper_directory
 import numpy as np
 from campaign.experiment import input_file
 from campaign.import_unloaded import validate_matched, correct_cpu_submission
@@ -12,6 +13,7 @@ from campaign.policy import SIZES, observed_systems, system_label
 
 
 def render(source,output, *, rehearsal=False, sizes=SIZES):
+    source = resolve_input(source)
     with input_file(source, "unloaded.json") as extracted:
         result = _render(extracted, output, rehearsal=rehearsal, sizes=sizes)
     chart.provenance(output, source, "unloaded")
@@ -152,7 +154,7 @@ def _render(source,output, *, rehearsal=False, sizes=SIZES):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input',type=Path,required=True)
-    p.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[3]/'paper/plots')
+    p.add_argument('--output',type=Path,default=paper_directory())
     p.add_argument('--rehearsal',action='store_true',help='Render short non-paper validation cohorts')
     p.add_argument('--payload',type=int,choices=SIZES,help='Render one complete payload comparison')
     a=p.parse_args();render(a.input,a.output,rehearsal=a.rehearsal,sizes=(a.payload,) if a.payload else SIZES)

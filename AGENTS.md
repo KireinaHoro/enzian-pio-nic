@@ -81,6 +81,10 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   work. This applies to sibling repositories as well; use each repository's
   own `out/` directory.
 
+- Keep measurement datasets in the sibling `../data` repository. Run plotting
+  and analysis inside `nix develop`, reading archives from that checkout at
+  runtime; never pass measurement archives into derivations or flake inputs.
+
 - Push with `git push -o ci.skip` by default. Trigger CI only when explicitly
   instructed, for example to launch a hardware build; omit `-o ci.skip` for
   that push.

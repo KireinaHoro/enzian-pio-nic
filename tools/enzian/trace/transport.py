@@ -49,7 +49,7 @@ class Transport:
         log.close();return process
 
     def receive(self,size):
-        c=self.config;reader=ROOT/'data/eci/sys_trace/dump_trace_udp.py'
+        c=self.config;reader=ROOT/'tools/trace/eci/sys_trace/dump_trace_udp.py'
         local=self.root/(self.label+'-dump_trace_udp.py');local.write_bytes(reader.read_bytes());url=self.stage(local)
         ready=self.label+'-ready';ready_url=c['transfer_url'].rstrip('/')+'/'+ready
         timeout=max(1200,180+(size+4_000_000-1)//4_000_000)

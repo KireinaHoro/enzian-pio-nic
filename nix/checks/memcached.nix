@@ -1,9 +1,19 @@
 { pkgs, source, appSource, upstreamSource }:
 let
+  testSource = pkgs.lib.fileset.toSource {
+    root = source;
+    fileset = pkgs.lib.fileset.unions [
+      (source + "/sw/include")
+      (source + "/tools/progress/capacity.py")
+      (source + "/tools/memcached")
+      (pkgs.lib.fileset.fileFilter (f: f.hasExt "py") (source + "/tools/enzian"))
+      (pkgs.lib.fileset.fileFilter (f: f.hasExt "py") (source + "/tools/trace"))
+    ];
+  };
   mockRuntime = pkgs.stdenv.mkDerivation {
     pname = "lauberhorn-memcached-test-transport";
     version = "1";
-    src = source;
+    src = testSource;
     nativeBuildInputs = [ pkgs.pkg-config ];
     propagatedBuildInputs = [ pkgs.libtirpc ];
     buildPhase = ''
@@ -38,10 +48,10 @@ let
 in
 pkgs.runCommand "memcached-adapter-compatibility" { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.numpy ps.scipy ps.matplotlib ])) ]; } ''
   mkdir -p $out
-  python3 ${source}/tools/memcached/test_measurements.py
-  python3 ${source}/tools/memcached/test_breakdown.py
-  python3 ${source}/tools/memcached/test_switching_trace.py
-  python3 ${source}/tools/memcached/test_cohort.py --upstream ${upstream}/bin/memcached
-  python3 ${source}/tools/memcached/check_adapter.py \
+  python3 ${testSource}/tools/memcached/test_measurements.py
+  python3 ${testSource}/tools/memcached/test_breakdown.py
+  python3 ${testSource}/tools/memcached/test_switching_trace.py
+  python3 ${testSource}/tools/memcached/test_cohort.py --upstream ${upstream}/bin/memcached
+  python3 ${testSource}/tools/memcached/check_adapter.py \
     --adapter ${adapter}/bin/memcached --upstream ${upstream}/bin/memcached --output $out
 ''

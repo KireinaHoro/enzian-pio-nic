@@ -178,7 +178,7 @@ echo calibration measured raw median RTTs of 2.080–2.140 µs and P99s of
 switch path. Gateway echo includes the gateway's software response. Neither
 calibration supplies a constant network cost to subtract from RPC results, and
 pcap replay supplies functional checks rather than physical latency evidence.
-The [calibration ledger](../../data/eci/board-evidence/dpdk-client-20261004.json)
+The [calibration ledger](../../../data/eci/board-evidence/dpdk-client-20261004.json)
 retains configurations, sample counts, hashes and distributions. Isolation and
 telemetry changed together, so the comparison does not isolate either effect.
 

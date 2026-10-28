@@ -15,7 +15,7 @@ from scipy.optimize import linprog
 import dandelion_waterfall as sw
 
 ROOT=Path(__file__).resolve().parents[2]
-spec=importlib.util.spec_from_file_location('latency',ROOT/'data/eci/apps/plot_latency.py')
+spec=importlib.util.spec_from_file_location('latency',ROOT/'tools/trace/eci/apps/plot_latency.py')
 lh=importlib.util.module_from_spec(spec);spec.loader.exec_module(lh)
 
 def clock_fit(bounds):
