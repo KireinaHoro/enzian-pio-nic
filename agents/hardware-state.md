@@ -29,6 +29,18 @@ LUTAR-1 (PHY PLL reset logic). AMD PG150 documents the nominal Vref/initial
 POD reference distinction; the warning alone does not establish a voltage bug.
 All 45,013 MIG primitives with an SLR assignment are in SLR2 (1,441 have none).
 These results do not establish external DQS signal integrity or calibration.
+Direct comparison with hot-breakdown pipeline 519555 (`0e58f058`) is preserved in
+`out/mig-compare-519555-99fb-20261027/`: MIG parameters/custom DIMM identical;
+all 147 F_D4 port records (pins/electrical properties) identical; I/O, BITSLICE,
+PLL/MMCM and Vref primitive sites unchanged. 44,773 shared fabric-cell LOCs
+changed, still within SLR2. Bank70 Vref warning occurs in both checkpoints.
+Crucially, the October 21 zuestoll07 failure capture with 519555 already logged
+Calibration Failed and writeSlot=19: `out/hot-full-20261021/stages/
+a7f44c1dc8aae63fe0fc/attempt-1/echo-58e3c9b3-4b49cc684019-9010e3992b25b811-failure-dump/`.
+The calibration fault therefore predates the recent trace move. Do not equate
+successful CPU/Tofino hot breakdowns with verified FPGA DDR capture; an earlier
+successful same-board FPGA capture has not yet been located in inspected records.
+
 
 
 The preceding exact `99fb5fed` memcached TCP test passed with peer zuestoll14,
