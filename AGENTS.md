@@ -81,9 +81,10 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   work. This applies to sibling repositories as well; use each repository's
   own `out/` directory.
 
-- Keep work organized in coherent, goal-focused commits. Simple single-commit
-  changes may be committed directly on this worktree's `master`. Use separate
-  branches for larger goals and independent experiments; when complete, merge
+- Keep work organized in coherent, goal-focused commits. For small fixes, work
+  directly on `master` in this platform checkout. For bigger changes and
+  independent experiments, create a separate branch and worktree under this
+  checkout's `out/` directory, for example `out/worktrees/<goal>`; when complete, merge
   into `master` and push to the private GitLab remote. Remove agent-created local
   and private-remote branches once merged and all CI jobs using their refs have finished; preserve unmerged experiments and
   branches belonging to others. Do not accumulate completed work as uncommitted changes or
