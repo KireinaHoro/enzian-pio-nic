@@ -5,6 +5,26 @@ publication procedures. No build, image publication or hardware job is pending
 merely because a historical result is recorded here. Check actual pipeline state
 before acting; [timing optimization remains paused](physical-implementation.md).
 
+## Data repository and master history migration
+
+Measurement files are imported in sibling `../data` commit
+`6dcc622195bab9ce15c058dcc4869b35758d09f0`; its `migration.json` and
+`platform-commit-map.tsv` preserve hashes and platform provenance. Only platform
+master is rewritten. Existing feature branches and tags retain their original
+history pending the maintainer's branch scrub; replay their unique changes
+before merging, following the [workflow](../docs/development/workflow.md#nix-source-and-client-closure-hygiene).
+The pre-migration master is `8bf844fa2fbdde162cae94d1d62b04f144241b86`.
+Recovery files remain at `out/platform-before-data-migration.bundle` and
+`out/data-migration/original-lfs-objects`; preserve them until the scrub and
+remote dataset verification are complete.
+
+Validation: 3,378 dataset files and 2,178 LFS objects matched their SHA-256
+inventory; 132 campaign tests, relocated trace tests, `workflow-tools` and
+`memcached-adapter` passed. Both active echo datasets rendered from the external
+checkout in `nix develop .#paper`; the unloaded CDF retained its 240.247-point
+width and embedded fonts. The filtered platform snapshot measured 64.4 MiB,
+and the memcached test source 747 KiB. RTL commit embedding is unchanged.
+
 ## Image and packaging evidence
 
 - The Nix image referenced by the original guide was published by

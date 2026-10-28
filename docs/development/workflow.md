@@ -85,6 +85,18 @@ Use `--no-link` for checks whose outputs need no persistent result link. Named
 `out/` build links are GC roots; remove them after their experiment and any CI
 consumers finish, preserving required evidence and deployment artifacts first.
 
+The data-history migration rewrites `master` only. Do not merge an old-history
+branch directly into rewritten master: that would make its archived data
+history reachable again. Replay the branch's unique work onto the new master
+with `git rebase --onto master OLD_BASE BRANCH` (or cherry-pick selected commits),
+where `OLD_BASE` is its merge base with pre-migration master
+`8bf844fa2fbdde162cae94d1d62b04f144241b86`. Use `--rebase-merges` when the branch's
+merge structure needs preserving. Resolve dataset changes into `../data` and
+tool changes into `tools/trace`; then validate before merging. The data
+repository's `platform-commit-map.tsv` maps original acquisition/source hashes
+to rewritten commits. Other refs continue retaining old data history until the
+branch scrub removes or migrates them.
+
 The DPDK generator selects benchmark build files and shared platform RPC/tracing
 sources explicitly; its client image selects four platform Python tools and the
 benchmark repository’s replay tool. Build `.#trafficGeneratorImage` on the build host and deploy
