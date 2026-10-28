@@ -509,9 +509,6 @@ isolation, resource budgets, artifact hashes and callback delivery passed fresh
 preflight. The preceding successful generator boot and switch clock qualification
 are retained as preparation evidence.
 
-Maintainer instruction: future pushes for this work must use `git push -o ci.skip`
-to avoid triggering CI.
-
 Loaded steps are LH 20k RPC/s for 8/128 B and 5k for 1432 B; DPDK/CS-A64 50k
 and 20k respectively. Each sweep stops after its first >1% loss point. Manifest
 settings freeze 128 warmups per unloaded capture, 10,000 measured requests per

@@ -81,6 +81,10 @@ priority; fully offloaded gRPC is a potential follow-on paper. See the
   work. This applies to sibling repositories as well; use each repository's
   own `out/` directory.
 
+- Push with `git push -o ci.skip` by default. Trigger CI only when explicitly
+  instructed, for example to launch a hardware build; omit `-o ci.skip` for
+  that push.
+
 - Keep work organized in coherent, goal-focused commits. For small fixes, work
   directly on `master` in this platform checkout. For bigger changes and
   independent experiments, create a separate branch and worktree under this
