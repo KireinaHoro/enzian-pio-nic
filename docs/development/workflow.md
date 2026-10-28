@@ -104,6 +104,11 @@ reads evidence from the filesystem. Only the two small capture regression
 fixtures under `hw/test/fixtures/` are retained as build inputs. Trace capture
 and decoding tools live under `tools/trace/`.
 
+Git LFS belongs to the data repository. Platform has no LFS tracking rules;
+remove its local LFS hooks with `git lfs uninstall --local`, preserving global
+filters and the data repository's hooks. GitHub publishes migrated `master`
+only; do not recreate the former `github-master` workaround branch.
+
 Use `--no-link` for checks whose outputs need no persistent result link. Named
 `out/` build links are GC roots; remove them after their experiment and any CI
 consumers finish, preserving required evidence and deployment artifacts first.

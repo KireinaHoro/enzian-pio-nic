@@ -14,6 +14,17 @@ master is rewritten. Existing feature branches and tags retain their original
 history pending the maintainer's branch scrub; replay their unique changes
 before merging, following the [workflow](../docs/development/workflow.md#nix-source-and-client-closure-hygiene).
 The pre-migration master is `8bf844fa2fbdde162cae94d1d62b04f144241b86`.
+GitHub now publishes only migrated `master`; `pio-paper-submission` points to
+its commit-map equivalent `31e26f94f0f9be3424b14a8da1d9ed48cf7c8c8e`. Local
+platform LFS hooks were uninstalled without changing project LFS settings. A
+fresh data-repository download of `eci/apps/adder-demo/2026-06-19/raw.bin.gz`
+matched SHA-256 `c6ffa8b6f643f937ae982f6e5043e2ebf4542c2f99e128060b0666f07c2bcc08`.
+Remote platform LFS storage has not been purged: GitHub requires support or
+repository recreation; GitLab retains old-history refs, and the available token
+lacks Project Read permissions. Automatic approval review rejected broad GitLab
+housekeeping; no cleanup job ran. Preserve data-repository object associations
+in any administrator-assisted platform LFS cleanup.
+
 Recovery files remain at `out/platform-before-data-migration.bundle` and
 `out/data-migration/original-lfs-objects`; preserve them until the scrub and
 remote dataset verification are complete.
